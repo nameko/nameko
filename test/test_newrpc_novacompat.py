@@ -1,19 +1,29 @@
 import eventlet
 eventlet.monkey_patch()
 
-from nova import context
-from nova import rpc
-from nova import flags
+import pytest
+try:
+    pytest.importorskip('nova')
+    from nova import context
+    from nova import flags
+    from nova import rpc
+    import nova.version
+except:
+    raise
 
 import newrpc
 from newrpc import memory
 memory.patch()
+
+essexonly = pytest.mark.skipif("'2012.1' <="
+        " nova.version.canonical_version_string() < '2012.2'")
 
 
 def setup_module(module):
     flags.FLAGS.fake_rabbit = True
 
 
+@essexonly
 def test_sending_rpc_call_to_nova(connection):
     class Proxy(object):
         def testmethod(self, context, foo):
@@ -43,6 +53,7 @@ def test_sending_rpc_call_to_nova(connection):
         novaconn.close()
 
 
+@essexonly
 def test_replying_to_nova_call(connection):
     with connection as conn:
         with conn.channel() as chan:
