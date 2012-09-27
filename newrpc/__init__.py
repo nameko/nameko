@@ -10,6 +10,8 @@ from newrpc.consuming import consumefrom
 UTC = iso8601.iso8601.UTC
 DURABLE_QUEUES = False
 DEFAULT_RPC_TIMEOUT = 10
+UTCNOW = lambda: datetime.datetime.now(iso8601.iso8601.UTC)
+UIDGEN = lambda: uuid.uuid4().hex
 
 
 class WaiterTimeout(Exception):
@@ -49,8 +51,8 @@ class Context(object):
         self.remote_address = remote_address
         if isinstance(timestamp, basestring):
             timestamp = iso8601.parse_date(timestamp)
-        self.timestamp = timestamp or datetime.datetime.now(UTC)
-        self.request_id = request_id or uuid.uuid4().hex
+        self.timestamp = timestamp or UTCNOW()
+        self.request_id = request_id or UIDGEN()
         self.auth_token = auth_token
         self.extra_kwargs = kwargs
 
@@ -93,7 +95,7 @@ def create_rpcpayload(context, method, args, msg_id=None):
     message = {'method': method, 'args': args, }
     message = add_context_to_payload(context, message)
     if msg_id is None:
-        msg_id = uuid.uuid4().hex
+        msg_id = UIDGEN()
     if msg_id is not False:
         message['_msg_id'] = msg_id
     return msg_id, message
@@ -147,7 +149,7 @@ def get_fanout_exchange(topic, channel=None):
 
 def get_fanout_queue(topic, channel=None, uidgen=None):
     exchange = get_fanout_exchange(topic, channel=channel)
-    unique = uidgen() if uidgen is not None else uuid.uuid4().hex
+    unique = uidgen() if uidgen is not None else UIDGEN()
     return Queue(name='{}_fanout_{}'.format(topic, unique),
             channel=channel,
             exchange=exchange,
