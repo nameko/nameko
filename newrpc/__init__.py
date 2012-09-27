@@ -55,13 +55,17 @@ class Context(object):
         self.extra_kwargs = kwargs
 
     def to_dict(self):
+        # TODO: convert to UTC if not?
+        timestamp = self.timestamp.isoformat()
+        timestamp = timestamp[:timestamp.index('+')]
         return {'user_id': self.user_id,
                 'is_admin': self.is_admin,
                 'roles': self.roles,
                 'remote_address': self.remote_address,
-                'timestamp': self.timestamp.isoformat(),
+                'timestamp': timestamp,
                 'request_id': self.request_id,
-                'auth_token': self.auth_token, }
+                'auth_token': self.auth_token,
+                'project_id': None, }
 
 
 def get_admin_context():
