@@ -6,8 +6,8 @@ eventlet.monkey_patch()
 
 from kombu import BrokerConnection
 
-import memory
 import newrpc
+from newrpc import memory
 
 memory.patch()
 
