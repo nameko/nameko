@@ -17,5 +17,7 @@ def consumefrom(conn, killdrainer=False):
     try:
         return gt.wait()
     finally:
-        if killdrainer and not _has_waiters(gt) and not gt.dead:
-            gt.kill()
+        if not _has_waiters(gt):
+            _conndrainers.pop(id_, None)
+            if killdrainer and not gt.dead:
+                gt.kill()

@@ -8,6 +8,7 @@ from kombu import BrokerConnection
 
 import newrpc
 from newrpc import memory
+from newrpc import consuming
 
 memory.patch()
 
@@ -33,6 +34,9 @@ def test_replying():
             msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
             assert msg.payload['result'] == 'success'
 
+    # check consumefrom has removed entry
+    assert not consuming._conndrainers
+
 
 def test_send_direct():
     with get_connection() as conn:
@@ -49,6 +53,9 @@ def test_send_direct():
             msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
             assert msg.payload == 'success'
 
+    # check consumefrom has removed entry
+    assert not consuming._conndrainers
+
 
 def test_send_topic():
     with get_connection() as conn:
@@ -64,6 +71,9 @@ def test_send_topic():
             msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
             assert msg.payload == 'success'
 
+    # check consumefrom has removed entry
+    assert not consuming._conndrainers
+
 
 def test_send_fanout():
     with get_connection() as conn:
@@ -77,6 +87,9 @@ def test_send_fanout():
                         data='success')
             msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
             assert msg.payload == 'success'
+
+    # check consumefrom has removed entry
+    assert not consuming._conndrainers
 
 
 def test_send_rpc():
@@ -107,3 +120,5 @@ def test_send_rpc():
             assert resp.payload['result'] == {'foo': 'bar', }
 
     assert not g
+    # check consumefrom has removed entry
+    assert not consuming._conndrainers
