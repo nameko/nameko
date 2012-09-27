@@ -15,6 +15,9 @@ memory.patch()
 import eventlet.debug
 eventlet.debug.hub_blocking_detection(True)
 
+ifirst = newrpc.ifirst
+first = newrpc.first
+
 
 def get_connection():
     conn = BrokerConnection(transport='memory')
@@ -31,7 +34,7 @@ def test_replying():
 
             with conn.channel() as chan2:
                 newrpc.reply(chan2, msgid, 'success')
-            msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
+            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload['result'] == 'success'
 
     # check consumefrom has removed entry
@@ -50,7 +53,7 @@ def test_send_direct():
                 newrpc.send_direct(channel=chan2,
                         directid=msgid,
                         data='success')
-            msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
+            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
     # check consumefrom has removed entry
@@ -68,7 +71,7 @@ def test_send_topic():
                         exchange='test_rpc',
                         topic='test',
                         data='success')
-            msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
+            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
     # check consumefrom has removed entry
@@ -85,7 +88,7 @@ def test_send_fanout():
                 newrpc.send_fanout(channel=chan2,
                         topic='test',
                         data='success')
-            msg = newrpc.queue_waiter(queue, no_ack=True, timeout=0.2)
+            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
     # check consumefrom has removed entry
@@ -98,8 +101,7 @@ def test_send_rpc():
             with conn.channel() as chan:
                 queue = newrpc.get_topic_queue('test_rpc', 'test', channel=chan)
                 queue.declare()
-                msg = newrpc.queue_waiter(queue, no_ack=True, timeout=2)
-                print 'got', msg
+                msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = newrpc.parse_message(msg.payload)
                 newrpc.reply(chan, msgid, args)
 

@@ -16,6 +16,27 @@ class WaiterTimeout(Exception):
     pass
 
 
+class RemoteError(Exception):
+    def __init__(self, exc_type=None, value=None, traceback=None):
+        self.exc_type = exc_type
+        self.value = value
+        self.traceback = traceback
+        message = 'Remote error: {} {}\n{}'.format(exc_type, value, traceback)
+        super(RemoteError, self).__init__(message)
+
+
+def ifirst(iter_):
+    for i in iter_:
+        return i
+
+
+def first(iter_):
+    ret = ifirst(iter_)
+    for i in iter_:
+        i.ack()
+    return ret
+
+
 class Context(object):
     def __init__(self, user_id, is_admin=None, roles=None,
             remote_address=None, timestamp=None,
@@ -182,12 +203,24 @@ def queue_waiter(queue, channel=None, no_ack=False, timeout=None):
     with eventlet.Timeout(timeout, exception=WaiterTimeout()):
         try:
             while True:
-                # TODO: yielding of results where ending != True
                 if buf:
-                    return buf.pop(0)
+                    yield buf.pop(0)
                 consumefrom(channel.connection.client)
         finally:
             queue.cancel(tag)
+
+
+def iter_rpcresponses(queue, channel=None, timeout=None, **kwargs):
+    qw = queue_waiter(queue, channel=channel, timeout=timeout, **kwargs)
+    for msg in qw:
+        data = msg.payload
+        if data['failure']:
+            raise RemoteError(**msg)
+        elif data.get('ending', False):
+            msg.ack()
+            return
+        else:
+            yield msg
 
 
 def send_rpc(context, channel, exchange, topic, method, args,
@@ -196,7 +229,7 @@ def send_rpc(context, channel, exchange, topic, method, args,
     queue = get_reply_queue(msgid, channel=channel)
     queue.declare()
     send_topic(channel, exchange, topic, payload)
-    return queue_waiter(queue, timeout=timeout)
+    return first(iter_rpcresponses(queue, timeout=timeout))
 
 
 def reply(channel, msg_id, replydata=None, failure=None, on_return=None):
@@ -208,7 +241,7 @@ def reply(channel, msg_id, replydata=None, failure=None, on_return=None):
     connection = None
     try:
         # TODO: implement results where ending != True (ie: iterator results)
-        msg = {'result': replydata, 'failure': failure, 'ending': True, }
+        msg = {'result': replydata, 'failure': failure, 'ending': False, }
         exchange = get_reply_exchange(msg_id)
         producer = Producer(channel,
                 exchange=exchange,
@@ -216,6 +249,8 @@ def reply(channel, msg_id, replydata=None, failure=None, on_return=None):
                 on_return=on_return,
                 **producer_kwargs)
         producer.declare()
+        producer.publish(msg, **publish_kwargs)
+        msg = {'result': None, 'failure': None, 'ending': True, }
         producer.publish(msg, **publish_kwargs)
     finally:
         if connection:
