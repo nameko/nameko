@@ -5,6 +5,8 @@ import eventlet
 import iso8601
 from kombu import Exchange, Producer, Queue
 
+from newrpc.consuming import consumefrom
+
 UTC = iso8601.iso8601.UTC
 DURABLE_QUEUES = False
 DEFAULT_RPC_TIMEOUT = 10
@@ -183,7 +185,7 @@ def queue_waiter(queue, channel=None, no_ack=False, timeout=None):
                 # TODO: yielding of results where ending != True
                 if buf:
                     return buf.pop(0)
-                channel.connection.client.drain_events()
+                consumefrom(channel.connection.client)
         finally:
             queue.cancel(tag)
 
