@@ -7,7 +7,6 @@ from kombu import Exchange, Producer, Queue
 
 from newrpc.consuming import consumefrom
 
-UTC = iso8601.iso8601.UTC
 DURABLE_QUEUES = False
 DEFAULT_RPC_TIMEOUT = 10
 UTCNOW = lambda: datetime.datetime.now(iso8601.iso8601.UTC)
