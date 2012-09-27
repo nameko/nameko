@@ -19,13 +19,8 @@ ifirst = newrpc.ifirst
 first = newrpc.first
 
 
-def get_connection():
-    conn = BrokerConnection(transport='memory')
-    return conn
-
-
-def test_replying():
-    with get_connection() as conn:
+def test_replying(connection):
+    with connection as conn:
         msgid = uuid.uuid4().hex
         with conn.channel() as chan:
             queue = newrpc.get_reply_queue(msgid=msgid,
@@ -41,8 +36,8 @@ def test_replying():
     assert not consuming._conndrainers
 
 
-def test_send_direct():
-    with get_connection() as conn:
+def test_send_direct(connection):
+    with connection as conn:
         msgid = uuid.uuid4().hex
         with conn.channel() as chan:
             queue = newrpc.get_reply_queue(msgid=msgid,
@@ -60,8 +55,8 @@ def test_send_direct():
     assert not consuming._conndrainers
 
 
-def test_send_topic():
-    with get_connection() as conn:
+def test_send_topic(connection):
+    with connection as conn:
         with conn.channel() as chan:
             queue = newrpc.get_topic_queue('test_rpc', 'test', channel=chan)
             queue.declare()
@@ -78,8 +73,8 @@ def test_send_topic():
     assert not consuming._conndrainers
 
 
-def test_send_fanout():
-    with get_connection() as conn:
+def test_send_fanout(connection):
+    with connection as conn:
         with conn.channel() as chan:
             queue = newrpc.get_fanout_queue('test', channel=chan)
             queue.declare()
@@ -95,7 +90,7 @@ def test_send_fanout():
     assert not consuming._conndrainers
 
 
-def test_send_rpc():
+def test_send_rpc(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
