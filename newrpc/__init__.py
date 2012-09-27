@@ -220,7 +220,7 @@ def iter_rpcresponses(queue, channel=None, timeout=None, **kwargs):
     for msg in qw:
         data = msg.payload
         if data['failure']:
-            raise RemoteError(**msg)
+            raise RemoteError(**data['failure'])
         elif data.get('ending', False):
             msg.ack()
             return
