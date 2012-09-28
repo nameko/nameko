@@ -15,8 +15,8 @@ import newrpc
 from newrpc import memory
 memory.patch()
 
-essexonly = pytest.mark.skipif("'2012.1' <="
-        " nova.version.canonical_version_string() < '2012.2'")
+essexonly = pytest.mark.skipif("'2012.1' >"
+        " nova.version.canonical_version_string() >= '2012.2'")
 
 
 def setup_module(module):
