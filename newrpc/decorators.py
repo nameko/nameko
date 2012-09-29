@@ -9,7 +9,8 @@ def autoretry(func):
     """A decorator for connection.autoretry. """
     @functools.wraps(func)
     def wrapped(connection, *args, **kwargs):
-        return connection.autoretry(func)(*args, **kwargs)
+        channel = kwargs.pop('channel', None)
+        return connection.autoretry(func, channel=channel)(*args, **kwargs)
     return wrapped
 
 
