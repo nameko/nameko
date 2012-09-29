@@ -4,9 +4,12 @@ __all__ = ['ChannelHandler', ]
 
 
 class ChannelHandler(object):
-    def __init__(self, connection, create_channel=True):
+    def __init__(self, connection, channel=None, create_channel=True):
         self.connection = connection
-        self.channel = connection.channel() if create_channel else None
+        if channel is None and create_channel:
+            self.channel = connection.channel()
+        else:
+            channel = channel
 
     def close(self):
         if self.channel is not None:
