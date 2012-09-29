@@ -1,9 +1,26 @@
 from kombu import Producer
 
+from newrpc import consuming
 from newrpc import entities
+from newrpc import responses
 from newrpc.channelhandler import ChannelHandler
+from newrpc.common import UIDGEN
+from newrpc.context import add_context_to_payload
+from newrpc.decorators import ensure
 
-__all__ = ['send_direct', 'send_topic', 'send_fanout', ]
+__all__ = ['send_direct', 'send_topic', 'send_fanout', 'send_rpc', ]
+
+DEFAULT_RPC_TIMEOUT = 10
+
+
+def create_rpcpayload(context, method, args, msg_id=None):
+    message = {'method': method, 'args': args, }
+    message = add_context_to_payload(context, message)
+    if msg_id is None:
+        msg_id = UIDGEN()
+    if msg_id is not False:
+        message['_msg_id'] = msg_id
+    return msg_id, message
 
 
 def send_direct(connection, directid, data):
@@ -31,3 +48,16 @@ def send_fanout(connection, topic, data):
                 exchange=exchange,
                 routing_key=topic)
         ch.ensure(producer.publish)(data, declare=[exchange])
+
+
+@ensure
+def send_rpc(connection, context, exchange, topic, method, args,
+        timeout=DEFAULT_RPC_TIMEOUT):
+    msgid, payload = create_rpcpayload(context, method, args)
+    with connection.channel() as channel:
+        queue = entities.get_reply_queue(msgid, channel=channel)
+        queue.declare()
+        send_topic(connection, exchange, topic, payload)
+        iter_ = consuming.queue_iterator(queue, timeout=timeout)
+        iter_ = responses.iter_rpcresponses(iter_)
+        return responses.last(iter_, ack_all=True)
