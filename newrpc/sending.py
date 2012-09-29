@@ -5,7 +5,6 @@ from newrpc import entities
 from newrpc import responses
 from newrpc.channelhandler import ChannelHandler
 from newrpc.common import UIDGEN
-from newrpc.context import add_context_to_payload
 from newrpc.decorators import ensure
 
 __all__ = ['send_direct', 'send_topic', 'send_fanout', 'send_rpc', ]
@@ -15,7 +14,7 @@ DEFAULT_RPC_TIMEOUT = 10
 
 def create_rpcpayload(context, method, args, msg_id=None):
     message = {'method': method, 'args': args, }
-    message = add_context_to_payload(context, message)
+    message = context.add_to_message(message)
     if msg_id is None:
         msg_id = UIDGEN()
     if msg_id is not False:

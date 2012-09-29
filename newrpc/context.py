@@ -36,6 +36,9 @@ class Context(object):
                 'auth_token': self.auth_token,
                 'project_id': None, }
 
+    def add_to_message(self, message):
+        return add_context_to_payload(self, message)
+
 
 def get_admin_context():
     return Context(user_id=None, is_admin=True)
