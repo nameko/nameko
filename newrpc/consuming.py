@@ -1,6 +1,8 @@
 import eventlet
 
-__all__ = ['consumefrom', ]
+from newrpc.exceptions import WaiterTimeout
+
+__all__ = ['consumefrom', 'queue_iterator', ]
 
 _conndrainers = {}
 
@@ -21,3 +23,33 @@ def consumefrom(conn, killdrainer=False):
             _conndrainers.pop(id_, None)
             if killdrainer and not gt.dead:
                 gt.kill()
+
+
+def queue_iterator(queue, channel=None, no_ack=False, timeout=None):
+    if queue.is_bound:
+        if channel is not None:
+            raise TypeError('channel specified when queue is bound')
+        channel = queue.channel
+    elif channel is not None:
+        queue.bind(channel)
+    else:
+        raise TypeError('channel can not be None for unbound queue')
+    channel = queue.channel
+    buf = []
+
+    def callback(message):
+        try:
+            message = channel.message_to_python(message)
+        except AttributeError:
+            pass
+        buf.append(message)
+
+    tag = queue.consume(callback=callback, no_ack=no_ack)
+    with eventlet.Timeout(timeout, exception=WaiterTimeout()):
+        try:
+            while True:
+                if buf:
+                    yield buf.pop(0)
+                consumefrom(channel.connection.client)
+        finally:
+            queue.cancel(tag)

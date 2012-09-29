@@ -31,7 +31,7 @@ def test_replying(connection):
             queue.declare()
 
             newrpc.reply(conn, msgid, 'success')
-            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(newrpc.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload['result'] == 'success'
 
     # check consumefrom has removed entry
@@ -49,7 +49,7 @@ def test_send_direct(connection):
             sending.send_direct(conn,
                     directid=msgid,
                     data='success')
-            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(newrpc.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
     # check consumefrom has removed entry
@@ -66,7 +66,7 @@ def test_send_topic(connection):
                     exchange='test_rpc',
                     topic='test',
                     data='success')
-            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(newrpc.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
     # check consumefrom has removed entry
@@ -82,7 +82,7 @@ def test_send_fanout(connection):
             sending.send_fanout(conn,
                     topic='test',
                     data='success')
-            msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(newrpc.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
     # check consumefrom has removed entry
@@ -95,7 +95,7 @@ def test_send_rpc(get_connection):
             with conn.channel() as chan:
                 queue = entities.get_topic_queue('test_rpc', 'test', channel=chan)
                 queue.declare()
-                msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=2))
+                msg = ifirst(newrpc.queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = context.parse_message(msg.payload)
                 newrpc.reply(conn, msgid, args)
 

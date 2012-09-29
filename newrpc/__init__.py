@@ -1,13 +1,12 @@
-import eventlet
 from kombu import Producer
 
 from newrpc import entities
 from newrpc import sending
 from newrpc.common import UIDGEN
 from newrpc.context import add_context_to_payload
-from newrpc.consuming import consumefrom
+from newrpc.consuming import queue_iterator
 from newrpc.decorators import ensure
-from newrpc.exceptions import WaiterTimeout, RemoteError
+from newrpc.exceptions import RemoteError
 
 DEFAULT_RPC_TIMEOUT = 10
 
@@ -49,38 +48,8 @@ def create_rpcpayload(context, method, args, msg_id=None):
     return msg_id, message
 
 
-def queue_waiter(queue, channel=None, no_ack=False, timeout=None):
-    if queue.is_bound:
-        if channel is not None:
-            raise TypeError('channel specified when queue is bound')
-        channel = queue.channel
-    elif channel is not None:
-        queue.bind(channel)
-    else:
-        raise TypeError('channel can not be None for unbound queue')
-    channel = queue.channel
-    buf = []
-
-    def callback(message):
-        try:
-            message = channel.message_to_python(message)
-        except AttributeError:
-            pass
-        buf.append(message)
-
-    tag = queue.consume(callback=callback, no_ack=no_ack)
-    with eventlet.Timeout(timeout, exception=WaiterTimeout()):
-        try:
-            while True:
-                if buf:
-                    yield buf.pop(0)
-                consumefrom(channel.connection.client)
-        finally:
-            queue.cancel(tag)
-
-
 def iter_rpcresponses(queue, channel=None, timeout=None, **kwargs):
-    qw = queue_waiter(queue, channel=channel, timeout=timeout, **kwargs)
+    qw = queue_iterator(queue, channel=channel, timeout=timeout, **kwargs)
     for msg in qw:
         data = msg.payload
         if data['failure']:
