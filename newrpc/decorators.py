@@ -1,0 +1,24 @@
+import functools
+
+from newrpc.channelhandler import ChannelHandler
+
+__all__ = ['autoretry', 'ensure', ]
+
+
+def autoretry(func):
+    """A decorator for connection.autoretry. """
+    @functools.wraps(func)
+    def wrapped(connection, *args, **kwargs):
+        return connection.autoretry(func)(*args, **kwargs)
+    return wrapped
+
+
+def ensure(func):
+    """wraps an entire function with ensure to use as a decorator. """
+    @functools.wraps(func)
+    def wrapped(connection, *args, **kwargs):
+        with ChannelHandler(connection, create_channel=False) as ch:
+            #return connection.ensure(ch, func, errback=None)(connection, *args, **kwargs)
+            return ch((revive, func), connection, *args, **kwargs)
+
+    return wrapped
