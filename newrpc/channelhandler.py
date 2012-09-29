@@ -9,7 +9,7 @@ class ChannelHandler(object):
         if channel is None and create_channel:
             self.channel = connection.channel()
         else:
-            channel = channel
+            self.channel = channel
 
     def close(self):
         if self.channel is not None:
@@ -30,7 +30,7 @@ class ChannelHandler(object):
     def __exit__(self, exc_typ, exc_val, exc_tb):
         self.close()
 
-    def ensure(func):
+    def ensure(self, func):
         if isinstance(func, types.MethodType):
             obj = func.im_self
         elif isinstance(func, tuple):
