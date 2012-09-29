@@ -1,15 +1,23 @@
 from newrpc import sending
 
-__all__ = ['call', ]
+__all__ = ['call', 'cast', 'fanout_cast', ]
 
 CONTROL_EXCHANGE = 'rpc'
 
 
-def call(connection, context, topic, msg, timeout=None, options=None):
+def _get_exchange(options):
     if options is not None:
-        exchange = options.get('CONTROL_EXCHANGE', CONTROL_EXCHANGE)
-    else:
-        exchange = CONTROL_EXCHANGE
+        return options.get('CONTROL_EXCHANGE', CONTROL_EXCHANGE)
+    return CONTROL_EXCHANGE
+
+
+def multicall(connection, context, topic, msg, timeout=None, options=None):
+    exchange = _get_exchange(options)
+    raise NotImplementedError()
+
+
+def call(connection, context, topic, msg, timeout=None, options=None):
+    exchange = _get_exchange(options)
     return sending.send_rpc(connection,
         context=context,
         exchange=exchange,
@@ -20,10 +28,7 @@ def call(connection, context, topic, msg, timeout=None, options=None):
 
 
 def cast(connection, context, topic, msg, options=None):
-    if options is not None:
-        exchange = options.get('CONTROL_EXCHANGE', CONTROL_EXCHANGE)
-    else:
-        exchange = CONTROL_EXCHANGE
+    exchange = _get_exchange(options)
     return sending.send_rpc(connection,
         context=context,
         exchange=exchange,
