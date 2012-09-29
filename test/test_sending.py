@@ -107,7 +107,7 @@ def test_send_rpc(get_connection):
                 args={'foo': 'bar', },
                 timeout=3)
         #resp.ack()
-        assert resp.payload['result'] == {'foo': 'bar', }
+        assert resp == {'foo': 'bar', }
 
     assert not g
     # check consumefrom has removed entry

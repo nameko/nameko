@@ -30,6 +30,8 @@ class Service(ConsumerMixin):
         self.queues = [entities.get_topic_queue(exchange, topic),
                        entities.get_topic_queue(exchange, node_topic),
                        entities.get_fanout_queue(topic), ]
+        self._channel = None
+        self._consumers = None
 
     def start(self):
         # self.connection = newrpc.create_connection()
@@ -39,6 +41,10 @@ class Service(ConsumerMixin):
 
     def get_consumers(self, Consumer, channel):
         return [Consumer(self.queues, callbacks=[self.on_message, ]), ]
+
+    def on_consume_ready(self, connection, channel, consumers, **kwargs):
+        self._consumers = consumers
+        self._channel = channel
 
     def on_message(self, body, message):
         # need a semaphore to stop killing between message ack()
@@ -61,8 +67,11 @@ class Service(ConsumerMixin):
         if self.greenlet is not None and not self.greenlet.dead:
             with self.messagesem:
                 self.greenlet.kill()
-        for c in self.connection.consumers:
-            c.cancel()
+        if self._consumers:
+            for c in self._consumers:
+                c.cancel()
+        if self._channel is not None:
+            self._channel.close()
 
     def link(self, *args, **kwargs):
         return self.greenlet.link(*args, **kwargs)
