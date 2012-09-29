@@ -31,3 +31,13 @@ def cast(connection, context, topic, msg, options=None):
         method=msg['method'],
         args=msg['args'],
         noreply=True)
+
+
+def fanout_cast(connection, context, topic, msg, options=None):
+    return sending.send_rpc(connection,
+        context=context,
+        exchange=None,
+        topic=topic,
+        method=msg['method'],
+        args=msg['args'],
+        fanout=True)
