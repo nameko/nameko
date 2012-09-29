@@ -9,6 +9,9 @@ from kombu import BrokerConnection
 import newrpc
 from newrpc import memory
 from newrpc import consuming
+from newrpc import context
+from newrpc import entities
+from newrpc import sending
 
 memory.patch()
 
@@ -23,12 +26,11 @@ def test_replying(connection):
     with connection as conn:
         msgid = uuid.uuid4().hex
         with conn.channel() as chan:
-            queue = newrpc.get_reply_queue(msgid=msgid,
+            queue = entities.get_reply_queue(msgid=msgid,
                     channel=chan)
             queue.declare()
 
-            with conn.channel() as chan2:
-                newrpc.reply(chan2, msgid, 'success')
+            newrpc.reply(conn, msgid, 'success')
             msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload['result'] == 'success'
 
@@ -40,14 +42,13 @@ def test_send_direct(connection):
     with connection as conn:
         msgid = uuid.uuid4().hex
         with conn.channel() as chan:
-            queue = newrpc.get_reply_queue(msgid=msgid,
+            queue = entities.get_reply_queue(msgid=msgid,
                     channel=chan)
             queue.declare()
 
-            with conn.channel() as chan2:
-                newrpc.send_direct(channel=chan2,
-                        directid=msgid,
-                        data='success')
+            sending.send_direct(conn,
+                    directid=msgid,
+                    data='success')
             msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
@@ -58,14 +59,13 @@ def test_send_direct(connection):
 def test_send_topic(connection):
     with connection as conn:
         with conn.channel() as chan:
-            queue = newrpc.get_topic_queue('test_rpc', 'test', channel=chan)
+            queue = entities.get_topic_queue('test_rpc', 'test', channel=chan)
             queue.declare()
 
-            with conn.channel() as chan2:
-                newrpc.send_topic(channel=chan2,
-                        exchange='test_rpc',
-                        topic='test',
-                        data='success')
+            sending.send_topic(conn,
+                    exchange='test_rpc',
+                    topic='test',
+                    data='success')
             msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
@@ -76,13 +76,12 @@ def test_send_topic(connection):
 def test_send_fanout(connection):
     with connection as conn:
         with conn.channel() as chan:
-            queue = newrpc.get_fanout_queue('test', channel=chan)
+            queue = entities.get_fanout_queue('test', channel=chan)
             queue.declare()
 
-            with conn.channel() as chan2:
-                newrpc.send_fanout(channel=chan2,
-                        topic='test',
-                        data='success')
+            sending.send_fanout(conn,
+                    topic='test',
+                    data='success')
             msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
@@ -94,26 +93,26 @@ def test_send_rpc(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
-                queue = newrpc.get_topic_queue('test_rpc', 'test', channel=chan)
+                queue = entities.get_topic_queue('test_rpc', 'test', channel=chan)
                 queue.declare()
                 msg = ifirst(newrpc.queue_waiter(queue, no_ack=True, timeout=2))
-                msgid, ctx, method, args = newrpc.parse_message(msg.payload)
-                newrpc.reply(chan, msgid, args)
+                msgid, ctx, method, args = context.parse_message(msg.payload)
+                newrpc.reply(conn, msgid, args)
 
     g = eventlet.spawn_n(response_greenthread)
     eventlet.sleep(0)
 
     with get_connection() as conn:
         with conn.channel() as chan:
-            context = newrpc.get_admin_context()
-            resp = newrpc.send_rpc(context,
-                    channel=chan,
+            ctx = context.get_admin_context()
+            resp = newrpc.send_rpc(conn,
+                    context=ctx,
                     exchange='test_rpc',
                     topic='test',
                     method='test_method',
                     args={'foo': 'bar', },
                     timeout=3)
-            resp.ack()
+            #resp.ack()
             assert resp.payload['result'] == {'foo': 'bar', }
 
     assert not g
