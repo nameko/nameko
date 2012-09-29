@@ -52,7 +52,8 @@ def send_fanout(connection, topic, data):
 @ensure
 def send_rpc(connection, context, exchange, topic, method, args,
         timeout=DEFAULT_RPC_TIMEOUT, noreply=False, fanout=False):
-    msgid, payload = create_rpcpayload(context, method, args)
+    msgid, payload = create_rpcpayload(context, method, args,
+        msg_id=(False if noreply or fanout else None))
     if fanout:
         send_fanout(connection, topic, payload)
         return
