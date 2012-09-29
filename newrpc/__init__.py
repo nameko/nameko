@@ -1,23 +1,33 @@
+import sys
+import traceback
+
 from newrpc import context
+from newrpc import exceptions
 from newrpc import sending
 
+__all__ = ['process_message', ]
 
-def delegate_apply(delegate, body):
-    msgid, ctx, method, args = context.parse_message(body)
+
+def delegate_apply(delegate, context, method, args):
     try:
         func = getattr(delegate, method)
     except AttributeError:
-        raise NotImplementedError()
-    try:
-        ret = func(context=ctx, **args)
-    except Exception:
-        raise NotImplementedError()
-    return msgid, ret
+        raise exceptions.MethodNotFound(method)
+    return func(context=context, **args)
 
 
-def delegate_applyreply(connection, delegate, body, reraise=False):
+def process_message(connection, delegate, body, reraise=False):
+    msgid, ctx, method, args = context.parse_message(body)
     try:
-        msgid, ret = delegate_apply(delegate, body)
+        ret = delegate_apply(delegate, ctx, method, args)
     except Exception:
-        raise NotImplementedError()
-    return sending.reply(connection, msgid, replydata=ret)
+        exc_typ, exc_val, exc_tb = sys.exc_info()
+        if msgid:
+            tbfmt = traceback.format_tb(exc_tb)
+            ret = (exc_typ, exc_val, tbfmt)
+            sending.reply(connection, msgid, failure=ret)
+        if reraise:
+            raise exc_typ, exc_val, exc_tb
+    else:
+        if msgid:
+            sending.reply(connection, msgid, replydata=ret)

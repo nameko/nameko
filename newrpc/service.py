@@ -48,7 +48,7 @@ class Service(ConsumerMixin):
             message.ack()
 
     def handle_request(self, body):
-        newrpc.delegate_applyreply(self.connection, self.controller, body)
+        newrpc.process_message(self.connection, self.controller, body)
 
     def wait(self):
         try:

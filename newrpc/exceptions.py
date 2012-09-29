@@ -1,3 +1,7 @@
+class MethodNotFound(AttributeError):
+    pass
+
+
 class WaiterTimeout(Exception):
     pass
 
