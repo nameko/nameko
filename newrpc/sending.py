@@ -9,8 +9,6 @@ from newrpc.decorators import ensure
 
 __all__ = ['send_direct', 'send_topic', 'send_fanout', 'send_rpc', ]
 
-DEFAULT_RPC_TIMEOUT = 10
-
 
 def create_rpcpayload(context, method, args, msg_id=None):
     message = {'method': method, 'args': args, }
@@ -51,7 +49,7 @@ def send_fanout(connection, topic, data):
 
 @ensure
 def send_rpc(connection, context, exchange, topic, method, args,
-        timeout=DEFAULT_RPC_TIMEOUT, noreply=False, fanout=False):
+        timeout=None, noreply=False, fanout=False):
     msgid, payload = create_rpcpayload(context, method, args,
         msg_id=(False if noreply or fanout else None))
     if fanout:

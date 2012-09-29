@@ -3,6 +3,7 @@ from newrpc import sending
 __all__ = ['call', 'cast', 'fanout_cast', ]
 
 CONTROL_EXCHANGE = 'rpc'
+DEFAULT_RPC_TIMEOUT = 10
 
 
 def _get_exchange(options):
@@ -11,12 +12,14 @@ def _get_exchange(options):
     return CONTROL_EXCHANGE
 
 
-def multicall(connection, context, topic, msg, timeout=None, options=None):
+def multicall(connection, context, topic, msg,
+        timeout=DEFAULT_RPC_TIMEOUT, options=None):
     exchange = _get_exchange(options)
     raise NotImplementedError()
 
 
-def call(connection, context, topic, msg, timeout=None, options=None):
+def call(connection, context, topic, msg,
+        timeout=DEFAULT_RPC_TIMEOUT, options=None):
     exchange = _get_exchange(options)
     return sending.send_rpc(connection,
         context=context,
