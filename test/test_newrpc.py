@@ -1,7 +1,6 @@
 # TODO: close channels
 import uuid
 
-import newrpc
 from newrpc import memory
 from newrpc import consuming
 from newrpc import context
@@ -26,7 +25,7 @@ def test_replying(connection):
                     channel=chan)
             queue.declare()
 
-            newrpc.reply(conn, msgid, 'success')
+            sending.reply(conn, msgid, 'success')
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload['result'] == 'success'
 
@@ -93,7 +92,7 @@ def test_send_rpc(get_connection):
                 queue.declare()
                 msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = context.parse_message(msg.payload)
-                newrpc.reply(conn, msgid, args)
+                sending.reply(conn, msgid, args)
 
     g = eventlet.spawn_n(response_greenthread)
     eventlet.sleep(0)
