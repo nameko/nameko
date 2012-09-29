@@ -1,16 +1,12 @@
 # TODO: close channels
 import uuid
 
-import eventlet
-eventlet.monkey_patch()
-
-from kombu import BrokerConnection
-
 import newrpc
 from newrpc import memory
 from newrpc import consuming
 from newrpc import context
 from newrpc import entities
+from newrpc import responses
 from newrpc import sending
 
 memory.patch()
@@ -18,8 +14,8 @@ memory.patch()
 import eventlet.debug
 eventlet.debug.hub_blocking_detection(True)
 
-ifirst = newrpc.ifirst
-first = newrpc.first
+ifirst = responses.ifirst
+first = responses.first
 
 
 def test_replying(connection):
@@ -103,17 +99,16 @@ def test_send_rpc(get_connection):
     eventlet.sleep(0)
 
     with get_connection() as conn:
-        with conn.channel() as chan:
-            ctx = context.get_admin_context()
-            resp = newrpc.send_rpc(conn,
-                    context=ctx,
-                    exchange='test_rpc',
-                    topic='test',
-                    method='test_method',
-                    args={'foo': 'bar', },
-                    timeout=3)
-            #resp.ack()
-            assert resp.payload['result'] == {'foo': 'bar', }
+        ctx = context.get_admin_context()
+        resp = newrpc.send_rpc(conn,
+                context=ctx,
+                exchange='test_rpc',
+                topic='test',
+                method='test_method',
+                args={'foo': 'bar', },
+                timeout=3)
+        #resp.ack()
+        assert resp.payload['result'] == {'foo': 'bar', }
 
     assert not g
     # check consumefrom has removed entry
