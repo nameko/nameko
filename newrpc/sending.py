@@ -51,8 +51,11 @@ def send_fanout(connection, topic, data):
 
 @ensure
 def send_rpc(connection, context, exchange, topic, method, args,
-        timeout=DEFAULT_RPC_TIMEOUT):
+        timeout=DEFAULT_RPC_TIMEOUT, noreply=False):
     msgid, payload = create_rpcpayload(context, method, args)
+    if noreply:
+        send_topic(connection, exchange, topic, payload)
+        return
     with connection.channel() as channel:
         queue = entities.get_reply_queue(msgid, channel=channel)
         queue.declare()
