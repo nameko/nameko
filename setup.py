@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 
 
 with open('requirements.txt', 'rb') as f:
@@ -13,7 +13,7 @@ setup(name='newrpc',
     author_email='rqjneqtrbetr@tznvy.pbz'.decode('rot13'),
     packages=['newrpc', ],
     install_requires=requirements,
-    test_requires=['pytest==2.2.4', 'mock==1.0b1', ],
+    test_requires=['pytest>=2.2.4', 'mock>=1.0b1', ],
     zip_safe=False,
     classifiers=[
         "Programming Language :: Python",
