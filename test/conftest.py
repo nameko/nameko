@@ -12,6 +12,19 @@ def get_connection():
     return conn
 
 
+def pytest_addoption(parser):
+    parser.addoption('--blocking-detection',
+        action='store_true',
+        dest='blocking_detection',
+        help='turn on eventlet hub blocking detection')
+
+
+def pytest_configure(config):
+    if config.option.blocking_detection:
+        from eventlet import debug
+        debug.hub_blocking_detection(True)
+
+
 def pytest_funcarg__get_connection(request):
     return get_connection
 
