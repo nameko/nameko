@@ -1,3 +1,12 @@
+""" Modifications to the memory transport in kombu, used to help in testing.
+
+Adds support for fanout exchanges and, with eventlet, faster messaging by
+removing the queue polling.
+
+installed with `memory.patch()`
+
+"""
+
 import eventlet
 from eventlet.event import Event
 from eventlet.green import Queue
