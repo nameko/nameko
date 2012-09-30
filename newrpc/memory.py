@@ -1,7 +1,5 @@
 import eventlet
 from eventlet.event import Event
-from eventlet.green import os
-from eventlet.green import select
 from eventlet.green import Queue
 from kombu.transport import memory as _memory
 
