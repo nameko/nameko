@@ -1,17 +1,14 @@
 # TODO: close channels
 import uuid
 
+import eventlet
+
 from newrpc import memory
 from newrpc import consuming
 from newrpc import context
 from newrpc import entities
 from newrpc import responses
 from newrpc import sending
-
-memory.patch()
-
-import eventlet.debug
-eventlet.debug.hub_blocking_detection(True)
 
 ifirst = responses.ifirst
 first = responses.first
