@@ -14,6 +14,7 @@ except:
 from newrpc import context
 from newrpc import consuming
 from newrpc import entities
+from newrpc import exceptions
 from newrpc import responses
 from newrpc import sending
 from newrpc import service
@@ -48,6 +49,33 @@ def test_sending_rpc_call_to_nova(connection):
                     args={'foo': 'bar', },
                     timeout=2)
             assert resp == {'foo': 'bar', }
+    finally:
+        gt.kill()
+        novaconn.close()
+
+
+@essexonly
+def test_raising_from_error_in_nova(connection):
+    class Proxy(object):
+        def testmethod(self, context, **kwargs):
+            raise Exception('foo')
+
+    novaconn = rpc.create_connection()
+    novaconn.create_consumer('test', Proxy())
+
+    gt = eventlet.spawn(novaconn.consume)
+    try:
+        eventlet.sleep(0)
+
+        with connection as newconn:
+            with pytest.raises(exceptions.RemoteError):
+                sending.send_rpc(newconn,
+                        context.get_admin_context(),
+                        exchange=flags.FLAGS.control_exchange,
+                        topic='test',
+                        method='testmethod',
+                        args={},
+                        timeout=2)
     finally:
         gt.kill()
         novaconn.close()

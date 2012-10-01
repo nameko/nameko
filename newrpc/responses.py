@@ -35,6 +35,7 @@ def iter_rpcresponses(iter_):
     for msg in iter_:
         data = msg.payload
         if data['failure']:
+            msg.ack()
             raise RemoteError(*data['failure'])
         elif data.get('ending', False):
             msg.ack()
