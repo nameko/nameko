@@ -17,6 +17,7 @@ from newrpc import consuming
 from newrpc import entities
 from newrpc import responses
 from newrpc import sending
+from newrpc import service
 
 essexonly = pytest.mark.skipif("'2012.1' >"
         " novaversion.canonical_version_string() >= '2012.2'")
@@ -76,3 +77,25 @@ def test_replying_to_nova_call(connection):
                          'args': {'foo': 'bar', }, },
                     timeout=2)
             assert res == ['testmethod', {'foo': 'bar'}]
+
+
+@essexonly
+def test_sending_from_nova_to_service(connection):
+    with connection as conn:
+        class Controller(object):
+            def test_method(self, context, **kwargs):
+                return kwargs
+
+        srvobj = service.Service(Controller, conn,
+                flags.FLAGS.control_exchange, 'test')
+        srvobj.start()
+        eventlet.sleep(0)
+        try:
+            res = rpc.call(novacontext.get_admin_context(),
+                    topic='test',
+                    msg={'method': 'test_method',
+                         'args': {'foo': 'bar', }, },
+                    timeout=2)
+            assert res == {'foo': 'bar'}
+        finally:
+            srvobj.kill()
