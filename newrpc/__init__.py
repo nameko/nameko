@@ -23,8 +23,8 @@ def process_message(connection, delegate, body, reraise=False):
     except Exception:
         exc_typ, exc_val, exc_tb = sys.exc_info()
         if msgid:
-            tbfmt = traceback.format_tb(exc_tb)
-            ret = (exc_typ, exc_val, tbfmt)
+            tbfmt = traceback.format_exception(exc_typ, exc_val, exc_tb)
+            ret = (exc_typ.__name__, str(exc_val), tbfmt)
             sending.reply(connection, msgid, failure=ret)
         if reraise:
             raise exc_typ, exc_val, exc_tb

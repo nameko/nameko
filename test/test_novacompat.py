@@ -1,12 +1,11 @@
 import eventlet
-eventlet.monkey_patch()
-
 import pytest
 try:
     pytest.importorskip('nova')
     from nova import context as novacontext
     from nova import flags
     from nova import rpc
+    from nova.rpc import common as novacommon
     from nova import version as novaversion
     novaversion   # pyflakes
 except:
@@ -97,5 +96,27 @@ def test_sending_from_nova_to_service(connection):
                          'args': {'foo': 'bar', }, },
                     timeout=2)
             assert res == {'foo': 'bar'}
+        finally:
+            srvobj.kill()
+
+
+
+@essexonly
+def test_raising_from_service_to_nova(connection):
+    with connection as conn:
+        class Controller(object):
+            def error_method(self, context, **kwargs):
+                raise Exception('foo')
+
+        srvobj = service.Service(Controller, conn,
+                flags.FLAGS.control_exchange, 'test')
+        srvobj.start()
+        eventlet.sleep(0)
+        try:
+            with pytest.raises(novacommon.RemoteError):
+                rpc.call(novacontext.get_admin_context(),
+                        topic='test',
+                        msg={'method': 'error_method', 'args': {}, },
+                        timeout=2)
         finally:
             srvobj.kill()
