@@ -65,8 +65,10 @@ class Service(ConsumerMixin):
 
     def kill(self):
         if self.greenlet is not None and not self.greenlet.dead:
-            with self.messagesem:
-                self.greenlet.kill()
+            self.should_stop = True
+            #with self.messagesem:
+                #self.greenlet.kill()
+            self.greenlet.wait()
         if self._consumers:
             for c in self._consumers:
                 c.cancel()
