@@ -1,5 +1,6 @@
 import eventlet
 from eventlet.greenpool import GreenPool
+from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 import greenlet
 from kombu.mixins import ConsumerMixin
@@ -25,6 +26,7 @@ class Service(ConsumerMixin):
         self.topic = topic
         self.greenlet = None
         self.messagesem = Semaphore()
+        self.consume_ready = Event()
 
         node_topic = "{}.{}".format(self.topic, self.nodeid)
         self.queues = [entities.get_topic_queue(exchange, topic),
@@ -45,6 +47,10 @@ class Service(ConsumerMixin):
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
         self._consumers = consumers
         self._channel = channel
+        self.consume_ready.send(None)
+
+    def on_consume_end(self, connection, channel):
+        self.consume_ready.reset()
 
     def on_message(self, body, message):
         # need a semaphore to stop killing between message ack()
