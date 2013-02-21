@@ -8,6 +8,8 @@ from kombu.mixins import ConsumerMixin
 import newrpc
 from newrpc import entities
 from newrpc.common import UIDGEN
+from newrpc.messaging import get_consumers, process_message
+from newrpc.dependencies import inject_dependencies
 
 
 class Service(ConsumerMixin):
@@ -23,17 +25,21 @@ class Service(ConsumerMixin):
 
         self.connection = connection
         self.controller = controllercls()
+        self.service = self.controller
         self.topic = topic
         self.greenlet = None
         self.messagesem = Semaphore()
         self.consume_ready = Event()
 
         node_topic = "{}.{}".format(self.topic, self.nodeid)
-        self.queues = [entities.get_topic_queue(exchange, topic),
+        self.nova_queues = [entities.get_topic_queue(exchange, topic),
                        entities.get_topic_queue(exchange, node_topic),
                        entities.get_fanout_queue(topic), ]
+
         self._channel = None
         self._consumers = None
+
+        inject_dependencies(self.controller, connection)
 
     def start(self):
         # self.connection = newrpc.create_connection()
@@ -42,7 +48,12 @@ class Service(ConsumerMixin):
         self.greenlet = eventlet.spawn(self.run)
 
     def get_consumers(self, Consumer, channel):
-        return [Consumer(self.queues, callbacks=[self.on_message, ]), ]
+        nova_consumer = Consumer(self.nova_queues, callbacks=[self.on_nova_message, ])
+
+        consume_consumers = get_consumers(Consumer, self.controller,
+                                                self.on_consume_message)
+
+        return [nova_consumer] + list(consume_consumers)
 
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
         self._consumers = consumers
@@ -52,12 +63,40 @@ class Service(ConsumerMixin):
     def on_consume_end(self, connection, channel):
         self.consume_ready.reset()
 
-    def on_message(self, body, message):
+    def on_nova_message(self, body, message):
         # need a semaphore to stop killing between message ack()
         # and spawning process.
+        # TODO: kill() does not use the semaphore
         with self.messagesem:
+            # TODO: spawning here only works because we ack the msg
+            # right away from within this thread.
+            # This will not work if we wan't to ack the msg from
+            # within the spawned thread as it would result in
+            # out of orer acks on the channel.
+            # Allthough it seems to work when using rabbit,
+            # it will fail using memory transports.
+            # A different appraoch would be to spawn of a new consumer,
+            # whenever an idle one is needed, giving it it's own channel.
             self.procpool.spawn(self.handle_request, body)
             message.ack()
+
+    def on_consume_message(self, consumer_config, consumer_method, body, message):
+        # need a semaphore to stop killing between message ack()
+        # and spawning process.
+        # TODO: kill() does not use the semaphore
+        with self.messagesem:
+            # TODO: spawning here only works because we ack the msg
+            # right away from within this thread.
+            # This will not work if we wan't to ack the msg from
+            # within the spawned thread as it would result in
+            # out of orer acks on the channel.
+            # Allthough it seems to work when using rabbit,
+            # it will fail using memory transports.
+            # A different appraoch would be to spawn of a new consumer,
+            # whenever an idle one is needed, giving it it's own channel.
+            self.procpool.spawn(process_message, consumer_config,
+                                consumer_method, body, message)
+            #message.ack()
 
     def handle_request(self, body):
         newrpc.process_message(self.connection, self.controller, body)
