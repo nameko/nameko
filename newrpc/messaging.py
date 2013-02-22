@@ -94,6 +94,3 @@ def process_message(consumer_config, consumer, body, message):
         if not message.acknowledged:
             message.ack()
 
-
-
-
