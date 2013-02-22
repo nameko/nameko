@@ -48,7 +48,8 @@ class Service(ConsumerMixin):
         self.greenlet = eventlet.spawn(self.run)
 
     def get_consumers(self, Consumer, channel):
-        nova_consumer = Consumer(self.nova_queues, callbacks=[self.on_nova_message, ])
+        nova_consumer = Consumer(self.nova_queues,
+                                    callbacks=[self.on_nova_message, ])
 
         consume_consumers = get_consumers(Consumer, self.controller,
                                                 self.on_consume_message)

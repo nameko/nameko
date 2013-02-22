@@ -1,3 +1,6 @@
+'''
+Provides core messaging decorators and dependency injection providers.
+'''
 from functools import partial
 from logging import getLogger
 from weakref import WeakKeyDictionary
@@ -9,22 +12,36 @@ from kombu.pools import producers
 
 log = getLogger(__name__)
 
+# stores the consumer configurations per method
 consumer_configs = WeakKeyDictionary()
 
 
-class ConsumerConfig(object):
-    def __init__(self, queue, include_raw_message):
-        self.queue = queue
-        self.include_raw_message = include_raw_message
-        self.prefetch_count = 1
-
-
 class Publisher(object):
+    '''
+    Provides a message publisher method via dependency injection.
+
+    Publishers usually publish messages to an exchange which dispatches
+    messages to bound queue.
+    To simplify this various use cases a Publisher either accepts
+    a bound queue or an exchange and will ensure both are declared before
+    a message is published.
+    '''
     def __init__(self, exchange=None, queue=None):
         self.exchange = exchange
         self.queue = queue
 
     def get_instance(self, connection):
+        '''
+        Provides a publish method to a container.
+
+        Args:
+            connection: A kombu.Connection object.
+
+        Returns:
+            A publish(msg) method.
+            The method, when called, will publish to the exchange defined
+            during the initialization of the Publisher object.
+        '''
         exchange = self.exchange
         queue = self.queue
 
@@ -46,6 +63,35 @@ class Publisher(object):
 
 
 def consume(queue, fn=None):
+    '''
+    Decorates a method as a message consumer.
+
+    Messaages from the queue will be deserialized depending on their content
+    type and passed to the the decorated method.
+    When the conumer method returns without raising any exceptions, the message
+    will automatically be acknowledged.
+    If any exceptions are raised during the consumtion, the message will be
+    requeued.
+
+    It is possible to manually acknowledge a message from within the consumer.
+    To achieve this, it needs to accept a second parameter, the raw message
+    object and call ack() or requeue() on it.
+
+    {code}
+
+        @consume(...)
+        def handle_message(self, body, message):
+
+            if not self.spam(body):
+                message.requeue()
+
+            self.shrub(body)
+    {code}
+
+
+    Args:
+        queue: The queue to consume from.
+    '''
     if fn is None:
         return partial(consume, queue)
 
@@ -56,16 +102,39 @@ def consume(queue, fn=None):
     return fn
 
 
-def get_consumers(Consumer, service, on_message):
+class ConsumerConfig(object):
+    '''
+    Stores information about a consumer-decorated method.
+    '''
+    def __init__(self, queue, include_raw_message):
+        self.queue = queue
+        self.include_raw_message = include_raw_message
+        self.prefetch_count = 1
 
+
+def get_consumers(Consumer, service, on_message):
+    '''
+    Generates consumers for the consume-decorated method on a service.
+
+    Args:
+        Consumer: The Consumer class to use for a consumer.
+
+        service: An object which may have consume-decorated methods.
+
+    Returns:
+        A generator with each item being a Consumer instance configured
+        using the ConsumerConfig defined by the consume decorator.
+    '''
     for name, consumer_method in inspect.getmembers(service, inspect.ismethod):
         try:
             consumer_config = consumer_configs[consumer_method.im_func]
 
             consumer = Consumer(
                             queues=[consumer_config.queue],
-                            callbacks=[partial(on_message, consumer_config, consumer_method)]
-                            )
+                            callbacks=[partial(on_message,
+                                                consumer_config,
+                                                consumer_method)]
+                        )
 
             consumer.qos(prefetch_count=consumer_config.prefetch_count)
 
@@ -75,6 +144,23 @@ def get_consumers(Consumer, service, on_message):
 
 
 def process_message(consumer_config, consumer, body, message):
+    '''
+    Processes a consumable message.
+
+    If the consumer returns without raising any exceptions, the message
+    will be acknowledged otherwise it will be requeued.
+
+    The consumer may accept just the body or the body and the raw message.
+    It may also ack() or requeue() the raw message manually, in which case
+    automatic acknowledgement/requeueing is disabled.
+
+    Args:
+        consumer_config: The configuration as defined by the consume decorator.
+        consumer: The consume-decorated method.
+
+        body: The body of the message.
+        message: The raw message.
+    '''
     try:
         if consumer_config.include_raw_message:
             consumer(body, message)
@@ -84,10 +170,11 @@ def process_message(consumer_config, consumer, body, message):
     except Exception as e:
         if message.acknowledged:
             log.error('failed to consume message, '
-                    'cannot requeue because message already acknowledged: %s(): %s',
-                    consumer, e)
+                'cannot requeue because message already acknowledged: %s(): %s',
+                consumer, e)
         else:
-            log.error('failed to consume message, requeueing message: %s(): %s',
+            log.error(
+                    'failed to consume message, requeueing message: %s(): %s',
                     consumer, e)
             message.requeue()
     else:
