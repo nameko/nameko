@@ -19,12 +19,12 @@ class ConsumerConfig(object):
         self.prefetch_count = 1
 
 
-class PublishDependency(object):
-    def __init__(self, exchange, queue):
+class Publisher(object):
+    def __init__(self, exchange=None, queue=None):
         self.exchange = exchange
         self.queue = queue
 
-    def get_dependency(self, connection):
+    def get_instance(self, connection):
         exchange = self.exchange
         queue = self.queue
 
@@ -43,10 +43,6 @@ class PublishDependency(object):
                 producer.publish(msg, exchange=exchange)
 
         return do_publish
-
-
-def publish(exchange=None, queue=None):
-    return PublishDependency(exchange, queue)
 
 
 def consume(queue, fn=None):

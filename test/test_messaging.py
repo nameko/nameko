@@ -1,14 +1,14 @@
 import eventlet
-import pytest
 
 from kombu import Exchange, Queue
 from kombu.common import maybe_declare
 
 from newrpc.dependencies import depends
-from newrpc.messaging import consume, publish
+from newrpc.messaging import consume, Publisher
 from newrpc.service import Service
 
 import conftest
+
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -17,13 +17,18 @@ foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 CONSUME_TIMEOUT = 5
 
 
-@depends(publish=publish(queue=foobar_queue))
+@depends(publish=Publisher(queue=foobar_queue))
 class QueueSpammer(object):
+
+    #publish = Publisher(queue=foobar_queue)
+    #spam = service('spam')
+
     def _publish(self, msg):
         self.publish(msg)
 
 
-@depends(publish=publish(exchange=foobar_ex))
+# we only publish to an exchange, which has no queue.
+@depends(publish=Publisher(exchange=foobar_ex))
 class ExchangeSpammer(QueueSpammer):
     pass
 
@@ -61,14 +66,6 @@ services = []
 
 
 def teardown_function(fn):
-    # We want to make sure queues get cleaned up.
-    # The services should create them as needed.
-    with conftest.get_connection() as conn:
-        with conn.channel() as channel:
-            queue = foobar_queue(channel)
-            maybe_declare(foobar_queue, channel)
-            queue.purge()
-
     # we really don't want any services running
     # because, they will consume messages from
     # current tests
@@ -77,10 +74,9 @@ def teardown_function(fn):
             s.kill()
         except:
             pass
-
     del services[:]
 
-    # We want to make sure queues get cleaned up.
+    # We want to make sure queues get removed.
     # The services should create them as needed.
     with conftest.get_connection() as conn:
         with conn.channel() as channel:

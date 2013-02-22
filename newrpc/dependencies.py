@@ -13,7 +13,8 @@ def depends(**kwargs):
 
 
 def inject_dependencies(service, connection):
-    #need to iterate over all class instances
+    # need to iterate over all class instances such that
+    # a sub class' dependency of the same name overwrites the base
     for cls in reversed(inspect.getmro(type(service))[:-1]):
         try:
             dependencies = class_dependencies[cls]
@@ -21,4 +22,4 @@ def inject_dependencies(service, connection):
             continue
 
         for name, dep in dependencies.items():
-            setattr(service, name, dep.get_dependency(connection))
+            setattr(service, name, dep.get_instance(connection))

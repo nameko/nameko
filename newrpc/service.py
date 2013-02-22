@@ -68,15 +68,11 @@ class Service(ConsumerMixin):
         # and spawning process.
         # TODO: kill() does not use the semaphore
         with self.messagesem:
-            # TODO: spawning here only works because we ack the msg
-            # right away from within this thread.
-            # This will not work if we wan't to ack the msg from
-            # within the spawned thread as it would result in
-            # out of orer acks on the channel.
-            # Allthough it seems to work when using rabbit,
-            # it will fail using memory transports.
-            # A different appraoch would be to spawn of a new consumer,
-            # whenever an idle one is needed, giving it it's own channel.
+            # TODO: if the procpool has been exhausted this will block.
+            # Why do we accept messages when we cannot handle them?
+            # Maybe we should spawn at a different time and only spawn if we have
+            # non-idle workers left. Thus, messages will be picked up only by
+            # workers which indeed can handle the message.
             self.procpool.spawn(self.handle_request, body)
             message.ack()
 
@@ -85,18 +81,14 @@ class Service(ConsumerMixin):
         # and spawning process.
         # TODO: kill() does not use the semaphore
         with self.messagesem:
-            # TODO: spawning here only works because we ack the msg
-            # right away from within this thread.
-            # This will not work if we wan't to ack the msg from
-            # within the spawned thread as it would result in
-            # out of orer acks on the channel.
-            # Allthough it seems to work when using rabbit,
-            # it will fail using memory transports.
-            # A different appraoch would be to spawn of a new consumer,
-            # whenever an idle one is needed, giving it it's own channel.
+            # TODO: Why does message ack work from the spawned thread?
+            # TODO: if the procpool has been exhausted this will block.
+            # Why do we accept messages when we cannot handle them?
+            # Maybe we should spawn at a different time and only spawn if we have
+            # non-idle workers left. Thus, messages will be picked up only by
+            # workers which indeed can handle the message.
             self.procpool.spawn(process_message, consumer_config,
                                 consumer_method, body, message)
-            #message.ack()
 
     def handle_request(self, body):
         newrpc.process_message(self.connection, self.controller, body)
