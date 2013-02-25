@@ -36,7 +36,6 @@ class Service(ConsumerMixin):
         self._consumers = None
 
     def start(self):
-        # self.connection = newrpc.create_connection()
         if self.greenlet is not None and not self.greenlet.dead:
             raise RuntimeError()
         self.greenlet = eventlet.spawn(self.run)
@@ -83,7 +82,3 @@ class Service(ConsumerMixin):
 
     def link(self, *args, **kwargs):
         return self.greenlet.link(*args, **kwargs)
-
-    def kill_processes(self):
-        for g in self.procpool.coroutines_running:
-            g.kill()

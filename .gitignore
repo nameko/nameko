@@ -1,0 +1,6 @@
+.codeintel
+.coverage
+.DS_Store
+*.pyc
+*.sublime-*
+_py_cache
