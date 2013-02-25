@@ -69,11 +69,12 @@ class Service(ConsumerMixin):
         # and spawning process.
         # TODO: kill() does not use the semaphore
         with self.messagesem:
-            # TODO: if the procpool has been exhausted this will block.
-            # Why do we accept messages when we cannot handle them?
-            # Maybe we should spawn at a different time and only spawn if we have
-            # non-idle workers left. Thus, messages will be picked up only by
-            # workers which indeed can handle the message.
+            # TODO: If the procpool has been exhausted this will block.
+            #       Why do we accept messages when we cannot handle them?
+            #       Maybe we should spawn at a different time and only
+            #       spawn if we have non-idle workers left.
+            #       Thus, messages will be picked up only by workers,
+            #       which indeed can handle the message.
             self.procpool.spawn(self.handle_request, body)
             message.ack()
 
@@ -82,12 +83,12 @@ class Service(ConsumerMixin):
         # and spawning process.
         # TODO: kill() does not use the semaphore
         with self.messagesem:
-            # TODO: Why does message ack work from the spawned thread?
-            # TODO: if the procpool has been exhausted this will block.
-            # Why do we accept messages when we cannot handle them?
-            # Maybe we should spawn at a different time and only spawn if we have
-            # non-idle workers left. Thus, messages will be picked up only by
-            # workers which indeed can handle the message.
+            # TODO: If the procpool has been exhausted this will block.
+            #       Why do we accept messages when we cannot handle them?
+            #       Maybe we should spawn at a different time and only
+            #       spawn if we have non-idle workers left.
+            #       Thus, messages will be picked up only by workers,
+            #       which indeed can handle the message.
             self.procpool.spawn(process_message, consumer_config,
                                 consumer_method, body, message)
 
