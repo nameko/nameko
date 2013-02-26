@@ -243,14 +243,14 @@ def test_service_dos(get_connection):
 
     foobar = Proxy(get_connection, timeout=10).test
     # lets call spam such that it will block until we tell it to continue
-    spam1 = eventlet.spawn(foobar.spam, do_wait=True)
+    spam_call_1 = eventlet.spawn(foobar.spam, do_wait=True)
     eventlet.sleep()
     spam_called.wait()
 
     # At this point we will have exhausted the pool-size and
     # s1 should not accept any more RPCs as it is busy processing spam().
     # Lets kick off a 2nd RPC anyways, which should just wait in the queue
-    spam2 = eventlet.spawn(foobar.spam, do_wait=False)
+    spam_call_2 = eventlet.spawn(foobar.spam, do_wait=False)
     eventlet.sleep()
 
     # lets fire up another service, which should take care of the 2nd call
@@ -258,17 +258,18 @@ def test_service_dos(get_connection):
                     connection=get_connection(),
                     exchange='testrpc', topic='test')
     s2.start()
+    s2.consume_ready.wait()
     eventlet.sleep()
 
     try:
         #TODO: somehow this hangns forever in case s1 blocks
         with eventlet.timeout.Timeout(5):
             #as soon as s2 is up and running, the 2nd call should get a reply
-            spam2.wait()
+            spam_call_2.wait()
 
             # we can let the first call continue now
             spam_continue.send(1)
-            spam1.wait()
+            spam_call_1.wait()
     except eventlet.timeout.Timeout as t:
         pytest.fail('waiting for 2nd server timed out: {}'.format(t))
     finally:
