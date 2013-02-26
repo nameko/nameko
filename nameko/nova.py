@@ -1,6 +1,4 @@
-from newrpc import sending
-
-__all__ = ['call', 'cast', 'fanout_cast', ]
+from nameko import sending
 
 CONTROL_EXCHANGE = 'rpc'
 DEFAULT_RPC_TIMEOUT = 10

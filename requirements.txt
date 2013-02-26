@@ -1,3 +1,3 @@
-eventlet==0.9.17
+eventlet==0.12.1
 iso8601==0.1.4
-kombu
+kombu==2.5.6

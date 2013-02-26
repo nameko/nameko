@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 from kombu import Connection
 
-from newrpc import memory
+from nameko import memory
 memory.patch()
 
 

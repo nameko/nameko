@@ -1,8 +1,6 @@
 import functools
 
-from newrpc.channelhandler import ChannelHandler
-
-__all__ = ['autoretry', 'ensure', ]
+from nameko.channelhandler import ChannelHandler
 
 
 def autoretry(func):

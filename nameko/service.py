@@ -5,11 +5,11 @@ from eventlet.semaphore import Semaphore
 import greenlet
 from kombu.mixins import ConsumerMixin
 
-import newrpc
-from newrpc import entities
-from newrpc.common import UIDGEN
-from newrpc.messaging import get_consumers, process_message
-from newrpc.dependencies import inject_dependencies
+import nameko
+from nameko import entities
+from nameko.common import UIDGEN
+from nameko.messaging import get_consumers, process_message
+from nameko.dependencies import inject_dependencies
 
 
 class Service(ConsumerMixin):
@@ -42,7 +42,6 @@ class Service(ConsumerMixin):
         inject_dependencies(self.controller, connection)
 
     def start(self):
-        # self.connection = newrpc.create_connection()
         if self.greenlet is not None and not self.greenlet.dead:
             raise RuntimeError()
         self.greenlet = eventlet.spawn(self.run)
@@ -93,7 +92,7 @@ class Service(ConsumerMixin):
                                 consumer_method, body, message)
 
     def handle_request(self, body):
-        newrpc.process_message(self.connection, self.controller, body)
+        nameko.process_message(self.connection, self.controller, body)
 
     def wait(self):
         try:
@@ -116,7 +115,3 @@ class Service(ConsumerMixin):
 
     def link(self, *args, **kwargs):
         return self.greenlet.link(*args, **kwargs)
-
-    def kill_processes(self):
-        for g in self.procpool.coroutines_running:
-            g.kill()

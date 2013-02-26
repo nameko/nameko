@@ -11,13 +11,13 @@ try:
 except:
     raise
 
-from newrpc import context
-from newrpc import consuming
-from newrpc import entities
-from newrpc import exceptions
-from newrpc import responses
-from newrpc import sending
-from newrpc import service
+from nameko import context
+from nameko import consuming
+from nameko import entities
+from nameko import exceptions
+from nameko import responses
+from nameko import sending
+from nameko import service
 
 essexonly = pytest.mark.skipif("'2012.1' >"
         " novaversion.canonical_version_string() >= '2012.2'")

@@ -1,13 +1,12 @@
 from kombu import Producer
 
-from newrpc import consuming
-from newrpc import entities
-from newrpc import responses
-from newrpc.channelhandler import ChannelHandler
-from newrpc.common import UIDGEN
-from newrpc.decorators import ensure
+from nameko import consuming
+from nameko import entities
+from nameko import responses
+from nameko.channelhandler import ChannelHandler
+from nameko.common import UIDGEN
+from nameko.decorators import ensure
 
-__all__ = ['send_direct', 'send_topic', 'send_fanout', 'send_rpc', ]
 
 
 def create_rpcpayload(context, method, args, msg_id=None):

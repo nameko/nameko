@@ -3,9 +3,9 @@ import eventlet
 from kombu import Exchange, Queue
 from kombu.common import maybe_declare
 
-from newrpc.dependencies import depends
-from newrpc.messaging import consume, Publisher
-from newrpc.service import Service
+from nameko.dependencies import depends
+from nameko.messaging import consume, Publisher
+from nameko.service import Service
 
 import conftest
 

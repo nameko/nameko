@@ -1,7 +1,4 @@
-from newrpc.exceptions import RemoteError
-
-
-__all__ = ['ifirst', 'first', 'last', 'iter_rpcresponses', ]
+from nameko.exceptions import RemoteError
 
 
 def ifirst(iter_, ack=False):
