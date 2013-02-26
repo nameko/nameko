@@ -139,6 +139,7 @@ def test_service_wait(get_connection):
     finally:
         srv.kill()
 
+
 def test_service_wait_consumer_dies(get_connection):
     srv = service.Service(object,
             connection=get_connection(),
