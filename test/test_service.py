@@ -3,38 +3,10 @@ from eventlet.greenpool import GreenPool
 import eventlet
 import pytest
 
-
-from newrpc import context
 from newrpc import exceptions
-from newrpc import sending
 from newrpc import service
 
-
-class Proxy(object):
-    def __init__(self, get_connection, timeout=1, service=None, method=None):
-        self.get_connection = get_connection
-        self.timeout = timeout
-        self.service = service
-        self.method = method
-
-    def __getattr__(self, key):
-        service = self.service
-
-        if service is None:
-            service = key
-            method = None
-        else:
-            method = key
-
-        return self.__class__(self.get_connection, self.timeout,
-                                service, method)
-
-    def __call__(self, **kwargs):
-        ctx = context.get_admin_context()
-        with self.get_connection() as conn:
-            return sending.send_rpc(conn, ctx,
-                'testrpc', self.service, self.method, args=kwargs,
-                timeout=self.timeout)
+from newrpc.testing import TestProxy
 
 
 def test_service(connection, get_connection):
@@ -48,7 +20,7 @@ def test_service(connection, get_connection):
     eventlet.sleep()
 
     try:
-        test = Proxy(get_connection, timeout=3).test
+        test = TestProxy(get_connection, timeout=3).test
         ret = test.test_method(foo='bar')
 
         assert ret == 'barspam'
@@ -69,7 +41,7 @@ def test_exceptions(connection, get_connection):
     eventlet.sleep(0)
 
     try:
-        test = Proxy(get_connection, timeout=3).test
+        test = TestProxy(get_connection, timeout=3).test
         with pytest.raises(exceptions.RemoteError):
             test.test_method()
 
@@ -111,7 +83,7 @@ def test_service_wait(get_connection):
 
     try:
         with eventlet.timeout.Timeout(5):
-            foobar = Proxy(get_connection, timeout=3).test
+            foobar = TestProxy(get_connection, timeout=3).test
             # lets make sure we actually have a worker currently
             # processing an RPC call
             rpc_call = eventlet.spawn(foobar.spam)
@@ -215,7 +187,7 @@ def test_service_custom_pool(get_connection):
     srv.start()
     eventlet.sleep()
 
-    foobar = Proxy(get_connection, timeout=3).test
+    foobar = TestProxy(get_connection, timeout=3).test
     foobar.spam()
 
     srv.kill()
@@ -241,7 +213,7 @@ def test_service_dos(get_connection):
     s1.start()
     eventlet.sleep()
 
-    foobar = Proxy(get_connection, timeout=10).test
+    foobar = TestProxy(get_connection, timeout=10).test
     # lets call spam such that it will block until we tell it to continue
     spam_call_1 = eventlet.spawn(foobar.spam, do_wait=True)
     eventlet.sleep()
