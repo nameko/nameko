@@ -8,9 +8,9 @@ with open('requirements.txt', 'rb') as f:
 setup(name='nameko',
     version='0.1-dev',
     description='service framework supporting multiple'
-                'messaging and RPC implementations'
+                'messaging and RPC implementations',
     author='',
-    author_email=''.decode('rot13'),
+    author_email='',
     packages=['nameko', ],
     install_requires=requirements,
     test_requires=['pytest>=2.2.4', 'mock>=1.0b1', ],
