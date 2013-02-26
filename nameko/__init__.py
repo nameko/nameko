@@ -1,11 +1,9 @@
 import sys
 import traceback
 
-from newrpc import context
-from newrpc import exceptions
-from newrpc import sending
-
-__all__ = ['process_message', ]
+from nameko import context
+from nameko import exceptions
+from nameko import sending
 
 
 def delegate_apply(delegate, context, method, args):

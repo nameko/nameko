@@ -1,8 +1,6 @@
 from kombu import Exchange, Queue
-from newrpc.common import UIDGEN
+from nameko.common import UIDGEN
 
-__all__ = ['get_reply_exchange', 'get_fanout_exchange', 'get_topic_exchange',
-    'get_reply_queue', 'get_fanout_queue', 'get_topic_queue', ]
 
 DURABLE_QUEUES = False
 

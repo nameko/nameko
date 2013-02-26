@@ -1,9 +1,6 @@
 import iso8601
 
-from newrpc.common import UTCNOW, UIDGEN
-
-__all__ = ['Context', 'get_admin_context', 'parse_message',
-    'add_context_to_payload', ]
+from nameko.common import UTCNOW, UIDGEN
 
 
 class Context(object):

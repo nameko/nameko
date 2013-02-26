@@ -1,8 +1,7 @@
 import eventlet
 
-from newrpc.exceptions import WaiterTimeout
+from nameko.exceptions import WaiterTimeout
 
-__all__ = ['consumefrom', 'queue_iterator', ]
 
 _conndrainers = {}
 

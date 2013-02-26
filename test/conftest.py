@@ -3,7 +3,7 @@ eventlet.monkey_patch()
 
 from kombu import BrokerConnection
 
-from newrpc import memory
+from nameko import memory
 memory.patch()
 
 

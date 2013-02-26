@@ -1,7 +1,5 @@
 import types
 
-__all__ = ['ChannelHandler', ]
-
 
 class ChannelHandler(object):
     def __init__(self, connection, channel=None, create_channel=True):
