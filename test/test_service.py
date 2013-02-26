@@ -136,7 +136,8 @@ def test_service_wait(get_connection):
 
     except eventlet.timeout.Timeout as t:
         pytest.fail('waiting for death of service timed out: {}'.format(t))
-
+    finally:
+        srv.kill()
 
 def test_service_wait_consumer_dies(get_connection):
     srv = service.Service(object,
@@ -216,4 +217,62 @@ def test_service_custom_pool(get_connection):
     foobar = Proxy(get_connection, timeout=3).test
     foobar.spam()
 
+    srv.kill()
     assert pool.count == 1
+
+
+@pytest.mark.skipif('True')
+def test_service_dos(get_connection):
+    #TODO: this test hangs forever, though it should fail
+    spam_continue = Event()
+    spam_called = Event()
+
+    class Foobar(object):
+        def spam(self, context, do_wait=True):
+            if do_wait:
+                spam_called.send(1)
+                spam_continue.wait()
+
+    s1 = service.Service(Foobar,
+                    connection=get_connection(),
+                    exchange='testrpc', topic='test',
+                    poolsize=1)
+    s1.start()
+    eventlet.sleep()
+
+    foobar = Proxy(get_connection, timeout=10).test
+    # lets call spam such that it will block until we tell it to continue
+    spam1 = eventlet.spawn(foobar.spam, do_wait=True)
+    eventlet.sleep()
+    spam_called.wait()
+
+    # At this point we will have exhausted the pool-size and
+    # s1 should not accept any more RPCs as it is busy processing spam().
+    # Lets kick off a 2nd RPC anyways, which should just wait in the queue
+    spam2 = eventlet.spawn(foobar.spam, do_wait=False)
+    eventlet.sleep()
+
+    # lets fire up another service, which should take care of the 2nd call
+    s2 = service.Service(Foobar,
+                    connection=get_connection(),
+                    exchange='testrpc', topic='test')
+    s2.start()
+    eventlet.sleep()
+
+    try:
+        #TODO: somehow this hangns forever in case s1 blocks
+        with eventlet.timeout.Timeout(5):
+            #as soon as s2 is up and running, the 2nd call should get a reply
+            spam2.wait()
+
+            # we can let the first call continue now
+            spam_continue.send(1)
+            spam1.wait()
+    except eventlet.timeout.Timeout as t:
+        pytest.fail('waiting for 2nd server timed out: {}'.format(t))
+    finally:
+        s1.kill()
+        s2.kill()
+
+
+
