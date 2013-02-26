@@ -5,13 +5,13 @@ with open('requirements.txt', 'rb') as f:
     requirements = [i.strip().replace('==', '>=') for i in f]
 
 
-setup(name='newrpc',
+setup(name='nameko',
     version='0.1-dev',
-    description='intended as an (almost) drop-in replacement for nova.rpc'
-        ' with no dependency on nova.',
+    description='service framework supporting multiple'
+                'messaging and RPC implementations'
     author='Edward George',
-    author_email='rqjneqtrbetr@tznvy.pbz'.decode('rot13'),
-    packages=['newrpc', ],
+    author_email=''.decode('rot13'),
+    packages=['nameko', ],
     install_requires=requirements,
     test_requires=['pytest>=2.2.4', 'mock>=1.0b1', ],
     zip_safe=False,

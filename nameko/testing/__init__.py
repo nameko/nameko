@@ -1,8 +1,6 @@
 
-from newrpc import context
-from newrpc import exceptions
-from newrpc import sending
-from newrpc import service
+from nameko import context
+from nameko import sending
 
 
 class TestProxy(object):

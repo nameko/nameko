@@ -3,10 +3,10 @@ from eventlet.greenpool import GreenPool
 import eventlet
 import pytest
 
-from newrpc import exceptions
-from newrpc import service
+from nameko import exceptions
+from nameko import service
 
-from newrpc.testing import TestProxy
+from nameko.testing import TestProxy
 
 
 def test_service(connection, get_connection):

@@ -5,9 +5,9 @@ from eventlet.semaphore import Semaphore
 import greenlet
 from kombu.mixins import ConsumerMixin
 
-import newrpc
-from newrpc import entities
-from newrpc.common import UIDGEN
+import nameko
+from nameko import entities
+from nameko.common import UIDGEN
 
 
 class Service(ConsumerMixin):
@@ -59,7 +59,7 @@ class Service(ConsumerMixin):
             message.ack()
 
     def handle_request(self, body):
-        newrpc.process_message(self.connection, self.controller, body)
+        nameko.process_message(self.connection, self.controller, body)
 
     def wait(self):
         try:
