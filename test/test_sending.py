@@ -3,13 +3,14 @@ import uuid
 
 import eventlet
 
-from newrpc import memory
-from newrpc import consuming
-from newrpc import context
-from newrpc import entities
-from newrpc import responses
-from newrpc import sending
+from nameko import memory
+from nameko import consuming
+from nameko import context
+from nameko import entities
+from nameko import responses
+from nameko import sending
 
+#TODO: why not import?
 ifirst = responses.ifirst
 first = responses.first
 

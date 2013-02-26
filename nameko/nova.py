@@ -1,4 +1,4 @@
-from newrpc import sending
+from nameko import sending
 
 CONTROL_EXCHANGE = 'rpc'
 DEFAULT_RPC_TIMEOUT = 10

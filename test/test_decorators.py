@@ -1,4 +1,4 @@
-from newrpc import decorators
+from nameko import decorators
 
 
 class _Tester(object):
