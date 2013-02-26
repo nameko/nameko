@@ -9,7 +9,7 @@ setup(name='nameko',
     version='0.1-dev',
     description='service framework supporting multiple'
                 'messaging and RPC implementations'
-    author='Edward George',
+    author='',
     author_email=''.decode('rot13'),
     packages=['nameko', ],
     install_requires=requirements,
