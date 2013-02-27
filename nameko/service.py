@@ -91,6 +91,12 @@ class Service(ConsumerMixin):
             self.procpool.spawn(process_message, consumer_config,
                                 consumer_method, body, message)
 
+            # TODO: not acking the message here means we can only ever
+            #       consume a single message per node at a given point in time.
+            #       This is due to the fact that we actaully only have
+            #       in this class on consumer connection/channel due to the way
+            #       spawning implemented.
+
     def handle_request(self, body):
         nameko.process_message(self.connection, self.controller, body)
 

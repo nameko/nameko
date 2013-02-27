@@ -49,6 +49,9 @@ class Publisher(object):
             exchange = queue.exchange
 
         def do_publish(msg):
+            # TODO: would it not be better to to use a single connection
+            #       per service, i.e. share it with consumers, etc?
+            #       How will this work properly with eventlet?
             with producers[connection].acquire(block=True) as producer:
                 channel = producer.channel
                 if queue is not None:
@@ -57,6 +60,8 @@ class Publisher(object):
                 elif exchange is not None:
                     maybe_declare(exchange, channel)
 
+                # TODO: should we enable auto-retry,
+                #       should that be an option in __init__?
                 producer.publish(msg, exchange=exchange)
 
         return do_publish
