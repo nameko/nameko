@@ -3,7 +3,6 @@ import eventlet
 from kombu import Exchange, Queue
 from kombu.common import maybe_declare
 
-from nameko.dependencies import depends
 from nameko.messaging import consume, Publisher
 from nameko.service import Service
 
@@ -17,20 +16,18 @@ foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 CONSUME_TIMEOUT = 5
 
 
-@depends(publish=Publisher(queue=foobar_queue))
 class QueueSpammer(object):
 
-    #publish = Publisher(queue=foobar_queue)
-    #spam = service('spam')
+    publish = Publisher(queue=foobar_queue)
 
     def _publish(self, msg):
         self.publish(msg)
 
 
-# we only publish to an exchange, which has no queue.
-@depends(publish=Publisher(exchange=foobar_ex))
 class ExchangeSpammer(QueueSpammer):
-    pass
+
+    # we only publish to an exchange, which has no queue.
+    publish = Publisher(exchange=foobar_ex)
 
 
 class Foobar(object):

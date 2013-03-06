@@ -9,6 +9,7 @@ import inspect
 from kombu.common import maybe_declare
 from kombu.pools import producers
 
+from nameko.dependencies import DependencyProvider
 
 log = getLogger(__name__)
 
@@ -16,7 +17,7 @@ log = getLogger(__name__)
 consumer_configs = WeakKeyDictionary()
 
 
-class Publisher(object):
+class Publisher(DependencyProvider):
     '''
     Provides a message publisher method via dependency injection.
 
@@ -25,7 +26,18 @@ class Publisher(object):
     To simplify this various use cases a Publisher either accepts
     a bound queue or an exchange and will ensure both are declared before
     a message is published.
+
+    Example::
+
+        class Foobar(object):
+
+            publish = Publisher(exchange=...)
+
+            def spam(self, data):
+                self.publish('spam:' + data)
+
     '''
+
     def __init__(self, exchange=None, queue=None):
         self.exchange = exchange
         self.queue = queue
@@ -82,7 +94,7 @@ def consume(queue, fn=None):
     To achieve this, it needs to accept a second parameter, the raw message
     object and call ack() or requeue() on it.
 
-    {code}
+    Example::
 
         @consume(...)
         def handle_message(self, body, message):
@@ -91,8 +103,6 @@ def consume(queue, fn=None):
                 message.requeue()
 
             self.shrub(body)
-    {code}
-
 
     Args:
         queue: The queue to consume from.

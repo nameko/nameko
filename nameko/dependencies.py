@@ -1,25 +1,28 @@
-from weakref import WeakKeyDictionary
+'''
+Provides classes and method to deal with dependency injection.
+
+Note:
+The API of this moduel is very unstable and serves only
+as a proof of concept.
+
+see: https://onefinestay.atlassian.net/browse/OFS-397
+'''
 import inspect
 
-class_dependencies = WeakKeyDictionary()
+
+class DependencyProvider(object):
+    pass
 
 
-def depends(**kwargs):
-    def decorator(cls):
-        class_dependencies[cls] = kwargs
-        return cls
+def is_dependency_provider(obj):
+    '''
+    Returns true if the obj is a DependencyProvider.
 
-    return decorator
+    This helper function can be used as a predicate for inspect.getmembers()
+    '''
+    return isinstance(obj, DependencyProvider)
 
 
 def inject_dependencies(service, connection):
-    # need to iterate over all class instances such that
-    # a sub class' dependency of the same name overwrites the base
-    for cls in reversed(inspect.getmro(type(service))[:-1]):
-        try:
-            dependencies = class_dependencies[cls]
-        except KeyError:
-            continue
-
-        for name, dep in dependencies.items():
-            setattr(service, name, dep.get_instance(connection))
+    for name, provider in inspect.getmembers(service, is_dependency_provider):
+        setattr(service, name, provider.get_instance(connection))
