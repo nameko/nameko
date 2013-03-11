@@ -13,31 +13,32 @@ from eventlet.green import Queue
 from kombu.transport import memory as _memory
 
 
+class Waiter(object):
+    def __init__(self, consumer, queue):
+        self.consumer = consumer
+        self.queue = queue
+
+    @property
+    def cancelled(self):
+        return self.consumer.cancelled
+
+    def switch(self, item):
+        if self.cancelled or self.consumer.event.ready():
+            self.queue.queue.appendleft(item)
+            self.queue._schedule_unlock()
+        else:
+            self.consumer.event.send((self.queue, item))
+
+    def kill(self, *exc_info):
+        if not self.cancelled and not self.consumer.event.ready():
+            self.consumer.event.send(exc=exc_info)
+
+
 class MultiQueueConsumer(object):
     def __init__(self, queues):
         self.cancelled = False
         self.event = Event()
         self.queues = queues
-
-    class Waiter(object):
-        def __init__(self, consumer, queue):
-            self.consumer = consumer
-            self.queue = queue
-
-        @property
-        def cancelled(self):
-            return self.consumer.cancelled
-
-        def switch(self, item):
-            if self.cancelled or self.consumer.event.ready():
-                self.queue.queue.appendleft(item)
-                self.queue._schedule_unlock()
-            else:
-                self.consumer.event.send((self.queue, item))
-
-        def kill(self, *exc_info):
-            if not self.cancelled and not self.consumer.event.ready():
-                self.consumer.event.send(exc=exc_info)
 
     def wait(self, timeout=None, return_queue=False):
         empty_queues = []
@@ -50,7 +51,7 @@ class MultiQueueConsumer(object):
             except Queue.Empty:
                 empty_queues.append(q)
         for q in empty_queues:
-            q.getters.add(self.Waiter(self, q))
+            q.getters.add(Waiter(self, q))
         self.cancelled = False
         try:
             with eventlet.Timeout(timeout, exception=Queue.Empty):

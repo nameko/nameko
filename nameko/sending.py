@@ -1,8 +1,14 @@
+import sys
+import traceback
+
 from kombu import Producer
 
 from nameko import consuming
+from nameko import context
 from nameko import entities
+from nameko import exceptions
 from nameko import responses
+
 from nameko.channelhandler import ChannelHandler
 from nameko.common import UIDGEN
 from nameko.decorators import ensure
@@ -75,3 +81,26 @@ def reply(connection, msg_id, replydata=None, failure=None, on_return=None):
     send_direct(connection, msg_id, msg)
     msg = {'result': None, 'failure': None, 'ending': True, }
     send_direct(connection, msg_id, msg)
+
+
+def _delegate_apply(delegate, context, method, args):
+    try:
+        func = getattr(delegate, method)
+    except AttributeError:
+        raise exceptions.MethodNotFound(method)
+    return func(context=context, **args)
+
+
+def process_rpc_message(connection, delegate, body):
+    msgid, ctx, method, args = context.parse_message(body)
+    try:
+        ret = _delegate_apply(delegate, ctx, method, args)
+    except Exception:
+        exc_typ, exc_val, exc_tb = sys.exc_info()
+        if msgid:
+            tbfmt = traceback.format_exception(exc_typ, exc_val, exc_tb)
+            ret = (exc_typ.__name__, str(exc_val), tbfmt)
+            reply(connection, msgid, failure=ret)
+    else:
+        if msgid:
+            reply(connection, msgid, replydata=ret)
