@@ -7,10 +7,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 from kombu import Connection
 
-from nameko import memory
-memory.patch()
-
-
 
 def get_connection():
     #conn = Connection('amqp://guest:guest@10.11.105.128:5672//platform')
@@ -40,5 +36,13 @@ def pytest_funcarg__connection(request):
     return get_connection()
 
 
+def pytest_runtest_setup(item):
+    # we cannot patch it on a module level,
+    # as it would skew coverage reports
+    from nameko import memory
+    memory.patch()
+
+
 def pytest_runtest_teardown(item, nextitem):
+    from nameko import memory
     memory._memory.Transport.state.clear()
