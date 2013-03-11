@@ -1,33 +1,22 @@
 from nameko.exceptions import RemoteError
 
 
-def ifirst(iter_, ack=False):
-    # TODO ack is always False
+def ifirst(iter_):
+    # TODO: this is rather confusing as it would return the same
+    #       for an empty iterable and one with the first item being None.
+    #       How would we know if it actually was the first item?
     for i in iter_:
-        if ack:
-            i.ack()
         return i
 
 
-def first(iter_, ack_all=False, ack_others=True):
-    # TODO: there is no user of this function
-    ret = ifirst(iter_, ack=ack_all)
-    for i in iter_:
-        if ack_others:
-            i.ack()
-    return ret
-
-
-def last(iter_, ack_all=False, ack_others=True):
-    # TODO: ack_others is always True
+def last(iter_):
     i = None
     prev = None
     for i in iter_:
-        if ack_others and prev is not None:
+        if prev is not None:
             prev.ack()
         prev = i
-    if ack_all:
-        i.ack()
+    i.ack()
     return i
 
 
@@ -42,3 +31,6 @@ def iter_rpcresponses(iter_):
             return
         else:
             yield msg
+    # TODO: This might work even if we never have a data['ending'] == True
+    #       and the sender closes it's connection prematurely,
+    #       using memory transport. It should not! Needs further investigation.

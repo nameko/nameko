@@ -1,7 +1,11 @@
+from logging import getLogger
+
 import eventlet
 
 from nameko.exceptions import WaiterTimeout
 
+
+log = getLogger(__name__)
 
 _conndrainers = {}
 
@@ -10,8 +14,7 @@ def _has_waiters(greenthread):
     return bool(greenthread._exit_event._waiters)
 
 
-def consumefrom(conn, killdrainer=False):
-    # TODO: killdrainers is never used by any caller
+def consumefrom(conn):
     id_ = id(conn)
     gt = _conndrainers.get(id_)
     if gt is None or gt.dead:
@@ -21,30 +24,24 @@ def consumefrom(conn, killdrainer=False):
     finally:
         if not _has_waiters(gt):
             _conndrainers.pop(id_, None)
-            if killdrainer and not gt.dead:
-                gt.kill()
 
 
-def queue_iterator(queue, channel=None, no_ack=False, timeout=None):
-    # TODO: this is never called with channel
-    if queue.is_bound:
-        if channel is not None:
-            raise TypeError('channel specified when queue is bound')
-        channel = queue.channel
-    elif channel is not None:
-        queue.bind(channel)
-    else:
-        raise TypeError('channel can not be None for unbound queue')
+def queue_iterator(queue, no_ack=False, timeout=None):
     channel = queue.channel
     buf = []
 
     def callback(message):
         try:
             message = channel.message_to_python(message)
-        except AttributeError:
-            # TODO: No tests come here, so when would this happen?
-            #        And, why can we just ignore it?
-            pass
+        except AttributeError as e:
+            # TODO: We should never have a channel without a
+            #       .message_to_python()
+            #       No tests come here, but we want to be safe
+            #       until we are 100% sure.
+            #       This also swallows errors during message deserialization.
+            #       So, which issue are we trying to ignore.
+            log.warn('Hidden Error, calling channel.message_to_python(): %s', e)
+
         buf.append(message)
 
     tag = queue.consume(callback=callback, no_ack=no_ack)

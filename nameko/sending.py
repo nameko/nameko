@@ -68,7 +68,7 @@ def send_rpc(connection, context, exchange, topic, method, args,
         send_topic(connection, exchange, topic, payload)
         iter_ = consuming.queue_iterator(queue, timeout=timeout)
         iter_ = responses.iter_rpcresponses(iter_)
-        ret = responses.last(iter_, ack_all=True)
+        ret = responses.last(iter_)
         if ret is not None:
             return ret.payload['result']
 

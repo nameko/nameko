@@ -12,6 +12,8 @@ from eventlet.event import Event
 from eventlet.green import Queue
 from kombu.transport import memory as _memory
 
+import eventlet.green
+
 
 class Waiter(object):
     def __init__(self, consumer, queue):
@@ -30,7 +32,6 @@ class Waiter(object):
             self.consumer.event.send((self.queue, item))
 
     def kill(self, *exc_info):
-        # TODO: Can't find where this method is ever used
         if not self.cancelled and not self.consumer.event.ready():
             self.consumer.event.send(exc=exc_info)
 
@@ -41,15 +42,11 @@ class MultiQueueConsumer(object):
         self.event = Event()
         self.queues = queues
 
-    def wait(self, timeout=None, return_queue=False):
-        # TODO: Can't find where return_queue is used other than being True
+    def wait(self, timeout=None):
         empty_queues = []
         for q in self.queues:
             try:
-                if return_queue:
-                    return q, q.get_nowait()
-                else:
-                    return q.get_nowait()
+                return q, q.get_nowait()
             except Queue.Empty:
                 empty_queues.append(q)
 
@@ -59,10 +56,7 @@ class MultiQueueConsumer(object):
         self.cancelled = False
         try:
             with eventlet.Timeout(timeout, exception=Queue.Empty):
-                if return_queue:
-                    return self.event.wait()
-                else:
-                    return self.event.wait()[1]
+                return self.event.wait()
         finally:
             self.cancelled = True
 
@@ -83,7 +77,7 @@ class Channel(_memory.Channel):
         queues = [(self._queue_for(q), q) for q in queues]
 
         consumer = MultiQueueConsumer([q[0] for q in queues])
-        queue, item = consumer.wait(timeout=timeout, return_queue=True)
+        queue, item = consumer.wait(timeout=timeout)
         return item, dict(queues)[queue]
 
 
