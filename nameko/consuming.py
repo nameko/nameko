@@ -11,6 +11,7 @@ def _has_waiters(greenthread):
 
 
 def consumefrom(conn, killdrainer=False):
+    # TODO: killdrainers is never used by any caller
     id_ = id(conn)
     gt = _conndrainers.get(id_)
     if gt is None or gt.dead:
@@ -25,6 +26,7 @@ def consumefrom(conn, killdrainer=False):
 
 
 def queue_iterator(queue, channel=None, no_ack=False, timeout=None):
+    # TODO: this is never called with channel
     if queue.is_bound:
         if channel is not None:
             raise TypeError('channel specified when queue is bound')
@@ -40,6 +42,8 @@ def queue_iterator(queue, channel=None, no_ack=False, timeout=None):
         try:
             message = channel.message_to_python(message)
         except AttributeError:
+            # TODO: No tests come here, so when would this happen?
+            #        And, why can we just ignore it?
             pass
         buf.append(message)
 

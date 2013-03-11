@@ -30,6 +30,7 @@ class Waiter(object):
             self.consumer.event.send((self.queue, item))
 
     def kill(self, *exc_info):
+        # TODO: Can't find where this method is ever used
         if not self.cancelled and not self.consumer.event.ready():
             self.consumer.event.send(exc=exc_info)
 
@@ -41,6 +42,7 @@ class MultiQueueConsumer(object):
         self.queues = queues
 
     def wait(self, timeout=None, return_queue=False):
+        # TODO: Can't find where return_queue is used other than being True
         empty_queues = []
         for q in self.queues:
             try:
@@ -50,8 +52,10 @@ class MultiQueueConsumer(object):
                     return q.get_nowait()
             except Queue.Empty:
                 empty_queues.append(q)
+
         for q in empty_queues:
             q.getters.add(Waiter(self, q))
+
         self.cancelled = False
         try:
             with eventlet.Timeout(timeout, exception=Queue.Empty):

@@ -4,16 +4,11 @@ import uuid
 import eventlet
 import pytest
 
-from nameko import memory
 from nameko import consuming
 from nameko import context
 from nameko import entities
-from nameko import responses
 from nameko import sending
-
-#TODO: why not import?
-ifirst = responses.ifirst
-first = responses.first
+from nameko.responses import ifirst
 
 
 def test_replying(connection):
