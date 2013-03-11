@@ -11,7 +11,6 @@ from nameko import memory
 memory.patch()
 
 
-
 def get_connection():
     #conn = Connection('amqp://guest:guest@10.11.105.128:5672//platform')
     conn = Connection(transport='memory')
@@ -27,6 +26,12 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+    # monkey patch an encoding attribute onto GreenPipe to
+    # satisfy a pytest assertion
+    import py
+    from eventlet.greenio import GreenPipe
+    GreenPipe.encoding = py.std.sys.stdout.encoding
+
     if config.option.blocking_detection:
         from eventlet import debug
         debug.hub_blocking_detection(True)
