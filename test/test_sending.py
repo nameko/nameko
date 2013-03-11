@@ -2,6 +2,7 @@
 import uuid
 
 import eventlet
+import pytest
 
 from nameko import memory
 from nameko import consuming
@@ -29,6 +30,11 @@ def test_replying(connection):
 
     # check consumefrom has removed entry
     assert not consuming._conndrainers
+
+
+def test_replying_no_support_for_on_return():
+    with pytest.raises(NotImplementedError):
+        sending.reply(None, None, on_return=lambda: None)
 
 
 def test_send_direct(connection):
@@ -66,6 +72,30 @@ def test_send_topic(connection):
     assert not consuming._conndrainers
 
 
+def test_send_topic_using_send_rpc(connection):
+    with connection as conn:
+        with conn.channel() as chan:
+            queue = entities.get_topic_queue('test_rpc', 'test', channel=chan)
+            queue.declare()
+            ctx = context.get_admin_context()
+            sending.send_rpc(conn,
+                    context=ctx,
+                    exchange='test_rpc',
+                    topic='test',
+                    method='test_method',
+                    args={'foo': 'bar', },
+                    timeout=3,
+                    noreply=True)
+
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            expected = {'args': {'foo': 'bar'}, 'method': 'test_method'}
+            ctx.add_to_message(expected)
+            assert msg.payload == expected
+
+    # check consumefrom has removed entry
+    assert not consuming._conndrainers
+
+
 def test_send_fanout(connection):
     with connection as conn:
         with conn.channel() as chan:
@@ -77,6 +107,30 @@ def test_send_fanout(connection):
                     data='success')
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
+
+    # check consumefrom has removed entry
+    assert not consuming._conndrainers
+
+
+def test_send_fanout_using_send_rpc(connection):
+    with connection as conn:
+        with conn.channel() as chan:
+            queue = entities.get_fanout_queue('test', channel=chan)
+            queue.declare()
+            ctx = context.get_admin_context()
+            sending.send_rpc(conn,
+                    context=ctx,
+                    exchange='test_rpc',
+                    topic='test',
+                    method='test_method',
+                    args={'foo': 'bar', },
+                    timeout=3,
+                    fanout=True)
+
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            expected = {'args': {'foo': 'bar'}, 'method': 'test_method'}
+            ctx.add_to_message(expected)
+            assert msg.payload == expected
 
     # check consumefrom has removed entry
     assert not consuming._conndrainers

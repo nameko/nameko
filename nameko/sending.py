@@ -8,7 +8,6 @@ from nameko.common import UIDGEN
 from nameko.decorators import ensure
 
 
-
 def create_rpcpayload(context, method, args, msg_id=None):
     message = {'method': method, 'args': args, }
     message = context.add_to_message(message)
