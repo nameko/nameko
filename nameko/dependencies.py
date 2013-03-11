@@ -2,7 +2,7 @@
 Provides classes and method to deal with dependency injection.
 
 Note:
-The API of this moduel is very unstable and serves only
+The API of this module is very unstable and serves only
 as a proof of concept.
 
 see: https://onefinestay.atlassian.net/browse/OFS-397
