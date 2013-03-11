@@ -1,14 +1,21 @@
 import eventlet
 eventlet.monkey_patch()
 
-from kombu import BrokerConnection
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
+from kombu import Connection
 
 from nameko import memory
 memory.patch()
 
 
+
 def get_connection():
-    conn = BrokerConnection(transport='memory')
+    #conn = Connection('amqp://guest:guest@10.11.105.128:5672//platform')
+    conn = Connection(transport='memory')
+
     return conn
 
 

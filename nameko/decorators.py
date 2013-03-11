@@ -1,3 +1,4 @@
+
 import functools
 
 from nameko.channelhandler import ChannelHandler
