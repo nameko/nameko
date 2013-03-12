@@ -12,7 +12,7 @@ def _get_exchange(options):
 
 def multicall(connection, context, topic, msg,
         timeout=DEFAULT_RPC_TIMEOUT, options=None):
-    exchange = _get_exchange(options)
+    _get_exchange(options)
     raise NotImplementedError()
 
 

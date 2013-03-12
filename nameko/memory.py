@@ -13,51 +13,55 @@ from eventlet.green import Queue
 from kombu.transport import memory as _memory
 
 
+class Waiter(object):
+    '''
+    Implements the interface of a greenthread.
+    It is used to interact with empty queues and the MultiQueueConsumer.
+    '''
+    def __init__(self, consumer, queue):
+        self.consumer = consumer
+        self.queue = queue
+
+    @property
+    def cancelled(self):
+        return self.consumer.cancelled
+
+    def switch(self, item):
+        if self.cancelled or self.consumer.event.ready():
+            self.queue.queue.appendleft(item)
+            self.queue._schedule_unlock()
+        else:
+            self.consumer.event.send((self.queue, item))
+
+    def kill(self, *exc_info):
+        '''Called by eventlet when threads get killed.
+            It assures that the MultiQueueConsumer receives the kills.
+        '''
+        if not self.cancelled and not self.consumer.event.ready():
+            self.consumer.event.send(exc=exc_info)
+
+
 class MultiQueueConsumer(object):
     def __init__(self, queues):
         self.cancelled = False
         self.event = Event()
         self.queues = queues
 
-    class Waiter(object):
-        def __init__(self, consumer, queue):
-            self.consumer = consumer
-            self.queue = queue
-
-        @property
-        def cancelled(self):
-            return self.consumer.cancelled
-
-        def switch(self, item):
-            if self.cancelled or self.consumer.event.ready():
-                self.queue.queue.appendleft(item)
-                self.queue._schedule_unlock()
-            else:
-                self.consumer.event.send((self.queue, item))
-
-        def kill(self, *exc_info):
-            if not self.cancelled and not self.consumer.event.ready():
-                self.consumer.event.send(exc=exc_info)
-
-    def wait(self, timeout=None, return_queue=False):
+    def wait(self, timeout=None):
         empty_queues = []
         for q in self.queues:
             try:
-                if return_queue:
-                    return q, q.get_nowait()
-                else:
-                    return q.get_nowait()
+                return q, q.get_nowait()
             except Queue.Empty:
                 empty_queues.append(q)
+
         for q in empty_queues:
-            q.getters.add(self.Waiter(self, q))
+            q.getters.add(Waiter(self, q))
+
         self.cancelled = False
         try:
             with eventlet.Timeout(timeout, exception=Queue.Empty):
-                if return_queue:
-                    return self.event.wait()
-                else:
-                    return self.event.wait()[1]
+                return self.event.wait()
         finally:
             self.cancelled = True
 
@@ -78,7 +82,7 @@ class Channel(_memory.Channel):
         queues = [(self._queue_for(q), q) for q in queues]
 
         consumer = MultiQueueConsumer([q[0] for q in queues])
-        queue, item = consumer.wait(timeout=timeout, return_queue=True)
+        queue, item = consumer.wait(timeout=timeout)
         return item, dict(queues)[queue]
 
 
