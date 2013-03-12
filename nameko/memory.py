@@ -12,10 +12,12 @@ from eventlet.event import Event
 from eventlet.green import Queue
 from kombu.transport import memory as _memory
 
-import eventlet.green
-
 
 class Waiter(object):
+    '''
+    Implements the interface of a greenthread.
+    It is used to interact with empty queues and the MultiQueueConsumer.
+    '''
     def __init__(self, consumer, queue):
         self.consumer = consumer
         self.queue = queue
@@ -32,6 +34,9 @@ class Waiter(object):
             self.consumer.event.send((self.queue, item))
 
     def kill(self, *exc_info):
+        '''Called by eventlet when threads get killed.
+            It assures that the MultiQueueConsumer receives the kills.
+        '''
         if not self.cancelled and not self.consumer.event.ready():
             self.consumer.event.send(exc=exc_info)
 
