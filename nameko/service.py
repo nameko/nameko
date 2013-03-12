@@ -3,13 +3,14 @@ from eventlet.greenpool import GreenPool
 from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 import greenlet
+
 from kombu.mixins import ConsumerMixin
 
-import nameko
 from nameko import entities
 from nameko.common import UIDGEN
 from nameko.messaging import get_consumers, process_message
 from nameko.dependencies import inject_dependencies
+from nameko.sending import process_rpc_message
 
 
 class Service(ConsumerMixin):
@@ -98,7 +99,7 @@ class Service(ConsumerMixin):
             #       spawning implemented.
 
     def handle_request(self, body):
-        nameko.process_message(self.connection, self.controller, body)
+        process_rpc_message(self.connection, self.controller, body)
 
     def wait(self):
         try:
