@@ -1,6 +1,6 @@
 # patched version of coverage, to deal with eventlet
-git+https://github.com/newbrough/coverage.git#egg=coverage-3.5.2pl1
 flake8==2.0
 mock==1.0.1
 pytest-cov==1.6
 pytest==2.3.4
+git+https://github.com/newbrough/coverage.git#egg=coverage-3.5.2pl1

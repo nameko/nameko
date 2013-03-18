@@ -32,8 +32,8 @@ def parse_requirments(fn, dependency_links):
             dep = dep.strip()
             # need to make test_requirements.txt work with
             # setuptools like it would work with `pip -r`
-            # -e URL will not work, so we transformit into
-            # links and requirements
+            # URLs will not work, so we transform them to
+            # dependency_links and requirements
             if dep.startswith('git+'):
                 dependency_links.append(dep)
                 _, dep = dep.rsplit('#egg=', 1)
@@ -48,7 +48,6 @@ requirements, dependency_links = parse_requirments(
 test_requirements, dependency_links = parse_requirments(
     join(setup_dir, 'test_requirements.txt'),
     dependency_links)
-
 
 setup(
     name='nameko',
