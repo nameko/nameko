@@ -25,24 +25,30 @@ class PyTest(TestCommand):
         sys.exit(errno)
 
 
-with open(join(setup_dir, 'requirements.txt'), 'rb') as f:
-    requirements = [i.strip() for i in f]
+def parse_requirments(fn, dependency_links):
+    requirements = []
+    with open(fn, 'rb') as f:
+        for dep in f:
+            dep = dep.strip()
+            # need to make test_requirements.txt work with
+            # setuptools like it would work with `pip -r`
+            # -e URL will not work, so we transformit into
+            # links and requirements
+            if dep.startswith('-e'):
+                _, lnk = dep.split('-e ', 1)
+                dependency_links.append(lnk)
+                _, dep = dep.rsplit('#egg=', 1)
+                dep = dep.replace('-', '==', 1)
+            requirements.append(dep)
 
-test_requirements = []
-dependency_links = []
-with open(join(setup_dir, 'test_requirements.txt'), 'rb') as f:
-    for dep in f:
-        dep = dep.strip()
-        # need to make test_requirements.txt work with
-        # setuptools like it would work with `pip -r`
-        # -e URL will not work, so we transformit into
-        # links and requirements
-        if dep.startswith('-e'):
-            _, lnk = dep.split('-e ', 1)
-            dependency_links.append(lnk)
-            _, dep = dep.rsplit('#egg=', 1)
-            dep = dep.replace('-', '==', 1)
-        test_requirements.append(dep)
+    return requirements, dependency_links
+
+requirements, dependency_links = parse_requirments(
+    join(setup_dir, 'requirements.txt'), [])
+
+test_requirements, dependency_links = parse_requirments(
+    join(setup_dir, 'test_requirements.txt'),
+    dependency_links)
 
 
 setup(
