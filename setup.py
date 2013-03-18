@@ -34,9 +34,8 @@ def parse_requirments(fn, dependency_links):
             # setuptools like it would work with `pip -r`
             # -e URL will not work, so we transformit into
             # links and requirements
-            if dep.startswith('-e'):
-                _, lnk = dep.split('-e ', 1)
-                dependency_links.append(lnk)
+            if dep.startswith('git+'):
+                dependency_links.append(dep)
                 _, dep = dep.rsplit('#egg=', 1)
                 dep = dep.replace('-', '==', 1)
             requirements.append(dep)
@@ -61,7 +60,6 @@ setup(
     url='http://github.com/onefinestay/nameko',
     packages=['nameko', ],
     package_dir={'': setup_dir},
-    setup_requires=['distribute'],
     install_requires=requirements,
     tests_require=test_requirements,
     dependency_links=dependency_links,
