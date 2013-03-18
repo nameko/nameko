@@ -61,6 +61,7 @@ setup(
     url='http://github.com/onefinestay/nameko',
     packages=['nameko', ],
     package_dir={'': setup_dir},
+    setup_requires=['distribute'],
     install_requires=requirements,
     tests_require=test_requirements,
     dependency_links=dependency_links,
