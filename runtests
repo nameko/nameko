@@ -35,7 +35,8 @@ py.test --cov-report xml \
     --junitxml="$ORIG_WORKING_DIR/test-results.xml" \
     test/
 
-flake8 "$PROJECT_DIR" > "$ORIG_WORKING_DIR/pyflakes.txt"
+# jenkins compatible output
+flake8 "$PROJECT_DIR" --format="%(path)s:%(row)d %(code)s %(text)s" > "$ORIG_WORKING_DIR/pyflakes.txt"
 
 # get back to where we started
 cd "$ORIG_WORKING_DIR"
