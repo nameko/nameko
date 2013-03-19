@@ -38,7 +38,7 @@ py.test --cov-report xml \
 # get back to where we started
 cd "$ORIG_WORKING_DIR"
 
-flake8 "$PROJECT_DIR" > "$ORIG_WORKING_DIR/pyflakes.txt"
+flake8 "$PROJECT_DIR" --format="%(path)s:%(row)d: %(code)s %(text)s" > "$ORIG_WORKING_DIR/pyflakes.txt"
 
 # move files generated during the test to the current directory
 mv "$PROJECT_DIR/coverage.xml" "$ORIG_WORKING_DIR/"
