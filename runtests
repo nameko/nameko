@@ -21,9 +21,13 @@ source "$VIRTUALENV_DIR/bin/activate"
 # install requirements
 pip install -r "$PROJECT_DIR/requirements.txt"
 pip install -r "$PROJECT_DIR/test_requirements.txt"
+# making sure we get the patched version for coverage, which works with eventlet
+pip install git+https://github.com/newbrough/coverage.git#egg=coverage-3.5.2pl1 -U
+
 
 # run the tests
 cd "$PROJECT_DIR"
+
 py.test --cov-report xml \
     --cov-report html \
     --cov-report term-missing \
@@ -33,6 +37,9 @@ py.test --cov-report xml \
 
 flake8 "$PROJECT_DIR" > "$ORIG_WORKING_DIR/pyflakes.txt"
 
+# get back to where we started
+cd "$ORIG_WORKING_DIR"
+
 # move files generated during the test to the current directory
 mv "$PROJECT_DIR/coverage.xml" "$ORIG_WORKING_DIR/"
 
@@ -41,9 +48,6 @@ then
     rm -rf "$ORIG_WORKING_DIR/htmlcov"
 fi
 mv "$PROJECT_DIR/htmlcov" "$ORIG_WORKING_DIR/"
-
-# get back to where we started
-cd "$ORIG_WORKING_DIR"
 
 # clean up virtualenv
 deactivate
