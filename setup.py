@@ -15,7 +15,6 @@ class PyTest(TestCommand):
             '--junitxml=test-results.xml',
             join(setup_dir, 'test'),
         ]
-        print self.test_args
         self.test_suite = True
 
     def run_tests(self):

@@ -1,0 +1,51 @@
+#!/bin/bash
+
+PROJECT_DIR="$(dirname $0)"
+ORIG_WORKING_DIR=`pwd`
+
+if [ -z "${PIP_DOWNLOAD_CACHE}" ]
+then
+    PIP_DOWNLOAD_CACHE="$ORIG_WORKING_DIR/.pip_download_cache/"
+    mkdir -p $PIP_DOWNLOAD_CACHE
+fi
+
+# setup a clean virtual env
+VIRTUALENV_DIR="$ORIG_WORKING_DIR/.virtualenv"
+if [ -e "$VIRTUALENV_DIR" ]
+then
+    rm -rf "$VIRTUALENV_DIR"
+fi
+virtualenv "$VIRTUALENV_DIR"
+source "$VIRTUALENV_DIR/bin/activate"
+
+# install requirements
+pip install -r "$PROJECT_DIR/requirements.txt"
+pip install -r "$PROJECT_DIR/test_requirements.txt"
+
+# run the tests
+cd "$PROJECT_DIR"
+py.test --cov-report xml \
+    --cov-report html \
+    --cov-report term-missing \
+    --cov nameko \
+    --junitxml="$ORIG_WORKING_DIR/test-results.xml" \
+    test/
+
+flake8 "$PROJECT_DIR" > "$ORIG_WORKING_DIR/pyflakes.txt"
+
+# move files generated during the test to the current directory
+mv "$PROJECT_DIR/coverage.xml" "$ORIG_WORKING_DIR/"
+
+if [ -e "$ORIG_WORKING_DIR/htmlcov" ]
+then
+    rm -rf "$ORIG_WORKING_DIR/htmlcov"
+fi
+mv "$PROJECT_DIR/htmlcov" "$ORIG_WORKING_DIR/"
+
+# get back to where we started
+cd "$ORIG_WORKING_DIR"
+
+# clean up virtualenv
+deactivate
+rm -rf "$VIRTUALENV_DIR"
+
