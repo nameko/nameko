@@ -13,6 +13,7 @@ def _has_waiters(greenthread):
 def consumefrom(conn, killdrainer=False):
     id_ = id(conn)
     gt = _conndrainers.get(id_)
+    # greenlet has a magic attribute ``dead`` - pylint: disable=E1103
     if gt is None or gt.dead:
         gt = _conndrainers[id_] = eventlet.spawn(conn.drain_events)
     try:
