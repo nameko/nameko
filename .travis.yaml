@@ -1,0 +1,11 @@
+language: python
+python:
+  - "2.7"
+
+install:
+  - python setup.py -q install
+  - pip install -r test_requirements.txt
+
+script:
+  - pylint nameko -E
+  - py.test
