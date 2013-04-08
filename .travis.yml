@@ -7,6 +7,6 @@ install:
   - pip install -r test_requirements.txt
 
 script:
-  - pyflakes
+  - pyflakes nameko
   - pylint nameko -E
   - py.test
