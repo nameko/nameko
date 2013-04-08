@@ -2,5 +2,6 @@
 git+https://github.com/newbrough/coverage.git#egg=coverage-3.5.2pl1
 flake8==2.0
 mock==1.0.1
-pytest-cov==1.6
+pylint==0.27.0
 pytest==2.3.4
+pytest-cov==1.6
