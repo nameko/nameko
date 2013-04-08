@@ -43,7 +43,7 @@ class Service(ConsumerMixin):
         inject_dependencies(self.controller, connection)
 
     def start(self):
-        if self.greenlet is not None and not self.greenlet.dead:
+        if self.greenlet is not None and not self.greenlet.dead:  # pylint: disable=E1101
             raise RuntimeError()
         self.greenlet = eventlet.spawn(self.run)
 
@@ -109,7 +109,7 @@ class Service(ConsumerMixin):
         return self.procpool.waitall()
 
     def kill(self):
-        if self.greenlet is not None and not self.greenlet.dead:
+        if self.greenlet is not None and not self.greenlet.dead:  # pylint: disable=E1101
             self.should_stop = True
             #with self.messagesem:
                 #self.greenlet.kill()
