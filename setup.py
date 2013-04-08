@@ -61,6 +61,7 @@ setup(
     install_requires=requirements,
     tests_require=test_requirements,
     dependency_links=dependency_links,
+    zip_safe=True,
     cmdclass={'test': PyTest},
     license='Apache License, Version 2.0',
     classifiers=[
