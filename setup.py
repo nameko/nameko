@@ -42,10 +42,10 @@ def parse_requirements(fn, dependency_links):
 
     return requirements, dependency_links
 
-requirements, dependency_links = parse_requirments(
+requirements, dependency_links = parse_requirements(
     join(setup_dir, 'requirements.txt'), [])
 
-test_requirements, dependency_links = parse_requirments(
+test_requirements, dependency_links = parse_requirements(
     join(setup_dir, 'test_requirements.txt'),
     dependency_links)
 
