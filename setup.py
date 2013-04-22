@@ -13,7 +13,6 @@ class PyTest(TestCommand):
         TestCommand.finalize_options(self)
         self.test_args = [
             '--cov', 'nameko',
-            '--junitxml=test-results.xml',
             join(setup_dir, 'test'),
         ]
         self.test_suite = True
