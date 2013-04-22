@@ -34,6 +34,9 @@ def parse_requirements(fn, dependency_links):
             # setuptools like it would work with `pip -r`
             # URLs will not work, so we transform them to
             # dependency_links and requirements
+            if dep.startswith('-e '):
+                dep = dep[3:]
+
             if dep.startswith('git+'):
                 dependency_links.append(dep)
                 _, dep = dep.rsplit('#egg=', 1)
