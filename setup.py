@@ -1,10 +1,11 @@
-from setuptools import setup
+#!/usr/bin/env python
+from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
-from os.path import dirname, join
+from os.path import abspath, dirname, join
 import sys
 
 
-setup_dir = dirname(__file__) or '.'
+setup_dir = dirname(abspath(__file__))
 
 
 class PyTest(TestCommand):
@@ -12,19 +13,18 @@ class PyTest(TestCommand):
         TestCommand.finalize_options(self)
         self.test_args = [
             '--cov', 'nameko',
-            '--junitxml=test-results.xml',
             join(setup_dir, 'test'),
         ]
         self.test_suite = True
 
     def run_tests(self):
-        #import here, cause outside the eggs aren't loaded
+        # import here, cause outside the eggs aren't loaded
         import pytest
         errno = pytest.main(self.test_args)
         sys.exit(errno)
 
 
-def parse_requirments(fn, dependency_links):
+def parse_requirements(fn, dependency_links):
     requirements = []
     with open(fn, 'rb') as f:
         for dep in f:
@@ -33,6 +33,9 @@ def parse_requirments(fn, dependency_links):
             # setuptools like it would work with `pip -r`
             # URLs will not work, so we transform them to
             # dependency_links and requirements
+            if dep.startswith('-e '):
+                dep = dep[3:]
+
             if dep.startswith('git+'):
                 dependency_links.append(dep)
                 _, dep = dep.rsplit('#egg=', 1)
@@ -41,10 +44,10 @@ def parse_requirments(fn, dependency_links):
 
     return requirements, dependency_links
 
-requirements, dependency_links = parse_requirments(
+requirements, dependency_links = parse_requirements(
     join(setup_dir, 'requirements.txt'), [])
 
-test_requirements, dependency_links = parse_requirments(
+test_requirements, dependency_links = parse_requirements(
     join(setup_dir, 'test_requirements.txt'),
     dependency_links)
 
@@ -56,8 +59,7 @@ setup(
     author='onefinestay',
     author_email='engineering@onefinestay.com',
     url='http://github.com/onefinestay/nameko',
-    packages=['nameko', ],
-    package_dir={'': setup_dir},
+    packages=find_packages(exclude=['test', 'test.*']),
     install_requires=requirements,
     tests_require=test_requirements,
     dependency_links=dependency_links,
@@ -71,5 +73,6 @@ setup(
         "Programming Language :: Python :: 2.7",
         "Topic :: Internet",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Intended Audience :: Developers", ]
+        "Intended Audience :: Developers",
+    ]
 )
