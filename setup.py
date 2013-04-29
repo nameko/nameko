@@ -6,7 +6,7 @@ with open('requirements.txt', 'rb') as f:
 
 
 setup(name='nameko',
-    version='0.1-dev',
+    version='0.1.1',
     description='service framework supporting multiple'
                 'messaging and RPC implementations',
     author='onefinestay',
