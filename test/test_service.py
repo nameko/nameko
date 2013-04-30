@@ -9,12 +9,12 @@ from nameko import service
 from nameko.testing import TestProxy
 
 
-def test_service(connection, get_connection):
+def test_service(get_connection):
     class Controller(object):
         def test_method(self, context, foo):
             return foo + 'spam'
 
-    srv = service.Service(Controller, connection=connection,
+    srv = service.Service(Controller, connection_factory=get_connection,
         exchange='testrpc', topic='test', )
     srv.start()
     eventlet.sleep()
@@ -26,16 +26,15 @@ def test_service(connection, get_connection):
         assert ret == 'barspam'
     finally:
         srv.kill()
-        connection.release()
 
 
-def test_exceptions(connection, get_connection):
+def test_exceptions(get_connection):
     class Controller(object):
         def test_method(self, context, **kwargs):
             raise KeyError('foo')
 
     srv = service.Service(Controller,
-            connection=connection,
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
     srv.start()
     eventlet.sleep(0)
@@ -47,7 +46,6 @@ def test_exceptions(connection, get_connection):
 
     finally:
         srv.kill()
-        connection.release()
 
 
 def test_service_wait(get_connection):
@@ -65,7 +63,7 @@ def test_service_wait(get_connection):
             spam_continue.wait()
 
     srv = service.Service(Foobar,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
 
     srv.start()
@@ -114,7 +112,7 @@ def test_service_wait(get_connection):
 
 def test_service_wait_consumer_dies(get_connection):
     srv = service.Service(object,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
 
     srv.start()
@@ -130,7 +128,7 @@ def test_service_wait_consumer_dies(get_connection):
 
 def test_service_link(get_connection):
     srv = service.Service(object,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
 
     srv.start()
@@ -152,7 +150,7 @@ def test_service_link(get_connection):
 
 def test_service_cannot_be_starte_twice(get_connection):
     srv = service.Service(object,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test')
 
     srv.start()
@@ -180,7 +178,7 @@ def test_service_custom_pool(get_connection):
 
     pool = MyPool()
     srv = service.Service(Foobar,
-                    connection=get_connection(),
+                    connection_factory=get_connection,
                     exchange='testrpc', topic='test',
                     pool=pool)
 

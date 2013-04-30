@@ -1,4 +1,5 @@
 import eventlet
+from eventlet.pools import Pool
 from eventlet.greenpool import GreenPool
 from eventlet.event import Event
 from eventlet.semaphore import Semaphore
@@ -12,7 +13,7 @@ from nameko.common import UIDGEN
 
 class Service(ConsumerMixin):
     def __init__(self, controllercls,
-            connection, exchange, topic,
+            connection_factory, exchange, topic,
             pool=None, poolsize=1000):
         self.nodeid = UIDGEN()
 
@@ -21,7 +22,6 @@ class Service(ConsumerMixin):
         else:
             self.procpool = pool
 
-        self.connection = connection
         self.controller = controllercls()
         self.topic = topic
         self.greenlet = None
@@ -34,6 +34,12 @@ class Service(ConsumerMixin):
                        entities.get_fanout_queue(topic), ]
         self._channel = None
         self._consumers = None
+
+        self.connection = connection_factory()
+        self._connection_pool = Pool(
+            max_size=poolsize,
+            create=connection_factory
+        )
 
     def start(self):
         if self.greenlet is not None and not self.greenlet.dead:
@@ -59,7 +65,8 @@ class Service(ConsumerMixin):
             message.ack()
 
     def handle_request(self, body):
-        nameko.process_message(self.connection, self.controller, body)
+        with self._connection_pool.get() as connection:
+            nameko.process_message(connection, self.controller, body)
 
     def wait(self):
         try:
