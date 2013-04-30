@@ -28,6 +28,29 @@ def test_service(get_connection):
         srv.kill()
 
 
+def test_service_doesnt_exhaust_pool(get_connection):
+    POOLSIZE = 10
+
+    class Controller(object):
+        def test_method(self, context, foo):
+            return foo + 'spam'
+
+    srv = service.Service(Controller, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=POOLSIZE)
+    srv.start()
+    eventlet.sleep()
+
+    try:
+        with eventlet.Timeout(10):
+            for i in range(POOLSIZE*2):
+                test = TestProxy(get_connection, timeout=3).test
+                ret = test.test_method(foo='bar')
+
+    finally:
+        srv.kill()
+
+
+
 def test_exceptions(get_connection):
     class Controller(object):
         def test_method(self, context, **kwargs):
@@ -148,7 +171,7 @@ def test_service_link(get_connection):
     assert complete_called == [True]
 
 
-def test_service_cannot_be_starte_twice(get_connection):
+def test_service_cannot_be_started_twice(get_connection):
     srv = service.Service(object,
             connection_factory=get_connection,
             exchange='testrpc', topic='test')
