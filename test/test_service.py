@@ -176,6 +176,10 @@ def test_service_custom_pool(get_connection):
         def wait(self):
             return self._pool.wait()
 
+        @property
+        def size(self):
+            return self._pool.size
+
     pool = MyPool()
     srv = service.Service(Foobar,
                     connection_factory=get_connection,

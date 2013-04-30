@@ -37,7 +37,7 @@ class Service(ConsumerMixin):
 
         self.connection = connection_factory()
         self._connection_pool = Pool(
-            max_size=poolsize,
+            max_size=self.procpool.size,
             create=connection_factory
         )
 
