@@ -66,6 +66,8 @@ class Service(ConsumerMixin):
             message.ack()
 
     def handle_request(self, body):
+        # item is patched on for python with ``with``, pylint can't find it
+        # pylint: disable=E1102
         with self._connection_pool.item() as connection:
             nameko.process_message(connection, self.controller, body)
 
