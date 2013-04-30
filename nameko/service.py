@@ -66,7 +66,7 @@ class Service(ConsumerMixin):
             message.ack()
 
     def handle_request(self, body):
-        with self._connection_pool.get() as connection:
+        with self._connection_pool.item() as connection:
             nameko.process_message(connection, self.controller, body)
 
     def wait(self):
