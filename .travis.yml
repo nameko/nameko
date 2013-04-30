@@ -1,0 +1,16 @@
+language: python
+python:
+  - "2.7"
+
+install:
+  - python setup.py -q install
+  - pip install -r test_requirements.txt
+
+script:
+  - pyflakes nameko
+  - pylint nameko -E
+  - py.test
+
+notifications:
+  email: false
+  webhooks: http://finebot.herokuapp.com/hubot/travis/?room=30565_platform@conf.hipchat.com
