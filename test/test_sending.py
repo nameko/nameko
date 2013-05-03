@@ -27,9 +27,6 @@ def test_replying(connection):
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload['result'] == 'success'
 
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
-
 
 def test_send_direct(connection):
     with connection as conn:
@@ -45,9 +42,6 @@ def test_send_direct(connection):
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
-
 
 def test_send_topic(connection):
     with connection as conn:
@@ -62,9 +56,6 @@ def test_send_topic(connection):
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
-
 
 def test_send_fanout(connection):
     with connection as conn:
@@ -77,9 +68,6 @@ def test_send_fanout(connection):
                     data='success')
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
-
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
 
 
 def test_send_rpc(get_connection):
@@ -108,5 +96,3 @@ def test_send_rpc(get_connection):
         assert resp == {'foo': 'bar', }
 
     assert not g
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
