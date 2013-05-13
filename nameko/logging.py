@@ -14,7 +14,10 @@ def log_time(log_method, msg, *args):
             shrub()
     """
     start_time = time.clock()
-    yield
-    duration = time.clock() - start_time
-    args = args + (duration,)
-    log_method(msg, *args)
+
+    try:
+        yield
+    finally:
+        duration = time.clock() - start_time
+        args = args + (duration,)
+        log_method(msg, *args)
