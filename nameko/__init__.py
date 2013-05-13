@@ -1,23 +1,14 @@
-from contextlib import contextmanager
+from __future__ import absolute_import
 from logging import getLogger
 import sys
-import time
 import traceback
 
 from nameko import context
 from nameko import exceptions
 from nameko import sending
+from nameko.logging import log_time
 
 _log = getLogger(__name__)
-
-
-@contextmanager
-def log_time(log_method, msg, *args):
-    start_time = time.clock()
-    yield
-    duration = time.clock() - start_time
-    args = args + (duration,)
-    log_method(msg, *args)
 
 
 def delegate_apply(delegate, context, method, args):
