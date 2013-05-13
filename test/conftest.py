@@ -35,7 +35,6 @@ def pytest_configure(config):
     log_level = config.getoption('log_level')
     if log_level is not None:
         logging.basicConfig(level=getattr(logging, log_level))
-        logging.getLogger('py2neo').setLevel(logging.ERROR)
 
 
 def pytest_funcarg__get_connection(request):
