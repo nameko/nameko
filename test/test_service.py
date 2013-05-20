@@ -202,10 +202,10 @@ def test_service_requeues_if_out_of_workers(get_connection):
 
     foobar = TestProxy(get_connection, timeout=3).test
 
-    eventlet.spawn(foobar.spam)
+    w1 = eventlet.spawn(foobar.spam)
     foobar_called.wait()
     # the servcie should now be busy and requeue the next request
-    eventlet.spawn(foobar.spam)
+    w2 = eventlet.spawn(foobar.spam)
     eventlet.sleep()
 
     # we create a second service to pick up the message
@@ -228,6 +228,9 @@ def test_service_requeues_if_out_of_workers(get_connection):
     # be nice to the first service and tell it to stop being busy
     foobar_continue.send(True)
 
+    w1.wait()
+    w2.wait()
+
 
 def test_service_custom_pool(get_connection):
     class Foobar(object):
@@ -235,7 +238,7 @@ def test_service_custom_pool(get_connection):
             pass
 
     class MyPool(object):
-        _pool = GreenPool()
+        _pool = GreenPool(size=10)
         count = 0
 
         def spawn(self, *args, **kwargs):
@@ -249,11 +252,13 @@ def test_service_custom_pool(get_connection):
         def size(self):
             return self._pool.size
 
+        def free(self):
+            return self._pool.free()
+
     pool = MyPool()
-    srv = service.Service(Foobar,
-                    connection_factory=get_connection,
-                    exchange='testrpc', topic='test',
-                    pool=pool)
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', pool=pool)
 
     srv.start()
     eventlet.sleep()
