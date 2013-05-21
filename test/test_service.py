@@ -183,13 +183,64 @@ def test_service_cannot_be_started_twice(get_connection):
     srv.kill()
 
 
+def test_service_requeues_if_out_of_workers(get_connection):
+    foobar_continue = Event()
+    foobar_called = Event()
+
+    class Foobar(object):
+        def spam(self, context):
+            foobar_called.send(True)
+            with eventlet.Timeout(2):
+                foobar_continue.wait()
+
+    s1 = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
+
+    s1.start()
+    eventlet.sleep()
+
+    foobar = TestProxy(get_connection, timeout=3).test
+
+    w1 = eventlet.spawn(foobar.spam)
+    foobar_called.wait()
+    # the servcie should now be busy and requeue the next request
+    w2 = eventlet.spawn(foobar.spam)
+    eventlet.sleep()
+
+    # we create a second service to pick up the message
+    spam_received = Event()
+
+    class Spam(object):
+        def spam(self, context):
+            spam_received.send(True)
+
+    s2 = service.Service(
+        Spam, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
+
+    s2.start()
+    eventlet.sleep()
+    # wait for the 2nd service to pick up the message
+    with eventlet.Timeout(2):
+        assert spam_received.wait()
+
+    # be nice to the first service and tell it to stop being busy
+    foobar_continue.send(True)
+
+    w1.wait()
+    w2.wait()
+    s1.kill()
+    s2.kill()
+
+
 def test_service_custom_pool(get_connection):
     class Foobar(object):
         def spam(self, context, **kwargs):
             pass
 
     class MyPool(object):
-        _pool = GreenPool()
+        _pool = GreenPool(size=10)
         count = 0
 
         def spawn(self, *args, **kwargs):
@@ -203,11 +254,13 @@ def test_service_custom_pool(get_connection):
         def size(self):
             return self._pool.size
 
+        def free(self):
+            return self._pool.free()
+
     pool = MyPool()
-    srv = service.Service(Foobar,
-                    connection_factory=get_connection,
-                    exchange='testrpc', topic='test',
-                    pool=pool)
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', pool=pool)
 
     srv.start()
     eventlet.sleep()
