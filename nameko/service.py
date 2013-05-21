@@ -12,8 +12,8 @@ from nameko.common import UIDGEN
 
 
 class Service(ConsumerMixin):
-    def __init__(self, controllercls,
-            connection_factory, exchange, topic,
+    def __init__(
+            self, controllercls, connection_factory, exchange, topic,
             pool=None, poolsize=1000):
         self.nodeid = UIDGEN()
 
@@ -62,8 +62,15 @@ class Service(ConsumerMixin):
         # need a semaphore to stop killing between message ack()
         # and spawning process.
         with self.messagesem:
-            self.procpool.spawn(self.handle_request, body)
-            message.ack()
+            if self.procpool.free():
+                self.procpool.spawn(self.handle_request, body)
+                message.ack()
+            else:
+                # we cannot deal with the message, so it should go
+                # back onto the queue and someone else should pick it up
+                message.requeue()
+                # TODO: tests will block if we don't yield here
+                eventlet.sleep()
 
     def handle_request(self, body):
         # item is patched on for python with ``with``, pylint can't find it

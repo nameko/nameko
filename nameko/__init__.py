@@ -39,4 +39,7 @@ def process_message(connection, delegate, body, reraise=False):
         else:
             if msgid:
                 _log.debug('replying to message `%s`', msgid)
-                sending.reply(connection, msgid, replydata=ret)
+                with log_time(
+                        _log.debug,
+                        'replied to message `%s` in  %0.3f sec.', msgid):
+                    sending.reply(connection, msgid, replydata=ret)
