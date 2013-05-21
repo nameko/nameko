@@ -230,6 +230,8 @@ def test_service_requeues_if_out_of_workers(get_connection):
 
     w1.wait()
     w2.wait()
+    s1.kill()
+    s2.kill()
 
 
 def test_service_custom_pool(get_connection):
