@@ -94,7 +94,7 @@ def teardown_function(fn):
 
 
 def _start_service(cls, get_connection):
-    srv = Service(cls, get_connection(), 'foo', 'bar')
+    srv = Service(cls, get_connection, 'foo', 'bar')
     services.append(srv)
     srv.start()
     srv.consume_ready.wait()

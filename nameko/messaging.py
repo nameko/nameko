@@ -1,6 +1,7 @@
 '''
 Provides core messaging decorators and dependency injection providers.
 '''
+from __future__ import absolute_import
 from functools import partial
 from logging import getLogger
 from weakref import WeakKeyDictionary

@@ -9,12 +9,12 @@ from nameko import service
 from nameko.testing import TestProxy
 
 
-def test_service(connection, get_connection):
+def test_service(get_connection):
     class Controller(object):
         def test_method(self, context, foo):
             return foo + 'spam'
 
-    srv = service.Service(Controller, connection=connection,
+    srv = service.Service(Controller, connection_factory=get_connection,
         exchange='testrpc', topic='test', )
     srv.start()
     eventlet.sleep()
@@ -26,16 +26,38 @@ def test_service(connection, get_connection):
         assert ret == 'barspam'
     finally:
         srv.kill()
-        connection.release()
 
 
-def test_exceptions(connection, get_connection):
+def test_service_doesnt_exhaust_pool(get_connection):
+    POOLSIZE = 10
+
+    class Controller(object):
+        def test_method(self, context, foo):
+            return foo + 'spam'
+
+    srv = service.Service(Controller, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=POOLSIZE)
+    srv.start()
+    eventlet.sleep()
+
+    try:
+        with eventlet.Timeout(10):
+            for i in range(POOLSIZE*2):
+                test = TestProxy(get_connection, timeout=3).test
+                ret = test.test_method(foo='bar')
+
+    finally:
+        srv.kill()
+
+
+
+def test_exceptions(get_connection):
     class Controller(object):
         def test_method(self, context, **kwargs):
             raise KeyError('foo')
 
     srv = service.Service(Controller,
-            connection=connection,
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
     srv.start()
     eventlet.sleep()
@@ -49,7 +71,6 @@ def test_exceptions(connection, get_connection):
             test.test_method_does_not_exist()
     finally:
         srv.kill()
-        connection.release()
 
 
 def test_service_wait(get_connection):
@@ -67,7 +88,7 @@ def test_service_wait(get_connection):
             spam_continue.wait()
 
     srv = service.Service(Foobar,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
 
     srv.start()
@@ -116,7 +137,7 @@ def test_service_wait(get_connection):
 
 def test_service_wait_consumer_dies(get_connection):
     srv = service.Service(object,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
 
     srv.start()
@@ -132,7 +153,7 @@ def test_service_wait_consumer_dies(get_connection):
 
 def test_service_link(get_connection):
     srv = service.Service(object,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test', )
 
     srv.start()
@@ -152,9 +173,9 @@ def test_service_link(get_connection):
     assert complete_called == [True]
 
 
-def test_service_cannot_be_starte_twice(get_connection):
+def test_service_cannot_be_started_twice(get_connection):
     srv = service.Service(object,
-            connection=get_connection(),
+            connection_factory=get_connection,
             exchange='testrpc', topic='test')
 
     srv.start()
@@ -164,13 +185,64 @@ def test_service_cannot_be_starte_twice(get_connection):
     srv.kill()
 
 
+def test_service_requeues_if_out_of_workers(get_connection):
+    foobar_continue = Event()
+    foobar_called = Event()
+
+    class Foobar(object):
+        def spam(self, context):
+            foobar_called.send(True)
+            with eventlet.Timeout(2):
+                foobar_continue.wait()
+
+    s1 = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
+
+    s1.start()
+    eventlet.sleep()
+
+    foobar = TestProxy(get_connection, timeout=3).test
+
+    w1 = eventlet.spawn(foobar.spam)
+    foobar_called.wait()
+    # the servcie should now be busy and requeue the next request
+    w2 = eventlet.spawn(foobar.spam)
+    eventlet.sleep()
+
+    # we create a second service to pick up the message
+    spam_received = Event()
+
+    class Spam(object):
+        def spam(self, context):
+            spam_received.send(True)
+
+    s2 = service.Service(
+        Spam, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
+
+    s2.start()
+    eventlet.sleep()
+    # wait for the 2nd service to pick up the message
+    with eventlet.Timeout(2):
+        assert spam_received.wait()
+
+    # be nice to the first service and tell it to stop being busy
+    foobar_continue.send(True)
+
+    w1.wait()
+    w2.wait()
+    s1.kill()
+    s2.kill()
+
+
 def test_service_custom_pool(get_connection):
     class Foobar(object):
         def spam(self, context, **kwargs):
             pass
 
     class MyPool(object):
-        _pool = GreenPool()
+        _pool = GreenPool(size=10)
         count = 0
 
         def spawn(self, *args, **kwargs):
@@ -180,11 +252,17 @@ def test_service_custom_pool(get_connection):
         def wait(self):
             return self._pool.wait()
 
+        @property
+        def size(self):
+            return self._pool.size
+
+        def free(self):
+            return self._pool.free()
+
     pool = MyPool()
-    srv = service.Service(Foobar,
-                    connection=get_connection(),
-                    exchange='testrpc', topic='test',
-                    pool=pool)
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', pool=pool)
 
     srv.start()
     eventlet.sleep()

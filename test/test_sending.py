@@ -25,9 +25,6 @@ def test_replying(connection):
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload['result'] == 'success'
 
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
-
 
 def test_replying_no_support_for_on_return():
     with pytest.raises(NotImplementedError):
@@ -48,9 +45,6 @@ def test_send_direct(connection):
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
 
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
-
 
 def test_send_topic(connection):
     with connection as conn:
@@ -64,9 +58,6 @@ def test_send_topic(connection):
                     data='success')
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
-
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
 
 
 def test_send_topic_using_send_rpc(connection):
@@ -89,9 +80,6 @@ def test_send_topic_using_send_rpc(connection):
             ctx.add_to_message(expected)
             assert msg.payload == expected
 
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
-
 
 def test_send_fanout(connection):
     with connection as conn:
@@ -104,9 +92,6 @@ def test_send_fanout(connection):
                     data='success')
             msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
             assert msg.payload == 'success'
-
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
 
 
 def test_send_fanout_using_send_rpc(connection):
@@ -128,9 +113,6 @@ def test_send_fanout_using_send_rpc(connection):
             expected = {'args': {'foo': 'bar'}, 'method': 'test_method'}
             ctx.add_to_message(expected)
             assert msg.payload == expected
-
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
 
 
 def _test_send_rpc(get_connection):
@@ -159,10 +141,9 @@ def _test_send_rpc(get_connection):
         assert resp == {'foo': 'bar', }
 
     assert not g
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
 
 
+@pytest.mark.skipif('True')
 def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
     def response_greenthread():
         with get_connection() as conn:
@@ -204,6 +185,3 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
         assert resp == {'spam': 'shrub', }
     eventlet.sleep(1)
     assert not g
-    # check consumefrom has removed entry
-    assert not consuming._conndrainers
-
