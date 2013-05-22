@@ -5,10 +5,7 @@ from nameko.common import UTCNOW, UIDGEN
 
 class Context(dict):
 
-    def __init__(self, user_id, is_admin=None, roles=None,
-            remote_address=None, timestamp=None,
-            request_id=None, auth_token=None, **kwargs):
-
+    def __init__(self, user_id, timestamp=None, request_id=None, **kwargs):
         if isinstance(timestamp, basestring):
             timestamp = iso8601.parse_date(timestamp)
         self.timestamp = timestamp or UTCNOW()
@@ -18,10 +15,6 @@ class Context(dict):
         # we currently care little about what goes in here
         # from nova's context
         self.user_id = user_id
-        self.is_admin = is_admin or False
-        self.roles = roles or []
-        self.remote_address = remote_address
-        self.auth_token = auth_token
 
     def __getattr__(self, name):
         if name not in self:
