@@ -34,6 +34,7 @@ class Context(object):
             'auth_token': self.auth_token,
             'project_id': None,
         }
+        res.update(self.extra_kwargs)
         return res
 
     def add_to_message(self, message):
