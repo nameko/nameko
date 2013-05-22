@@ -24,14 +24,17 @@ class Context(object):
         # TODO: convert to UTC if not?
         timestamp = self.timestamp.isoformat()
         timestamp = timestamp[:timestamp.index('+')]
-        return {'user_id': self.user_id,
-                'is_admin': self.is_admin,
-                'roles': self.roles,
-                'remote_address': self.remote_address,
-                'timestamp': timestamp,
-                'request_id': self.request_id,
-                'auth_token': self.auth_token,
-                'project_id': None, }
+        res = {
+            'user_id': self.user_id,
+            'is_admin': self.is_admin,
+            'roles': self.roles,
+            'remote_address': self.remote_address,
+            'timestamp': timestamp,
+            'request_id': self.request_id,
+            'auth_token': self.auth_token,
+            'project_id': None,
+        }
+        return res
 
     def add_to_message(self, message):
         return add_context_to_payload(self, message)
@@ -45,9 +48,10 @@ def parse_message(message_body):
     method = message_body.pop('method')
     args = message_body.pop('args')
     msg_id = message_body.pop('_msg_id', None)
-    context_dict = dict((k[9:], message_body.pop(k))
-            for k in message_body.keys()
-            if k.startswith('_context_'))
+    context_dict = dict(
+        (k[9:], message_body.pop(k))
+        for k in message_body.keys() if k.startswith('_context_')
+    )
     context = Context(**context_dict)
     return msg_id, context, method, args
 
