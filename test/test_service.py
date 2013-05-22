@@ -60,13 +60,15 @@ def test_exceptions(get_connection):
             connection_factory=get_connection,
             exchange='testrpc', topic='test', )
     srv.start()
-    eventlet.sleep(0)
+    eventlet.sleep()
 
     try:
         test = TestProxy(get_connection, timeout=3).test
         with pytest.raises(exceptions.RemoteError):
             test.test_method()
 
+        with pytest.raises(exceptions.RemoteError):
+            test.test_method_does_not_exist()
     finally:
         srv.kill()
 
@@ -118,7 +120,7 @@ def test_service_wait(get_connection):
             kill_completed.wait()
             # The consumer queue should be dead by now,
             # but we still have a worker running.
-            assert waiter.dead == False
+            assert waiter.dead is False
             # Let the worker finish it's job
             spam_continue.send(1)
             rpc_call.wait()

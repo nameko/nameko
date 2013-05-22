@@ -17,6 +17,8 @@ class ChannelHandler(object):
         self.channel = channel
 
     def on_error(self, exc_value, *args, **kwargs):
+        # TODO: looking at ensure() it sounds like
+        # we are ignoring any error, is this intentional?
         pass
 
     def __call__(self, func, *args, **kwargs):
@@ -35,7 +37,12 @@ class ChannelHandler(object):
             obj, func = func
         else:
             raise TypeError('could not obtain object from function!')
-        revive = None if obj is self else self.revive
+
+        if obj is self:
+            revive = self.revive
+        else:
+            revive = None
+
         return self.connection.ensure(obj, func,
             errback=self.on_error,
             on_revive=revive)
