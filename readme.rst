@@ -1,6 +1,8 @@
 Nameko
 ######
 
+.. image:: https://secure.travis-ci.org/onefinestay/nameko.png?branch=master
+   :target: http://travis-ci.org/onefinestay/nameko
 
 **Nameko** ``[nah-meh-koh]`` (noun)
 

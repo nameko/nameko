@@ -7,9 +7,11 @@ from eventlet.greenpool import GreenPool
 from eventlet.event import Event
 from kombu.mixins import ConsumerMixin
 
-import nameko
 from nameko import entities
 from nameko.common import UIDGEN
+from nameko.messaging import get_consumers, process_message
+from nameko.dependencies import inject_dependencies
+from nameko.sending import process_rpc_message
 
 _log = getLogger(__name__)
 
@@ -26,18 +28,24 @@ class Service(ConsumerMixin):
             self.procpool = pool
 
         self.controller = controllercls()
+        self.service = self.controller
         self.topic = topic
         self.greenlet = None
         self.consume_ready = Event()
 
         node_topic = "{}.{}".format(self.topic, self.nodeid)
-        self.queues = [entities.get_topic_queue(exchange, topic),
-                       entities.get_topic_queue(exchange, node_topic),
-                       entities.get_fanout_queue(topic), ]
+        self.nova_queues = [
+            entities.get_topic_queue(exchange, topic),
+            entities.get_topic_queue(exchange, node_topic),
+            entities.get_fanout_queue(topic), ]
+
         self._channel = None
         self._consumers = None
 
         self.connection = connection_factory()
+
+        inject_dependencies(self.controller, self.connection)
+
         self._connection_pool = Pool(
             max_size=self.procpool.size,
             create=connection_factory
@@ -53,9 +61,15 @@ class Service(ConsumerMixin):
         self.greenlet = eventlet.spawn(self.run)
 
     def get_consumers(self, Consumer, channel):
-        consumer = Consumer(self.queues, callbacks=[self.on_message, ])
-        consumer.qos(prefetch_count=self.procpool.size)
-        return [consumer, ]
+        nova_consumer = Consumer(
+            self.nova_queues, callbacks=[self.on_nova_message, ])
+
+        nova_consumer.qos(prefetch_count=self.procpool.size)
+
+        consume_consumers = get_consumers(
+            Consumer, self.controller, self.on_consume_message)
+
+        return [nova_consumer] + list(consume_consumers)
 
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
         self._consumers = consumers
@@ -65,16 +79,23 @@ class Service(ConsumerMixin):
     def on_consume_end(self, connection, channel):
         self.consume_ready.reset()
 
-    def on_message(self, body, message):
+    def on_nova_message(self, body, message):
         _log.debug('spawning worker (%d free)', self.procpool.free())
         self.procpool.spawn(self.handle_request, body, message)
+
+    def on_consume_message(
+            self, consumer_config, consumer_method, body, message):
+        _log.debug('spawning consumer')
+
+        self.procpool.spawn(
+            process_message, consumer_config, consumer_method, body, message)
 
     def handle_request(self, body, message):
         try:
             # item is patched on for python with ``with``, pylint can't find it
             # pylint: disable=E1102
             with self._connection_pool.item() as connection:
-                nameko.process_message(connection, self.controller, body)
+                process_rpc_message(connection, self.controller, body)
         finally:
             self._pending_messages.append(message)
 
@@ -98,8 +119,10 @@ class Service(ConsumerMixin):
     def kill(self):
         _log.debug('killing service, disabling consumption of messages')
         if self._consumers is not None:
-            # flow() does not work on virtual transports, so we just use QoS
-            self._consumers[0].qos(prefetch_count=0)
+            for consumer in self._consumers:
+                # flow() does not work on virtual transports,
+                # so we just use QoS, which flow() would do with AMQP anyways
+                consumer.qos(prefetch_count=0)
 
         _log.debug('waiting for workers to complete')
         self.procpool.waitall()

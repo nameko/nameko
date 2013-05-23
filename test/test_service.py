@@ -68,6 +68,8 @@ def test_exceptions(get_connection):
         with pytest.raises(exceptions.RemoteError):
             test.test_method()
 
+        with pytest.raises(exceptions.RemoteError):
+            test.test_method_does_not_exist()
     finally:
         srv.kill()
 
