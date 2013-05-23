@@ -96,10 +96,12 @@ class Service(ConsumerMixin):
             self.should_stop = True
 
     def kill(self):
-        _log.debug('killing service, disabling consumption of messages')
-        if self._consumers is not None:
-            # flow() does not work on virtual transports, so we just use QoS
-            self._consumers[0].qos(prefetch_count=0)
+        _log.debug('killing service')
+
+        if self._consumers:
+            _log.debug('cancelling consumer')
+            for consumer in self._consumers:
+                consumer.cancel()
 
         _log.debug('waiting for workers to complete')
         self.procpool.waitall()
@@ -110,13 +112,8 @@ class Service(ConsumerMixin):
             self._should_stop_after_ack = True
             self.greenlet.wait()
 
-        if self._consumers:
-            _log.debug('cancelling consumer')
-            for c in self._consumers:
-                c.cancel()
-
         if self._channel is not None:
-            _log.debug('cancelling channel')
+            _log.debug('closing channel')
             self._channel.close()
 
     def link(self, *args, **kwargs):
