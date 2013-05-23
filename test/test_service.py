@@ -272,13 +272,14 @@ def test_service_dos(get_connection):
     eventlet.sleep()
     spam_called.wait()
 
-    # At this point we will have exhausted the pool-size and
+    # At this point we will have exhausted it's prefetch count and worker-pool
     # s1 should not accept any more RPCs as it is busy processing spam().
-    # Lets kick off a 2nd RPC anyways, which should just wait in the queue
+    # Lets kick off two more RPC anyways, which should just wait in the queue
     spam_call_2 = eventlet.spawn(foobar.spam, do_wait=False)
+    spam_call_3 = eventlet.spawn(foobar.spam, do_wait=False)
     eventlet.sleep()
 
-    # lets fire up another service, which should take care of the 2nd call
+    # lets fire up another service, which should take care of the 2 extra calls
     s2 = service.Service(
         Foobar, connection_factory=get_connection,
         exchange='testrpc', topic='test')
@@ -289,8 +290,10 @@ def test_service_dos(get_connection):
 
     try:
         with eventlet.timeout.Timeout(5):
-            #as soon as s2 is up and running, the 2nd call should get a reply
+            # as soon as s2 is up and running, the 2 extra calls should
+            # get a reply
             spam_call_2.wait()
+            spam_call_3.wait()
 
             # we can let the first call continue now
             spam_continue.send(1)
