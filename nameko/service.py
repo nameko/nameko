@@ -1,14 +1,18 @@
+from __future__ import absolute_import
+from logging import getLogger
+
 import eventlet
 from eventlet.pools import Pool
 from eventlet.greenpool import GreenPool
 from eventlet.event import Event
-from eventlet.semaphore import Semaphore
 import greenlet
 from kombu.mixins import ConsumerMixin
 
 import nameko
 from nameko import entities
 from nameko.common import UIDGEN
+
+_log = getLogger(__name__)
 
 
 class Service(ConsumerMixin):
@@ -25,7 +29,6 @@ class Service(ConsumerMixin):
         self.controller = controllercls()
         self.topic = topic
         self.greenlet = None
-        self.messagesem = Semaphore()
         self.consume_ready = Event()
 
         node_topic = "{}.{}".format(self.topic, self.nodeid)
@@ -41,6 +44,9 @@ class Service(ConsumerMixin):
             create=connection_factory
         )
 
+        self._pending_messages = []
+        self._should_stop_after_ack = False
+
     def start(self):
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
@@ -48,7 +54,9 @@ class Service(ConsumerMixin):
         self.greenlet = eventlet.spawn(self.run)
 
     def get_consumers(self, Consumer, channel):
-        return [Consumer(self.queues, callbacks=[self.on_message, ]), ]
+        consumer = Consumer(self.queues, callbacks=[self.on_message, ])
+        consumer.qos(prefetch_count=self.procpool.size)
+        return [consumer, ]
 
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
         self._consumers = consumers
@@ -59,43 +67,57 @@ class Service(ConsumerMixin):
         self.consume_ready.reset()
 
     def on_message(self, body, message):
-        # need a semaphore to stop killing between message ack()
-        # and spawning process.
-        with self.messagesem:
-            if self.procpool.free():
-                self.procpool.spawn(self.handle_request, body)
-                message.ack()
-            else:
-                # we cannot deal with the message, so it should go
-                # back onto the queue and someone else should pick it up
-                message.requeue()
-                # TODO: tests will block if we don't yield here
+        _log.debug('spawning worker (%d free)', self.procpool.free())
+        self.procpool.spawn(self.handle_request, body, message)
+
+    def handle_request(self, body, message):
+        try:
+            # item is patched on for python with ``with``, pylint can't find it
+            # pylint: disable=E1102
+            with self._connection_pool.item() as connection:
+                nameko.process_message(connection, self.controller, body)
+        finally:
+            self._pending_messages.append(message)
+
+    def on_iteration(self):
+        self.ack_pending_messages()
+
+    def ack_pending_messages(self):
+        messages = self._pending_messages
+
+        if messages:
+            _log.debug('ack() %d processed messages', len(messages))
+            while messages:
+                msg = messages.pop()
+                msg.ack()
                 eventlet.sleep()
 
-    def handle_request(self, body):
-        # item is patched on for python with ``with``, pylint can't find it
-        # pylint: disable=E1102
-        with self._connection_pool.item() as connection:
-            nameko.process_message(connection, self.controller, body)
-
-    def wait(self):
-        try:
-            self.greenlet.wait()
-        except greenlet.GreenletExit:
-            pass
-        return self.procpool.waitall()
+        if self._should_stop_after_ack:
+            _log.debug('notifying consumer to stop')
+            self.should_stop = True
 
     def kill(self):
+        _log.debug('killing service, disabling consumption of messages')
+        if self._consumers is not None:
+            # flow() does not work on virtual transports, so we just use QoS
+            self._consumers[0].qos(prefetch_count=0)
+
+        _log.debug('waiting for workers to complete')
+        self.procpool.waitall()
+
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
-            self.should_stop = True
-            # with self.messagesem:
-                # self.greenlet.kill()
+            _log.debug('waiting for consumer to stop after message ack()')
+            self._should_stop_after_ack = True
             self.greenlet.wait()
+
         if self._consumers:
+            _log.debug('cancelling consumer')
             for c in self._consumers:
                 c.cancel()
+
         if self._channel is not None:
+            _log.debug('cancelling channel')
             self._channel.close()
 
     def link(self, *args, **kwargs):
