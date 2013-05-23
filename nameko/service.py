@@ -5,7 +5,6 @@ import eventlet
 from eventlet.pools import Pool
 from eventlet.greenpool import GreenPool
 from eventlet.event import Event
-import greenlet
 from kombu.mixins import ConsumerMixin
 
 import nameko
