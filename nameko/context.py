@@ -28,7 +28,7 @@ class Context(dict):
         del self[name]
 
     def __repr__(self):
-        return 'Context({})'.format(super(Context, self).__repr__())
+        return 'Context({})'.format(self.to_dict())
 
     def to_dict(self):
         # TODO: convert to UTC if not?
