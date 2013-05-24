@@ -54,7 +54,7 @@ class Service(ConsumerMixin):
 
         self.workers = set()
         self._pending_messages = []
-        self._should_stop_after_ack = False
+        self._shutting_down = False
 
     def start(self):
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
@@ -119,7 +119,7 @@ class Service(ConsumerMixin):
                 msg.ack()
                 eventlet.sleep()
 
-        if self._should_stop_after_ack:
+        if self._shutting_down:
             _log.debug('notifying consumer to stop')
             self.should_stop = True
 
@@ -132,9 +132,7 @@ class Service(ConsumerMixin):
                 consumer.cancel()
 
         if force:
-            _log.debug('froce killing %d workers', len(self.workers))
-            # need to list so that we don't get an exception
-            # that the set changes as we iterate over it
+            _log.debug('force killing %d workers', len(self.workers))
             while self.workers:
                 self.workers.pop().kill()
         else:
@@ -145,7 +143,7 @@ class Service(ConsumerMixin):
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
             _log.debug('waiting for consumer to stop after message ack()')
-            self._should_stop_after_ack = True
+            self._shutting_down = True
             self.greenlet.wait()
 
         if self._channel is not None:
