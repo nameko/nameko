@@ -237,6 +237,9 @@ def test_service_custom_pool(get_connection):
         def free(self):
             return self._pool.free()
 
+        def running(self):
+            return self._pool.running()
+
     pool = MyPool()
     srv = service.Service(
         Foobar, connection_factory=get_connection,
@@ -250,6 +253,31 @@ def test_service_custom_pool(get_connection):
 
     srv.kill()
     assert pool.count == 1
+
+
+def test_force_kill(get_connection):
+    spam_continue = Event()
+    spam_called = Event()
+
+    class Foobar(object):
+        def spam(self, context):
+            spam_called.send(1)
+            spam_continue.wait()
+
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
+    srv.start()
+    eventlet.sleep()
+
+    foobar = TestProxy(get_connection, timeout=3).test
+    eventlet.spawn(foobar.spam)
+
+    spam_called.wait()
+    # spam will not complete, so we force it
+    srv.kill(force=True)
+
+    assert srv.greenlet.dead
 
 
 def test_service_dos(get_connection):
