@@ -235,6 +235,9 @@ def test_service_custom_pool(get_connection):
         def free(self):
             return self._pool.free()
 
+        def running(self):
+            return self._pool.running()
+
     pool = MyPool()
     srv = service.Service(
         Foobar, connection_factory=get_connection,

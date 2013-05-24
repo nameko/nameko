@@ -20,6 +20,7 @@ class Service(ConsumerMixin):
             pool=None, poolsize=1000):
         self.nodeid = UIDGEN()
 
+        self.max_workers = poolsize
         if pool is None:
             self.procpool = GreenPool(size=poolsize)
         else:
@@ -43,6 +44,7 @@ class Service(ConsumerMixin):
             create=connection_factory
         )
 
+        self.workers = set()
         self._pending_messages = []
         self._should_stop_after_ack = False
 
@@ -67,16 +69,21 @@ class Service(ConsumerMixin):
 
     def on_message(self, body, message):
         _log.debug('spawning worker (%d free)', self.procpool.free())
-        self.procpool.spawn(self.handle_request, body, message)
+
+        gt = self.procpool.spawn(self.handle_request, body, message)
+
+        gt.link(self.handle_request_processed, message)
+        self.workers.add(gt)
 
     def handle_request(self, body, message):
-        try:
-            # item is patched on for python with ``with``, pylint can't find it
-            # pylint: disable=E1102
-            with self._connection_pool.item() as connection:
-                nameko.process_message(connection, self.controller, body)
-        finally:
-            self._pending_messages.append(message)
+        # item is patched on for python with ``with``, pylint can't find it
+        # pylint: disable=E1102
+        with self._connection_pool.item() as connection:
+            nameko.process_message(connection, self.controller, body)
+
+    def handle_request_processed(self, gt, message):
+        self.workers.discard(gt)
+        self._pending_messages.append(message)
 
     def on_iteration(self):
         self.ack_pending_messages()
@@ -95,7 +102,7 @@ class Service(ConsumerMixin):
             _log.debug('notifying consumer to stop')
             self.should_stop = True
 
-    def kill(self):
+    def kill(self, force=False):
         _log.debug('killing service')
 
         if self._consumers:
@@ -103,8 +110,16 @@ class Service(ConsumerMixin):
             for consumer in self._consumers:
                 consumer.cancel()
 
-        _log.debug('waiting for workers to complete')
-        self.procpool.waitall()
+        if force:
+            _log.debug('froce killing %d workers', len(self.workers))
+            # need to list so that we don't get an exception
+            # that the set changes as we iterate over it
+            while self.workers:
+                self.workers.pop().kill()
+        else:
+            pool = self.procpool
+            _log.debug('waiting for %d workers to complete', pool.running())
+            pool.waitall()
 
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
