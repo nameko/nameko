@@ -115,7 +115,7 @@ def test_send_fanout_using_send_rpc(connection):
             assert msg.payload == expected
 
 
-def _test_send_rpc(get_connection):
+def test_send_rpc(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
