@@ -115,7 +115,7 @@ def test_send_fanout_using_send_rpc(connection):
             assert msg.payload == expected
 
 
-def _test_send_rpc(get_connection):
+def test_send_rpc(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
@@ -143,7 +143,6 @@ def _test_send_rpc(get_connection):
     assert not g
 
 
-@pytest.mark.skipif('True')
 def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
     def response_greenthread():
         with get_connection() as conn:
@@ -183,5 +182,5 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
                 timeout=3)
 
         assert resp == {'spam': 'shrub', }
-    eventlet.sleep(1)
+    eventlet.sleep()
     assert not g
