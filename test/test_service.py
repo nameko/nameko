@@ -14,7 +14,8 @@ def test_service(get_connection):
         def test_method(self, context, foo):
             return foo + 'spam'
 
-    srv = service.Service(Controller, connection_factory=get_connection,
+    srv = service.Service(
+        Controller, connection_factory=get_connection,
         exchange='testrpc', topic='test', )
     srv.start()
     eventlet.sleep()
@@ -35,7 +36,8 @@ def test_service_doesnt_exhaust_pool(get_connection):
         def test_method(self, context, foo):
             return foo + 'spam'
 
-    srv = service.Service(Controller, connection_factory=get_connection,
+    srv = service.Service(
+        Controller, connection_factory=get_connection,
         exchange='testrpc', topic='test', poolsize=POOLSIZE)
     srv.start()
     eventlet.sleep()
@@ -44,11 +46,10 @@ def test_service_doesnt_exhaust_pool(get_connection):
         with eventlet.Timeout(10):
             for i in range(POOLSIZE*2):
                 test = TestProxy(get_connection, timeout=3).test
-                ret = test.test_method(foo='bar')
+                test.test_method(foo='bar')
 
     finally:
         srv.kill()
-
 
 
 def test_exceptions(get_connection):
@@ -56,9 +57,9 @@ def test_exceptions(get_connection):
         def test_method(self, context, **kwargs):
             raise KeyError('foo')
 
-    srv = service.Service(Controller,
-            connection_factory=get_connection,
-            exchange='testrpc', topic='test', )
+    srv = service.Service(
+        Controller, connection_factory=get_connection,
+        exchange='testrpc', topic='test', )
     srv.start()
     eventlet.sleep()
 
@@ -87,22 +88,12 @@ def test_service_wait(get_connection):
             # pretending we are working really hard
             spam_continue.wait()
 
-    srv = service.Service(Foobar,
-            connection_factory=get_connection,
-            exchange='testrpc', topic='test', )
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', )
 
     srv.start()
     eventlet.sleep()
-
-    kill_completed = Event()
-
-    def kill():
-        srv.kill()
-        kill_completed.send(1)
-
-    # we will wait until the service dies,
-    # i.e. the queue consumers and any spawned worker
-    waiter = eventlet.spawn(lambda: srv.wait())
 
     try:
         with eventlet.timeout.Timeout(5):
@@ -114,20 +105,11 @@ def test_service_wait(get_connection):
 
             # we are in the middle of an RPC call, this will make sure
             # that wait() will have to wait for the worker and the queue
-            eventlet.spawn(kill)
-            # kill() does not actually kill anything, but rather just waits
-            # for the consumer queue to stop.
-            kill_completed.wait()
-            # The consumer queue should be dead by now,
-            # but we still have a worker running.
-            assert waiter.dead is False
+            kill_thread = eventlet.spawn(srv.kill)
             # Let the worker finish it's job
             spam_continue.send(1)
             rpc_call.wait()
-            # The call completed, there should be no more workers running
-            # causing the service to die, which we have been waiting for.
-            # TODO: should probably wait for the waiter at this point.
-            assert waiter.dead
+            kill_thread.wait()
 
     except eventlet.timeout.Timeout as t:
         pytest.fail('waiting for death of service timed out: {}'.format(t))
@@ -136,25 +118,21 @@ def test_service_wait(get_connection):
 
 
 def test_service_wait_consumer_dies(get_connection):
-    srv = service.Service(object,
-            connection_factory=get_connection,
-            exchange='testrpc', topic='test', )
+    srv = service.Service(
+        object, connection_factory=get_connection,
+        exchange='testrpc', topic='test', )
 
     srv.start()
     eventlet.sleep()
-
-    waiter = eventlet.spawn(lambda: srv.wait())
-    eventlet.sleep()
-
     srv.greenlet.kill()
     # we don't expect any errors while waiting
-    waiter.wait()
+    srv.kill()
 
 
 def test_service_link(get_connection):
-    srv = service.Service(object,
-            connection_factory=get_connection,
-            exchange='testrpc', topic='test', )
+    srv = service.Service(
+        object, connection_factory=get_connection,
+        exchange='testrpc', topic='test', )
 
     srv.start()
 
@@ -174,9 +152,9 @@ def test_service_link(get_connection):
 
 
 def test_service_cannot_be_started_twice(get_connection):
-    srv = service.Service(object,
-            connection_factory=get_connection,
-            exchange='testrpc', topic='test')
+    srv = service.Service(
+        object, connection_factory=get_connection,
+        exchange='testrpc', topic='test')
 
     srv.start()
     with pytest.raises(RuntimeError):
@@ -249,8 +227,8 @@ def test_service_custom_pool(get_connection):
             self.count += 1
             return self._pool.spawn(*args, **kwargs)
 
-        def wait(self):
-            return self._pool.wait()
+        def waitall(self):
+            return self._pool.waitall()
 
         @property
         def size(self):
@@ -258,6 +236,9 @@ def test_service_custom_pool(get_connection):
 
         def free(self):
             return self._pool.free()
+
+        def running(self):
+            return self._pool.running()
 
     pool = MyPool()
     srv = service.Service(
@@ -274,9 +255,32 @@ def test_service_custom_pool(get_connection):
     assert pool.count == 1
 
 
-@pytest.mark.skipif('True')
+def test_force_kill(get_connection):
+    spam_continue = Event()
+    spam_called = Event()
+
+    class Foobar(object):
+        def spam(self, context):
+            spam_called.send(1)
+            spam_continue.wait()
+
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
+    srv.start()
+    eventlet.sleep()
+
+    foobar = TestProxy(get_connection, timeout=3).test
+    eventlet.spawn(foobar.spam)
+
+    spam_called.wait()
+    # spam will not complete, so we force it
+    srv.kill(force=True)
+
+    assert srv.greenlet.dead
+
+
 def test_service_dos(get_connection):
-    #TODO: this test hangs forever, though it should fail
     spam_continue = Event()
     spam_called = Event()
 
@@ -286,10 +290,9 @@ def test_service_dos(get_connection):
                 spam_called.send(1)
                 spam_continue.wait()
 
-    s1 = service.Service(Foobar,
-                    connection=get_connection(),
-                    exchange='testrpc', topic='test',
-                    poolsize=1)
+    s1 = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
     s1.start()
     eventlet.sleep()
 
@@ -299,25 +302,28 @@ def test_service_dos(get_connection):
     eventlet.sleep()
     spam_called.wait()
 
-    # At this point we will have exhausted the pool-size and
+    # At this point we will have exhausted it's prefetch count and worker-pool
     # s1 should not accept any more RPCs as it is busy processing spam().
-    # Lets kick off a 2nd RPC anyways, which should just wait in the queue
+    # Lets kick off two more RPC anyways, which should just wait in the queue
     spam_call_2 = eventlet.spawn(foobar.spam, do_wait=False)
+    spam_call_3 = eventlet.spawn(foobar.spam, do_wait=False)
     eventlet.sleep()
 
-    # lets fire up another service, which should take care of the 2nd call
-    s2 = service.Service(Foobar,
-                    connection=get_connection(),
-                    exchange='testrpc', topic='test')
+    # lets fire up another service, which should take care of the 2 extra calls
+    s2 = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test')
+
     s2.start()
     s2.consume_ready.wait()
     eventlet.sleep()
 
     try:
-        #TODO: somehow this hangns forever in case s1 blocks
         with eventlet.timeout.Timeout(5):
-            #as soon as s2 is up and running, the 2nd call should get a reply
+            # as soon as s2 is up and running, the 2 extra calls should
+            # get a reply
             spam_call_2.wait()
+            spam_call_3.wait()
 
             # we can let the first call continue now
             spam_continue.send(1)
@@ -327,6 +333,3 @@ def test_service_dos(get_connection):
     finally:
         s1.kill()
         s2.kill()
-
-
-
