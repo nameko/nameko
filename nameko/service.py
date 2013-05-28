@@ -55,6 +55,8 @@ class Service(ConsumerMixin):
         self.workers = set()
         self._pending_messages = []
         self._shutting_down = False
+        self._do_cancel_consumers = False
+        self._consumers_cancelled = Event()
 
     def start(self):
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
@@ -107,11 +109,22 @@ class Service(ConsumerMixin):
         self._pending_messages.append(message)
 
     def on_iteration(self):
-        self.ack_pending_messages()
+        self.process_consumer_cancelation()
+        # we need to make sure we process any pending messages before shutdown
+        self.process_pending_message_ack()
+        self.process_shutdown()
 
-    def ack_pending_messages(self):
+    def process_consumer_cancelation(self):
+        if self._do_cancel_consumers:
+            self._do_cancel_consumers = False
+            if self._consumers:
+                _log.debug('cancelling consumers')
+                for consumer in self._consumers:
+                    consumer.cancel()
+            self._consumers_cancelled.send(True)
+
+    def process_pending_message_ack(self):
         messages = self._pending_messages
-
         if messages:
             _log.debug('ack() %d processed messages', len(messages))
             while messages:
@@ -119,36 +132,56 @@ class Service(ConsumerMixin):
                 msg.ack()
                 eventlet.sleep()
 
+    def process_shutdown(self):
         if self._shutting_down:
-            _log.debug('notifying consumer to stop')
+            _log.debug('notifying service to stop')
             self.should_stop = True
+
+    def cancel_consumers(self):
+        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
+        if self.greenlet is not None and not self.greenlet.dead:
+            # since consumers were started in a separate thread,
+            # we will just notify the thread to avoid getting
+            # "Second simultaneous read" errors
+            _log.debug('notifying consumers to be cancelled')
+            self._do_cancel_consumers = True
+            self._consumers_cancelled.wait()
+        else:
+            _log.debug('consumer thread already dead')
+
+    def kill_workers(self):
+        _log.debug('force killing %d workers', len(self.workers))
+        while self.workers:
+            self.workers.pop().kill()
+
+    def wait_for_workers(self):
+        pool = self.procpool
+        _log.debug('waiting for %d workers to complete', pool.running())
+        pool.waitall()
+
+    def shut_down(self):
+        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
+        if self.greenlet is not None and not self.greenlet.dead:
+            _log.debug('stopping service')
+            self._shutting_down = True
+            self.greenlet.wait()
+
+        # TODO: when is this ever not None?
+        if self._channel is not None:
+            _log.debug('closing channel')
+            self._channel.close()
 
     def kill(self, force=False):
         _log.debug('killing service')
 
-        if self._consumers:
-            _log.debug('cancelling consumers')
-            for consumer in self._consumers:
-                consumer.cancel()
+        self.cancel_consumers()
 
         if force:
-            _log.debug('force killing %d workers', len(self.workers))
-            while self.workers:
-                self.workers.pop().kill()
+            self.kill_workers()
         else:
-            pool = self.procpool
-            _log.debug('waiting for %d workers to complete', pool.running())
-            pool.waitall()
+            self.wait_for_workers()
 
-        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
-        if self.greenlet is not None and not self.greenlet.dead:
-            _log.debug('waiting for consumer to stop after message ack()')
-            self._shutting_down = True
-            self.greenlet.wait()
-
-        if self._channel is not None:
-            _log.debug('closing channel')
-            self._channel.close()
+        self.shut_down()
 
     def link(self, *args, **kwargs):
         return self.greenlet.link(*args, **kwargs)
