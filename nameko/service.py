@@ -1,10 +1,10 @@
+from __future__ import absolute_import
+from logging import getLogger
+
 import eventlet
 from eventlet.pools import Pool
 from eventlet.greenpool import GreenPool
 from eventlet.event import Event
-from eventlet.semaphore import Semaphore
-import greenlet
-
 from kombu.mixins import ConsumerMixin
 
 from nameko import entities
@@ -13,6 +13,8 @@ from nameko.messaging import get_consumers, process_message
 from nameko.dependencies import inject_dependencies
 from nameko.sending import process_rpc_message
 
+_log = getLogger(__name__)
+
 
 class Service(ConsumerMixin):
     def __init__(
@@ -20,6 +22,7 @@ class Service(ConsumerMixin):
             pool=None, poolsize=1000):
         self.nodeid = UIDGEN()
 
+        self.max_workers = poolsize
         if pool is None:
             self.procpool = GreenPool(size=poolsize)
         else:
@@ -29,13 +32,13 @@ class Service(ConsumerMixin):
         self.service = self.controller
         self.topic = topic
         self.greenlet = None
-        self.messagesem = Semaphore()
         self.consume_ready = Event()
 
         node_topic = "{}.{}".format(self.topic, self.nodeid)
-        self.nova_queues = [entities.get_topic_queue(exchange, topic),
-                       entities.get_topic_queue(exchange, node_topic),
-                       entities.get_fanout_queue(topic), ]
+        self.nova_queues = [
+            entities.get_topic_queue(exchange, topic),
+            entities.get_topic_queue(exchange, node_topic),
+            entities.get_fanout_queue(topic), ]
 
         self._channel = None
         self._consumers = None
@@ -49,6 +52,12 @@ class Service(ConsumerMixin):
             create=connection_factory
         )
 
+        self.workers = set()
+        self._pending_messages = []
+        self._shutting_down = False
+        self._do_cancel_consumers = False
+        self._consumers_cancelled = Event()
+
     def start(self):
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
@@ -56,11 +65,13 @@ class Service(ConsumerMixin):
         self.greenlet = eventlet.spawn(self.run)
 
     def get_consumers(self, Consumer, channel):
-        nova_consumer = Consumer(self.nova_queues,
-                                    callbacks=[self.on_nova_message, ])
+        nova_consumer = Consumer(
+            self.nova_queues, callbacks=[self.on_nova_message, ])
 
-        consume_consumers = get_consumers(Consumer, self.controller,
-                                                self.on_consume_message)
+        nova_consumer.qos(prefetch_count=self.procpool.size)
+
+        consume_consumers = get_consumers(
+            Consumer, self.controller, self.on_consume_message)
 
         return [nova_consumer] + list(consume_consumers)
 
@@ -73,65 +84,104 @@ class Service(ConsumerMixin):
         self.consume_ready.reset()
 
     def on_nova_message(self, body, message):
-        # need a semaphore to stop killing between message ack()
-        # and spawning process.
-        # TODO: kill() does not use the semaphore
-        with self.messagesem:
-            if self.procpool.free():
-                self.procpool.spawn(self.handle_request, body)
-                message.ack()
-            else:
-                # we cannot deal with the message, so it should go
-                # back onto the queue and someone else should pick it up
-                message.requeue()
-                # TODO: tests will block if we don't yield here
-                eventlet.sleep()
+        _log.debug('spawning worker (%d free)', self.procpool.free())
 
-    def on_consume_message(self, consumer_config, consumer_method, body, message):
-        # need a semaphore to stop killing between message ack()
-        # and spawning process.
-        # TODO: kill() does not use the semaphore
-        with self.messagesem:
-            # TODO: If the procpool has been exhausted this will block.
-            #       Why do we accept messages when we cannot handle them?
-            #       Maybe we should spawn at a different time and only
-            #       spawn if we have non-idle workers left.
-            #       Thus, messages will be picked up only by workers,
-            #       which indeed can handle the message.
-            self.procpool.spawn(process_message, consumer_config,
-                                consumer_method, body, message)
+        gt = self.procpool.spawn(self.handle_request, body, message)
 
-            # TODO: not acking the message here means we can only ever
-            #       consume a single message per node at a given point in time.
-            #       This is due to the fact that we actaully only have
-            #       in this class on consumer connection/channel due to the way
-            #       spawning implemented.
+        gt.link(self.handle_request_processed, message)
+        self.workers.add(gt)
 
-    def handle_request(self, body):
+    def on_consume_message(
+            self, consumer_config, consumer_method, body, message):
+        _log.debug('spawning consumer')
+
+        self.procpool.spawn(
+            process_message, consumer_config, consumer_method, body, message)
+
+    def handle_request(self, body, message):
         # item is patched on for python with ``with``, pylint can't find it
         # pylint: disable=E1102
         with self._connection_pool.item() as connection:
             process_rpc_message(connection, self.controller, body)
 
-    def wait(self):
-        try:
-            self.greenlet.wait()
-        except greenlet.GreenletExit:
-            pass
-        return self.procpool.waitall()
+    def handle_request_processed(self, gt, message):
+        self.workers.discard(gt)
+        self._pending_messages.append(message)
 
-    def kill(self):
+    def on_iteration(self):
+        self.process_consumer_cancelation()
+        # we need to make sure we process any pending messages before shutdown
+        self.process_pending_message_ack()
+        self.process_shutdown()
+
+    def process_consumer_cancelation(self):
+        if self._do_cancel_consumers:
+            self._do_cancel_consumers = False
+            if self._consumers:
+                _log.debug('cancelling consumers')
+                for consumer in self._consumers:
+                    consumer.cancel()
+            self._consumers_cancelled.send(True)
+
+    def process_pending_message_ack(self):
+        messages = self._pending_messages
+        if messages:
+            _log.debug('ack() %d processed messages', len(messages))
+            while messages:
+                msg = messages.pop()
+                msg.ack()
+                eventlet.sleep()
+
+    def process_shutdown(self):
+        if self._shutting_down:
+            _log.debug('notifying service to stop')
+            self.should_stop = True
+
+    def cancel_consumers(self):
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
-            self.should_stop = True
-            # with self.messagesem:
-                # self.greenlet.kill()
+            # since consumers were started in a separate thread,
+            # we will just notify the thread to avoid getting
+            # "Second simultaneous read" errors
+            _log.debug('notifying consumers to be cancelled')
+            self._do_cancel_consumers = True
+            self._consumers_cancelled.wait()
+        else:
+            _log.debug('consumer thread already dead')
+
+    def kill_workers(self):
+        _log.debug('force killing %d workers', len(self.workers))
+        while self.workers:
+            self.workers.pop().kill()
+
+    def wait_for_workers(self):
+        pool = self.procpool
+        _log.debug('waiting for %d workers to complete', pool.running())
+        pool.waitall()
+
+    def shut_down(self):
+        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
+        if self.greenlet is not None and not self.greenlet.dead:
+            _log.debug('stopping service')
+            self._shutting_down = True
             self.greenlet.wait()
-        if self._consumers:
-            for c in self._consumers:
-                c.cancel()
+
+        # TODO: when is this ever not None?
         if self._channel is not None:
+            _log.debug('closing channel')
             self._channel.close()
+
+    def kill(self, force=False):
+        _log.debug('killing service')
+
+        self.cancel_consumers()
+
+        if force:
+            self.kill_workers()
+        else:
+            self.wait_for_workers()
+
+        self.shut_down()
 
     def link(self, *args, **kwargs):
         return self.greenlet.link(*args, **kwargs)
