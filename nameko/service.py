@@ -1,5 +1,7 @@
 from __future__ import absolute_import
+from itertools import count
 from logging import getLogger
+import socket
 
 import eventlet
 from eventlet.pools import Pool
@@ -54,7 +56,6 @@ class Service(ConsumerMixin):
 
         self.workers = set()
         self._pending_messages = []
-        self._shutting_down = False
         self._do_cancel_consumers = False
         self._consumers_cancelled = Event()
 
@@ -132,8 +133,41 @@ class Service(ConsumerMixin):
                 msg.ack()
                 eventlet.sleep()
 
+    def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
+        """ Lifted from kombu so we are able to break the loop immediately
+            after a shutdown is triggered rather than waiting for the timeout.
+        """
+        elapsed = 0
+        with self.Consumer() as (connection, channel, consumers):
+            with self.extra_context(connection, channel):
+                self.on_consume_ready(connection, channel, consumers, **kwargs)
+                for i in limit and xrange(limit) or count():
+                    # moved from after the following `should_stop` condition to
+                    # avoid waiting on a drain_events timeout before breaking
+                    # the loop.
+                    self.on_iteration()
+                    if self.should_stop:
+                        break
+
+                    try:
+                        connection.drain_events(timeout=safety_interval)
+                    except socket.timeout:
+                        elapsed += safety_interval
+                        if timeout and elapsed >= timeout:
+                            raise socket.timeout()
+                    except socket.error:
+                        if not self.should_stop:
+                            raise
+                    else:
+                        yield
+                        elapsed = 0
+
     def process_shutdown(self):
-        if self._shutting_down:
+        if (
+            self._consumers_cancelled.ready() and
+            self.procpool.running() < 1 and
+            not self._pending_messages
+        ):
             _log.debug('notifying service to stop')
             self.should_stop = True
 
@@ -163,7 +197,6 @@ class Service(ConsumerMixin):
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
             _log.debug('stopping service')
-            self._shutting_down = True
             self.greenlet.wait()
 
         # TODO: when is this ever not None?
