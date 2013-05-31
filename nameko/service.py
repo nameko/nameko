@@ -133,7 +133,7 @@ class Service(ConsumerMixin):
                 msg.ack()
                 eventlet.sleep()
 
-    def consume(self, limit=None, timeout=None, safety_interval=1, **kwargs):
+    def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
         """ Lifted as-is from kombu so we get a better handle on where the
             iteration should stop.
         """
