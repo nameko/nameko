@@ -134,8 +134,8 @@ class Service(ConsumerMixin):
                 eventlet.sleep()
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted as-is from kombu so we get a better handle on where the
-            iteration should stop.
+        """ Lifted from kombu so we are able to break the loop immediately
+            after a shutdown is triggered rather than waiting for the timeout.
         """
         elapsed = 0
         with self.Consumer() as (connection, channel, consumers):
