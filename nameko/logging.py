@@ -13,11 +13,11 @@ def log_time(log_method, msg, *args):
         with log_time(log.debug, "It took %0.3f sec to call %s", "shrub()"):
             shrub()
     """
-    start_time = time.clock()
+    start_time = time.time()
 
     try:
         yield
     finally:
-        duration = time.clock() - start_time
+        duration = time.time() - start_time
         args = args + (duration,)
         log_method(msg, *args)
