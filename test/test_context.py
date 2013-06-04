@@ -54,7 +54,7 @@ class TestContext(unittest.TestCase):
         ctx = self._makeOne(user_id)
 
         assert 'custom' not in ctx
-        assert ctx.get('custom') == None
+        assert ctx.get('custom') is None
         with self.assertRaises(KeyError):
             ctx['custom']
 
@@ -67,7 +67,7 @@ class TestContext(unittest.TestCase):
         del ctx['custom']
 
         assert 'custom' not in ctx
-        assert ctx.get('custom') == None
+        assert ctx.get('custom') is None
         with self.assertRaises(KeyError):
             ctx['custom']
 

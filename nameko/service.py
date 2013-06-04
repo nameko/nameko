@@ -184,7 +184,10 @@ class Service(ConsumerMixin):
                         connection.drain_events(timeout=safety_interval)
                     except socket.timeout:
                         elapsed += safety_interval
-                        if timeout and elapsed >= timeout:
+                        # Excluding the following clause from coverage,
+                        # as timeout never appears to be set - This method
+                        # is a lift from kombu so will leave in place for now.
+                        if timeout and elapsed >= timeout:  # pragma: no cover
                             raise socket.timeout()
                     except socket.error:
                         if not self.should_stop:

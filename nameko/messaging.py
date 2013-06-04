@@ -138,11 +138,8 @@ def get_consumers(Consumer, service, on_message):
 
             consumer = Consumer(
                 queues=[consumer_config.queue],
-                callbacks=[
-                    partial(on_message, consumer_method)
-                ]
+                callbacks=[partial(on_message, consumer_method)]
             )
-
             yield consumer
         except KeyError:
             pass

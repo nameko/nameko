@@ -186,5 +186,3 @@ def test_consumer_failure_requeues(get_connection):
             eventlet.sleep()
 
     assert messages == [msg]
-
-

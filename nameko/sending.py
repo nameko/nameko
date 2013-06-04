@@ -96,7 +96,7 @@ def _delegate_apply(delegate, context, method, args):
     return func(context=context, **args)
 
 
-def process_rpc_message(connection, delegate, body, reraise=False):
+def process_rpc_message(connection, delegate, body):
     msgid, ctx, method, args = context.parse_message(body)
 
     _log.debug('processing message `%s`: using %s(...)', msgid, method)
@@ -111,8 +111,6 @@ def process_rpc_message(connection, delegate, body, reraise=False):
                 tbfmt = traceback.format_exception(exc_typ, exc_val, exc_tb)
                 ret = (exc_typ.__name__, str(exc_val), tbfmt)
                 reply(connection, msgid, failure=ret)
-            if reraise:
-                raise exc_typ, exc_val, exc_tb
         else:
             if msgid:
                 _log.debug('replying to message `%s`', msgid)
