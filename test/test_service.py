@@ -1,7 +1,11 @@
+import socket
+
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 import eventlet
 import pytest
+
+from kombu import Connection
 
 from nameko import exceptions
 from nameko import service
@@ -29,6 +33,38 @@ def test_service(get_connection):
         srv.kill()
 
 
+def test_service_socket_error():
+
+    class FailConnection(Connection):
+        # a connection that will give a socket.error
+        # when the service starts
+        def drain_events(self, *args, **kwargs):
+            raise socket.error
+
+    def get_connection():
+        return FailConnection(transport='memory')
+
+    class Controller(object):
+        def test_method(self, context, foo):
+            return foo + 'spam'
+
+    srv = service.Service(
+        Controller, connection_factory=get_connection,
+        exchange='testrpc', topic='test', )
+
+    try:
+        srv.start()
+        eventlet.sleep()
+        with pytest.raises(socket.error):
+            # we expect that a socket.error has been raised
+            # within the startup greenthread
+            # calling .wait() should raise this returned error
+            srv.greenlet.wait()
+
+    finally:
+        srv.kill()
+
+
 def test_service_doesnt_exhaust_pool(get_connection):
     POOLSIZE = 10
 
@@ -44,7 +80,7 @@ def test_service_doesnt_exhaust_pool(get_connection):
 
     try:
         with eventlet.Timeout(10):
-            for i in range(POOLSIZE*2):
+            for i in range(POOLSIZE * 2):
                 test = TestProxy(get_connection, timeout=3).test
                 test.test_method(foo='bar')
 
@@ -275,6 +311,32 @@ def test_force_kill(get_connection):
 
     spam_called.wait()
     # spam will not complete, so we force it
+    srv.kill(force=True)
+
+    assert srv.greenlet.dead
+
+
+def test_force_kill_no_workers(get_connection):
+    spam_continue = Event()
+    spam_called = Event()
+
+    class Foobar(object):
+        def spam(self, context):
+            spam_called.send(1)
+            spam_continue.wait()
+
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', poolsize=1)
+    srv.start()
+    eventlet.sleep()
+
+    foobar = TestProxy(get_connection, timeout=3).test
+    eventlet.spawn(foobar.spam)
+
+    spam_called.wait()
+    spam_continue.send(2)
+    # spam has completed - but force anyway
     srv.kill(force=True)
 
     assert srv.greenlet.dead

@@ -12,11 +12,14 @@ develop: requirements
 	python setup.py develop
 
 pytest:
-	py.test --cov nameko test
+	py.test --cov nameko test --cov-report term-missing
 
 flake8:
 	flake8 --ignore=E128 nameko test
 
-test: pytest flake8
+pylint:
+	pylint nameko -E
+
+test: pytest pylint flake8
 
 full-test: requirements test

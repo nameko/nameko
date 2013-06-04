@@ -20,7 +20,7 @@ class TestProxy(object):
             method = key
 
         return self.__class__(self.get_connection, self.timeout,
-                                service, method)
+            service, method)
 
     def __call__(self, **kwargs):
         ctx = context.get_admin_context()

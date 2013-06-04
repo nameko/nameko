@@ -146,11 +146,11 @@ def get_consumers(Consumer, service, on_message):
             consumer_config = consumer_configs[consumer_method.im_func]
 
             consumer = Consumer(
-                            queues=[consumer_config.queue],
-                            callbacks=[partial(on_message,
-                                                consumer_config,
-                                                consumer_method)]
-                        )
+                queues=[consumer_config.queue],
+                callbacks=[partial(on_message,
+                                   consumer_config,
+                                   consumer_method)]
+            )
 
             consumer.qos(prefetch_count=consumer_config.prefetch_count)
 
@@ -186,14 +186,14 @@ def process_message(consumer_config, consumer, body, message):
     except Exception as e:
         if message.acknowledged:
             log.error('failed to consume message, '
-                'cannot requeue because message already acknowledged: %s(): %s',
+                'cannot requeue because message '
+                'already acknowledged: %s(): %s',
                 consumer, e)
         else:
             log.error(
-                    'failed to consume message, requeueing message: %s(): %s',
-                    consumer, e)
+                'failed to consume message, requeueing message: %s(): %s',
+                consumer, e)
             message.requeue()
     else:
         if not message.acknowledged:
             message.ack()
-
