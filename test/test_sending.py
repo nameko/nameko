@@ -22,7 +22,8 @@ def test_replying(connection):
             queue.declare()
 
             sending.reply(conn, msgid, 'success')
-            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                timeout=0.2))
             assert msg.payload['result'] == 'success'
 
 
@@ -42,7 +43,8 @@ def test_send_direct(connection):
             sending.send_direct(conn,
                     directid=msgid,
                     data='success')
-            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                timeout=0.2))
             assert msg.payload == 'success'
 
 
@@ -56,7 +58,8 @@ def test_send_topic(connection):
                     exchange='test_rpc',
                     topic='test',
                     data='success')
-            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                timeout=0.2))
             assert msg.payload == 'success'
 
 
@@ -67,15 +70,16 @@ def test_send_topic_using_send_rpc(connection):
             queue.declare()
             ctx = context.get_admin_context()
             sending.send_rpc(conn,
-                    context=ctx,
-                    exchange='test_rpc',
-                    topic='test',
-                    method='test_method',
-                    args={'foo': 'bar', },
-                    timeout=3,
-                    noreply=True)
+                context=ctx,
+                exchange='test_rpc',
+                topic='test',
+                method='test_method',
+                args={'foo': 'bar', },
+                timeout=3,
+                noreply=True)
 
-            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                timeout=0.2))
             expected = {'args': {'foo': 'bar'}, 'method': 'test_method'}
             ctx.add_to_message(expected)
             assert msg.payload == expected
@@ -90,7 +94,8 @@ def test_send_fanout(connection):
             sending.send_fanout(conn,
                     topic='test',
                     data='success')
-            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                timeout=0.2))
             assert msg.payload == 'success'
 
 
@@ -101,15 +106,16 @@ def test_send_fanout_using_send_rpc(connection):
             queue.declare()
             ctx = context.get_admin_context()
             sending.send_rpc(conn,
-                    context=ctx,
-                    exchange='test_rpc',
-                    topic='test',
-                    method='test_method',
-                    args={'foo': 'bar', },
-                    timeout=3,
-                    fanout=True)
+                context=ctx,
+                exchange='test_rpc',
+                topic='test',
+                method='test_method',
+                args={'foo': 'bar', },
+                timeout=3,
+                fanout=True)
 
-            msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=0.2))
+            msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                timeout=0.2))
             expected = {'args': {'foo': 'bar'}, 'method': 'test_method'}
             ctx.add_to_message(expected)
             assert msg.payload == expected
@@ -119,9 +125,11 @@ def test_send_rpc(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
-                queue = entities.get_topic_queue('test_rpc', 'test', channel=chan)
+                queue = entities.get_topic_queue('test_rpc', 'test',
+                    channel=chan)
                 queue.declare()
-                msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=2))
+                msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                    timeout=2))
                 msgid, ctx, method, args = context.parse_message(msg.payload)
                 sending.reply(conn, msgid, args)
 
@@ -131,12 +139,12 @@ def test_send_rpc(get_connection):
     with get_connection() as conn:
         ctx = context.get_admin_context()
         resp = sending.send_rpc(conn,
-                context=ctx,
-                exchange='test_rpc',
-                topic='test',
-                method='test_method',
-                args={'foo': 'bar', },
-                timeout=3)
+            context=ctx,
+            exchange='test_rpc',
+            topic='test',
+            method='test_method',
+            args={'foo': 'bar', },
+            timeout=3)
 
         assert resp == {'foo': 'bar', }
 
@@ -147,10 +155,12 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
-                queue = entities.get_topic_queue('test_rpc', 'test', channel=chan)
+                queue = entities.get_topic_queue('test_rpc', 'test',
+                    channel=chan)
                 queue.declare()
 
-                msg = ifirst(consuming.queue_iterator(queue, no_ack=True, timeout=2))
+                msg = ifirst(consuming.queue_iterator(queue, no_ack=True,
+                    timeout=2))
                 msgid, ctx, method, args = context.parse_message(msg.payload)
 
                 exchange = entities.get_reply_exchange(msgid)
@@ -158,7 +168,7 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
 
                 for _ in range(3):
                     msg = dict(result='should ignore this message',
-                                failure=None, ending=False)
+                        failure=None, ending=False)
                     producer.publish(msg)
                     eventlet.sleep(0.1)
 
@@ -167,19 +177,18 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
                 msg = dict(result=None, failure=None, ending=True)
                 producer.publish(msg)
 
-
     g = eventlet.spawn_n(response_greenthread)
     eventlet.sleep()
 
     with get_connection() as conn:
         ctx = context.get_admin_context()
         resp = sending.send_rpc(conn,
-                context=ctx,
-                exchange='test_rpc',
-                topic='test',
-                method='test_method',
-                args={'spam': 'shrub', },
-                timeout=3)
+            context=ctx,
+            exchange='test_rpc',
+            topic='test',
+            method='test_method',
+            args={'spam': 'shrub', },
+            timeout=3)
 
         assert resp == {'spam': 'shrub', }
     eventlet.sleep()

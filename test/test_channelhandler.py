@@ -17,9 +17,7 @@ def test_ensure():
     fn = lambda: None
     handler.ensure((obj, fn))
     conn.ensure.assert_called_with(obj, fn, errback=handler.on_error,
-                                    on_revive=None)
+        on_revive=None)
 
     with pytest.raises(TypeError):
         handler.ensure(None)
-
-

@@ -3,7 +3,6 @@ import logging
 import eventlet
 eventlet.monkey_patch()
 
-import logging
 
 logging.basicConfig(level=logging.DEBUG)
 

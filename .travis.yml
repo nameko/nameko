@@ -7,9 +7,7 @@ install:
   - pip install -r test_requirements.txt
 
 script:
-  - pyflakes nameko
-  - pylint nameko -E
-  - py.test
+  - make test
 
 notifications:
   email: false

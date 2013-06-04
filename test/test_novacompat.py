@@ -42,12 +42,12 @@ def test_sending_rpc_call_to_nova(connection):
 
         with connection as newconn:
             resp = sending.send_rpc(newconn,
-                    context.get_admin_context(),
-                    exchange=flags.FLAGS.control_exchange,
-                    topic='test',
-                    method='testmethod',
-                    args={'foo': 'bar', },
-                    timeout=2)
+                context.get_admin_context(),
+                exchange=flags.FLAGS.control_exchange,
+                topic='test',
+                method='testmethod',
+                args={'foo': 'bar', },
+                timeout=2)
             assert resp == {'foo': 'bar', }
     finally:
         gt.kill()
@@ -70,12 +70,12 @@ def test_raising_from_error_in_nova(connection):
         with connection as newconn:
             with pytest.raises(exceptions.RemoteError):
                 sending.send_rpc(newconn,
-                        context.get_admin_context(),
-                        exchange=flags.FLAGS.control_exchange,
-                        topic='test',
-                        method='testmethod',
-                        args={},
-                        timeout=2)
+                    context.get_admin_context(),
+                    exchange=flags.FLAGS.control_exchange,
+                    topic='test',
+                    method='testmethod',
+                    args={},
+                    timeout=2)
     finally:
         gt.kill()
         novaconn.close()
@@ -92,17 +92,17 @@ def test_replying_to_nova_call(connection):
 
             def listen():
                 msg = responses.ifirst(consuming.queue_iterator(
-                        queue, no_ack=True, timeout=2))
+                    queue, no_ack=True, timeout=2))
                 msg.ack()
                 msgid, ctx, method, args = context.parse_message(msg.payload)
                 sending.reply(conn, msgid, (method, args))
             eventlet.spawn(listen)
 
             res = rpc.call(novacontext.get_admin_context(),
-                    topic='test',
-                    msg={'method': 'testmethod',
-                         'args': {'foo': 'bar', }, },
-                    timeout=2)
+                topic='test',
+                msg={'method': 'testmethod',
+                     'args': {'foo': 'bar', }, },
+                timeout=2)
             assert res == ['testmethod', {'foo': 'bar'}]
 
 
@@ -119,14 +119,13 @@ def test_sending_from_nova_to_service(connection):
         eventlet.sleep(0)
         try:
             res = rpc.call(novacontext.get_admin_context(),
-                    topic='test',
-                    msg={'method': 'test_method',
-                         'args': {'foo': 'bar', }, },
-                    timeout=2)
+                topic='test',
+                msg={'method': 'test_method',
+                     'args': {'foo': 'bar', }, },
+                timeout=2)
             assert res == {'foo': 'bar'}
         finally:
             srvobj.kill()
-
 
 
 @essexonly
