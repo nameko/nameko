@@ -11,7 +11,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko import entities
 from nameko.common import UIDGEN
-from nameko.messaging import get_consumers, process_message
+from nameko.messaging import get_consumers
 from nameko.dependencies import inject_dependencies
 from nameko.sending import process_rpc_message
 
@@ -47,6 +47,8 @@ class Service(ConsumerMixin):
 
         self.connection = connection_factory()
 
+        #TODO: should happen when we spawn as worker
+        #TODO: should pass in `self` instead of a connection
         inject_dependencies(self.controller, self.connection)
 
         self._connection_pool = Pool(
@@ -55,7 +57,8 @@ class Service(ConsumerMixin):
         )
 
         self.workers = set()
-        self._pending_messages = []
+        self._pending_ack_messages = []
+        self._pending_requeue_messages = []
         self._do_cancel_consumers = False
         self._consumers_cancelled = Event()
 
@@ -69,12 +72,16 @@ class Service(ConsumerMixin):
         nova_consumer = Consumer(
             self.nova_queues, callbacks=[self.on_nova_message, ])
 
-        nova_consumer.qos(prefetch_count=self.procpool.size)
-
         consume_consumers = get_consumers(
             Consumer, self.controller, self.on_consume_message)
 
-        return [nova_consumer] + list(consume_consumers)
+        consumers = [nova_consumer] + list(consume_consumers)
+
+        prefetch_count = self.procpool.size
+        for consumer in consumers:
+            consumer.qos(prefetch_count=prefetch_count)
+
+        return consumers
 
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
         self._consumers = consumers
@@ -87,35 +94,51 @@ class Service(ConsumerMixin):
     def on_nova_message(self, body, message):
         _log.debug('spawning worker (%d free)', self.procpool.free())
 
-        gt = self.procpool.spawn(self.handle_request, body, message)
+        gt = self.procpool.spawn(self.handle_rpc_message, body)
 
-        gt.link(self.handle_request_processed, message)
+        gt.link(self.handle_rpc_message_processed, message)
         self.workers.add(gt)
 
-    def on_consume_message(
-            self, consumer_config, consumer_method, body, message):
-        _log.debug('spawning consumer')
+    def on_consume_message(self, consumer_method, body, message):
+        _log.debug('spawning worker (%d free)', self.procpool.free())
 
-        self.procpool.spawn(
-            process_message, consumer_config, consumer_method, body, message)
+        gt = self.procpool.spawn(
+            self.handle_consume_message, consumer_method, body, message)
 
-    def handle_request(self, body, message):
+        gt.link(self.handle_consume_message_processed)
+        self.workers.add(gt)
+
+    def handle_rpc_message(self, body):
         # item is patched on for python with ``with``, pylint can't find it
         # pylint: disable=E1102
         with self._connection_pool.item() as connection:
             process_rpc_message(connection, self.controller, body)
 
-    def handle_request_processed(self, gt, message):
+    def handle_rpc_message_processed(self, gt, message):
         self.workers.discard(gt)
-        self._pending_messages.append(message)
+        self._pending_ack_messages.append(message)
+
+    def handle_consume_message(self, consumer_method, body, message):
+        try:
+            consumer_method(body)
+        except Exception as e:
+            _log.error(
+                'failed to consume message, requeueing message: %s(): %s',
+                consumer_method, e)
+            self._pending_requeue_messages.append(message)
+        else:
+            self._pending_ack_messages.append(message)
+
+    def handle_consume_message_processed(self, gt):
+        self.workers.discard(gt)
 
     def on_iteration(self):
-        self.process_consumer_cancelation()
+        self.process_consumer_cancellation()
         # we need to make sure we process any pending messages before shutdown
         self.process_pending_message_ack()
         self.process_shutdown()
 
-    def process_consumer_cancelation(self):
+    def process_consumer_cancellation(self):
         if self._do_cancel_consumers:
             self._do_cancel_consumers = False
             if self._consumers:
@@ -125,12 +148,20 @@ class Service(ConsumerMixin):
             self._consumers_cancelled.send(True)
 
     def process_pending_message_ack(self):
-        messages = self._pending_messages
+        messages = self._pending_ack_messages
         if messages:
             _log.debug('ack() %d processed messages', len(messages))
             while messages:
                 msg = messages.pop()
                 msg.ack()
+                eventlet.sleep()
+
+        messages = self._pending_requeue_messages
+        if messages:
+            _log.debug('requeue() %d processed messages', len(messages))
+            while messages:
+                msg = messages.pop()
+                msg.requeue()
                 eventlet.sleep()
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
@@ -166,7 +197,8 @@ class Service(ConsumerMixin):
         if (
             self._consumers_cancelled.ready() and
             self.procpool.running() < 1 and
-            not self._pending_messages
+            not self._pending_ack_messages and
+            not self._pending_requeue_messages
         ):
             _log.debug('notifying service to stop')
             self.should_stop = True

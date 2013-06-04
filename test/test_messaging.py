@@ -8,7 +8,6 @@ from nameko.service import Service
 
 import conftest
 
-
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
@@ -48,24 +47,15 @@ class BrokenFoobar(Foobar):
         raise Exception(msg)
 
 
-class AckedButBrokenFoobar(Foobar):
-    @consume(queue=foobar_queue)
-    def _consume(self, msg, raw_msg):
-        eventlet.sleep()
-        raw_msg.ack()
-        self.messages.append(msg)
-        raise Exception(msg)
-
-
 class RequeueingFoobar(Foobar):
     @consume(queue=foobar_queue)
-    def _consume(self, msg, raw_msg):
+    def _consume(self, msg):
         eventlet.sleep()
         if self.messages:
             self.messages.append(msg)
         else:
             self.messages.append('rejected:' + msg)
-            raw_msg.requeue()
+            raise Exception(msg)
 
 
 services = []
@@ -198,20 +188,3 @@ def test_consumer_failure_requeues(get_connection):
     assert messages == [msg]
 
 
-def test_consumer_failer_after_ack(get_connection):
-
-    srv = _start_service(AckedButBrokenFoobar, get_connection)
-
-    spammer = _start_service(QueueSpammer, get_connection)
-    msg = 'acK_then_fail_message'
-    # this message will not be requeued until
-    # because it has been acked
-    spammer._publish(msg)
-
-    #lets wait unitl at least one has been requeued
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages:
-            eventlet.sleep()
-
-    assert messages == [msg]

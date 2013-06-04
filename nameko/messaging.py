@@ -61,7 +61,7 @@ class Publisher(DependencyProvider):
         if exchange is None and queue is not None:
             exchange = queue.exchange
 
-        def do_publish(msg):
+        def do_publish(msg, delivery_mode=None):
             # TODO: would it not be better to to use a single connection
             #       per service, i.e. share it with consumers, etc?
             #       How will this work properly with eventlet?
@@ -86,22 +86,18 @@ def consume(queue, fn=None):
 
     Messaages from the queue will be deserialized depending on their content
     type and passed to the the decorated method.
-    When the conumer method returns without raising any exceptions, the message
-    will automatically be acknowledged.
+    When the conumer method returns without raising any exceptions,
+    the message will automatically be acknowledged.
     If any exceptions are raised during the consumtion, the message will be
     requeued.
-
-    It is possible to manually acknowledge a message from within the consumer.
-    To achieve this, it needs to accept a second parameter, the raw message
-    object and call ack() or requeue() on it.
 
     Example::
 
         @consume(...)
-        def handle_message(self, body, message):
+        def handle_message(self, body):
 
             if not self.spam(body):
-                message.requeue()
+                raise Exception('message will be requeued')
 
             self.shrub(body)
 
@@ -111,10 +107,7 @@ def consume(queue, fn=None):
     if fn is None:
         return partial(consume, queue)
 
-    argspecs = inspect.getargspec(fn)
-    include_raw_message = len(argspecs.args) > 2
-    consumer_configs[fn] = ConsumerConfig(queue, include_raw_message)
-
+    consumer_configs[fn] = ConsumerConfig(queue)
     return fn
 
 
@@ -122,10 +115,8 @@ class ConsumerConfig(object):
     '''
     Stores information about a consumer-decorated method.
     '''
-    def __init__(self, queue, include_raw_message):
+    def __init__(self, queue):
         self.queue = queue
-        self.include_raw_message = include_raw_message
-        self.prefetch_count = 1
 
 
 def get_consumers(Consumer, service, on_message):
@@ -146,54 +137,12 @@ def get_consumers(Consumer, service, on_message):
             consumer_config = consumer_configs[consumer_method.im_func]
 
             consumer = Consumer(
-                            queues=[consumer_config.queue],
-                            callbacks=[partial(on_message,
-                                                consumer_config,
-                                                consumer_method)]
-                        )
-
-            consumer.qos(prefetch_count=consumer_config.prefetch_count)
+                queues=[consumer_config.queue],
+                callbacks=[
+                    partial(on_message, consumer_method)
+                ]
+            )
 
             yield consumer
         except KeyError:
             pass
-
-
-def process_message(consumer_config, consumer, body, message):
-    '''
-    Processes a consumable message.
-
-    If the consumer returns without raising any exceptions, the message
-    will be acknowledged otherwise it will be requeued.
-
-    The consumer may accept just the body or the body and the raw message.
-    It may also ack() or requeue() the raw message manually, in which case
-    automatic acknowledgement/requeueing is disabled.
-
-    Args:
-        consumer_config: The configuration as defined by the consume decorator.
-        consumer: The consume-decorated method.
-
-        body: The body of the message.
-        message: The raw message.
-    '''
-    try:
-        if consumer_config.include_raw_message:
-            consumer(body, message)
-        else:
-            consumer(body)
-
-    except Exception as e:
-        if message.acknowledged:
-            log.error('failed to consume message, '
-                'cannot requeue because message already acknowledged: %s(): %s',
-                consumer, e)
-        else:
-            log.error(
-                    'failed to consume message, requeueing message: %s(): %s',
-                    consumer, e)
-            message.requeue()
-    else:
-        if not message.acknowledged:
-            message.ack()
-
