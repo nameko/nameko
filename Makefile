@@ -17,12 +17,9 @@ pytest:
 flake8:
 	flake8 --ignore=E128 nameko test
 
-pyflakes:
-	pyflakes nameko
-
 pylint:
 	pylint nameko -E
 
-test: pytest pylint pyflakes flake8
+test: pytest pylint flake8
 
 full-test: requirements test
