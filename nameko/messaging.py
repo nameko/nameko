@@ -43,12 +43,12 @@ class Publisher(DependencyProvider):
         self.exchange = exchange
         self.queue = queue
 
-    def get_instance(self, connection):
+    def get_instance(self, container):
         '''
         Provides a publish method to a container.
 
         Args:
-            connection: A kombu.Connection object.
+            container: A service container.
 
         Returns:
             A publish(msg) method.
@@ -61,21 +61,22 @@ class Publisher(DependencyProvider):
         if exchange is None and queue is not None:
             exchange = queue.exchange
 
-        def do_publish(msg, delivery_mode=None):
+        def do_publish(msg, **kwargs):
             # TODO: would it not be better to to use a single connection
             #       per service, i.e. share it with consumers, etc?
             #       How will this work properly with eventlet?
-            with producers[connection].acquire(block=True) as producer:
-                channel = producer.channel
-                if queue is not None:
-                    maybe_declare(queue, channel)
+            with container.connection_factory() as conn:
+                with producers[conn].acquire(block=True) as producer:
+                    channel = producer.channel
+                    if queue is not None:
+                        maybe_declare(queue, channel)
 
-                elif exchange is not None:
-                    maybe_declare(exchange, channel)
+                    elif exchange is not None:
+                        maybe_declare(exchange, channel)
 
-                # TODO: should we enable auto-retry,
-                #       should that be an option in __init__?
-                producer.publish(msg, exchange=exchange)
+                    # TODO: should we enable auto-retry,
+                    #       should that be an option in __init__?
+                    producer.publish(msg, exchange=exchange, **kwargs)
 
         return do_publish
 

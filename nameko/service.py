@@ -15,6 +15,8 @@ from nameko.logging import log_time
 from nameko.messaging import get_consumers
 from nameko.dependencies import inject_dependencies
 from nameko.sending import process_rpc_message
+from nameko.timer import get_timers
+
 
 _log = getLogger(__name__)
 
@@ -47,10 +49,9 @@ class Service(ConsumerMixin):
         self._consumers = None
 
         self.connection = connection_factory()
+        self.connection_factory = connection_factory
 
-        #TODO: should happen when we spawn as worker
-        #TODO: should pass in `self` instead of a connection
-        inject_dependencies(self.controller, self.connection)
+        inject_dependencies(self.controller, self)
 
         self._connection_pool = Pool(
             max_size=self.procpool.size,
@@ -63,11 +64,18 @@ class Service(ConsumerMixin):
         self._do_cancel_consumers = False
         self._consumers_cancelled = Event()
 
+        self._timers = list(get_timers(self.controller))
+
     def start(self):
+        self.start_timers()
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if self.greenlet is not None and not self.greenlet.dead:
             raise RuntimeError()
         self.greenlet = eventlet.spawn(self.run)
+
+    def start_timers(self):
+        for timer in self._timers:
+            timer.start()
 
     def get_consumers(self, Consumer, channel):
         nova_consumer = Consumer(
@@ -254,6 +262,7 @@ class Service(ConsumerMixin):
     def kill(self, force=False):
         _log.debug('killing service')
 
+        # TODO: kill timers
         self.cancel_consumers()
 
         if force:

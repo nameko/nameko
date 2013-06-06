@@ -23,6 +23,6 @@ def is_dependency_provider(obj):
     return isinstance(obj, DependencyProvider)
 
 
-def inject_dependencies(service, connection):
+def inject_dependencies(service, container):
     for name, provider in inspect.getmembers(service, is_dependency_provider):
-        setattr(service, name, provider.get_instance(connection))
+        setattr(service, name, provider.get_instance(container))
