@@ -11,6 +11,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko import entities
 from nameko.common import UIDGEN
+from nameko.logging import log_time
 from nameko.messaging import get_consumers
 from nameko.dependencies import inject_dependencies
 from nameko.sending import process_rpc_message
@@ -92,7 +93,7 @@ class Service(ConsumerMixin):
         self.consume_ready.reset()
 
     def on_nova_message(self, body, message):
-        _log.debug('spawning worker (%d free)', self.procpool.free())
+        _log.debug('spawning RPC worker (%d free)', self.procpool.free())
 
         gt = self.procpool.spawn(self.handle_rpc_message, body)
 
@@ -100,7 +101,7 @@ class Service(ConsumerMixin):
         self.workers.add(gt)
 
     def on_consume_message(self, consumer_method, body, message):
-        _log.debug('spawning worker (%d free)', self.procpool.free())
+        _log.debug('spawning consume worker (%d free)', self.procpool.free())
 
         gt = self.procpool.spawn(
             self.handle_consume_message, consumer_method, body, message)
@@ -119,15 +120,16 @@ class Service(ConsumerMixin):
         self._pending_ack_messages.append(message)
 
     def handle_consume_message(self, consumer_method, body, message):
-        try:
-            consumer_method(body)
-        except Exception as e:
-            _log.error(
-                'failed to consume message, requeueing message: %s(): %s',
-                consumer_method, e)
-            self._pending_requeue_messages.append(message)
-        else:
-            self._pending_ack_messages.append(message)
+        with log_time(_log.debug, 'processed consume message in %0.3fsec'):
+            try:
+                consumer_method(body)
+            except Exception as e:
+                _log.error(
+                    'failed to consume message, requeueing message: %s(): %s',
+                    consumer_method, e)
+                self._pending_requeue_messages.append(message)
+            else:
+                self._pending_ack_messages.append(message)
 
     def handle_consume_message_processed(self, gt):
         self.workers.discard(gt)
@@ -135,7 +137,7 @@ class Service(ConsumerMixin):
     def on_iteration(self):
         self.process_consumer_cancellation()
         # we need to make sure we process any pending messages before shutdown
-        self.process_pending_message_ack()
+        self.process_pending_message_acks()
         self.process_shutdown()
 
     def process_consumer_cancellation(self):
@@ -147,7 +149,7 @@ class Service(ConsumerMixin):
                     consumer.cancel()
             self._consumers_cancelled.send(True)
 
-    def process_pending_message_ack(self):
+    def process_pending_message_acks(self):
         messages = self._pending_ack_messages
         if messages:
             _log.debug('ack() %d processed messages', len(messages))
@@ -197,12 +199,22 @@ class Service(ConsumerMixin):
                         elapsed = 0
 
     def process_shutdown(self):
-        if (
-            self._consumers_cancelled.ready() and
-            self.procpool.running() < 1 and
-            not self._pending_ack_messages and
-            not self._pending_requeue_messages
-        ):
+        consumers_cancelled = self._consumers_cancelled.ready()
+
+        no_active_workers = (self.procpool.running() < 1)
+
+        no_pending_message_acks = not(
+            self._pending_ack_messages or
+            self._pending_requeue_messages
+        )
+
+        ready_to_stop = (
+            consumers_cancelled and
+            no_active_workers and
+            no_pending_message_acks
+        )
+
+        if ready_to_stop:
             _log.debug('notifying service to stop')
             self.should_stop = True
 

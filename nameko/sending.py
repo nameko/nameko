@@ -80,7 +80,7 @@ def send_rpc(connection, context, exchange, topic, method, args,
 
 def reply(connection, msg_id, replydata=None, failure=None, on_return=None):
 
-    _log.debug('replying to message `%s`', msg_id)
+    _log.debug('replying to RPC message `%s`', msg_id)
 
     with log_time(
             _log.debug, 'replied to message `%s` in %0.3f sec.', msg_id):
@@ -104,10 +104,10 @@ def _delegate_apply(delegate, context, method, args):
 def process_rpc_message(connection, delegate, body):
     msgid, ctx, method, args = context.parse_message(body)
 
-    _log.debug('processing message `%s`: using %s(...)', msgid, method)
+    _log.debug('processing RPC message `%s`: using %s(...)', msgid, method)
 
     with log_time(
-            _log.debug, 'processed message `%s` in %0.3f sec.', msgid):
+            _log.debug, 'processed RPC message `%s` in %0.3f sec.', msgid):
         try:
             ret = _delegate_apply(delegate, ctx, method, args)
         except Exception:
