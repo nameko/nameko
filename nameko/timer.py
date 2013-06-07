@@ -6,6 +6,8 @@ import time
 import inspect
 
 import eventlet
+from eventlet import Timeout
+from eventlet.event import Event
 
 _log = getLogger(__name__)
 
@@ -45,6 +47,7 @@ class Timer(object):
         self.interval = interval
         self.func = func
         self.gt = None
+        self.should_stop = Event()
 
     def start(self):
         self.gt = eventlet.spawn(self.run)
@@ -53,7 +56,7 @@ class Timer(object):
             self.func, self.interval)
 
     def run(self):
-        while True:
+        while not self.should_stop.ready():
             start = time.time()
             try:
                 self.func()
@@ -61,7 +64,19 @@ class Timer(object):
                 _log.error('error in timer handler: %s', e)
 
             sleep_time = max(self.interval - (time.time() - start), 0)
-            eventlet.sleep(sleep_time)
+            self.snooze(sleep_time)
+
+    def snooze(self, sleep_time):
+        try:
+            with Timeout(sleep_time):
+                self.should_stop.wait()
+        except Timeout:
+            # we use the timeout as a cancellable sleep
+            pass
+
+    def stop(self):
+        self.should_stop.send(True)
+        self.gt.wait()
 
 
 def get_timers(service):

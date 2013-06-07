@@ -209,6 +209,8 @@ class Service(ConsumerMixin):
     def process_shutdown(self):
         consumers_cancelled = self._consumers_cancelled.ready()
 
+        no_active_timers = (len(self._timers) == 0)
+
         no_active_workers = (self.procpool.running() < 1)
 
         no_pending_message_acks = not(
@@ -218,6 +220,7 @@ class Service(ConsumerMixin):
 
         ready_to_stop = (
             consumers_cancelled and
+            no_active_timers and
             no_active_workers and
             no_pending_message_acks
         )
@@ -237,6 +240,12 @@ class Service(ConsumerMixin):
             self._consumers_cancelled.wait()
         else:
             _log.debug('consumer thread already dead')
+
+    def cancel_timers(self):
+        if self._timers:
+            _log.debug('stopping %d timers', len(self._timers))
+            while self._timers:
+                self._timers.pop().stop()
 
     def kill_workers(self):
         _log.debug('force killing %d workers', len(self.workers))
@@ -262,8 +271,9 @@ class Service(ConsumerMixin):
     def kill(self, force=False):
         _log.debug('killing service')
 
-        # TODO: kill timers
         self.cancel_consumers()
+
+        self.cancel_timers()
 
         if force:
             self.kill_workers()

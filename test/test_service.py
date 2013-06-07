@@ -9,8 +9,8 @@ from kombu import Connection
 
 from nameko import exceptions
 from nameko import service
-
 from nameko.testing import TestProxy
+from nameko.timer import timer
 
 
 def test_service(get_connection):
@@ -163,6 +163,29 @@ def test_service_wait_consumer_dies(get_connection):
     srv.greenlet.kill()
     # we don't expect any errors while waiting
     srv.kill()
+
+
+def test_service_cancells_timers(get_connection):
+    timer_evt = Event()
+
+    class Foobar(object):
+        @timer(0)
+        def shrub(self):
+            try:
+                timer_evt.send(True)
+            except:
+                pass
+
+    srv = service.Service(
+        Foobar, connection_factory=get_connection,
+        exchange='testrpc', topic='test', )
+
+    srv.start()
+    # wait for the timer to be called once
+    timer_evt.wait()
+    # this should stop the timers and we should not get any errors
+    srv.kill()
+    assert len(srv._timers) == 0
 
 
 def test_service_link(get_connection):
