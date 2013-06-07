@@ -8,7 +8,6 @@ from nameko.service import Service
 
 import conftest
 
-
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
@@ -48,24 +47,12 @@ class BrokenFoobar(Foobar):
         raise Exception(msg)
 
 
-class AckedButBrokenFoobar(Foobar):
-    @consume(queue=foobar_queue)
-    def _consume(self, msg, raw_msg):
-        eventlet.sleep()
-        raw_msg.ack()
-        self.messages.append(msg)
-        raise Exception(msg)
-
-
 class RequeueingFoobar(Foobar):
-    @consume(queue=foobar_queue)
-    def _consume(self, msg, raw_msg):
+    @consume(queue=foobar_queue, requeue_on_error=True)
+    def _consume(self, msg):
         eventlet.sleep()
-        if self.messages:
-            self.messages.append(msg)
-        else:
-            self.messages.append('rejected:' + msg)
-            raw_msg.requeue()
+        self.messages.append('rejected:' + msg)
+        raise Exception(msg)
 
 
 services = []
@@ -157,26 +144,27 @@ def test_simple_consume_QOS_prefetch_1(get_connection):
     assert messages2 == [msg]
 
 
-def test_consumer_rejecting_requeues(get_connection):
-    srv = _start_service(RequeueingFoobar, get_connection)
-
-    spammer = _start_service(QueueSpammer, get_connection)
-    msg = 'reject_message'
-    spammer._publish(msg)
-
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while len(messages) < 2:
-            eventlet.sleep()
-
-    assert messages == ['rejected:' + msg, msg]
-
-
-def test_consumer_failure_requeues(get_connection):
+def test_consumer_fails_no_requeues(get_connection):
     srv = _start_service(BrokenFoobar, get_connection)
 
     spammer = _start_service(QueueSpammer, get_connection)
     msg = 'fail_message'
+    spammer._publish(msg)
+
+    messages = srv.messages
+    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
+        while len(messages) < 1:
+            eventlet.sleep()
+
+    eventlet.sleep()
+    assert messages == [msg]
+
+
+def test_consumer_failure_requeues(get_connection):
+    srv = _start_service(RequeueingFoobar, get_connection)
+
+    spammer = _start_service(QueueSpammer, get_connection)
+    msg = 'reject_message'
     # this message will be requeued until
     # a non-failing service picks it up
     spammer._publish(msg)
@@ -190,25 +178,6 @@ def test_consumer_failure_requeues(get_connection):
     #create a service to accept the failed messages
     srv = _start_service(Foobar, get_connection)
 
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages:
-            eventlet.sleep()
-
-    assert messages == [msg]
-
-
-def test_consumer_failer_after_ack(get_connection):
-
-    srv = _start_service(AckedButBrokenFoobar, get_connection)
-
-    spammer = _start_service(QueueSpammer, get_connection)
-    msg = 'acK_then_fail_message'
-    # this message will not be requeued until
-    # because it has been acked
-    spammer._publish(msg)
-
-    #lets wait unitl at least one has been requeued
     messages = srv.messages
     with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
         while not messages:

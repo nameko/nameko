@@ -79,13 +79,18 @@ def send_rpc(connection, context, exchange, topic, method, args,
 
 
 def reply(connection, msg_id, replydata=None, failure=None, on_return=None):
-    if on_return is not None:
-        raise NotImplementedError('on_return is not implemented')
 
-    msg = {'result': replydata, 'failure': failure, 'ending': False, }
-    send_direct(connection, msg_id, msg)
-    msg = {'result': None, 'failure': None, 'ending': True, }
-    send_direct(connection, msg_id, msg)
+    _log.debug('replying to RPC message `%s`', msg_id)
+
+    with log_time(
+            _log.debug, 'replied to message `%s` in %0.3f sec.', msg_id):
+        if on_return is not None:
+            raise NotImplementedError('on_return is not implemented')
+
+        msg = {'result': replydata, 'failure': failure, 'ending': False, }
+        send_direct(connection, msg_id, msg)
+        msg = {'result': None, 'failure': None, 'ending': True, }
+        send_direct(connection, msg_id, msg)
 
 
 def _delegate_apply(delegate, context, method, args):
@@ -99,10 +104,10 @@ def _delegate_apply(delegate, context, method, args):
 def process_rpc_message(connection, delegate, body):
     msgid, ctx, method, args = context.parse_message(body)
 
-    _log.debug('processing message `%s`: using %s(...)', msgid, method)
+    _log.debug('processing RPC message `%s`: using %s(...)', msgid, method)
 
     with log_time(
-            _log.debug, 'processed message `%s` in %0.3f sec.', msgid):
+            _log.debug, 'processed RPC message `%s` in %0.3f sec.', msgid):
         try:
             ret = _delegate_apply(delegate, ctx, method, args)
         except Exception:
@@ -113,8 +118,4 @@ def process_rpc_message(connection, delegate, body):
                 reply(connection, msgid, failure=ret)
         else:
             if msgid:
-                _log.debug('replying to message `%s`', msgid)
-                with log_time(
-                        _log.debug,
-                        'replied to message `%s` in  %0.3f sec.', msgid):
-                    reply(connection, msgid, replydata=ret)
+                reply(connection, msgid, replydata=ret)
