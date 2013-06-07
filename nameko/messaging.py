@@ -81,7 +81,7 @@ class Publisher(DependencyProvider):
         return do_publish
 
 
-def consume(queue, requeue_on_error=False, fn=None):
+def consume(queue, requeue_on_error=False):
     '''
     Decorates a method as a message consumer.
 
@@ -105,11 +105,11 @@ def consume(queue, requeue_on_error=False, fn=None):
     Args:
         queue: The queue to consume from.
     '''
-    if fn is None:
-        return partial(consume, queue, requeue_on_error)
+    def consume_decorator(fn):
+        consumer_configs[fn] = ConsumerConfig(queue, requeue_on_error)
+        return fn
 
-    consumer_configs[fn] = ConsumerConfig(queue, requeue_on_error)
-    return fn
+    return consume_decorator
 
 
 class ConsumerConfig(object):

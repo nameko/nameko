@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from functools import partial
 from logging import getLogger
 from weakref import WeakKeyDictionary
 import time
@@ -16,11 +15,11 @@ intervals = WeakKeyDictionary()
 timers = WeakKeyDictionary()
 
 
-def timer(interval, func=None):
+def timer(interval):
     '''
     Decorates a method as a timer, which will be called every `interval` sec.
 
-    Example::
+    Example:
 
     class Foobar(object):
 
@@ -29,11 +28,11 @@ def timer(interval, func=None):
             self.shrub(body)
     '''
 
-    if func is None:
-        return partial(timer, interval)
-    else:
+    def timer_decorator(func):
         intervals[func] = interval
         return func
+
+    return timer_decorator
 
 
 class Timer(object):
