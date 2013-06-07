@@ -51,12 +51,12 @@ class Timer(object):
 
         Once started it may be stopped using its `stop()` method.
         '''
-        self.gt = eventlet.spawn(self.run)
+        self.gt = eventlet.spawn(self._run)
         _log.debug(
             'started timer for %s with %ss interval',
             self.func, self.interval)
 
-    def run(self):
+    def _run(self):
         ''' Runs the interval loop.
 
         This should not be called directly, rather the `start()` method
@@ -70,9 +70,9 @@ class Timer(object):
                 _log.error('error in timer handler: %s', e)
 
             sleep_time = max(self.interval - (time.time() - start), 0)
-            self.sleep_or_stop(sleep_time)
+            self._sleep_or_stop(sleep_time)
 
-    def sleep_or_stop(self, sleep_time):
+    def _sleep_or_stop(self, sleep_time):
         ''' Sleeps for `sleep_time` seconds or until a `should_stop` event
         has been fired, whichever comes first.
         '''

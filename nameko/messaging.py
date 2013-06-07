@@ -81,7 +81,7 @@ class Publisher(DependencyProvider):
         return do_publish
 
 
-def consume(queue, fn=None):
+def consume(queue, requeue_on_error=False, fn=None):
     '''
     Decorates a method as a message consumer.
 
@@ -89,8 +89,8 @@ def consume(queue, fn=None):
     type and passed to the the decorated method.
     When the conumer method returns without raising any exceptions,
     the message will automatically be acknowledged.
-    If any exceptions are raised during the consumtion, the message will be
-    requeued.
+    If any exceptions are raised during the consumtion and
+    `requeue_on_error` is True, the message will be requeued.
 
     Example::
 
@@ -106,9 +106,9 @@ def consume(queue, fn=None):
         queue: The queue to consume from.
     '''
     if fn is None:
-        return partial(consume, queue)
+        return partial(consume, queue, requeue_on_error)
 
-    consumer_configs[fn] = ConsumerConfig(queue)
+    consumer_configs[fn] = ConsumerConfig(queue, requeue_on_error)
     return fn
 
 
@@ -116,8 +116,9 @@ class ConsumerConfig(object):
     '''
     Stores information about a consumer-decorated method.
     '''
-    def __init__(self, queue):
+    def __init__(self, queue, requeue_on_error):
         self.queue = queue
+        self.requeue_on_error = requeue_on_error
 
 
 def get_consumers(Consumer, service, on_message):
@@ -139,7 +140,9 @@ def get_consumers(Consumer, service, on_message):
 
             consumer = Consumer(
                 queues=[consumer_config.queue],
-                callbacks=[partial(on_message, consumer_method)]
+                callbacks=[
+                    partial(on_message, (consumer_method, consumer_config))
+                ]
             )
             yield consumer
         except KeyError:

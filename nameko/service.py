@@ -108,11 +108,11 @@ class Service(ConsumerMixin):
         gt.link(self.handle_rpc_message_processed, message)
         self.workers.add(gt)
 
-    def on_consume_message(self, consumer_method, body, message):
+    def on_consume_message(self, consumer_method_config, body, message):
         _log.debug('spawning consume worker (%d free)', self.procpool.free())
 
         gt = self.procpool.spawn(
-            self.handle_consume_message, consumer_method, body, message)
+            self.handle_consume_message, consumer_method_config, body, message)
 
         gt.link(self.handle_consume_message_processed)
         self.workers.add(gt)
@@ -127,15 +127,23 @@ class Service(ConsumerMixin):
         self.workers.discard(gt)
         self._pending_ack_messages.append(message)
 
-    def handle_consume_message(self, consumer_method, body, message):
+    def handle_consume_message(self, consumer_method_config, body, message):
         with log_time(_log.debug, 'processed consume message in %0.3fsec'):
+            consumer_method, consumer_config = consumer_method_config
+
             try:
                 consumer_method(body)
             except Exception as e:
-                _log.error(
-                    'failed to consume message, requeueing message: %s(): %s',
-                    consumer_method, e)
-                self._pending_requeue_messages.append(message)
+                if consumer_config.requeue_on_error:
+                    _log.error(
+                        'failed to consume message, requeueing message: '
+                        '%s(): %s', consumer_method, e)
+                    self._pending_requeue_messages.append(message)
+                else:
+                    _log.error(
+                        'failed to consume message, ignoring message: '
+                        '%s(): %s', consumer_method, e)
+                    self._pending_ack_messages.append(message)
             else:
                 self._pending_ack_messages.append(message)
 
@@ -213,7 +221,7 @@ class Service(ConsumerMixin):
 
         no_active_workers = (self.procpool.running() < 1)
 
-        no_pending_message_acks = not(
+        no_pending_message_acks = not (
             self._pending_ack_messages or
             self._pending_requeue_messages
         )

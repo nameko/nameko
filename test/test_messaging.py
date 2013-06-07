@@ -48,14 +48,11 @@ class BrokenFoobar(Foobar):
 
 
 class RequeueingFoobar(Foobar):
-    @consume(queue=foobar_queue)
+    @consume(queue=foobar_queue, requeue_on_error=True)
     def _consume(self, msg):
         eventlet.sleep()
-        if self.messages:
-            self.messages.append(msg)
-        else:
-            self.messages.append('rejected:' + msg)
-            raise Exception(msg)
+        self.messages.append('rejected:' + msg)
+        raise Exception(msg)
 
 
 services = []
@@ -147,26 +144,27 @@ def test_simple_consume_QOS_prefetch_1(get_connection):
     assert messages2 == [msg]
 
 
-def test_consumer_rejecting_requeues(get_connection):
-    srv = _start_service(RequeueingFoobar, get_connection)
-
-    spammer = _start_service(QueueSpammer, get_connection)
-    msg = 'reject_message'
-    spammer._publish(msg)
-
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while len(messages) < 2:
-            eventlet.sleep()
-
-    assert messages == ['rejected:' + msg, msg]
-
-
-def test_consumer_failure_requeues(get_connection):
+def test_consumer_fails_no_requeues(get_connection):
     srv = _start_service(BrokenFoobar, get_connection)
 
     spammer = _start_service(QueueSpammer, get_connection)
     msg = 'fail_message'
+    spammer._publish(msg)
+
+    messages = srv.messages
+    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
+        while len(messages) < 1:
+            eventlet.sleep()
+
+    eventlet.sleep()
+    assert messages == [msg]
+
+
+def test_consumer_failure_requeues(get_connection):
+    srv = _start_service(RequeueingFoobar, get_connection)
+
+    spammer = _start_service(QueueSpammer, get_connection)
+    msg = 'reject_message'
     # this message will be requeued until
     # a non-failing service picks it up
     spammer._publish(msg)
