@@ -67,3 +67,5 @@ def test_exception_in_timer_method_ignored():
     with eventlet.Timeout(0.5):
         while foo.timer_calls < 5:
             eventlet.sleep()
+
+    assert foo.timer_calls >= 5
