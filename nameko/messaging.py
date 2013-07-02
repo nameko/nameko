@@ -22,9 +22,9 @@ class Publisher(DependencyProvider):
     '''
     Provides a message publisher method via dependency injection.
 
-    Publishers usually publish messages to an exchange which dispatches
-    messages to bound queue.
-    To simplify this various use cases a Publisher either accepts
+    Publishers usually push messages to an exchange, which dispatches
+    them to bound queue.
+    To simplify this for various use cases, a Publisher either accepts
     a bound queue or an exchange and will ensure both are declared before
     a message is published.
 
