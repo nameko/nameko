@@ -68,6 +68,7 @@ class Publisher(DependencyProvider):
             with container.connection_factory() as conn:
                 with producers[conn].acquire(block=True) as producer:
                     channel = producer.channel
+
                     if queue is not None:
                         maybe_declare(queue, channel)
 
