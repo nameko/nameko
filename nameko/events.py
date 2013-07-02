@@ -1,12 +1,25 @@
 """
-Provides a higher level interface to the core messaging module..
+Provides a high level interface to the core messaging module.
 
-Events are special messages, which can be emitted by a service and handled by
-another listenting service or even multiple services.
+Events are special messages, which can be emitted by one service
+and handled by other listenting services.
 
-The behavior is the same as with standard messaging.
-An event is dispatched using an `EventDispatcher` and received using the
-`handle_event` decorator.
+To emit an event, a service must defne an `Event` class with a unique type
+and dispatch an instance of it using the `EventDispatcher`.
+Dispatching of events is done asynchronously. It is only guaranteed,
+that the event has been dispatched, not that it was received or handled by a
+listener.
+
+To listen to an event, a service must declare a handler using the
+`handle_event` decorator, providing the target service and an event filter.
+
+
+Standard Example:
+TODO:
+
+Singleton Example:
+TODO:
+
 """
 
 from __future__ import absolute_import
@@ -21,7 +34,7 @@ log = getLogger(__name__)
 
 
 class EventTypeTooLong(Exception):
-    """ Raised when event types are defined and longer than 255 bytes.
+    """ Raised, when event types are defined and longer than 255 bytes.
     """
     def __init__(self, event_type):
         msg = 'Event type "{}" too long. Should be < 255 bytes.'.format(
@@ -61,12 +74,16 @@ class EventDispatcher(Publisher):
 
     Events emitted will be dispatched via the service's events exchange,
     which automatically gets declared by the event dispatcher
-    as a topic exchange. The name for the exchange will be
-    `{service-name}.events`.
+    as a topic exchange.
+    The name for the exchange will be `{service-name}.events`.
 
     Events, emitted via the dispatcher, will be serialized and published
     to the events exchange. The event's type attribute is used as the
     routing key, wich can be used for filtering on the listener's side.
+
+    The dispatcher will return as soon as the event message has been published.
+    There is no guarantee that any service will receive the event, only
+    that the event has been successfully dispatched.
 
     Example:
 
