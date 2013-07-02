@@ -115,7 +115,8 @@ class EventDispatcher(Publisher):
         # exchanges fast enough for our purposes.
         # To accomplish `fanout` behaviour one can just bind private queues
         # to the exchange and singleton behaviour by binding a named queue.
-        exchange = Exchange(name, type='topic', durable=False)
+        exchange = Exchange(
+            name, type='topic', durable=False, auto_delete=True)
         self.exchange = exchange
 
         publish = super(EventDispatcher, self).get_instance(container)

@@ -3,17 +3,14 @@ import logging
 import eventlet
 eventlet.monkey_patch()
 
-
-logging.basicConfig(level=logging.DEBUG)
-
 from kombu import Connection
 
 running_services = []
 
 
 def get_connection():
-    #conn = Connection('amqp://guest:guest@localhost:5672/nameko')
-    conn = Connection(transport='memory')
+    conn = Connection('amqp://guest:guest@localhost:5672/nameko')
+    #conn = Connection(transport='memory')
 
     return conn
 
@@ -27,7 +24,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--log-level", action="store",
-        default=None,
+        default='DEBUG',
         help=("The logging-level for the test run."))
 
 

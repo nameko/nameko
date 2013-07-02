@@ -8,8 +8,12 @@ from nameko.messaging import consume
 
 EVENTS_TIMEOUT = 5
 
-foobar_ex = Exchange('spammer.events', type='topic', durable=False)
-foobar_queue = Queue(exchange=foobar_ex, routing_key='#', durable=False)
+foobar_ex = Exchange(
+    'spammer.events', type='topic', durable=False, auto_delete=True)
+
+foobar_queue = Queue(
+    'foobar_events', exchange=foobar_ex, routing_key='#',
+    durable=False, auto_delete=True)
 
 
 class SpamEvent(Event):
