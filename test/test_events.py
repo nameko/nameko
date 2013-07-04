@@ -3,7 +3,9 @@ import eventlet
 from kombu import Exchange, Queue
 import pytest
 
-from nameko.events import EventDispatcher, Event, EventTypeTooLong
+from nameko.events import (
+    EventDispatcher, Event, EventTypeTooLong, EventTypeMissing)
+
 from nameko.messaging import consume
 
 EVENTS_TIMEOUT = 5
@@ -57,9 +59,17 @@ def test_emit_event(start_service):
     assert events == ['ham and eggs']
 
 
-def test_event_type_too_long():
-    class MyEvent(Event):
-        type = 't' * 256
+def test_event_type_missing():
+    with pytest.raises(EventTypeMissing):
+        class MyEvent(Event):
+            pass
 
+        MyEvent('spam')
+
+
+def test_event_type_too_long():
     with pytest.raises(EventTypeTooLong):
+        class MyEvent(Event):
+            type = 't' * 256
+
         MyEvent('spam')
