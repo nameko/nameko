@@ -4,7 +4,6 @@ from kombu import Exchange, Queue
 from kombu.common import maybe_declare
 
 from nameko.messaging import consume, Publisher
-from nameko.service import Service
 
 import conftest
 
@@ -55,20 +54,7 @@ class RequeueingFoobar(Foobar):
         raise Exception(msg)
 
 
-services = []
-
-
 def teardown_function(fn):
-    # we really don't want any services running
-    # because, they will consume messages from
-    # current tests
-    for s in services:
-        try:
-            s.kill()
-        except:
-            pass
-    del services[:]
-
     # We want to make sure queues get removed.
     # The services should create them as needed.
     with conftest.get_connection() as conn:
@@ -80,20 +66,12 @@ def teardown_function(fn):
             exchange.delete()
 
 
-def _start_service(cls, get_connection):
-    srv = Service(cls, get_connection, 'foo', 'bar')
-    services.append(srv)
-    srv.start()
-    srv.consume_ready.wait()
-    return srv.service
-
-
-def test_publish_to_exchange_without_queue(get_connection):
-    spammer = _start_service(ExchangeSpammer, get_connection)
+def test_publish_to_exchange_without_queue(start_service):
+    spammer = start_service(ExchangeSpammer, 'exchagespammer')
     msg = 'exchange message'
     spammer._publish(msg)
 
-    srv = _start_service(Foobar, get_connection)
+    srv = start_service(Foobar, 'foobar')
 
     spammer._publish(msg)
 
@@ -105,12 +83,12 @@ def test_publish_to_exchange_without_queue(get_connection):
     assert messages == [msg]
 
 
-def test_simple_publish_consume(get_connection):
-    spammer = _start_service(QueueSpammer, get_connection)
+def test_simple_publish_consume(start_service):
+    spammer = start_service(QueueSpammer, 'queuespammer')
     msg = 'simple message'
     spammer._publish(msg)
 
-    srv = _start_service(Foobar, get_connection)
+    srv = start_service(Foobar, 'foobar')
 
     messages = srv.messages
     with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
@@ -120,11 +98,11 @@ def test_simple_publish_consume(get_connection):
     assert messages == [msg]
 
 
-def test_simple_consume_QOS_prefetch_1(get_connection):
-    srv1 = _start_service(Foobar, get_connection)
-    srv2 = _start_service(Foobar, get_connection)
+def test_simple_consume_QOS_prefetch_1(start_service):
+    srv1 = start_service(Foobar, 'foobar')
+    srv2 = start_service(Foobar, 'foobar')
 
-    spammer = _start_service(QueueSpammer, get_connection)
+    spammer = start_service(QueueSpammer, 'queuespammer')
 
     msg = 'simple message 2'
     spammer._publish(msg)
@@ -144,10 +122,10 @@ def test_simple_consume_QOS_prefetch_1(get_connection):
     assert messages2 == [msg]
 
 
-def test_consumer_fails_no_requeues(get_connection):
-    srv = _start_service(BrokenFoobar, get_connection)
+def test_consumer_fails_no_requeues(start_service):
+    srv = start_service(BrokenFoobar, 'foobar')
 
-    spammer = _start_service(QueueSpammer, get_connection)
+    spammer = start_service(QueueSpammer, 'queuespammer')
     msg = 'fail_message'
     spammer._publish(msg)
 
@@ -160,10 +138,10 @@ def test_consumer_fails_no_requeues(get_connection):
     assert messages == [msg]
 
 
-def test_consumer_failure_requeues(get_connection):
-    srv = _start_service(RequeueingFoobar, get_connection)
+def test_consumer_failure_requeues(start_service):
+    srv = start_service(RequeueingFoobar, 'foobar')
 
-    spammer = _start_service(QueueSpammer, get_connection)
+    spammer = start_service(QueueSpammer, 'foobar')
     msg = 'reject_message'
     # this message will be requeued until
     # a non-failing service picks it up
@@ -176,7 +154,7 @@ def test_consumer_failure_requeues(get_connection):
             eventlet.sleep()
 
     #create a service to accept the failed messages
-    srv = _start_service(Foobar, get_connection)
+    srv = start_service(Foobar, 'foobar')
 
     messages = srv.messages
     with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
