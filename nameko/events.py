@@ -13,23 +13,46 @@ listener.
 To listen to an event, a service must declare a handler using the
 `handle_event` decorator, providing the target service and an event filter.
 
+Example:
 
-Standard Example:
-TODO:
-
-Singleton Example:
-TODO:
+@handle_event("foo_service", "event.type")
+def bar(evt):
+    pass
 
 """
-
 from __future__ import absolute_import
 from logging import getLogger
+import uuid
 
-from kombu import Exchange
+from kombu import Exchange, Queue
 
 from nameko.messaging import Publisher
+from nameko.messaging import ConsumerConfig, consumer_configs
+
+SERVICE_POOL = "service_pool"
+SINGLETON = "singleton"
+BROADCAST = "broadcast"
 
 log = getLogger(__name__)
+
+# stores the declared exchanges
+event_exchanges = {}
+
+
+def get_or_declare_event_exchange(service_name):
+    """ Get or declare an exchange for ``service_name`` events
+    """
+    if not service_name in event_exchanges:
+        delivery_mode = 2  # set delivery mode default to persistent messages
+        exchange_name = "{}.events".format(service_name)
+        # TODO: do we want to auto-delete exchanges if no queue
+        #       is bound to them?
+        exchange = Exchange(
+            exchange_name, type='topic', durable=True, auto_delete=True,
+            delivery_mode=delivery_mode)
+        event_exchanges[service_name] = exchange
+
+    return event_exchanges[service_name]
 
 
 class EventTypeMissing(Exception):
@@ -49,6 +72,12 @@ class EventTypeTooLong(Exception):
         msg = 'Event type "{}" too long. Should be < 255 bytes.'.format(
             event_type)
         super(EventTypeTooLong, self).__init__(msg)
+
+
+class EventHandlerConfigurationError(Exception):
+    """ Raised when an event handler is misconfigured.
+    """
+    pass
 
 
 class EventMeta(type):
@@ -122,21 +151,11 @@ class EventDispatcher(Publisher):
     def __init__(self):
         super(EventDispatcher, self).__init__()
 
-    def get_instance(self, container):
-        #TODO: better accessor for service name required
-        service_name = container.topic
-        name = '{}.events'.format(service_name)
-
-        # There is no reason to use anything but `topic` for the exchange type.
-        # We could use `direct`, but recent updates to RabbitMQ have made topic
-        # exchanges fast enough for our purposes.
-        # To accomplish `fanout` behaviour one can just bind private queues
-        # to the exchange and singleton behaviour by binding a named queue.
-        exchange = Exchange(
-            name, type='topic', durable=False, auto_delete=True)
-        self.exchange = exchange
-
-        publish = super(EventDispatcher, self).get_instance(container)
+    def get_instance(self, service):
+        # TODO: better accessor for service name required
+        service_name = service.topic
+        self.exchange = get_or_declare_event_exchange(service_name)
+        publish = super(EventDispatcher, self).get_instance(service)
 
         def dispatch(evt):
             # TODO: serialization of the event, maybe take attrs or have a
@@ -146,3 +165,105 @@ class EventDispatcher(Publisher):
             publish(msg, routing_key=routing_key)
 
         return dispatch
+
+
+def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
+                  reliable_delivery=True, requeue_on_error=False):
+    """
+    Decorate a method as a handler of ``event_type`` events on the service
+    called ``service_name``.
+
+    ``handler_type`` determines the behaviour of the handler:
+        - ``events.SERVICE_POOL``: event handlers will be pooled by service
+            type and one from each pool will receive the event
+
+                        [queue] - service X instance
+                      /
+            exchange o           service Y instance
+                      \        /
+                        [queue]
+                               \
+                                 service Y instance
+
+        - ``events.SINGLETON``: events will be received by only one registered
+            handler. If requeued on error, they may be given to a different
+            handler.
+                                   service X instance
+                                 /
+            exchange o -- [queue]
+                                 \
+                                   service Y instance
+
+        - ``events.BROADCAST``: events will be received by every handler. This
+            will broadcast to every service instance, not just every service
+            type - use wisely!
+
+                        [queue] -- service X instance
+                      /
+            exchange o - [queue] -- service X instance
+                      \
+                        [queue] -- service Y instance
+
+    If ``requeue_on_error``, handlers will return the event to the queue an
+    error occurs while handling it. Defaults to False.
+
+    If ``reliable_delivery``, events will be kept in the queue until there is
+    a handler to consume them. Defaults to True.
+    """
+    if reliable_delivery and handler_type is BROADCAST:
+        raise EventHandlerConfigurationError("Broadcast event handlers cannot "
+        "be configured with reliable delivery.")
+
+    def event_decorator(fn):
+        consumer_configs[fn] = EventConfig(service_name, event_type,
+            handler_type, reliable_delivery, requeue_on_error)
+        return fn
+
+    return event_decorator
+
+
+class EventConfig(ConsumerConfig):
+    """ Configuration object for an Event listener.
+    """
+    def __init__(self, service_name, event_type, handler_type,
+                 reliable_delivery, requeue_on_error):
+        self.service_name = service_name
+        self.event_type = event_type
+        self.handler_type = handler_type
+        self.reliable_delivery = reliable_delivery
+        self.requeue_on_error = requeue_on_error
+
+    def get_queue(self, service):
+        """ Get a queue for the given ``service`` instance to listen to events
+        with this configuration.
+
+        Queue names have the following formats, based on handler_type:
+
+        SERVICE_POOL: evt-<src-service-type>-<event_type>-<dest-service-type>
+        BROADCAST: evt-<src-service-type>-<event_type>-<dest-guid>
+        SINGLETON: evt-<src-service-type>-<event_type>
+        """
+        # handler_type determines queue name
+        if self.handler_type is SERVICE_POOL:
+            queue_name = "evt-{}-{}-{}".format(self.service_name,
+                                               self.event_type,
+                                               service.topic)
+        elif self.handler_type is SINGLETON:
+            queue_name = "evt-{}-{}".format(self.service_name,
+                                            self.event_type)
+        elif self.handler_type is BROADCAST:
+            queue_name = "evt-{}-{}-{}".format(self.service_name,
+                                               self.event_type,
+                                               uuid.uuid4())
+
+        exchange = get_or_declare_event_exchange(self.service_name)
+
+        # auto-delete queues if events are not reliably delivered
+        auto_delete = not self.reliable_delivery
+        queue = Queue(
+            queue_name, exchange=exchange, routing_key=self.event_type,
+            durable=True, auto_delete=auto_delete)
+
+        return queue
+
+

@@ -9,8 +9,8 @@ running_services = []
 
 
 def get_connection():
-    #conn = Connection('amqp://guest:guest@localhost:5672/nameko')
-    conn = Connection(transport='memory')
+    conn = Connection('amqp://guest:guest@localhost:5672/nameko')
+    # conn = Connection(transport='memory')
 
     return conn
 

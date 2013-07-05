@@ -121,6 +121,9 @@ class ConsumerConfig(object):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
+    def get_queue(self, service):
+        return self.queue
+
 
 def get_consumers(Consumer, service, on_message):
     '''
@@ -135,12 +138,13 @@ def get_consumers(Consumer, service, on_message):
         A generator with each item being a Consumer instance configured
         using the ConsumerConfig defined by the consume decorator.
     '''
-    for name, consumer_method in inspect.getmembers(service, inspect.ismethod):
+    for name, consumer_method in inspect.getmembers(service.controller,
+                                                    inspect.ismethod):
         try:
             consumer_config = consumer_configs[consumer_method.im_func]
 
             consumer = Consumer(
-                queues=[consumer_config.queue],
+                queues=[consumer_config.get_queue(service)],
                 callbacks=[
                     partial(on_message, (consumer_method, consumer_config))
                 ]
