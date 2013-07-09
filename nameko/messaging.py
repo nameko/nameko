@@ -17,6 +17,9 @@ log = getLogger(__name__)
 # stores the consumer configurations per method
 consumer_configs = WeakKeyDictionary()
 
+# delivery_mode
+PERSISTENT = 2
+
 
 class Publisher(DependencyProvider):
     '''

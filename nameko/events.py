@@ -26,8 +26,10 @@ import uuid
 
 from kombu import Exchange, Queue
 
-from nameko.messaging import Publisher
-from nameko.messaging import ConsumerConfig, consumer_configs
+from nameko.messaging import (
+    Publisher, PERSISTENT,
+    ConsumerConfig, consumer_configs)
+
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
@@ -35,24 +37,20 @@ BROADCAST = "broadcast"
 
 log = getLogger(__name__)
 
-# stores the declared exchanges
-event_exchanges = {}
-
 
 def get_or_declare_event_exchange(service_name):
     """ Get or declare an exchange for ``service_name`` events
     """
-    if not service_name in event_exchanges:
-        delivery_mode = 2  # set delivery mode default to persistent messages
-        exchange_name = "{}.events".format(service_name)
-        # TODO: do we want to auto-delete exchanges if no queue
-        #       is bound to them?
-        exchange = Exchange(
-            exchange_name, type='topic', durable=True, auto_delete=True,
-            delivery_mode=delivery_mode)
-        event_exchanges[service_name] = exchange
 
-    return event_exchanges[service_name]
+    delivery_mode = PERSISTENT
+    exchange_name = "{}.events".format(service_name)
+    # TODO: do we want to auto-delete exchanges if no queue
+    #       is bound to them?
+    exchange = Exchange(
+        exchange_name, type='topic', durable=True, auto_delete=True,
+        delivery_mode=delivery_mode)
+
+    return exchange
 
 
 class EventTypeMissing(Exception):
@@ -211,12 +209,14 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
     a handler to consume them. Defaults to True.
     """
     if reliable_delivery and handler_type is BROADCAST:
-        raise EventHandlerConfigurationError("Broadcast event handlers cannot "
-        "be configured with reliable delivery.")
+        raise EventHandlerConfigurationError(
+            "Broadcast event handlers cannot be configured with reliable "
+            "delivery.")
 
     def event_decorator(fn):
-        consumer_configs[fn] = EventConfig(service_name, event_type,
-            handler_type, reliable_delivery, requeue_on_error)
+        consumer_configs[fn] = EventConfig(
+            service_name, event_type, handler_type, reliable_delivery,
+            requeue_on_error)
         return fn
 
     return event_decorator
@@ -265,5 +265,3 @@ class EventConfig(ConsumerConfig):
             durable=True, auto_delete=auto_delete)
 
         return queue
-
-

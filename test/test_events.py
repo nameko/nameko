@@ -2,8 +2,8 @@ import eventlet
 import pytest
 
 from nameko.events import (
-    EventDispatcher, Event, EventTypeTooLong, EventTypeMissing, event_handler,
-    SINGLETON, BROADCAST)
+    EventDispatcher, Event, EventTypeTooLong, EventTypeMissing,
+    EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST)
 
 EVENTS_TIMEOUT = 5
 
@@ -20,28 +20,28 @@ class Spammer(object):
         self.dispatch(SpamEvent(data))
 
 
-class SpamHandler(object):
-    events = []
+class Handler(object):
+    def __init__(self):
+        self.events = []
 
+
+class SpamHandler(Handler):
     # force reliable delivery off until we havve test cleanup
     @event_handler('spammer', 'spammed', reliable_delivery=False)
     def handle(self, evt):
         self.events.append(evt)
 
 
-class SingletonSpamHandler(object):
-    events = []
-
+class SingletonSpamHandler(Handler):
     # force reliable delivery off until we havve test cleanup
     @event_handler('spammer', 'spammed', reliable_delivery=False,
                    handler_type=SINGLETON)
     def handle(self, evt):
+        print self, evt
         self.events.append(evt)
 
 
-class BroadcastSpamHandler(object):
-    events = []
-
+class BroadcastSpamHandler(Handler):
     # force reliable delivery off until we havve test cleanup
     @event_handler('spammer', 'spammed', reliable_delivery=False,
                    handler_type=BROADCAST)
@@ -68,6 +68,15 @@ def test_event_type_too_long():
             type = 't' * 256
 
         MyEvent('spam')
+
+
+def test_relyable_broadcast_config_error():
+
+    with pytest.raises(EventHandlerConfigurationError):
+        @event_handler(
+            'foo', 'bar', reliable_delivery=True, handler_type=BROADCAST)
+        def foo(self):
+            pass
 
 
 def test_service_pooled_events(start_service):
@@ -103,8 +112,9 @@ def test_singleton_events(start_service):
     spammer.emit_event('ham and eggs')
 
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        events = handler_x.events + handler_y.events + handler_z.events
+        events = []
         while not events:
+            events = handler_x.events + handler_y.events + handler_z.events
             eventlet.sleep()
 
     # only one handler should receive the event
@@ -120,8 +130,9 @@ def test_broadcast_events(start_service):
     spammer.emit_event('ham and eggs')
 
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        events = handler_x.events + handler_y.events + handler_z.events
+        events = []
         while not events:
+            events = handler_x.events + handler_y.events + handler_z.events
             eventlet.sleep()
 
     # all handlers should receive the event
