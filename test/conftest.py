@@ -5,23 +5,14 @@ eventlet.monkey_patch()
 
 from kombu import Connection
 from pyrabbit.api import Client
+import pytest
 
 running_services = []
 
 
-def get_connection():
+def _get_connection():
     conn = Connection('amqp://guest:guest@localhost:5672/nameko')
     return conn
-
-
-def reset_rabbit():
-    rabbit = Client('localhost:15672', 'guest', 'guest')
-    try:
-        rabbit.delete_vhost('nameko')
-    except:
-        pass
-    rabbit.create_vhost('nameko')
-    rabbit.set_vhost_permissions('nameko', 'guest', '.*', '.*', '.*')
 
 
 def pytest_addoption(parser):
@@ -53,11 +44,11 @@ def pytest_configure(config):
         logging.basicConfig(level=getattr(logging, log_level))
 
 
-def start_service(cls, service_name):
+def _start_service(cls, service_name):
     # making sure we import this as late as possible to get correct coverage
     from nameko.service import Service
 
-    srv = Service(cls, get_connection, 'rpc', service_name)
+    srv = Service(cls, _get_connection, 'rpc', service_name)
     running_services.append(srv)
     srv.start()
     srv.consume_ready.wait()
@@ -65,47 +56,55 @@ def start_service(cls, service_name):
     return srv.service
 
 
-def kill_services():
+def _kill_service(name):
     for s in running_services:
-        try:
-            s.kill()
-            # TODO: need to delete all queues
-        except:
-            pass
-    del running_services[:]
-
-
-def kill_service(name):
-    for idx, s in enumerate(running_services):
         if s.topic == name:
             s.kill()
 
 
-def pytest_funcarg__get_connection(request):
-    return get_connection
+@pytest.fixture
+def reset_rabbit(request):
+    rabbit = Client('localhost:15672', 'guest', 'guest')
+
+    def del_vhost():
+        try:
+            rabbit.delete_vhost('nameko')
+        except:
+            pass
+
+    request.addfinalizer(del_vhost)
+
+    del_vhost()
+    rabbit.create_vhost('nameko')
+    rabbit.set_vhost_permissions('nameko', 'guest', '.*', '.*', '.*')
 
 
-def pytest_funcarg__connection(request):
-    return get_connection()
+@pytest.fixture
+def get_connection(request, reset_rabbit):
+    return _get_connection
 
 
-def pytest_funcarg__start_service(request):
-    return start_service
+@pytest.fixture
+def connection(request, reset_rabbit):
+    return _get_connection()
 
 
-def pytest_funcarg__kill_service(request):
-    return kill_service
+@pytest.fixture
+def start_service(request, reset_rabbit):
+
+    def kill_services():
+        for s in running_services:
+            try:
+                s.kill()
+                # TODO: need to delete all queues
+            except:
+                pass
+        del running_services[:]
+
+    request.addfinalizer(kill_services)
+    return _start_service
 
 
-def pytest_runtest_setup(item):
-    # we cannot patch it on a module level,
-    # as it would skew coverage reports
-    from nameko import memory
-    memory.patch()
-    reset_rabbit()
-
-
-def pytest_runtest_teardown(item, nextitem):
-    from nameko import memory
-    memory._memory.Transport.state.clear()
-    kill_services()
+@pytest.fixture
+def kill_service(request, reset_rabbit):
+    return _kill_service
