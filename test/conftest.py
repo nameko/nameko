@@ -4,6 +4,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from kombu import Connection
+from pyrabbit.api import Client
 
 running_services = []
 
@@ -11,6 +12,16 @@ running_services = []
 def get_connection():
     conn = Connection('amqp://guest:guest@localhost:5672/nameko')
     return conn
+
+
+def reset_rabbit():
+    rabbit = Client('localhost:15672', 'guest', 'guest')
+    try:
+        rabbit.delete_vhost('nameko')
+    except:
+        pass
+    rabbit.create_vhost('nameko')
+    rabbit.set_vhost_permissions('nameko', 'guest', '.*', '.*', '.*')
 
 
 def pytest_addoption(parser):
@@ -55,33 +66,13 @@ def start_service(cls, service_name):
 
 
 def kill_services():
-    queues = set()
-
     for s in running_services:
         try:
-            for cons in s._consumers:
-                queues |= set(cons.queues)
             s.kill()
             # TODO: need to delete all queues
         except:
             pass
     del running_services[:]
-
-    # TODO: this should really just delete all queues and exchanges on the
-    # test-vhost
-    with get_connection() as conn:
-        for q in queues:
-            q.exchange.bind(conn)
-            try:
-                q.exchange.delete()
-            except:
-                pass
-
-            q.bind(conn)
-            try:
-                q.delete()
-            except:
-                pass
 
 
 def kill_service(name):
@@ -111,6 +102,7 @@ def pytest_runtest_setup(item):
     # as it would skew coverage reports
     from nameko import memory
     memory.patch()
+    reset_rabbit()
 
 
 def pytest_runtest_teardown(item, nextitem):

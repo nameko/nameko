@@ -9,10 +9,6 @@ install:
 services:
     - rabbitmq
 
-before_script:
-    - sudo rabbitmqctl add_vhost nameko
-    - sudo rabbitmqctl set_permissions -p nameko guest ".*" ".*" ".*"
-
 script:
   - make test
 
