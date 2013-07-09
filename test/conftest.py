@@ -9,9 +9,7 @@ running_services = []
 
 
 def get_connection():
-    #conn = Connection('amqp://guest:guest@localhost:5672/nameko')
-    conn = Connection(transport='memory')
-
+    conn = Connection('amqp://guest:guest@localhost:5672/nameko')
     return conn
 
 
@@ -52,17 +50,44 @@ def start_service(cls, service_name):
     running_services.append(srv)
     srv.start()
     srv.consume_ready.wait()
+    eventlet.sleep()
     return srv.service
 
 
 def kill_services():
+    queues = set()
+
     for s in running_services:
         try:
+            for cons in s._consumers:
+                queues |= set(cons.queues)
             s.kill()
             # TODO: need to delete all queues
         except:
             pass
     del running_services[:]
+
+    # TODO: this should really just delete all queues and exchanges on the
+    # test-vhost
+    with get_connection() as conn:
+        for q in queues:
+            q.exchange.bind(conn)
+            try:
+                q.exchange.delete()
+            except:
+                pass
+
+            q.bind(conn)
+            try:
+                q.delete()
+            except:
+                pass
+
+
+def kill_service(name):
+    for idx, s in enumerate(running_services):
+        if s.topic == name:
+            s.kill()
 
 
 def pytest_funcarg__get_connection(request):
@@ -75,6 +100,10 @@ def pytest_funcarg__connection(request):
 
 def pytest_funcarg__start_service(request):
     return start_service
+
+
+def pytest_funcarg__kill_service(request):
+    return kill_service
 
 
 def pytest_runtest_setup(item):

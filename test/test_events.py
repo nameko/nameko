@@ -26,14 +26,20 @@ class Handler(object):
 
 
 class SpamHandler(Handler):
-    # force reliable delivery off until we havve test cleanup
+    # force reliable delivery off until we have test cleanup
     @event_handler('spammer', 'spammed', reliable_delivery=False)
     def handle(self, evt):
         self.events.append(evt)
 
 
+class ReliableSpamHandler(Handler):
+    @event_handler('rspammer', 'spammed', reliable_delivery=True)
+    def handle(self, evt):
+        self.events.append(evt)
+
+
 class SingletonSpamHandler(Handler):
-    # force reliable delivery off until we havve test cleanup
+    # force reliable delivery off until we have test cleanup
     @event_handler('spammer', 'spammed', reliable_delivery=False,
                    handler_type=SINGLETON)
     def handle(self, evt):
@@ -42,7 +48,7 @@ class SingletonSpamHandler(Handler):
 
 
 class BroadcastSpamHandler(Handler):
-    # force reliable delivery off until we havve test cleanup
+    # force reliable delivery off until we have test cleanup
     @event_handler('spammer', 'spammed', reliable_delivery=False,
                    handler_type=BROADCAST)
     def handle(self, evt):
@@ -71,7 +77,6 @@ def test_event_type_too_long():
 
 
 def test_relyable_broadcast_config_error():
-
     with pytest.raises(EventHandlerConfigurationError):
         @event_handler(
             'foo', 'bar', reliable_delivery=True, handler_type=BROADCAST)
@@ -88,19 +93,16 @@ def test_service_pooled_events(start_service):
     spammer.emit_event('ham and eggs')
 
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while not handler_z.events:
+        events = []
+        while len(events) < 2:
+            events = handler_x.events + handler_y.events + handler_z.events
             eventlet.sleep()
 
     # handler_z will receive the event
     assert handler_z.events == ['ham and eggs']
 
     # only one of handler_x or handler_y will receive the event
-    if handler_x.events:
-        assert handler_x.events == ['ham and eggs']
-        assert handler_y.events == []
-    else:
-        assert handler_x.events == []
-        assert handler_y.events == ['ham and eggs']
+    assert handler_x.events + handler_y.events == ['ham and eggs']
 
 
 def test_singleton_events(start_service):
@@ -131,7 +133,7 @@ def test_broadcast_events(start_service):
 
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
         events = []
-        while not events:
+        while len(events) < 3:
             events = handler_x.events + handler_y.events + handler_z.events
             eventlet.sleep()
 
@@ -140,6 +142,60 @@ def test_broadcast_events(start_service):
     assert handler_x.events == ['ham and eggs']
     assert handler_y.events == ['ham and eggs']
     assert handler_z.events == ['ham and eggs']
+
+
+def test_event_lost_without_listener(start_service, kill_service):
+    handler = start_service(SpamHandler, 'spamhandler')
+
+    spammer = start_service(Spammer, 'spammer')
+    spammer.emit_event('ham')
+
+    # we want to make sure that events have been received before
+    # killing the services
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        events = handler.events
+        while not events:
+            eventlet.sleep()
+
+    kill_service('spamhandler')
+
+    # we don't have any handler listening anymore, so the event should vanish
+    spammer.emit_event('lost ham')
+
+    handler = start_service(SpamHandler, 'spamhandler')
+    # we now have a service listening and should receive events again
+    spammer.emit_event('eggs')
+
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        events = handler.events
+        while not events:
+            eventlet.sleep()
+
+    assert events == ['eggs']
+
+
+def test_event_not_lost_with_reliable_delivery(start_service, kill_service):
+    spammer = start_service(Spammer, 'rspammer')
+    # this event should vanish, as there is no ReliableSpamHandler running yet
+    spammer.emit_event('lost')
+
+    # this service can die, as it's event queue will survive
+    handler = start_service(ReliableSpamHandler, 'rspamhandler')
+    kill_service('rspamhandler')
+    eventlet.sleep()
+
+    # since we have a reliable event queue, event s should not get lost
+    spammer.emit_event('ham')
+
+    handler = start_service(ReliableSpamHandler, 'rspamhandler')
+    spammer.emit_event('eggs')
+
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        events = handler.events
+        while len(events) < 2:
+            eventlet.sleep()
+
+    assert events == ['ham', 'eggs']
 
 
 # TODO: tests for reliable delivery, requeue on error

@@ -6,6 +6,12 @@ install:
   - python setup.py -q install
   - pip install -r test_requirements.txt
 
+services:
+    - rabbitmq
+
+before_script:
+    - rabbitmqctl add_vhost nameko
+
 script:
   - make test
 
