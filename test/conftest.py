@@ -126,11 +126,11 @@ def start_service(request, reset_rabbit, get_connection):
 
 
 @pytest.fixture
-def kill_service(request, reset_rabbit):
+def kill_services(request, reset_rabbit):
 
-    def _kill_service(name):
+    def _kill_services(name):
         for s in running_services:
             if s.topic == name:
                 s.kill()
 
-    return _kill_service
+    return _kill_services

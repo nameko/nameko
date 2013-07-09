@@ -33,7 +33,7 @@ class SpamHandler(Handler):
 
 
 class ReliableSpamHandler(Handler):
-    @event_handler('rspammer', 'spammed', reliable_delivery=True)
+    @event_handler('spammer', 'spammed', reliable_delivery=True)
     def handle(self, evt):
         self.events.append(evt)
 
@@ -144,20 +144,20 @@ def test_broadcast_events(start_service):
     assert handler_z.events == ['ham and eggs']
 
 
-def test_event_lost_without_listener(start_service, kill_service):
+def test_event_lost_without_listener(start_service, kill_services):
     handler = start_service(SpamHandler, 'spamhandler')
 
     spammer = start_service(Spammer, 'spammer')
     spammer.emit_event('ham')
 
     # we want to make sure that events have been received before
-    # killing the services
+    # killing the services, that way we know we had an event queue
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
         events = handler.events
         while not events:
             eventlet.sleep()
 
-    kill_service('spamhandler')
+    kill_services('spamhandler')
 
     # we don't have any handler listening anymore, so the event should vanish
     spammer.emit_event('lost ham')
@@ -174,20 +174,20 @@ def test_event_lost_without_listener(start_service, kill_service):
     assert events == ['eggs']
 
 
-def test_event_not_lost_with_reliable_delivery(start_service, kill_service):
-    spammer = start_service(Spammer, 'rspammer')
+def test_event_not_lost_with_reliable_delivery(start_service, kill_services):
+    spammer = start_service(Spammer, 'spammer')
     # this event should vanish, as there is no ReliableSpamHandler running yet
     spammer.emit_event('lost')
 
     # this service can die, as it's event queue will survive
-    handler = start_service(ReliableSpamHandler, 'rspamhandler')
-    kill_service('rspamhandler')
+    handler = start_service(ReliableSpamHandler, 'spamhandler')
+    kill_services('spamhandler')
     eventlet.sleep()
 
     # since we have a reliable event queue, event s should not get lost
     spammer.emit_event('ham')
 
-    handler = start_service(ReliableSpamHandler, 'rspamhandler')
+    handler = start_service(ReliableSpamHandler, 'spamhandler')
     spammer.emit_event('eggs')
 
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -198,4 +198,4 @@ def test_event_not_lost_with_reliable_delivery(start_service, kill_service):
     assert events == ['ham', 'eggs']
 
 
-# TODO: tests for reliable delivery, requeue on error
+# TODO: tests for requeue on error
