@@ -10,7 +10,7 @@ services:
     - rabbitmq
 
 before_script:
-    - rabbitmqctl add_vhost nameko
+    - sudo rabbitmqctl add_vhost nameko
 
 script:
   - make test
