@@ -36,7 +36,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--rabbit-ctl-uri", action="store",
-        default='localhost:15672',
+        default='http://guest:guest@localhost:15672',
         help=("The URI for rabbit's management API."))
 
 
@@ -60,15 +60,13 @@ def pytest_configure(config):
 def reset_rabbit(request):
     config = request.config
 
-    amqp_uri = config.getoption('amqp_uri')
-    amqp_uri = urlparse(amqp_uri)
+    rabbit_ctl_uri = urlparse(config.getoption('rabbit_ctl_uri'))
+    host_port = '{}:{}'.format(rabbit_ctl_uri.hostname, rabbit_ctl_uri.port)
 
-    username = amqp_uri.username
-    password = amqp_uri.password
+    rabbit = Client(
+        host_port, rabbit_ctl_uri.username, rabbit_ctl_uri.password)
 
-    rabbit_ctl_uri = config.getoption('rabbit_ctl_uri')
-    rabbit = Client(rabbit_ctl_uri, username, password)
-
+    amqp_uri = urlparse(config.getoption('amqp_uri'))
     vhost = amqp_uri.path[1:]
 
     def del_vhost():
@@ -80,9 +78,9 @@ def reset_rabbit(request):
     request.addfinalizer(del_vhost)
 
     del_vhost()
-    rabbit.create_vhost(vhost)
 
-    rabbit.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+    rabbit.create_vhost(vhost)
+    rabbit.set_vhost_permissions(vhost, amqp_uri.username, '.*', '.*', '.*')
 
 
 @pytest.fixture
