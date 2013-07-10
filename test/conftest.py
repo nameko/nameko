@@ -61,7 +61,7 @@ def reset_rabbit(request):
     config = request.config
 
     rabbit_ctl_uri = urlparse(config.getoption('rabbit_ctl_uri'))
-    host_port = '{}:{}'.format(rabbit_ctl_uri.hostname, rabbit_ctl_uri.port)
+    host_port = '{0.hostname}:{0.port}'.format(rabbit_ctl_uri)
 
     rabbit = Client(
         host_port, rabbit_ctl_uri.username, rabbit_ctl_uri.password)
