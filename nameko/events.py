@@ -38,17 +38,16 @@ BROADCAST = "broadcast"
 log = getLogger(__name__)
 
 
-def get_or_declare_event_exchange(service_name):
-    """ Get or declare an exchange for ``service_name`` events
+def get_event_exchange(service_name):
+    """ Get an exchange for ``service_name`` events.
     """
 
-    delivery_mode = PERSISTENT
     exchange_name = "{}.events".format(service_name)
     # TODO: do we want to auto-delete exchanges if no queue
     #       is bound to them?
     exchange = Exchange(
         exchange_name, type='topic', durable=True, auto_delete=True,
-        delivery_mode=delivery_mode)
+        delivery_mode=PERSISTENT)
 
     return exchange
 
@@ -75,7 +74,6 @@ class EventTypeTooLong(Exception):
 class EventHandlerConfigurationError(Exception):
     """ Raised when an event handler is misconfigured.
     """
-    pass
 
 
 class EventMeta(type):
@@ -150,14 +148,11 @@ class EventDispatcher(Publisher):
         super(EventDispatcher, self).__init__()
 
     def get_instance(self, service):
-        # TODO: better accessor for service name required
         service_name = service.topic
-        self.exchange = get_or_declare_event_exchange(service_name)
+        self.exchange = get_event_exchange(service_name)
         publish = super(EventDispatcher, self).get_instance(service)
 
         def dispatch(evt):
-            # TODO: serialization of the event, maybe take attrs or have a
-            #       special serialize method?
             msg = evt.data
             routing_key = evt.type
             publish(msg, routing_key=routing_key)
@@ -202,7 +197,7 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                       \
                         [queue] -- service Y instance
 
-    If ``requeue_on_error``, handlers will return the event to the queue an
+    If ``requeue_on_error``, handlers will return the event to the queue if an
     error occurs while handling it. Defaults to False.
 
     If ``reliable_delivery``, events will be kept in the queue until there is
@@ -256,7 +251,7 @@ class EventConfig(ConsumerConfig):
                                                self.event_type,
                                                uuid.uuid4())
 
-        exchange = get_or_declare_event_exchange(self.service_name)
+        exchange = get_event_exchange(self.service_name)
 
         # auto-delete queues if events are not reliably delivered
         auto_delete = not self.reliable_delivery

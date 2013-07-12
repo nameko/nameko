@@ -96,7 +96,7 @@ def connection(request, reset_rabbit):
 
 
 @pytest.fixture
-def start_service(request, reset_rabbit, get_connection):
+def start_service(request, get_connection):
 
     def _start_service(cls, service_name):
         # making sure we import this as late as possible
@@ -110,16 +110,15 @@ def start_service(request, reset_rabbit, get_connection):
         eventlet.sleep()
         return srv.service
 
-    def kill_services():
+    def kill_all_services():
         for s in running_services:
             try:
                 s.kill()
-                # TODO: need to delete all queues
             except:
                 pass
         del running_services[:]
 
-    request.addfinalizer(kill_services)
+    request.addfinalizer(kill_all_services)
     return _start_service
 
 

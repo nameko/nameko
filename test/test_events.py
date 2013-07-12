@@ -38,6 +38,14 @@ class ReliableSpamHandler(Handler):
         self.events.append(evt)
 
 
+class RequeueingSpamHandler(Handler):
+    @event_handler('spammer', 'spammed',
+                   reliable_delivery=False, requeue_on_error=True)
+    def handle(self, evt):
+        self.events.append(evt)
+        raise Exception('foobar')
+
+
 class SingletonSpamHandler(Handler):
     # force reliable delivery off until we have test cleanup
     @event_handler('spammer', 'spammed', reliable_delivery=False,
@@ -198,4 +206,22 @@ def test_event_not_lost_with_reliable_delivery(start_service, kill_services):
     assert events == ['ham', 'eggs']
 
 
-# TODO: tests for requeue on error
+def test_requeue_event_on_error(start_service):
+    requeueing_handler = start_service(RequeueingSpamHandler, 'spamhandler')
+
+    spammer = start_service(Spammer, 'spammer')
+    spammer.emit_event('ham and eggs')
+
+    # we want to wait until at least one event was received
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        while len(requeueing_handler.events) < 1:
+            eventlet.sleep()
+
+    # the new service should pick up the event
+    handler = start_service(SpamHandler, 'spamhandler')
+
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        while len(handler.events) < 1:
+            eventlet.sleep()
+
+    assert len(handler.events) == 1
