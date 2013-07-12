@@ -51,7 +51,6 @@ class SingletonSpamHandler(Handler):
     @event_handler('spammer', 'spammed', reliable_delivery=False,
                    handler_type=SINGLETON)
     def handle(self, evt):
-        print self, evt
         self.events.append(evt)
 
 
