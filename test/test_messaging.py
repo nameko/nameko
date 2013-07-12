@@ -1,11 +1,8 @@
 import eventlet
-
 from kombu import Exchange, Queue
-from kombu.common import maybe_declare
 
 from nameko.messaging import consume, Publisher
 
-import conftest
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -54,20 +51,8 @@ class RequeueingFoobar(Foobar):
         raise Exception(msg)
 
 
-def teardown_function(fn):
-    # We want to make sure queues get removed.
-    # The services should create them as needed.
-    with conftest.get_connection() as conn:
-        with conn.channel() as channel:
-            queue = foobar_queue(channel)
-            maybe_declare(foobar_queue, channel)
-            queue.delete()
-            exchange = foobar_ex(channel)
-            exchange.delete()
-
-
 def test_publish_to_exchange_without_queue(start_service):
-    spammer = start_service(ExchangeSpammer, 'exchagespammer')
+    spammer = start_service(ExchangeSpammer, 'exchangespammer')
     msg = 'exchange message'
     spammer._publish(msg)
 
