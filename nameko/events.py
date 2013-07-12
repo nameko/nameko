@@ -41,10 +41,7 @@ log = getLogger(__name__)
 def get_event_exchange(service_name):
     """ Get an exchange for ``service_name`` events.
     """
-
     exchange_name = "{}.events".format(service_name)
-    # TODO: do we want to auto-delete exchanges if no queue
-    #       is bound to them?
     exchange = Exchange(
         exchange_name, type='topic', durable=True, auto_delete=True,
         delivery_mode=PERSISTENT)
@@ -201,7 +198,10 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
     error occurs while handling it. Defaults to False.
 
     If ``reliable_delivery``, events will be kept in the queue until there is
-    a handler to consume them. Defaults to True.
+    a handler to consume them. Defaults to ``True``.
+
+    Raises an ``EventHandlerConfigurationError`` if the ``handler_type``
+    is set to ``BROADCAST`` and ``reliable_delivery`` is set to ``True``.
     """
     if reliable_delivery and handler_type is BROADCAST:
         raise EventHandlerConfigurationError(
