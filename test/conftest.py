@@ -1,17 +1,19 @@
+from functools import partial
 import logging
+from urlparse import urlparse
 
 import eventlet
 eventlet.monkey_patch()
 
 from kombu import Connection
+from pyrabbit.api import Client
+import pytest
 
 running_services = []
 
 
-def get_connection():
-    #conn = Connection('amqp://guest:guest@localhost:5672/nameko')
-    conn = Connection(transport='memory')
-
+def _get_connection(uri):
+    conn = Connection(uri)
     return conn
 
 
@@ -26,6 +28,16 @@ def pytest_addoption(parser):
         "--log-level", action="store",
         default='DEBUG',
         help=("The logging-level for the test run."))
+
+    parser.addoption(
+        "--amqp-uri", action="store",
+        default='amqp://guest:guest@localhost:5672/nameko',
+        help=("The AMQP-URI to connect to rabbit with."))
+
+    parser.addoption(
+        "--rabbit-ctl-uri", action="store",
+        default='http://guest:guest@localhost:15672',
+        help=("The URI for rabbit's management API."))
 
 
 def pytest_configure(config):
@@ -44,47 +56,78 @@ def pytest_configure(config):
         logging.basicConfig(level=getattr(logging, log_level))
 
 
-def start_service(cls, service_name):
-    # making sure we import this as late as possible to get correct coverage
-    from nameko.service import Service
+@pytest.fixture
+def reset_rabbit(request):
+    config = request.config
 
-    srv = Service(cls, get_connection, 'rpc', service_name)
-    running_services.append(srv)
-    srv.start()
-    srv.consume_ready.wait()
-    return srv.service
+    rabbit_ctl_uri = urlparse(config.getoption('rabbit_ctl_uri'))
+    host_port = '{0.hostname}:{0.port}'.format(rabbit_ctl_uri)
 
+    rabbit = Client(
+        host_port, rabbit_ctl_uri.username, rabbit_ctl_uri.password)
 
-def kill_services():
-    for s in running_services:
+    amqp_uri = urlparse(config.getoption('amqp_uri'))
+    vhost = amqp_uri.path[1:]
+
+    def del_vhost():
         try:
-            s.kill()
-            # TODO: need to delete all queues
+            rabbit.delete_vhost(vhost)
         except:
             pass
-    del running_services[:]
+
+    request.addfinalizer(del_vhost)
+
+    del_vhost()
+
+    rabbit.create_vhost(vhost)
+    rabbit.set_vhost_permissions(vhost, amqp_uri.username, '.*', '.*', '.*')
 
 
-def pytest_funcarg__get_connection(request):
-    return get_connection
+@pytest.fixture
+def get_connection(request, reset_rabbit):
+    amqp_uri = request.config.getoption('amqp_uri')
+    return partial(_get_connection, amqp_uri)
 
 
-def pytest_funcarg__connection(request):
-    return get_connection()
+@pytest.fixture
+def connection(request, reset_rabbit):
+    amqp_uri = request.config.getoption('amqp_uri')
+    return _get_connection(amqp_uri)
 
 
-def pytest_funcarg__start_service(request):
-    return start_service
+@pytest.fixture
+def start_service(request, get_connection):
+
+    def _start_service(cls, service_name):
+        # making sure we import this as late as possible
+        # to get correct coverage
+        from nameko.service import Service
+
+        srv = Service(cls, get_connection, 'rpc', service_name)
+        running_services.append(srv)
+        srv.start()
+        srv.consume_ready.wait()
+        eventlet.sleep()
+        return srv.service
+
+    def kill_all_services():
+        for s in running_services:
+            try:
+                s.kill()
+            except:
+                pass
+        del running_services[:]
+
+    request.addfinalizer(kill_all_services)
+    return _start_service
 
 
-def pytest_runtest_setup(item):
-    # we cannot patch it on a module level,
-    # as it would skew coverage reports
-    from nameko import memory
-    memory.patch()
+@pytest.fixture
+def kill_services(request, reset_rabbit):
 
+    def _kill_services(name):
+        for s in running_services:
+            if s.topic == name:
+                s.kill()
 
-def pytest_runtest_teardown(item, nextitem):
-    from nameko import memory
-    memory._memory.Transport.state.clear()
-    kill_services()
+    return _kill_services

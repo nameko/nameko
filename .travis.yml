@@ -6,6 +6,9 @@ install:
   - python setup.py -q install
   - pip install -r test_requirements.txt
 
+services:
+    - rabbitmq
+
 script:
   - make test
 

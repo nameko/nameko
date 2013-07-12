@@ -82,7 +82,7 @@ class Service(ConsumerMixin):
             self.nova_queues, callbacks=[self.on_nova_message, ])
 
         consume_consumers = get_consumers(
-            Consumer, self.controller, self.on_consume_message)
+            Consumer, self, self.on_consume_message)
 
         consumers = [nova_consumer] + list(consume_consumers)
 
