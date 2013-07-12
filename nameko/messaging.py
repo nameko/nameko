@@ -125,6 +125,13 @@ class ConsumerConfig(object):
         self.requeue_on_error = requeue_on_error
 
     def get_queue(self, service):
+        """ Base implementation for consumer config objects.
+        ``service`` is provided for sub-classes if they need to create queues
+        using information from the service object.
+
+        Args:
+            service - An instance of ``nameko.service.Service``.
+        """
         return self.queue
 
 
