@@ -8,7 +8,7 @@ from nameko.testing.proxy import MockRPCProxy
 def test_anon_context_constructor():
     context = proxy.get_anon_context()
 
-    assert context.user_id == None
+    assert context.user_id is None
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
