@@ -257,3 +257,33 @@ def test_add_call_matching():
     with pytest.raises(RuntimeError):
         rpcproxy.service.controller(key='value')
 
+
+@patch.object(proxy, 'rpc')
+def test_service_whitelist(rpc):
+    connection = ANY
+    context = Mock()
+    context_factory = lambda: context
+    rpcproxy = MockRPCProxy(
+        context_factory=context_factory, fallback_to_call=False)
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.controller()
+
+    assert rpc.call.call_count == 0
+
+    rpcproxy.add_service_to_whitelist('service')
+
+    rpcproxy.service.controller()
+
+    rpc.call.assert_called_once_with(
+        connection, context, 'service',
+        {'method': 'controller', 'args': {}},
+        options=rpcproxy.call_options(),
+        timeout=None)
+
+    rpcproxy.reset()
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.controller()
+
+    rpc.call.call_count == 1
