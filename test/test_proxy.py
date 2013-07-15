@@ -281,6 +281,9 @@ def test_service_whitelist(rpc):
         options=rpcproxy.call_options(),
         timeout=None)
 
+    with pytest.raises(RuntimeError):
+        rpcproxy.blacklisted_service.controller()
+
     rpcproxy.reset()
 
     with pytest.raises(RuntimeError):
