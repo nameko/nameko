@@ -2,6 +2,7 @@ from mock import ANY, Mock, patch
 import pytest
 
 from nameko import proxy
+from nameko.testing.proxy import MockRPCProxy
 
 
 def test_anon_context_constructor():
@@ -10,12 +11,13 @@ def test_anon_context_constructor():
     assert context.user_id == None
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_call(rpc):
+def test_call(rpc, constructor):
     connection = ANY
     context = Mock()
     context_factory = lambda: context
-    rpcproxy = proxy.RPCProxy(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=context_factory)
 
     with pytest.raises(ValueError):
         # no topic, no method
@@ -34,12 +36,13 @@ def test_call(rpc):
         timeout=None)
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_call_dynamic_route(rpc):
+def test_call_dynamic_route(rpc, constructor):
     connection = ANY
     context = Mock()
     context_factory = lambda: context
-    rpcproxy = proxy.RPCProxy(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=context_factory)
 
     with pytest.raises(ValueError):
         # no topic, no method
@@ -62,12 +65,13 @@ def test_call_dynamic_route(rpc):
         timeout=None)
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_call_default(rpc):
+def test_call_default(rpc, constructor):
     connection = ANY
     context = Mock()
     context_factory = lambda: context
-    rpcproxy = proxy.RPCProxy(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=context_factory)
 
     rpcproxy.service.controller(key='value')
 
@@ -78,17 +82,19 @@ def test_call_default(rpc):
         timeout=None)
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_extra_route(rpc):
-    rpcproxy = proxy.RPCProxy()
+def test_extra_route(rpc, constructor):
+    rpcproxy = constructor()
 
     with pytest.raises(AttributeError):
         rpcproxy.service.controller.extra(key='value')
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_route_abuse(rpc):
-    rpcproxy = proxy.RPCProxy()
+def test_route_abuse(rpc, constructor):
+    rpcproxy = constructor()
     # N.B. There are safeguards against misconfiguring the info attribute.
     #      If it's got to this point someone has been misusing the api.
     rpcproxy.info = ['service', 'controller', 'extra']
@@ -97,12 +103,13 @@ def test_route_abuse(rpc):
         rpcproxy.call(key='value')
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_control_exchange_config(rpc):
+def test_control_exchange_config(rpc, constructor):
     connection = ANY
     context = Mock()
     context_factory = lambda: context
-    rpcproxy = proxy.RPCProxy(
+    rpcproxy = constructor(
         control_exchange='rpc', context_factory=context_factory)
 
     rpcproxy.service.controller(key='value')
@@ -114,12 +121,13 @@ def test_control_exchange_config(rpc):
         timeout=None)
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_cast(rpc):
+def test_cast(rpc, constructor):
     connection = ANY
     context = Mock()
     context_factory = lambda: context
-    rpcproxy = proxy.RPCProxy(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=context_factory)
 
     with pytest.raises(ValueError):
         # no topic, no method
@@ -137,12 +145,13 @@ def test_cast(rpc):
         options=rpcproxy.call_options())
 
 
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
 @patch.object(proxy, 'rpc')
-def test_cast_dynamic_route(rpc):
+def test_cast_dynamic_route(rpc, constructor):
     connection = ANY
     context = Mock()
     context_factory = lambda: context
-    rpcproxy = proxy.RPCProxy(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=context_factory)
 
     with pytest.raises(ValueError):
         # no topic, no method
