@@ -18,6 +18,7 @@ class MockRPCProxy(RPCProxy):
         attr._routings = self._routings
         attr._calls = self._calls
         attr._services_whitelist = self._services_whitelist
+        attr.fallback_to_call = self.fallback_to_call
         return attr
 
     def add_routing(self, topic, method, func, priority=0):
