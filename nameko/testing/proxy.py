@@ -38,6 +38,7 @@ class MockRPCProxy(RPCProxy):
         self.add_routing(topic, method, routefunc)
 
     def add_service_to_whitelist(self, service):
+        self.fallback_to_call = True
         self._services_whitelist.append(service)
 
     def __call__(self, context=None, **kwargs):
