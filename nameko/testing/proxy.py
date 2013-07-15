@@ -4,7 +4,7 @@ from nameko.proxy import RPCProxy
 class MockRPCProxy(RPCProxy):
     def __init__(self, fallback_to_call=True, *args, **kwargs):
         super(MockRPCProxy, self).__init__(*args, **kwargs)
-        self.fallback_to_call = fallback_to_call
+        self.fallback_to_call = self._orig_fbtc = fallback_to_call
         self.reset(keep_routings=False)
 
     def reset(self, keep_routings=False):
@@ -12,12 +12,14 @@ class MockRPCProxy(RPCProxy):
             self._routings = {}
         self._calls = []
         self._services_whitelist = []
+        self.fallback_to_call = self._orig_fbtc
 
     def __getattr__(self, key):
         attr = super(MockRPCProxy, self).__getattr__(key)
         attr._routings = self._routings
         attr._calls = self._calls
         attr._services_whitelist = self._services_whitelist
+        attr.fallback_to_call = self.fallback_to_call
         return attr
 
     def add_routing(self, topic, method, func, priority=0):
@@ -35,6 +37,10 @@ class MockRPCProxy(RPCProxy):
             assert kwargs == args
             return returnvalue
         self.add_routing(topic, method, routefunc)
+
+    def add_service_to_whitelist(self, service):
+        self.fallback_to_call = True
+        self._services_whitelist.append(service)
 
     def __call__(self, context=None, **kwargs):
         topic, method = self._get_route(kwargs.copy())
