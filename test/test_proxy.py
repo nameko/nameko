@@ -171,3 +171,89 @@ def test_cast_dynamic_route(rpc, constructor):
         connection, context, 'service',
         {'method': 'controller', 'args': {'key': 'value'}},
         options=rpcproxy.call_options())
+
+
+# MockRPCProxy Tests
+
+def test_add_dummy():
+    rpcproxy = MockRPCProxy(fallback_to_call=False)
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.controller()
+
+    response = Mock()
+    rpcproxy.add_dummy('service', 'controller', response)
+
+    assert rpcproxy._calls == [
+        ('service', 'controller', {}),
+    ]
+
+    assert rpcproxy.service.controller() == response
+    assert rpcproxy.service.controller(key='value') == response
+
+    assert rpcproxy._calls == [
+        ('service', 'controller', {}),
+        ('service', 'controller', {}),
+        ('service', 'controller', {'key': 'value'}),
+    ]
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.other_controller()
+
+    assert rpcproxy._calls == [
+        ('service', 'controller', {}),
+        ('service', 'controller', {}),
+        ('service', 'controller', {'key': 'value'}),
+        ('service', 'other_controller', {}),
+    ]
+
+    rpcproxy.reset()
+
+    assert rpcproxy._calls == []
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.controller()
+
+
+def test_add_call_matching():
+    rpcproxy = MockRPCProxy(fallback_to_call=False)
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.controller()
+
+    response = Mock()
+    rpcproxy.add_call_matching(
+        'service', 'controller', {'key': 'value'}, response)
+
+    assert rpcproxy._calls == [
+        ('service', 'controller', {}),
+    ]
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.controller()
+
+    assert rpcproxy.service.controller(key='value') == response
+
+    assert rpcproxy._calls == [
+        ('service', 'controller', {}),
+        ('service', 'controller', {}),
+        ('service', 'controller', {'key': 'value'}),
+    ]
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.other_controller()
+
+    assert rpcproxy._calls == [
+        ('service', 'controller', {}),
+        ('service', 'controller', {}),
+        ('service', 'controller', {'key': 'value'}),
+        ('service', 'other_controller', {}),
+    ]
+
+    rpcproxy.reset()
+
+    assert rpcproxy._calls == []
+
+    with pytest.raises(RuntimeError):
+        rpcproxy.service.controller(key='value')
+
