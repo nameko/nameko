@@ -1,23 +1,20 @@
 from nameko.proxy import RPCProxy
 
-_calls = {}
-_routes = {}
-_services_whitelist = {}
-_fallback_to_call = True
+_state = {}
 
 
 def reset_state():
-    global _routes, _services_whitelist, _calls, _fallback_to_call
-    _calls = {}
-    _routes = {}
-    _services_whitelist = {}
-    _fallback_to_call = True
+    _state['calls'] = []
+    _state['routes'] = {}
+    _state['services_whitelist'] = []
+    _state['fallback_to_call'] = True
+
+reset_state()
 
 
 class MockRPCProxy(RPCProxy):
     def __init__(self, *args, **kwargs):
         super(MockRPCProxy, self).__init__(*args, **kwargs)
-        self.reset()
 
     @staticmethod
     def reset():
@@ -25,7 +22,7 @@ class MockRPCProxy(RPCProxy):
 
     @staticmethod
     def add_routing(topic, method, func, priority=0):
-        routes = _routes.setdefault(topic, {}).setdefault(method, [])
+        routes = _state['routes'].setdefault(topic, {}).setdefault(method, [])
         routes.append((priority, func))
         routes.sort(reverse=True)
 
@@ -42,15 +39,24 @@ class MockRPCProxy(RPCProxy):
             return returnvalue
         MockRPCProxy.add_routing(topic, method, routefunc)
 
+    @staticmethod
+    def add_service_to_whitelist(service):
+        _state['fallback_to_call'] = True
+        _state['services_whitelist'].append(service)
+
     # keep self.fallback_to_call for backwards compatibility
     @property
     def fallback_to_call(self):
-        return _fallback_to_call
+        return _state['fallback_to_call']
 
     @fallback_to_call.setter
     def fallback_to_call(self, value):
-        global _fallback_to_call
-        _fallback_to_call = value
+        _state['fallback_to_call'] = value
+
+    # keep self._calls for backwards compatibility
+    @property
+    def _calls(self):
+        return _state['calls']
 
     def __call__(self, context=None, **kwargs):
         topic, method = self._get_route(kwargs.copy())
@@ -58,10 +64,10 @@ class MockRPCProxy(RPCProxy):
         if context is None:
             context = self.context_factory()
 
-        _calls.append((topic, method, kwargs))
+        _state['calls'].append((topic, method, kwargs))
 
         # check the routes registered on the mock object first
-        routes = _routes.get(topic, {}).get(method)
+        routes = _state['routes'].get(topic, {}).get(method)
         if routes:
             for _, r in routes:
                 try:
@@ -70,8 +76,8 @@ class MockRPCProxy(RPCProxy):
                     pass
 
         # no route was registered so fallback to a real call if it's allowed
-        if _fallback_to_call:
-            whitelist = _services_whitelist
+        if _state['fallback_to_call']:
+            whitelist = _state['services_whitelist']
             if whitelist and topic not in whitelist:
                 raise RuntimeError(
                     'Service not in whitelist when trying '
