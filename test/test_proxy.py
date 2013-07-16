@@ -303,3 +303,44 @@ def test_fallback_to_call():
     assert rpcproxy.fallback_to_call is True  # default
     rpcproxy.fallback_to_call = False
     assert rpcproxy.fallback_to_call is False
+
+
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
+@patch.object(proxy, 'rpc')
+def test_timeout(rpc, constructor):
+    connection = ANY
+    context = Mock()
+    context_factory = lambda: context
+
+    # test null timeout
+    rpcproxy = constructor(context_factory=context_factory)
+    rpcproxy.service.controller(key='value')
+
+    rpc.call.assert_called_once_with(
+        connection, context, 'service',
+        {'method': 'controller', 'args': {'key': 'value'}},
+        options=rpcproxy.call_options(),
+        timeout=None)
+    rpc.reset_mock()
+
+    # test default timeout
+    rpcproxy = constructor(timeout=10, context_factory=context_factory)
+    rpcproxy.service.controller(key='value')
+
+    rpc.call.assert_called_once_with(
+        connection, context, 'service',
+        {'method': 'controller', 'args': {'key': 'value'}},
+        options=rpcproxy.call_options(),
+        timeout=10)
+    rpc.reset_mock()
+
+    # test override timeout
+    rpcproxy = constructor(timeout=10, context_factory=context_factory)
+    rpcproxy.service.controller(key='value', timeout=99)
+
+    rpc.call.assert_called_once_with(
+        connection, context, 'service',
+        {'method': 'controller', 'args': {'key': 'value'}},
+        options=rpcproxy.call_options(),
+        timeout=99)
+

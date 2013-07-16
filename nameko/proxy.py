@@ -15,11 +15,12 @@ class RPCProxy(object):
             >>> proxy.service_name.controller_name(arg1='foo', arg2='bar')
     """
 
-    def __init__(self, info=None, context_factory=None, uri='memory://',
-                 control_exchange=None):
+    def __init__(self, uri='memory://', timeout=None, info=None,
+                 context_factory=None, control_exchange=None):
+        self.uri = uri
+        self.timeout = timeout
         self.info = info or []
         self.context_factory = context_factory or get_anon_context
-        self.uri = uri
         self.control_exchange = control_exchange
 
     def create_connection(self):
@@ -36,9 +37,10 @@ class RPCProxy(object):
             raise AttributeError(key)
         info = self.info[:] + [key]
         return self.__class__(
+            uri=self.uri,
+            timeout=self.timeout,
             info=info,
             context_factory=self.context_factory,
-            uri=self.uri,
             control_exchange=self.control_exchange,
         )
 
@@ -69,7 +71,7 @@ class RPCProxy(object):
 
     def call(self, context=None, **kwargs):
         topic, method = self._get_route(kwargs)
-        timeout = kwargs.pop('timeout', None)
+        timeout = kwargs.pop('timeout', self.timeout)
 
         if context is None:
             context = self.context_factory()
