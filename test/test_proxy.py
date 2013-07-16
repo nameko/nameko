@@ -296,3 +296,10 @@ def test_service_whitelist(rpc):
         rpcproxy.service.controller()
 
     assert rpc.call.call_count == 1
+
+
+def test_fallback_to_call():
+    rpcproxy = MockRPCProxy()
+    assert rpcproxy.fallback_to_call is True  # default
+    rpcproxy.fallback_to_call = False
+    assert rpcproxy.fallback_to_call is False
