@@ -11,7 +11,7 @@ def test_ensure():
 
     handler.ensure(handler.close)
     conn.ensure.assert_called_with(
-        handler, handler.close, rrback=handler.on_error,
+        handler, handler.close, errback=handler.on_error,
         on_revive=handler.revive)
 
     obj = {}
