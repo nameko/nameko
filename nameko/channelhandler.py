@@ -43,6 +43,5 @@ class ChannelHandler(object):
         else:
             revive = None
 
-        return self.connection.ensure(obj, func,
-            errback=self.on_error,
-            on_revive=revive)
+        return self.connection.ensure(
+            obj, func, errback=self.on_error, on_revive=revive)
