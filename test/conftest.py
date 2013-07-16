@@ -95,6 +95,12 @@ def connection(request, reset_rabbit):
     return _get_connection(amqp_uri)
 
 
+@pytest.fixture(autouse=True)
+def reset_mock_proxy(request):
+    from nameko.testing.proxy import reset_state
+    reset_state()
+
+
 @pytest.fixture
 def start_service(request, get_connection):
 
