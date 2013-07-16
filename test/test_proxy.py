@@ -343,4 +343,3 @@ def test_timeout(rpc, constructor):
         {'method': 'controller', 'args': {'key': 'value'}},
         options=rpcproxy.call_options(),
         timeout=99)
-
