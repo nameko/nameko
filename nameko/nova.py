@@ -11,15 +11,16 @@ def _get_exchange(options):
 
 
 def multicall(connection, context, topic, msg,
-        timeout=DEFAULT_RPC_TIMEOUT, options=None):
+              timeout=DEFAULT_RPC_TIMEOUT, options=None):
     _get_exchange(options)
     raise NotImplementedError()
 
 
 def call(connection, context, topic, msg,
-        timeout=DEFAULT_RPC_TIMEOUT, options=None):
+         timeout=DEFAULT_RPC_TIMEOUT, options=None):
     exchange = _get_exchange(options)
-    return sending.send_rpc(connection,
+    return sending.send_rpc(
+        connection,
         context=context,
         exchange=exchange,
         topic=topic,
@@ -30,7 +31,8 @@ def call(connection, context, topic, msg,
 
 def cast(connection, context, topic, msg, options=None):
     exchange = _get_exchange(options)
-    return sending.send_rpc(connection,
+    return sending.send_rpc(
+        connection,
         context=context,
         exchange=exchange,
         topic=topic,
@@ -40,7 +42,8 @@ def cast(connection, context, topic, msg, options=None):
 
 
 def fanout_cast(connection, context, topic, msg, options=None):
-    return sending.send_rpc(connection,
+    return sending.send_rpc(
+        connection,
         context=context,
         exchange=None,
         topic=topic,
