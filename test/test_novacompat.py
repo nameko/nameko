@@ -19,8 +19,8 @@ from nameko import responses
 from nameko import sending
 from nameko import service
 
-essexonly = pytest.mark.skipif("'2012.1' >"
-        " novaversion.canonical_version_string() >= '2012.2'")
+essexonly = pytest.mark.skipif(
+    "'2012.1' > novaversion.canonical_version_string() >= '2012.2'")
 
 
 def setup_module(module):
@@ -41,7 +41,8 @@ def test_sending_rpc_call_to_nova(connection):
         eventlet.sleep(0)
 
         with connection as newconn:
-            resp = sending.send_rpc(newconn,
+            resp = sending.send_rpc(
+                newconn,
                 context.get_admin_context(),
                 exchange=flags.FLAGS.control_exchange,
                 topic='test',
@@ -69,7 +70,8 @@ def test_raising_from_error_in_nova(connection):
 
         with connection as newconn:
             with pytest.raises(exceptions.RemoteError):
-                sending.send_rpc(newconn,
+                sending.send_rpc(
+                    newconn,
                     context.get_admin_context(),
                     exchange=flags.FLAGS.control_exchange,
                     topic='test',
@@ -85,9 +87,10 @@ def test_raising_from_error_in_nova(connection):
 def test_replying_to_nova_call(connection):
     with connection as conn:
         with conn.channel() as chan:
-            queue = entities.get_topic_queue(flags.FLAGS.control_exchange,
-                    topic='test',
-                    channel=chan)
+            queue = entities.get_topic_queue(
+                flags.FLAGS.control_exchange,
+                topic='test',
+                channel=chan)
             queue.declare()
 
             def listen():
@@ -98,7 +101,8 @@ def test_replying_to_nova_call(connection):
                 sending.reply(conn, msgid, (method, args))
             eventlet.spawn(listen)
 
-            res = rpc.call(novacontext.get_admin_context(),
+            res = rpc.call(
+                novacontext.get_admin_context(),
                 topic='test',
                 msg={'method': 'testmethod',
                      'args': {'foo': 'bar', }, },
@@ -113,12 +117,13 @@ def test_sending_from_nova_to_service(connection):
             def test_method(self, context, **kwargs):
                 return kwargs
 
-        srvobj = service.Service(Controller, conn,
-                flags.FLAGS.control_exchange, 'test')
+        srvobj = service.Service(
+            Controller, conn, flags.FLAGS.control_exchange, 'test')
         srvobj.start()
         eventlet.sleep(0)
         try:
-            res = rpc.call(novacontext.get_admin_context(),
+            res = rpc.call(
+                novacontext.get_admin_context(),
                 topic='test',
                 msg={'method': 'test_method',
                      'args': {'foo': 'bar', }, },
@@ -135,15 +140,16 @@ def test_raising_from_service_to_nova(connection):
             def error_method(self, context, **kwargs):
                 raise Exception('foo')
 
-        srvobj = service.Service(Controller, conn,
-                flags.FLAGS.control_exchange, 'test')
+        srvobj = service.Service(
+            Controller, conn, flags.FLAGS.control_exchange, 'test')
         srvobj.start()
         eventlet.sleep(0)
         try:
             with pytest.raises(novacommon.RemoteError):
-                rpc.call(novacontext.get_admin_context(),
-                        topic='test',
-                        msg={'method': 'error_method', 'args': {}, },
-                        timeout=2)
+                rpc.call(
+                    novacontext.get_admin_context(),
+                    topic='test',
+                    msg={'method': 'error_method', 'args': {}, },
+                    timeout=2)
         finally:
             srvobj.kill()

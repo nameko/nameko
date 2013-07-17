@@ -19,12 +19,13 @@ class TestProxy(object):
         else:
             method = key
 
-        return self.__class__(self.get_connection, self.timeout,
-            service, method)
+        return self.__class__(
+            self.get_connection, self.timeout, service, method)
 
     def __call__(self, **kwargs):
         ctx = context.get_admin_context()
         with self.get_connection() as conn:
-            return sending.send_rpc(conn, ctx,
-                'testrpc', self.service, self.method, args=kwargs,
+            return sending.send_rpc(
+                conn, ctx, 'testrpc',
+                self.service, self.method, args=kwargs,
                 timeout=self.timeout)
