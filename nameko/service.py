@@ -8,17 +8,53 @@ from eventlet.pools import Pool
 from eventlet.greenpool import GreenPool
 from eventlet.event import Event
 from kombu.mixins import ConsumerMixin
+from kombu import BrokerConnection
 
 from nameko import entities
 from nameko.common import UIDGEN
 from nameko.logging import log_time
 from nameko.messaging import get_consumers
-from nameko.dependencies import inject_dependencies
+from nameko.dependencies import register_dependencies
 from nameko.sending import process_rpc_message
 from nameko.timer import get_timers
 
 
 _log = getLogger(__name__)
+
+
+class ServiceContainer(object):
+
+    def __init__(self, service, config):
+        self.service = service
+        self.config = config
+
+        self.dependencies = register_dependencies(service, self)
+
+        pool = GreenPool()
+        for name, dependency in self.dependencies:
+            pool.spawn(dependency.container_starting, self, service, name)
+
+        pool.waitall()
+        for _, dependency in self.dependencies:
+            dependency.container_started()
+
+    def connection_factory(self):
+        return BrokerConnection(self.config['amqp_uri'])
+
+    def dispatch(self, method, args, kwargs, callback=None):
+        pool = GreenPool()
+        for _, dependency in self.dependencies:
+            pool.spawn(dependency.service_pre_call, method, args, kwargs)
+
+        pool.waitall()
+        result = method(*args, **kwargs)
+
+        for _, dependency in self.dependencies:
+            pool.spawn(dependency.service_post_call, method, result)
+
+        pool.waitall()
+        if callback:
+            callback(result)
 
 
 class Service(ConsumerMixin):
