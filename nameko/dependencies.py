@@ -57,6 +57,13 @@ def dependency_decorator(provider_decorator):
 
 def get_decorator_providers(obj):
     for name, attr in inspect.getmembers(obj, inspect.ismethod):
-        providers = getattr(attr, DECORATOR_PROVIDERS_ATTR, [])
+        providers = get_providers(attr)
         for provider in providers:
             yield name, provider
+
+
+def get_providers(fn, filter_type=object):
+    providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, [])
+    for provider in providers:
+        if isinstance(provider, filter_type):
+            yield provider

@@ -13,9 +13,8 @@ from nameko import entities
 from nameko.common import UIDGEN
 from nameko.logging import log_time
 from nameko.messaging import get_consumers
-from nameko.dependencies import inject_dependencies
+from nameko.dependencies import inject_dependencies, get_decorator_providers
 from nameko.sending import process_rpc_message
-from nameko.timer import get_timers
 
 
 _log = getLogger(__name__)
@@ -64,7 +63,11 @@ class Service(ConsumerMixin):
         self._do_cancel_consumers = False
         self._consumers_cancelled = Event()
 
-        self._timers = list(get_timers(self.controller))
+        self._providers = []
+
+        for name, provider in get_decorator_providers(self.controller):
+            self._providers.append(provider)
+            provider.container_init(self, name)
 
     def start(self):
         self.start_timers()
@@ -74,8 +77,8 @@ class Service(ConsumerMixin):
         self.greenlet = eventlet.spawn(self.run)
 
     def start_timers(self):
-        for timer in self._timers:
-            timer.start()
+        for provider in self._providers:
+            provider.container_start()
 
     def get_consumers(self, Consumer, channel):
         nova_consumer = Consumer(
@@ -217,7 +220,7 @@ class Service(ConsumerMixin):
     def process_shutdown(self):
         consumers_cancelled = self._consumers_cancelled.ready()
 
-        no_active_timers = (len(self._timers) == 0)
+        no_active_timers = (len(self._providers) == 0)
 
         no_active_workers = (self.procpool.running() < 1)
 
@@ -250,10 +253,8 @@ class Service(ConsumerMixin):
             _log.debug('consumer thread already dead')
 
     def cancel_timers(self):
-        if self._timers:
-            _log.debug('stopping %d timers', len(self._timers))
-            while self._timers:
-                self._timers.pop().stop()
+        while self._providers:
+            self._providers.pop().container_stop()
 
     def kill_workers(self):
         _log.debug('force killing %d workers', len(self.workers))

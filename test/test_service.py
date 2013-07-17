@@ -185,7 +185,7 @@ def test_service_cancells_timers(get_connection):
     timer_evt.wait()
     # this should stop the timers and we should not get any errors
     srv.kill()
-    assert len(srv._timers) == 0
+    assert len(srv._providers) == 0
 
 
 def test_service_link(get_connection):
