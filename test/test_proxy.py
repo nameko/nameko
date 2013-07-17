@@ -176,7 +176,8 @@ def test_cast_dynamic_route(rpc, constructor):
 # MockRPCProxy Tests
 
 def test_add_dummy():
-    rpcproxy = MockRPCProxy(fallback_to_call=False)
+    rpcproxy = MockRPCProxy()
+    rpcproxy.fallback_to_call = False
 
     with pytest.raises(RuntimeError):
         rpcproxy.service.controller()
@@ -208,6 +209,7 @@ def test_add_dummy():
     ]
 
     rpcproxy.reset()
+    rpcproxy.fallback_to_call = False
 
     assert rpcproxy._calls == []
 
@@ -216,7 +218,8 @@ def test_add_dummy():
 
 
 def test_add_call_matching():
-    rpcproxy = MockRPCProxy(fallback_to_call=False)
+    rpcproxy = MockRPCProxy()
+    rpcproxy.fallback_to_call = False
 
     with pytest.raises(RuntimeError):
         rpcproxy.service.controller()
@@ -251,6 +254,7 @@ def test_add_call_matching():
     ]
 
     rpcproxy.reset()
+    rpcproxy.fallback_to_call = False
 
     assert rpcproxy._calls == []
 
@@ -264,7 +268,8 @@ def test_service_whitelist(rpc):
     context = Mock()
     context_factory = lambda: context
     rpcproxy = MockRPCProxy(
-        context_factory=context_factory, fallback_to_call=False)
+        context_factory=context_factory)
+    rpcproxy.fallback_to_call = False
 
     with pytest.raises(RuntimeError):
         rpcproxy.service.controller()
@@ -285,8 +290,56 @@ def test_service_whitelist(rpc):
         rpcproxy.blacklisted_service.controller()
 
     rpcproxy.reset()
+    rpcproxy.fallback_to_call = False
 
     with pytest.raises(RuntimeError):
         rpcproxy.service.controller()
 
-    rpc.call.call_count == 1
+    assert rpc.call.call_count == 1
+
+
+def test_fallback_to_call():
+    rpcproxy = MockRPCProxy()
+    assert rpcproxy.fallback_to_call is True  # default
+    rpcproxy.fallback_to_call = False
+    assert rpcproxy.fallback_to_call is False
+
+
+@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
+@patch.object(proxy, 'rpc')
+def test_timeout(rpc, constructor):
+    connection = ANY
+    context = Mock()
+    context_factory = lambda: context
+
+    # test null timeout
+    rpcproxy = constructor(context_factory=context_factory)
+    rpcproxy.service.controller(key='value')
+
+    rpc.call.assert_called_once_with(
+        connection, context, 'service',
+        {'method': 'controller', 'args': {'key': 'value'}},
+        options=rpcproxy.call_options(),
+        timeout=None)
+    rpc.reset_mock()
+
+    # test default timeout
+    rpcproxy = constructor(timeout=10, context_factory=context_factory)
+    rpcproxy.service.controller(key='value')
+
+    rpc.call.assert_called_once_with(
+        connection, context, 'service',
+        {'method': 'controller', 'args': {'key': 'value'}},
+        options=rpcproxy.call_options(),
+        timeout=10)
+    rpc.reset_mock()
+
+    # test override timeout
+    rpcproxy = constructor(timeout=10, context_factory=context_factory)
+    rpcproxy.service.controller(key='value', timeout=99)
+
+    rpc.call.assert_called_once_with(
+        connection, context, 'service',
+        {'method': 'controller', 'args': {'key': 'value'}},
+        options=rpcproxy.call_options(),
+        timeout=99)
