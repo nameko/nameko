@@ -15,7 +15,7 @@ pytest:
 	py.test --cov nameko test --cov-report term-missing
 
 flake8:
-	flake8 --ignore=E128 nameko test
+	flake8 nameko test
 
 pylint:
 	pylint nameko -E
