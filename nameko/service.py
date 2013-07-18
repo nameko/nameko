@@ -33,49 +33,33 @@ class ServiceContainer(object):
         self.dependencies = register_dependencies(service, self)
 
         self._worker_pool = GreenPool(size=self.config.get('poolsize', 100))
-        self._deps_pool = GreenPool(size=len(self.dependencies))
 
     def start(self):
-        for dependency in self.dependencies:
-            self._deps_pool.spawn(dependency.start)
-
-        self._deps_pool.waitall()
-        for dependency in self.dependencies:
-            dependency.on_container_started()
+        self.dependencies.all.start()
+        self.dependencies.all.on_container_started()
 
     def stop(self):
         self._worker_pool.waitall()
 
-        for dependency in self.dependencies:
-            self._deps_pool.spawn(dependency.stop)
-
-        self._deps_pool.waitall()
-        for dependency in self.dependencies:
-            dependency.on_container_stopped()
+        self.dependencies.all.stop()
+        self.dependencies.all.on_container_stopped()
 
     def spawn(self, method, args, kwargs, callback=None):
         self._worker_pool.spawn(self._dispatch, method, args, kwargs, callback)
 
     def _dispatch(self, method, args, kwargs, callback):
 
-        for dependency in self.dependencies:
-            self._deps_pool.spawn(dependency.call_setup, method, args, kwargs)
-
-        self._deps_pool.waitall()
+        self.dependencies.all.call_setup(method, args, kwargs)
         result = getattr(self.service, method)(*args, **kwargs)
 
-        for dependency in self.dependencies:
-            self._deps_pool.spawn(dependency.call_result, method, result)
-        self._deps_pool.waitall()
+        self.dependencies.all.call_result(method, result)
 
         # TODO: better to do this as part of handle_call? means keeping state
         # in the dependency
         if callback:
             callback(result)
 
-        for dependency in self.dependencies:
-            self._deps_pool.spawn(dependency.call_teardown, method, result)
-        self._deps_pool.waitall()
+        self.dependencies.all.call_teardown(method, result)
 
 
 class Service(ConsumerMixin):

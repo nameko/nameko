@@ -9,6 +9,8 @@ import eventlet
 from kombu.mixins import ConsumerMixin
 from kombu import BrokerConnection
 
+from nameko.utils import SpawningSet
+
 
 queue_consumers = weakref.WeakKeyDictionary()
 
@@ -131,7 +133,7 @@ def register_dependencies(service, container):
     dependencies = get_dependencies(service)
     for name, dependency in dependencies:
         dependency.register(name, service, container)
-    return [dependency for name, dependency in dependencies]
+    return SpawningSet([dependency for name, dependency in dependencies])
 
 
 def inject_dependencies(service, container):
