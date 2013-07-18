@@ -3,10 +3,14 @@ Provides classes and method to deal with dependency injection.
 """
 from functools import wraps
 import inspect
+import weakref
 
 import eventlet
 from kombu.mixins import ConsumerMixin
 from kombu import BrokerConnection
+
+
+queue_consumers = weakref.WeakKeyDictionary()
 
 
 class QueueConsumer(ConsumerMixin):
@@ -24,6 +28,8 @@ class QueueConsumer(ConsumerMixin):
         self._registry.append((queue, callback))
 
     def start(self):
+        """ reentrant, start consuming
+        """
         eventlet.spawn(self.run)
         # self.run still isn't ready unless we sleep for a bit
         eventlet.sleep(1)
