@@ -1,6 +1,8 @@
 """
 Provides classes and method to deal with dependency injection.
 """
+from functools import wraps
+
 import inspect
 
 
@@ -18,10 +20,16 @@ class DependencyProvider(object):
         self.service = service
         self.container = container
 
-    def container_starting(self, container, service, name):
-        """ Called when the service container starts.
+    def initialise(self):
+        """ Called when the service container is initialised.
 
         DependencyProviders should do any required initialisation here.
+        """
+
+    def container_starting(self):
+        """ Called when the service container starts.
+
+        DependencyProviders should do any required startup here.
         """
 
     def container_started(self):
@@ -84,17 +92,53 @@ def is_dependency_provider(obj):
     return isinstance(obj, DependencyProvider)
 
 
-def get_dependencies(service):
-    return inspect.getmembers(service, is_dependency_provider)
+def get_attribute_providers(obj):
+    return inspect.getmembers(obj, is_dependency_provider)
+
+
+def get_decorator_providers(obj):
+    for name, attr in inspect.getmembers(obj, inspect.ismethod):
+        providers = getattr(attr, DECORATOR_PROVIDERS_ATTR, [])
+        for provider in providers:
+            yield name, provider
+
+
+def get_dependencies(obj):
+    return get_attribute_providers(obj) + list(get_decorator_providers(obj))
 
 
 def register_dependencies(service, container):
     dependencies = get_dependencies(service)
     for name, dependency in dependencies:
         dependency.register(name, service, container)
-    return dependencies
+    return [dependency for name, dependency in dependencies]
 
 
 def inject_dependencies(service, container):
     for name, provider in inspect.getmembers(service, is_dependency_provider):
         setattr(service, name, provider.get_instance(container))
+
+
+DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
+
+
+def register_provider(fn, provider):
+    providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, None)
+
+    if providers is None:
+        providers = set()
+        setattr(fn, DECORATOR_PROVIDERS_ATTR, providers)
+
+    providers.add(provider)
+
+
+def dependency_decorator(provider_decorator):
+    @wraps(provider_decorator)
+    def wrapper(*args, **kwargs):
+        def registering_decorator(fn):
+            provider = provider_decorator(*args, **kwargs)
+            register_provider(fn, provider)
+            return fn
+
+        return registering_decorator
+    return wrapper

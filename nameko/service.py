@@ -31,28 +31,47 @@ class ServiceContainer(object):
         self.dependencies = register_dependencies(service, self)
 
         pool = GreenPool()
-        for name, dependency in self.dependencies:
-            pool.spawn(dependency.container_starting, self, service, name)
+        for dependency in self.dependencies:
+            pool.spawn(dependency.initialise)
+        pool.waitall()
+
+    def start(self):
+        pool = GreenPool()
+        for dependency in self.dependencies:
+            pool.spawn(dependency.container_starting)
 
         pool.waitall()
-        for _, dependency in self.dependencies:
+        for dependency in self.dependencies:
             dependency.container_started()
+
+    def stop(self):
+        pool = GreenPool()
+        for dependency in self.dependencies:
+            pool.spawn(dependency.container_stopping)
+
+        pool.waitall()
+        for dependency in self.dependencies:
+            dependency.container_stopped()
 
     def connection_factory(self):
         return BrokerConnection(self.config['amqp_uri'])
 
     def dispatch(self, method, args, kwargs, callback=None):
+
         pool = GreenPool()
-        for _, dependency in self.dependencies:
+        for dependency in self.dependencies:
             pool.spawn(dependency.service_pre_call, method, args, kwargs)
 
         pool.waitall()
-        result = method(*args, **kwargs)
+        # dispatch the method and wait for the result
+        greenlet = pool.spawn(getattr(self.service, method), *args, **kwargs)
+        result = greenlet.wait()
 
-        for _, dependency in self.dependencies:
+        for dependency in self.dependencies:
             pool.spawn(dependency.service_post_call, method, result)
 
         pool.waitall()
+
         if callback:
             callback(result)
 
