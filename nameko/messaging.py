@@ -162,3 +162,15 @@ def get_consumers(Consumer, service, on_message):
             yield consumer
         except KeyError:
             pass
+
+
+class MessagingProvider(DependencyProvider):
+
+    def container_init(self, container, handler_name):
+        # get or create shared(by container) consumer
+
+        # register queue and callback
+
+        #
+        pass
+

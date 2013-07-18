@@ -8,16 +8,73 @@ from eventlet.pools import Pool
 from eventlet.greenpool import GreenPool
 from eventlet.event import Event
 from kombu.mixins import ConsumerMixin
+from kombu import BrokerConnection
 
 from nameko import entities
 from nameko.common import UIDGEN
 from nameko.logging import log_time
 from nameko.messaging import get_consumers
-from nameko.dependencies import inject_dependencies, get_decorator_providers
+from nameko.dependencies import (
+    inject_dependencies, get_decorator_providers,
+    register_dependencies, inject_dependencies)
 from nameko.sending import process_rpc_message
 
 
 _log = getLogger(__name__)
+
+
+class ServiceContainer(object):
+
+    def __init__(self, service, config):
+        self.service = service
+        self.config = config
+
+        self.dependencies = register_dependencies(service, self)
+
+        pool = GreenPool()
+        for dependency in self.dependencies:
+            pool.spawn(dependency.initialise)
+        pool.waitall()
+
+    def start(self):
+        pool = GreenPool()
+        for dependency in self.dependencies:
+            pool.spawn(dependency.container_starting)
+
+        pool.waitall()
+        for dependency in self.dependencies:
+            dependency.container_started()
+
+    def stop(self):
+        pool = GreenPool()
+        for dependency in self.dependencies:
+            pool.spawn(dependency.container_stopping)
+
+        pool.waitall()
+        for dependency in self.dependencies:
+            dependency.container_stopped()
+
+    def connection_factory(self):
+        return BrokerConnection(self.config['amqp_uri'])
+
+    def dispatch(self, method, args, kwargs, callback=None):
+
+        pool = GreenPool()
+        for dependency in self.dependencies:
+            pool.spawn(dependency.service_pre_call, method, args, kwargs)
+
+        pool.waitall()
+        # dispatch the method and wait for the result
+        greenlet = pool.spawn(getattr(self.service, method), *args, **kwargs)
+        result = greenlet.wait()
+
+        for dependency in self.dependencies:
+            pool.spawn(dependency.service_post_call, method, result)
+
+        pool.waitall()
+
+        if callback:
+            callback(result)
 
 
 class Service(ConsumerMixin):

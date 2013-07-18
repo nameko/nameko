@@ -1,10 +1,17 @@
-from nameko.dependencies import dependency_decorator, get_decorator_providers
+from nameko.dependencies import (
+    dependency_decorator, get_decorator_providers, DependencyProvider)
+
+
+class ConsumerProvider(DependencyProvider):
+    def __init__(self, args, kwargs):
+        self.args = args
+        self.kwargs = kwargs
 
 
 @dependency_decorator
-def consume(foo):
-    '''consume-doc'''
-    return 'consumer-provider {}'.format(foo)
+def consume(*args, **kwargs):
+    """consume-doc"""
+    return ConsumerProvider(args, kwargs)
 
 
 def test_dependency_decorator():
@@ -17,18 +24,23 @@ def test_dependency_decorator():
 
     decorated_foo = consume(foo='bar')(foo)
 
-    # make sure dependency_deocorators pass through the decorated method
-    decorated_foo is foo
+    # make sure dependency_deocorator passes through the decorated method
+    assert decorated_foo is foo
 
 
 def test_get_decorator_providers():
 
     class Foobar(object):
-        @consume('spam')
+        @consume('spam', oof="rab")
         def shrub(self, arg):
             return arg
 
     foo = Foobar()
     providers = list(get_decorator_providers(foo))
 
-    assert providers == [('shrub', 'consumer-provider spam')]
+    name, provider = providers.pop()
+    assert name == "shrub"
+    assert isinstance(provider, ConsumerProvider)
+    assert provider.args == ("spam",)
+    assert provider.kwargs == {"oof": "rab"}
+    assert len(providers) == 0
