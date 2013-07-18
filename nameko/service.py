@@ -62,11 +62,10 @@ class ServiceContainer(object):
         pool = GreenPool()
         for dependency in self.dependencies:
             pool.spawn(dependency.service_pre_call, method, args, kwargs)
-
         pool.waitall()
+
         # dispatch the method and wait for the result
-        greenlet = pool.spawn(getattr(self.service, method), *args, **kwargs)
-        result = greenlet.wait()
+        result = getattr(self.service, method)(*args, **kwargs)
 
         for dependency in self.dependencies:
             pool.spawn(dependency.service_post_call, method, result)

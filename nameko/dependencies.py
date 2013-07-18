@@ -2,7 +2,7 @@
 Provides classes and method to deal with dependency injection.
 """
 from functools import wraps
-
+import types
 import inspect
 
 DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
@@ -103,7 +103,15 @@ def dependency_decorator(provider_decorator):
             register_provider(fn, provider)
             return fn
 
-        return registering_decorator
+        # if the providor_docorator does not use args itself,
+        # i.e. it does not return a dacorator
+        if len(args) == 1 and isinstance(args[0], types.FunctionType):
+            fn = args[0]
+            register_provider(fn, provider_decorator())
+            return fn
+        else:
+            return registering_decorator
+
     return wrapper
 
 
