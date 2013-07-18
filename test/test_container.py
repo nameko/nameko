@@ -1,11 +1,11 @@
 import json
 
 import eventlet
+import random
 
 from kombu.common import maybe_declare
 from kombu.pools import producers
-from kombu import Exchange, Queue
-from kombu.mixins import ConsumerMixin
+from kombu import Exchange, Queue, BrokerConnection
 
 from nameko.dependencies import DependencyProvider, dependency_decorator
 from nameko.service import ServiceContainer
@@ -19,10 +19,13 @@ LISTEN_TIMEOUT = 5
 class Pinger(DependencyProvider):
 
     def __init__(self):
-        self.seqno = 1
+        self.seqno = random.randint(1, 100)
+
+    def connection_factory(self):
+        return BrokerConnection(self.container.config['amqp_uri'])
 
     def __call__(self):
-        with self.container.connection_factory() as conn:
+        with self.connection_factory() as conn:
             with producers[conn].acquire(block=True) as producer:
                 channel = producer.channel
 
@@ -38,46 +41,32 @@ class Pinger(DependencyProvider):
         self.seqno += 1
 
 
-class PingListener(ConsumerMixin, DependencyProvider):
+class PingListener(DependencyProvider):
 
-    queue = None
-    consumer = None
-    greenlet = None
-
-    def get_consumers(self, Consumer, channel):
-        self.consumer = Consumer(queues=[self.queue],
-                                 callbacks=[self.on_message])
-        return [self.consumer]
-
-    def container_starting(self):
-        """ Create our queue
+    def start(self):
+        """ Create our queue, register with the QueueConsumer
         """
-        self.connection = self.container.connection_factory()
-        self.queue = Queue('ping_queue', exchange=ping_exchange,
-                           durable=False, auto_delete=True)
-        self.greenlet = eventlet.spawn(self.run)
-
-        # self.run still isn't ready unless we sleep for a bit
-        eventlet.sleep(1)
-
-    def container_stopping(self):
-        """ Gracefully shut down
-        """
-        if self.consumer:
-            self.consumer.cancel()
-        self.connection.close()
+        queue = Queue('ping_queue', exchange=ping_exchange,
+                      durable=False, auto_delete=False)
+        self.container.queue_consumer.register(queue, self.on_message)
 
     def on_message(self, body, message):
         """ Handle messages from the queue
         """
-        print "on message", body
         args = (body,)
         kwargs = {}
+        self.container.spawn(self.name, args, kwargs,
+                             callback=lambda _: message.ack())
 
-        def ack(result):
-            print "message.ack", result
 
-        self.container.dispatch(self.name, args, kwargs, callback=ack)
+class PingHandler(DependencyProvider):
+
+    def __init__(self):
+        self.results = []
+
+    def call_result(self, method, result):
+        self.results.append(result)
+        print "call_result", self.results
 
 
 @dependency_decorator
@@ -91,6 +80,7 @@ class Service(object):
         self.pings = []
 
     ping = Pinger()
+    handler = PingHandler()
 
     @ping_listener()
     def pong(self, msg):
@@ -98,7 +88,7 @@ class Service(object):
         self.pings.append(payload)
         print "ping from {}, seqno {}".format(payload['src'],
                                               payload['seqno'])
-        return "pong to seqno {}".format(payload['seqno'])
+        return "pong [seqno={}]".format(payload['seqno'])
 
 
 def test_pings():
@@ -119,10 +109,17 @@ def test_pings():
         while not service.pings:
             eventlet.sleep()
 
+    # stop the container; forces us to wait for post-processing
+    container.stop()
+
+    seqno = service.ping.seqno - 1
+
+    # assert that the service received the ping
     assert service.pings == [{
         "msg": "ping",
         "src": service.ping.name,
-        "seqno": 1
+        "seqno": seqno
     }]
 
-    container.stop()
+    # assert that the ping handler received the response
+    assert service.handler.results == ["pong [seqno={}]".format(seqno)]

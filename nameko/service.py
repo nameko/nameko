@@ -8,7 +8,6 @@ from eventlet.pools import Pool
 from eventlet.greenpool import GreenPool
 from eventlet.event import Event
 from kombu.mixins import ConsumerMixin
-from kombu import BrokerConnection
 
 from nameko import entities
 from nameko.common import UIDGEN
@@ -22,6 +21,8 @@ from nameko.sending import process_rpc_message
 
 _log = getLogger(__name__)
 
+WORKER_TIMEOUT = 30
+
 
 class ServiceContainer(object):
 
@@ -29,51 +30,62 @@ class ServiceContainer(object):
         self.service = service
         self.config = config
 
-        self.dependencies = register_dependencies(service, self)
+        self._workers = []
 
-        pool = GreenPool()
-        for dependency in self.dependencies:
-            pool.spawn(dependency.initialise)
-        pool.waitall()
+        self.queue_consumer = QueueConsumer(self)
+        self.dependencies = register_dependencies(service, self)
 
     def start(self):
         pool = GreenPool()
         for dependency in self.dependencies:
-            pool.spawn(dependency.container_starting)
+            pool.spawn(dependency.start)
+        self.queue_consumer.start()
 
         pool.waitall()
         for dependency in self.dependencies:
-            dependency.container_started()
+            dependency.on_container_started()
 
     def stop(self):
-        pool = GreenPool()
-        for dependency in self.dependencies:
-            pool.spawn(dependency.container_stopping)
-
-        pool.waitall()
-        for dependency in self.dependencies:
-            dependency.container_stopped()
-
-    def connection_factory(self):
-        return BrokerConnection(self.config['amqp_uri'])
-
-    def dispatch(self, method, args, kwargs, callback=None):
+        # wait for workers to stop
+        with eventlet.timeout.Timeout(WORKER_TIMEOUT):
+            while self._workers:
+                eventlet.sleep()
 
         pool = GreenPool()
         for dependency in self.dependencies:
-            pool.spawn(dependency.service_pre_call, method, args, kwargs)
-        pool.waitall()
+            pool.spawn(dependency.stop)
 
-        # dispatch the method and wait for the result
-        result = getattr(self.service, method)(*args, **kwargs)
+        pool.waitall()
+        for dependency in self.dependencies:
+            dependency.on_container_stopped()
+
+    def spawn(self, method, args, kwargs, callback=None):
+        eventlet.spawn(self._dispatch, method, args, kwargs, callback)
+
+    def _dispatch(self, method, args, kwargs, callback):
+
+        pool = GreenPool()
+        for dependency in self.dependencies:
+            pool.spawn(dependency.call_setup, method, args, kwargs)
+
+        pool.waitall()
+        greenlet = pool.spawn(getattr(self.service, method), *args, **kwargs)
+        self._workers.append(greenlet)
+        result = greenlet.wait()
 
         for dependency in self.dependencies:
-            pool.spawn(dependency.service_post_call, method, result)
-
+            pool.spawn(dependency.call_result, method, result)
         pool.waitall()
 
+        # TODO: better to do this as part of handle_call? means keeping state
+        # in the dependency
         if callback:
             callback(result)
+
+        for dependency in self.dependencies:
+            pool.spawn(dependency.call_teardown, method, result)
+        pool.waitall()
+        self._workers.remove(greenlet)
 
 
 class Service(ConsumerMixin):

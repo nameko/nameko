@@ -3,9 +3,35 @@ Provides classes and method to deal with dependency injection.
 """
 from functools import wraps
 import types
+
 import inspect
 
+import eventlet
+from kombu.mixins import ConsumerMixin
+from kombu import BrokerConnection
+
+
 DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
+
+
+class QueueConsumer(ConsumerMixin):
+    def __init__(self, container):
+        self.container = container
+
+        self._registry = []
+        self.connection = BrokerConnection(self.container.config['amqp_uri'])
+
+    def get_consumers(self, Consumer, channel):
+        return [Consumer(queues=[queue], callbacks=[callback])
+                for queue, callback in self._registry]
+
+    def register(self, queue, callback):
+        self._registry.append((queue, callback))
+
+    def start(self):
+        eventlet.spawn(self.run)
+        # self.run still isn't ready unless we sleep for a bit
+        eventlet.sleep(1)
 
 
 class DependencyProvider(object):
@@ -22,19 +48,13 @@ class DependencyProvider(object):
         self.service = service
         self.container = container
 
-    def initialise(self):
-        """ Called when the service container is initialised.
+    def start(self):
+        """ Called when the service container starts.
 
         DependencyProviders should do any required initialisation here.
         """
 
-    def container_starting(self):
-        """ Called when the service container starts.
-
-        DependencyProviders should do any required startup here.
-        """
-
-    def container_started(self):
+    def on_container_started(self):
         """ Called when the service container has successfully started.
 
         This is only called after all other DependencyProviders have
@@ -42,20 +62,20 @@ class DependencyProvider(object):
         external events, they may now start acting upon them.
         """
 
-    def container_stopping(self):
+    def stop(self):
         """ Called when the service container begins to shut down.
 
         DependencyProviders should do any graceful shutdown here.
         """
 
-    def container_stopped(self):
+    def on_container_stopped(self):
         """ Called when the service container stops.
 
         If the DependencyProvider has not gracefully shut down, probably
         raise an error here.
         """
 
-    def service_pre_call(self, method, args, kwargs):
+    def call_setup(self, method, args, kwargs):
         """ Called before a service worker executes a task.
 
         DependencyProviders should do any pre-processing here, raising
@@ -64,24 +84,21 @@ class DependencyProvider(object):
         Example: ...
         """
 
-    def service_post_call(self, method, result):
+    def call_result(self, method, result):
+        """ Called with the result of a service worker execution.
+
+        DependencyProviders that need to process the result should do it here.
+
+        Example: a database session provider may commit the transaction
+        """
+
+    def call_teardown(self, method, result):
         """ Called after a service worker has executed a task.
 
         DependencyProviders should do any post-processing here, raising
         exceptions in the event of failure.
 
-        Example: a database session provider may commit the transaction here.
-        """
-
-    def service_call_result(self):
-        """ Called with the result of a service worker execution, after all
-        other DependencyProviders have successfully completed their post-call
-        processing.
-
-        DependencyProviders that requested the call may want to acknowledge it
-        here.
-
-        Example: an RPC provider may provide the result to the caller here.
+        Example: a database session provider may close the session
         """
 
 
