@@ -5,11 +5,6 @@ from functools import wraps
 import types
 
 import inspect
-import weakref
-
-import eventlet
-from kombu.mixins import ConsumerMixin
-from kombu import BrokerConnection
 
 from nameko.utils import SpawningSet
 
@@ -156,4 +151,3 @@ def get_providers(fn, filter_type=object):
 def inject_dependencies(service, container):
     for name, provider in inspect.getmembers(service, is_dependency_provider):
         setattr(service, name, provider.get_instance(container))
-

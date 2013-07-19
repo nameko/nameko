@@ -47,7 +47,6 @@ class ServiceContainer(object):
     def spawn(self, method, args, kwargs, callback=None):
         self._worker_pool.spawn(self._dispatch, method, args, kwargs, callback)
 
-
     def _dispatch(self, method, args, kwargs, callback):
 
         self.dependencies.all.call_setup(method, args, kwargs)
