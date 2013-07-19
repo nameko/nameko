@@ -164,13 +164,65 @@ def get_consumers(Consumer, service, on_message):
             pass
 
 
-class MessagingProvider(DependencyProvider):
 
-    def container_init(self, container, handler_name):
-        # get or create shared(by container) consumer
+queue_consumers = WeakKeyDictionary()
 
-        # register queue and callback
 
-        #
+def get_queue_consumer(container):
+    """ Get or create a QueueConsumer instance for our container
+    """
+    if container not in queue_consumers:
+        queue_consumers[container] = QueueConsumer(container)
+
+    return queue_consumers[container]
+
+
+class ConsumeProvider(DependencyProvider):
+
+    def __init__(self, queue, requeue_on_error):
+        self.queue = queue
+        self.requeue_on_error = requeue_on_error
+
+    def start(self):
+        qc = container.get_queue_consumer(self.container)
+        qc.add_queue(self.queue, self.handle_message)
+
+    def on_container_started(self):
+        qc = get_queue_consumer(self.container)
+        qc.start()
+
+    def stop(self):
+        qc = get_queue_consumer(self.container)
+        qc.stop()
+
+    def handle_message(self):
         pass
+
+
+
+
+
+
+
+
+class QueueConsumer(ConsumerMixin):
+    def __init__(self, container):
+        self.container = container
+
+        self._registry = []
+        self.connection = BrokerConnection(self.container.config['amqp_uri'])
+
+    def get_consumers(self, Consumer, channel):
+        return [Consumer(queues=[queue], callbacks=[callback])
+                for queue, callback in self._registry]
+
+    def register(self, queue, callback):
+        self._registry.append((queue, callback))
+
+    def start(self):
+        """ reentrant, start consuming
+        """
+        eventlet.spawn(self.run)
+        # self.run still isn't ready unless we sleep for a bit
+        eventlet.sleep(1)
 

@@ -30,62 +30,37 @@ class ServiceContainer(object):
         self.service = service
         self.config = config
 
-        self._workers = []
-
-        self.queue_consumer = QueueConsumer(self)
         self.dependencies = register_dependencies(service, self)
 
-    def start(self):
-        pool = GreenPool()
-        for dependency in self.dependencies:
-            pool.spawn(dependency.start)
-        self.queue_consumer.start()
+        self._worker_pool = GreenPool(size=self.config.get('poolsize', 100))
 
-        pool.waitall()
-        for dependency in self.dependencies:
-            dependency.on_container_started()
+    def start(self):
+        self.dependencies.all.start()
+        self.dependencies.all.on_container_started()
 
     def stop(self):
-        # wait for workers to stop
-        with eventlet.timeout.Timeout(WORKER_TIMEOUT):
-            while self._workers:
-                eventlet.sleep()
+        self._worker_pool.waitall()
 
-        pool = GreenPool()
-        for dependency in self.dependencies:
-            pool.spawn(dependency.stop)
-
-        pool.waitall()
-        for dependency in self.dependencies:
-            dependency.on_container_stopped()
+        self.dependencies.all.stop()
+        self.dependencies.all.on_container_stopped()
 
     def spawn(self, method, args, kwargs, callback=None):
-        eventlet.spawn(self._dispatch, method, args, kwargs, callback)
+        self._worker_pool.spawn(self._dispatch, method, args, kwargs, callback)
+
 
     def _dispatch(self, method, args, kwargs, callback):
 
-        pool = GreenPool()
-        for dependency in self.dependencies:
-            pool.spawn(dependency.call_setup, method, args, kwargs)
+        self.dependencies.all.call_setup(method, args, kwargs)
+        result = getattr(self.service, method)(*args, **kwargs)
 
-        pool.waitall()
-        greenlet = pool.spawn(getattr(self.service, method), *args, **kwargs)
-        self._workers.append(greenlet)
-        result = greenlet.wait()
-
-        for dependency in self.dependencies:
-            pool.spawn(dependency.call_result, method, result)
-        pool.waitall()
+        self.dependencies.all.call_result(method, result)
 
         # TODO: better to do this as part of handle_call? means keeping state
         # in the dependency
         if callback:
             callback(result)
 
-        for dependency in self.dependencies:
-            pool.spawn(dependency.call_teardown, method, result)
-        pool.waitall()
-        self._workers.remove(greenlet)
+        self.dependencies.all.call_teardown(method, result)
 
 
 class Service(ConsumerMixin):

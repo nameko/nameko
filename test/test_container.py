@@ -7,7 +7,8 @@ from kombu.common import maybe_declare
 from kombu.pools import producers
 from kombu import Exchange, Queue, BrokerConnection
 
-from nameko.dependencies import DependencyProvider, dependency_decorator
+from nameko.dependencies import (
+    DependencyProvider, dependency_decorator, QueueConsumer, queue_consumers)
 from nameko.service import ServiceContainer
 
 
@@ -43,12 +44,24 @@ class Pinger(DependencyProvider):
 
 class PingListener(DependencyProvider):
 
+    def _get_queue_consumer(self):
+        """ Get or create a QueueConsumer instance for our container
+        """
+        if not self.container in queue_consumers:
+            queue_consumers[self.container] = QueueConsumer(self.container)
+        return queue_consumers[self.container]
+
     def start(self):
         """ Create our queue, register with the QueueConsumer
         """
+        queue_consumer = self._get_queue_consumer()
         queue = Queue('ping_queue', exchange=ping_exchange,
                       durable=False, auto_delete=False)
-        self.container.queue_consumer.register(queue, self.on_message)
+        queue_consumer.register(queue, self.on_message)
+
+    def on_container_started(self):
+        queue_consumer = self._get_queue_consumer()
+        queue_consumer.start()
 
     def on_message(self, body, message):
         """ Handle messages from the queue

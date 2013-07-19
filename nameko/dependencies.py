@@ -5,33 +5,16 @@ from functools import wraps
 import types
 
 import inspect
+import weakref
 
 import eventlet
 from kombu.mixins import ConsumerMixin
 from kombu import BrokerConnection
 
+from nameko.utils import SpawningSet
+
 
 DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
-
-
-class QueueConsumer(ConsumerMixin):
-    def __init__(self, container):
-        self.container = container
-
-        self._registry = []
-        self.connection = BrokerConnection(self.container.config['amqp_uri'])
-
-    def get_consumers(self, Consumer, channel):
-        return [Consumer(queues=[queue], callbacks=[callback])
-                for queue, callback in self._registry]
-
-    def register(self, queue, callback):
-        self._registry.append((queue, callback))
-
-    def start(self):
-        eventlet.spawn(self.run)
-        # self.run still isn't ready unless we sleep for a bit
-        eventlet.sleep(1)
 
 
 class DependencyProvider(object):
@@ -160,7 +143,7 @@ def register_dependencies(service, container):
     dependencies = get_dependencies(service)
     for name, dependency in dependencies:
         dependency.register(name, service, container)
-    return [dependency for name, dependency in dependencies]
+    return SpawningSet([dependency for name, dependency in dependencies])
 
 
 def get_providers(fn, filter_type=object):
