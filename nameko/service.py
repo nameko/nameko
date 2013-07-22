@@ -14,8 +14,7 @@ from nameko.common import UIDGEN
 from nameko.logging import log_time
 from nameko.messaging import get_consumers
 from nameko.dependencies import (
-    inject_dependencies, get_decorator_providers,
-    register_dependencies, inject_dependencies)
+    inject_dependencies, get_decorator_providers, register_dependencies)
 from nameko.sending import process_rpc_message
 
 
