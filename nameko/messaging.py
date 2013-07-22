@@ -2,6 +2,7 @@
 Provides core messaging decorators and dependency injection providers.
 '''
 from __future__ import absolute_import
+import inspect
 from itertools import count
 from functools import partial
 from logging import getLogger
@@ -115,7 +116,59 @@ def consume(queue, requeue_on_error=False):
     Args:
         queue: The queue to consume from.
     '''
-    return ConsumeProvider(queue, requeue_on_error)
+    def consume_decorator(fn):
+        consumer_configs[fn] = ConsumerConfig(queue, requeue_on_error)
+        return fn
+
+    return consume_decorator
+
+
+class ConsumerConfig(object):
+    '''
+    Stores information about a consumer-decorated method.
+    '''
+    def __init__(self, queue, requeue_on_error):
+        self.queue = queue
+        self.requeue_on_error = requeue_on_error
+
+    def get_queue(self, service):
+        """ Base implementation for consumer config objects.
+        ``service`` is provided for sub-classes if they need to create queues
+        using information from the service object.
+
+        Args:
+            service - An instance of ``nameko.service.Service``.
+        """
+        return self.queue
+
+
+def get_consumers(Consumer, service, on_message):
+    '''
+    Generates consumers for the consume-decorated method on a service.
+
+    Args:
+        Consumer: The Consumer class to use for a consumer.
+
+        service: An object which may have consume-decorated methods.
+
+    Returns:
+        A generator with each item being a Consumer instance configured
+        using the ConsumerConfig defined by the consume decorator.
+    '''
+    for name, consumer_method in inspect.getmembers(service.controller,
+                                                    inspect.ismethod):
+        try:
+            consumer_config = consumer_configs[consumer_method.im_func]
+
+            consumer = Consumer(
+                queues=[consumer_config.get_queue(service)],
+                callbacks=[
+                    partial(on_message, (consumer_method, consumer_config))
+                ]
+            )
+            yield consumer
+        except KeyError:
+            pass
 
 
 queue_consumers = WeakKeyDictionary()
