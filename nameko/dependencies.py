@@ -2,39 +2,14 @@
 Provides classes and method to deal with dependency injection.
 """
 from functools import wraps
-import inspect
-import weakref
+import types
 
-import eventlet
-from kombu.mixins import ConsumerMixin
-from kombu import BrokerConnection
+import inspect
 
 from nameko.utils import SpawningSet
 
 
-queue_consumers = weakref.WeakKeyDictionary()
-
-
-class QueueConsumer(ConsumerMixin):
-    def __init__(self, container):
-        self.container = container
-
-        self._registry = []
-        self.connection = BrokerConnection(self.container.config['amqp_uri'])
-
-    def get_consumers(self, Consumer, channel):
-        return [Consumer(queues=[queue], callbacks=[callback])
-                for queue, callback in self._registry]
-
-    def register(self, queue, callback):
-        self._registry.append((queue, callback))
-
-    def start(self):
-        """ reentrant, start consuming
-        """
-        eventlet.spawn(self.run)
-        # self.run still isn't ready unless we sleep for a bit
-        eventlet.sleep(1)
+DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
 
 
 class DependencyProvider(object):
@@ -105,6 +80,36 @@ class DependencyProvider(object):
         """
 
 
+def register_provider(fn, provider):
+    providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, None)
+
+    if providers is None:
+        providers = set()
+        setattr(fn, DECORATOR_PROVIDERS_ATTR, providers)
+
+    providers.add(provider)
+
+
+def dependency_decorator(provider_decorator):
+    @wraps(provider_decorator)
+    def wrapper(*args, **kwargs):
+        def registering_decorator(fn):
+            provider = provider_decorator(*args, **kwargs)
+            register_provider(fn, provider)
+            return fn
+
+        # if the providor_docorator does not use args itself,
+        # i.e. it does not return a dacorator
+        if len(args) == 1 and isinstance(args[0], types.FunctionType):
+            fn = args[0]
+            register_provider(fn, provider_decorator())
+            return fn
+        else:
+            return registering_decorator
+
+    return wrapper
+
+
 def is_dependency_provider(obj):
     """
     Returns true if the obj is a DependencyProvider.
@@ -136,31 +141,13 @@ def register_dependencies(service, container):
     return SpawningSet([dependency for name, dependency in dependencies])
 
 
+def get_providers(fn, filter_type=object):
+    providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, [])
+    for provider in providers:
+        if isinstance(provider, filter_type):
+            yield provider
+
+
 def inject_dependencies(service, container):
     for name, provider in inspect.getmembers(service, is_dependency_provider):
         setattr(service, name, provider.get_instance(container))
-
-
-DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
-
-
-def register_provider(fn, provider):
-    providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, None)
-
-    if providers is None:
-        providers = set()
-        setattr(fn, DECORATOR_PROVIDERS_ATTR, providers)
-
-    providers.add(provider)
-
-
-def dependency_decorator(provider_decorator):
-    @wraps(provider_decorator)
-    def wrapper(*args, **kwargs):
-        def registering_decorator(fn):
-            provider = provider_decorator(*args, **kwargs)
-            register_provider(fn, provider)
-            return fn
-
-        return registering_decorator
-    return wrapper

@@ -8,10 +8,19 @@ class ConsumerProvider(DependencyProvider):
         self.kwargs = kwargs
 
 
+class RPCProvider(DependencyProvider):
+    pass
+
+
 @dependency_decorator
 def consume(*args, **kwargs):
     """consume-doc"""
     return ConsumerProvider(args, kwargs)
+
+
+@dependency_decorator
+def rpc():
+    return RPCProvider()
 
 
 def test_dependency_decorator():
@@ -35,12 +44,23 @@ def test_get_decorator_providers():
         def shrub(self, arg):
             return arg
 
+        @rpc
+        def ni(self, arg):
+            return arg
+
     foo = Foobar()
+
     providers = list(get_decorator_providers(foo))
+    assert len(providers) == 2
 
     name, provider = providers.pop()
     assert name == "shrub"
     assert isinstance(provider, ConsumerProvider)
     assert provider.args == ("spam",)
     assert provider.kwargs == {"oof": "rab"}
-    assert len(providers) == 0
+    assert foo.shrub(1) == 1
+
+    name, provider = providers.pop()
+    assert name == "ni"
+    assert isinstance(provider, RPCProvider)
+    assert foo.ni(2) == 2
