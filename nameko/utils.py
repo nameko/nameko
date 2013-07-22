@@ -16,9 +16,8 @@ class SpawningProxy(object):
             items = self._items
             pool = eventlet.GreenPool(len(items))
 
-            for item in self._items:
-                pool.spawn(getattr(item, name), *args, **kwargs)
-            return pool.waitall()
+            call = lambda item: getattr(item, name)(*args, **kwargs)
+            list(pool.imap(call, self._items))
 
         return fn
 

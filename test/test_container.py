@@ -2,6 +2,7 @@ import json
 
 import eventlet
 import random
+import pytest
 
 from kombu.common import maybe_declare
 from kombu.pools import producers
@@ -104,6 +105,17 @@ class Service(object):
         return "pong [seqno={}]".format(payload['seqno'])
 
 
+class BrokenPinger(Pinger):
+
+    def start(self):
+        raise Exception("broken")
+
+
+class BrokenService(object):
+
+    ping = BrokenPinger()
+
+
 def test_pings():
 
     config = {
@@ -138,7 +150,16 @@ def test_pings():
     assert service.handler.results == ["pong [seqno={}]".format(seqno)]
 
 
+def test_start_errors():
 
+    config = {
+        'amqp_uri': 'amqp://guest:guest@localhost/ofsplatform'
+    }
+    service = BrokenService()
+    container = ServiceContainer(service, config)
+
+    with pytest.raises(Exception):
+        container.start()
 
 
 
