@@ -119,6 +119,14 @@ def reset_mock_proxy(request):
 
 
 @pytest.fixture
+def container_factory(request, reset_rabbit):
+    def make_container(service, config):
+        from nameko.service import ServiceContainer
+        return ServiceContainer(service, config)
+    return make_container
+
+
+@pytest.fixture
 def start_service(request, get_connection):
 
     def _start_service(cls, service_name):

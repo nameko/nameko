@@ -1,149 +1,97 @@
-import eventlet
 from kombu import Exchange, Queue
+from mock import patch, Mock
 
-from nameko.messaging import consume, Publisher
-
+from nameko.messaging import Publisher, ConsumeProvider
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
 
-CONSUME_TIMEOUT = 5
+def test_consume_provider():
+
+    consume_provider = ConsumeProvider(queue=foobar_queue,
+                                       requeue_on_error=False)
+    queue_consumer = Mock()
+    message = Mock()
+
+    with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
+        get_queue_consumer.return_value = queue_consumer
+
+        # test lifecycle
+        consume_provider.start()
+        queue_consumer.add_consumer.assert_called_once_with(
+            foobar_queue, consume_provider.handle_message)
+
+        consume_provider.on_container_started()
+        queue_consumer.start.assert_called_once_with()
+
+        consume_provider.stop()
+        queue_consumer.stop.assert_called_once_with()
+
+        def successful_call(method, args, kwargs, callback):
+            callback("result", None)
+
+        def failed_call(method, args, kwargs, callback):
+            callback(None, Exception("error"))
+
+        # test handling successful call
+        queue_consumer.reset_mock()
+        with patch.object(consume_provider, "container") as container:
+            container.spawn_worker.side_effect = successful_call
+
+            consume_provider.handle_message("body", message)
+            queue_consumer.ack_message.assert_called_once_with(message)
+
+        # test handling failed call...
+        with patch.object(consume_provider, "container") as container:
+            container.spawn_worker.side_effect = failed_call
+
+            # without requeue
+            queue_consumer.reset_mock()
+            consume_provider.handle_message("body", message)
+            queue_consumer.ack_message.assert_called_once_with(message)
+
+            # with requeue
+            queue_consumer.reset_mock()
+            consume_provider.requeue_on_error = True
+
+            consume_provider.handle_message("body", message)
+            assert not queue_consumer.ack_message.called
+            queue_consumer.requeue_message.assert_called_once_with(message)
 
 
-class QueueSpammer(object):
+def test_publish_exchange_only():
+    producer = Mock()
+    publisher = Publisher(exchange=foobar_ex)
 
-    publish = Publisher(queue=foobar_queue)
+    with patch.object(publisher, '_connection') as connection, \
+        patch('nameko.messaging.producers') as producers_pool, \
+        patch('nameko.messaging.maybe_declare') as maybe_declare:
 
-    def _publish(self, msg):
-        self.publish(msg)
+        producers_pool[connection].acquire().__enter__.return_value = producer
 
+        msg = "msg"
+        publisher.__call__(msg)
 
-class ExchangeSpammer(QueueSpammer):
-
-    # we only publish to an exchange, which has no queue.
-    publish = Publisher(exchange=foobar_ex)
-
-
-class Foobar(object):
-    def __init__(self):
-        self.messages = []
-
-    @consume(queue=foobar_queue)
-    def _consume(self, msg):
-        eventlet.sleep()
-        self.messages.append(msg)
+        maybe_declare.assert_called_once_with(foobar_ex, producer.channel)
+        producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 
-class BrokenFoobar(Foobar):
-    @consume(queue=foobar_queue)
-    def _consume(self, msg):
-        eventlet.sleep()
-        self.messages.append(msg)
-        raise Exception(msg)
+def test_publish_to_specific_queue():
+    producer = Mock()
+    publisher = Publisher(queue=foobar_queue)
+
+    with patch.object(publisher, '_connection') as connection, \
+        patch('nameko.messaging.producers') as producers_pool, \
+        patch('nameko.messaging.maybe_declare') as maybe_declare:
+
+        producers_pool[connection].acquire().__enter__.return_value = producer
+
+        msg = "msg"
+        publisher.__call__(msg)
+
+        maybe_declare.assert_called_once_with(foobar_queue, producer.channel)
+        producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 
-class RequeueingFoobar(Foobar):
-    @consume(queue=foobar_queue, requeue_on_error=True)
-    def _consume(self, msg):
-        eventlet.sleep()
-        self.messages.append('rejected:' + msg)
-        raise Exception(msg)
 
-
-def test_publish_to_exchange_without_queue(start_service):
-    spammer = start_service(ExchangeSpammer, 'exchangespammer')
-    msg = 'exchange message'
-    spammer._publish(msg)
-
-    srv = start_service(Foobar, 'foobar')
-
-    spammer._publish(msg)
-
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages:
-            eventlet.sleep()
-
-    assert messages == [msg]
-
-
-def test_simple_publish_consume(start_service):
-    spammer = start_service(QueueSpammer, 'queuespammer')
-    msg = 'simple message'
-    spammer._publish(msg)
-
-    srv = start_service(Foobar, 'foobar')
-
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages:
-            eventlet.sleep()
-
-    assert messages == [msg]
-
-
-def test_simple_consume_QOS_prefetch_1(start_service):
-    srv1 = start_service(Foobar, 'foobar')
-    srv2 = start_service(Foobar, 'foobar')
-
-    spammer = start_service(QueueSpammer, 'queuespammer')
-
-    msg = 'simple message 2'
-    spammer._publish(msg)
-    spammer._publish(msg)
-
-    messages1 = srv1.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages1:
-            eventlet.sleep()
-
-    messages2 = srv2.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages2 and len(messages1) < 2:
-            eventlet.sleep()
-
-    assert messages1 == [msg]
-    assert messages2 == [msg]
-
-
-def test_consumer_fails_no_requeues(start_service):
-    srv = start_service(BrokenFoobar, 'foobar')
-
-    spammer = start_service(QueueSpammer, 'queuespammer')
-    msg = 'fail_message'
-    spammer._publish(msg)
-
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while len(messages) < 1:
-            eventlet.sleep()
-
-    eventlet.sleep()
-    assert messages == [msg]
-
-
-def test_consumer_failure_requeues(start_service):
-    srv = start_service(RequeueingFoobar, 'foobar')
-
-    spammer = start_service(QueueSpammer, 'foobar')
-    msg = 'reject_message'
-    # this message will be requeued until
-    # a non-failing service picks it up
-    spammer._publish(msg)
-
-    #lets wait unitl at least one has been requeued
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages:
-            eventlet.sleep()
-
-    #create a service to accept the failed messages
-    srv = start_service(Foobar, 'foobar')
-
-    messages = srv.messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        while not messages:
-            eventlet.sleep()
-
-    assert messages == [msg]

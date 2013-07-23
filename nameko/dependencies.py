@@ -62,7 +62,7 @@ class DependencyProvider(object):
         Example: ...
         """
 
-    def call_result(self, method, result):
+    def call_result(self, method, result, exc):
         """ Called with the result of a service worker execution.
 
         DependencyProviders that need to process the result should do it here.
@@ -70,7 +70,7 @@ class DependencyProvider(object):
         Example: a database session provider may commit the transaction
         """
 
-    def call_teardown(self, method, result):
+    def call_teardown(self, method, result, exc):
         """ Called after a service worker has executed a task.
 
         DependencyProviders should do any post-processing here, raising

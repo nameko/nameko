@@ -25,40 +25,46 @@ WORKER_TIMEOUT = 30
 
 class ServiceContainer(object):
 
-    def __init__(self, service, config):
-        self.service = service
+    def __init__(self, service_cls, config):
+        self.service_cls = service_cls
         self.config = config
 
-        self.dependencies = register_dependencies(service, self)
+        self.dependencies = register_dependencies(service_cls, self)
 
         self._worker_pool = GreenPool(size=self.config.get('poolsize', 100))
 
     def start(self):
+        _log.debug('container starting')
         self.dependencies.all.start()
         self.dependencies.all.on_container_started()
 
     def stop(self):
+        _log.debug('container stopping')
         self._worker_pool.waitall()
 
         self.dependencies.all.stop()
         self.dependencies.all.on_container_stopped()
 
-    def spawn(self, method, args, kwargs, callback=None):
-        self._worker_pool.spawn(self._dispatch, method, args, kwargs, callback)
+    def spawn_worker(self, method_name, args, kwargs, callback=None):
+        _log.debug('container spawn {}'.format(method_name))
 
-    def _dispatch(self, method, args, kwargs, callback):
+        def worker():
+            service = self.service_cls()
+            method = getattr(service, method_name)
+            self.dependencies.all.call_setup(method, args, kwargs)
 
-        self.dependencies.all.call_setup(method, args, kwargs)
-        result = getattr(self.service, method)(*args, **kwargs)
+            result = exc = None
+            try:
+                result = method(*args, **kwargs)
+            except Exception as e:
+                exc = e
 
-        self.dependencies.all.call_result(method, result)
+            self.dependencies.all.call_result(method, result, exc)
+            if callback:
+                callback(result, exc)
+            self.dependencies.all.call_teardown(method, result, exc)
 
-        # TODO: better to do this as part of handle_call? means keeping state
-        # in the dependency
-        if callback:
-            callback(result)
-
-        self.dependencies.all.call_teardown(method, result)
+        self._worker_pool.spawn(worker)
 
 
 class Service(ConsumerMixin):

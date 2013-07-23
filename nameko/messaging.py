@@ -17,7 +17,7 @@ from kombu.pools import producers
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
-from nameko.dependencies import DependencyProvider
+from nameko.dependencies import DependencyProvider, dependency_decorator
 
 _log = getLogger(__name__)
 
@@ -48,50 +48,42 @@ class Publisher(DependencyProvider):
                 self.publish('spam:' + data)
 
     '''
-
     def __init__(self, exchange=None, queue=None):
         self.exchange = exchange
         self.queue = queue
 
-    def get_instance(self, container):
-        '''
-        Provides a publish method to a container.
+        self._connection = None
 
-        Args:
-            container: A service container.
+    @property
+    def connection(self):
+        if self._connection is None:
+            self._connection = Connection(self.container.config['amqp_uri'])
+        return self._connection
 
-        Returns:
-            A publish(msg) method.
-            The method, when called, will publish to the exchange defined
-            during the initialization of the Publisher object.
-        '''
+    def __call__(self, msg, **kwargs):
+
         exchange = self.exchange
         queue = self.queue
 
         if exchange is None and queue is not None:
             exchange = queue.exchange
 
-        def do_publish(msg, **kwargs):
-            # TODO: would it not be better to to use a single connection
-            #       per service, i.e. share it with consumers, etc?
-            #       How will this work properly with eventlet?
-            with container.connection_factory() as conn:
-                with producers[conn].acquire(block=True) as producer:
-                    channel = producer.channel
+        with self.connection as conn:
+            with producers[conn].acquire(block=True) as producer:
+                channel = producer.channel
 
-                    if queue is not None:
-                        maybe_declare(queue, channel)
+                if queue is not None:
+                    maybe_declare(queue, channel)
 
-                    elif exchange is not None:
-                        maybe_declare(exchange, channel)
+                elif exchange is not None:
+                    maybe_declare(exchange, channel)
 
-                    # TODO: should we enable auto-retry,
-                    #       should that be an option in __init__?
-                    producer.publish(msg, exchange=exchange, **kwargs)
-
-        return do_publish
+                # TODO: should we enable auto-retry,
+                #       should that be an option in __init__?
+                producer.publish(msg, exchange=exchange, **kwargs)
 
 
+@dependency_decorator
 def consume(queue, requeue_on_error=False):
     '''
     Decorates a method as a message consumer.
@@ -116,13 +108,10 @@ def consume(queue, requeue_on_error=False):
     Args:
         queue: The queue to consume from.
     '''
-    def consume_decorator(fn):
-        consumer_configs[fn] = ConsumerConfig(queue, requeue_on_error)
-        return fn
-
-    return consume_decorator
+    return ConsumeProvider(queue, requeue_on_error)
 
 
+# deprecated
 class ConsumerConfig(object):
     '''
     Stores information about a consumer-decorated method.
@@ -142,6 +131,7 @@ class ConsumerConfig(object):
         return self.queue
 
 
+# deprecated
 def get_consumers(Consumer, service, on_message):
     '''
     Generates consumers for the consume-decorated method on a service.
@@ -178,7 +168,8 @@ def get_queue_consumer(container):
     """ Get or create a QueueConsumer instance for our container
     """
     if container not in queue_consumers:
-        queue_consumers[container] = QueueConsumer(container)
+        queue_consumer = QueueConsumer(container.config['amqp_uri'])
+        queue_consumers[container] = queue_consumer
 
     return queue_consumers[container]
 
@@ -203,7 +194,9 @@ class ConsumeProvider(DependencyProvider):
 
     def handle_message(self, body, message):
         callback = partial(self.handle_message_processed, message)
-        self.container.spawn(self.name, callback, body)
+        args = (body,)
+        kwargs = {}
+        self.container.spawn_worker(self.name, args, kwargs, callback)
 
     def handle_message_processed(self, message, result, exc):
         qc = get_queue_consumer(self.container)
