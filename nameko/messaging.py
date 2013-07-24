@@ -13,7 +13,7 @@ import eventlet
 from eventlet.event import Event
 
 from kombu.common import maybe_declare
-from kombu.pools import producers
+from kombu.pools import producers, connections
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
@@ -58,7 +58,21 @@ class Publisher(DependencyProvider):
     def connection(self):
         if self._connection is None:
             self._connection = Connection(self.container.config['amqp_uri'])
-        return self._connection
+        return connections[self._connection].acquire(block=True)
+
+    @property
+    def producer(self):
+        return producers[self.connection].acquire(block=True)
+
+    def start(self):
+        exchange = self.exchange
+        queue = self.queue
+
+        with self.connection as conn:
+            if queue is not None:
+                maybe_declare(queue, conn)
+            elif exchange is not None:
+                maybe_declare(exchange, conn)
 
     def __call__(self, msg, **kwargs):
 
@@ -68,19 +82,10 @@ class Publisher(DependencyProvider):
         if exchange is None and queue is not None:
             exchange = queue.exchange
 
-        with self.connection as conn:
-            with producers[conn].acquire(block=True) as producer:
-                channel = producer.channel
-
-                if queue is not None:
-                    maybe_declare(queue, channel)
-
-                elif exchange is not None:
-                    maybe_declare(exchange, channel)
-
-                # TODO: should we enable auto-retry,
-                #       should that be an option in __init__?
-                producer.publish(msg, exchange=exchange, **kwargs)
+        with self.producer as producer:
+            # TODO: should we enable auto-retry,
+            #       should that be an option in __init__?
+            producer.publish(msg, exchange=exchange, **kwargs)
 
 
 @dependency_decorator

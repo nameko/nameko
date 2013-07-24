@@ -1,10 +1,14 @@
 from kombu import Exchange, Queue
-from mock import patch, Mock
+from mock import patch, Mock, ANY
 
 from nameko.messaging import Publisher, ConsumeProvider
+from nameko.testing.utils import (
+    wait_for_call, as_context_manager, as_mock_property)
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
+
+CONSUME_TIMEOUT = 1
 
 
 def test_consume_provider():
@@ -60,38 +64,109 @@ def test_consume_provider():
             queue_consumer.requeue_message.assert_called_once_with(message)
 
 
-def test_publish_exchange_only():
+def test_publish_to_exchange():
     producer = Mock()
-    publisher = Publisher(exchange=foobar_ex)
+    connection = Mock()
 
-    with patch.object(publisher, '_connection') as connection, \
-        patch('nameko.messaging.producers') as producers_pool, \
-        patch('nameko.messaging.maybe_declare') as maybe_declare:
+    patch_producer = as_mock_property(as_context_manager(producer))
+    patch_connection = as_mock_property(as_context_manager(connection))
 
-        producers_pool[connection].acquire().__enter__.return_value = producer
+    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
+        patch.object(Publisher, 'producer', patch_producer), \
+        patch.object(Publisher, 'connection', patch_connection):
 
+        publisher = Publisher(exchange=foobar_ex)
+
+        # test declarations
+        publisher.start()
+        maybe_declare.assert_called_once_with(foobar_ex, connection)
+
+        # test publish
         msg = "msg"
-        publisher.__call__(msg)
-
-        maybe_declare.assert_called_once_with(foobar_ex, producer.channel)
+        publisher(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 
-def test_publish_to_specific_queue():
+def test_publish_to_queue():
     producer = Mock()
-    publisher = Publisher(queue=foobar_queue)
+    connection = Mock()
 
-    with patch.object(publisher, '_connection') as connection, \
-        patch('nameko.messaging.producers') as producers_pool, \
-        patch('nameko.messaging.maybe_declare') as maybe_declare:
+    patch_producer = as_mock_property(as_context_manager(producer))
+    patch_connection = as_mock_property(as_context_manager(connection))
 
-        producers_pool[connection].acquire().__enter__.return_value = producer
+    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
+        patch.object(Publisher, 'producer', patch_producer), \
+        patch.object(Publisher, 'connection', patch_connection):
 
+        publisher = Publisher(queue=foobar_queue)
+
+        # test declarations
+        publisher.start()
+        maybe_declare.assert_called_once_with(foobar_queue, connection)
+
+        # test publish
         msg = "msg"
-        publisher.__call__(msg)
-
-        maybe_declare.assert_called_once_with(foobar_queue, producer.channel)
+        publisher(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 
+def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
+    vhost = rabbit_config['vhost']
+
+    mock_container = Mock()
+    mock_container.config = rabbit_config
+
+    publish = Publisher(exchange=foobar_ex, queue=foobar_queue)
+    publish.container = mock_container
+
+    # test queue, exchange and binding created in rabbit
+    publish.start()
+    exchanges = rabbit_manager.get_exchanges(vhost)
+    queues = rabbit_manager.get_queues(vhost)
+    bindings = rabbit_manager.get_queue_bindings(vhost, foobar_queue.name)
+
+    assert "foobar_ex" in [exchange['name'] for exchange in exchanges]
+    assert "foobar_queue" in [queue['name'] for queue in queues]
+    assert "foobar_ex" in [binding['source'] for binding in bindings]
+
+    # test message published to queue
+    publish("msg")
+    messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
+    assert ['msg'] == [msg['payload'] for msg in messages]
+
+
+def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
+
+    vhost = rabbit_config['vhost']
+
+    mock_container = Mock()
+    mock_container.config = rabbit_config
+
+    consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
+    consumer.name = "injection_name"
+    consumer.container = mock_container
+
+    # test queue, exchange and binding created in rabbit
+    consumer.start()
+    consumer.on_container_started()
+
+    exchanges = rabbit_manager.get_exchanges(vhost)
+    queues = rabbit_manager.get_queues(vhost)
+    bindings = rabbit_manager.get_queue_bindings(vhost, foobar_queue.name)
+
+    assert "foobar_ex" in [exchange['name'] for exchange in exchanges]
+    assert "foobar_queue" in [queue['name'] for queue in queues]
+    assert "foobar_ex" in [binding['source'] for binding in bindings]
+
+    # test message consumed from queue
+    worker = lambda name, args, kwargs, callback: callback("result", None)
+    mock_container.spawn_worker.side_effect = worker
+
+    rabbit_manager.publish(vhost, foobar_ex.name, '', 'msg')
+
+    with wait_for_call(CONSUME_TIMEOUT, mock_container.spawn_worker) as method:
+        method.assert_called_once_with(consumer.name, ('msg',), {}, ANY)
+
+    # stop will hang if the consumer hasn't acked or requeued messages
+    consumer.stop()
