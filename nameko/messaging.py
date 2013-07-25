@@ -215,7 +215,7 @@ class ConsumeProvider(DependencyProvider):
     def handle_message_processed(self, message, worker_ctx):
         qc = get_queue_consumer(worker_ctx['srv_ctx'])
 
-        if worker_ctx['exc'] is not None and self.requeue_on_error:
+        if worker_ctx['data']['exc'] is not None and self.requeue_on_error:
             qc.requeue_message(message)
         else:
             qc.ack_message(message)

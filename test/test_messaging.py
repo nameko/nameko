@@ -1,28 +1,14 @@
-from functools import partial
 from kombu import Exchange, Queue
 from mock import patch, Mock, ANY
 
 from nameko.messaging import Publisher, ConsumeProvider
-from nameko.testing.utils import wait_for_call, as_context_manager
+from nameko.testing.utils import (
+    wait_for_call, as_context_manager, ANY_PARTIAL)
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
 CONSUME_TIMEOUT = 1
-
-
-class AnyPartial(object):
-
-    def __eq__(self, other):
-        return isinstance(other, partial)
-
-    def __ne__(self, other):
-        return not isinstance(other, partial)
-
-    def __repr__(self):
-        return '<AnyPartial>'
-
-ANY_PARTIAL = AnyPartial()
 
 
 def test_consume_provider():
@@ -52,16 +38,20 @@ def test_consume_provider():
 
         def successful_call(method, args, kwargs, callback):
             worker_ctx = {
-                'result': "result",
-                'exc': None,
+                'data': {
+                    'result': "result",
+                    'exc': None,
+                },
                 'srv_ctx': srv_ctx
             }
             callback(worker_ctx)
 
         def failed_call(method, args, kwargs, callback):
             worker_ctx = {
-                'result': None,
-                'exc': Exception("Error"),
+                'data': {
+                    'result': None,
+                    'exc': Exception("Error")
+                },
                 'srv_ctx': srv_ctx
             }
             callback(worker_ctx)
@@ -213,8 +203,10 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     # test message consumed from queue
     worker_ctx = {
-        'result': "result",
-        'exc': None,
+        'data': {
+            'result': "result",
+            'exc': None
+        },
         'srv_ctx': srv_ctx
     }
     worker = lambda name, args, kwargs, callback: callback(worker_ctx)

@@ -9,6 +9,7 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
 from nameko.dependencies import DECORATOR_PROVIDERS_ATTR
+from nameko.testing.utils import ANY_PARTIAL
 
 
 EVENTS_TIMEOUT = 5
@@ -105,16 +106,18 @@ def test_event_handler_decorator():
 def test_event_dispatcher():
 
     event_dispatcher = EventDispatcher()
-    event_dispatcher.service = type("DestService", (object,), {})
+    srv_ctx = {
+        'name': 'destservice'
+    }
 
-    event_dispatcher.start()
+    event_dispatcher.start(srv_ctx)
     assert event_dispatcher.exchange.name == "destservice.events"
 
     with patch('nameko.messaging.Publisher.__call__') as super_call:
         evt = Mock(type="eventtype")
         event_dispatcher.__call__(evt)
 
-        super_call.assert_called_once_with(evt, routing_key=evt.type)
+        super_call.assert_called_once_with(evt.data, routing_key=evt.type)
 
 
 @pytest.fixture
@@ -126,50 +129,49 @@ def handler_factory(request):
     """
     def make_handler(service_name="srcservice", event_type="eventtype",
                      handler_type=SERVICE_POOL, reliable_delivery=True,
-                     requeue_on_error=False, service=None):
-        handler = EventHandler(service_name, event_type, handler_type,
-                               reliable_delivery, requeue_on_error)
-        if service is None:
-            service = type("DestService", (object,), {})
-        handler.service = service
-        return handler
+                     requeue_on_error=False):
+        return EventHandler(service_name, event_type, handler_type,
+                            reliable_delivery, requeue_on_error)
     return make_handler
 
 
 def test_event_handler(handler_factory):
 
     queue_consumer = Mock()
+    srv_ctx = {
+        'name': 'destservice'
+    }
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
 
         # test default configuration
         event_handler = handler_factory()
-        event_handler.start()
+        event_handler.start(srv_ctx)
         assert event_handler.queue.durable is True
         assert event_handler.queue.routing_key == "eventtype"
         assert event_handler.queue.exchange.name == "srcservice.events"
         queue_consumer.add_consumer.assert_called_once_with(
-            event_handler.queue, event_handler.handle_message)
+            event_handler.queue, ANY_PARTIAL)
 
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
-        event_handler.start()
+        event_handler.start(srv_ctx)
         assert event_handler.queue.name == "evt-srcservice-eventtype-destservice"
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
-        event_handler.start()
+        event_handler.start(srv_ctx)
         assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
         # test singleton handler
         event_handler = handler_factory(handler_type=SINGLETON)
-        event_handler.start()
+        event_handler.start(srv_ctx)
         assert event_handler.queue.name == "evt-srcservice-eventtype"
 
         # test reliable delivery
         event_handler = handler_factory(reliable_delivery=True)
-        event_handler.start()
+        event_handler.start(srv_ctx)
         assert event_handler.queue.auto_delete is False
 
 
@@ -179,12 +181,15 @@ def test_event_handler(handler_factory):
 
 
 services = defaultdict(list)
+events = []
 
 
 @pytest.fixture
 def reset_state():
     while len(services):
         services.popitem()
+    while len(events):
+        events.pop()
 
 
 class Handler(object):
@@ -199,6 +204,7 @@ class ServicePoolHandler(Handler):
     @event_handler('srcservice', 'eventtype', handler_type=SERVICE_POOL)
     def handle(self, evt):
         self.events.append(evt)
+        events.append(evt)
 
 
 class SingletonHandler(Handler):
@@ -206,6 +212,7 @@ class SingletonHandler(Handler):
     @event_handler('srcservice', 'eventtype', handler_type=SINGLETON)
     def handle(self, evt):
         self.events.append(evt)
+        events.append(evt)
 
 
 class BroadcastHandler(Handler):
@@ -214,6 +221,7 @@ class BroadcastHandler(Handler):
                    reliable_delivery=False)
     def handle(self, evt):
         self.events.append(evt)
+        events.append(evt)
 
 
 class BrokenHandler(Handler):
@@ -264,12 +272,12 @@ def test_service_pooled_events(reset_rabbit, rabbit_manager, rabbit_config,
     exchange_name = "srcservice.events"
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
 
+    # a total of two events should be received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(services) < 2:
+        while len(events) < 2:
             eventlet.sleep()
 
     # exactly one instance of each service should have been created
-    """
     assert len(services['foo']) == 1
     assert isinstance(services['foo'][0], FooServicePoolHandler)
     assert services['foo'][0].events == ["msg"]
@@ -277,7 +285,6 @@ def test_service_pooled_events(reset_rabbit, rabbit_manager, rabbit_config,
     assert len(services['bar']) == 1
     assert isinstance(services['bar'][0], BarServicePoolHandler)
     assert services['bar'][0].events == ["msg"]
-    """
 
     container_x.stop()
     container_y.stop()
@@ -302,17 +309,21 @@ def test_singleton_events(reset_rabbit, rabbit_manager, rabbit_config,
     exchange_name = "srcservice.events"
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
 
+    # exactly one event should have been received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(services) == 0:
+        while len(events) < 1:
             eventlet.sleep()
 
-    # only one handler should receive the event
-    """
+    # one lucky handler should have received the event
     assert len(services) == 1
-    events = services.popitem()
-    assert len(events) == 0
-    assert events[0].events == ["msg"]
-    """
+    lucky_service = next(services.iterkeys())
+    assert len(services[lucky_service]) == 1
+    assert isinstance(services[lucky_service][0], SingletonHandler)
+    assert services[lucky_service][0].events == ["msg"]
+
+    container_x.stop()
+    container_y.stop()
+    container_z.stop()
 
 
 def test_broadcast_events(reset_rabbit, rabbit_manager, rabbit_config,
@@ -329,7 +340,7 @@ def test_broadcast_events(reset_rabbit, rabbit_manager, rabbit_config,
     # each broadcast queue should have one consumer
     queues = rabbit_manager.get_queues(vhost)
     queue_names = [queue['name'] for queue in queues
-                   if queue['name'].startswith("")]
+                   if queue['name'].startswith("evt-srcservice-eventtype-")]
 
     assert len(queue_names) == 3
     for name in queue_names:
@@ -339,17 +350,30 @@ def test_broadcast_events(reset_rabbit, rabbit_manager, rabbit_config,
     exchange_name = "srcservice.events"
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
 
+    # a total of three events should be received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(services) == 0:
+        while len(events) < 3:
             eventlet.sleep()
 
-    # all three handlers should receive the event
-    """
-    assert len(services) == 3
-    events = services.popitem()
-    assert len(events) == 0
-    assert events[0].events == ["msg"]
-    """
+    # all three handlers should receive the event, but they're only of two
+    # different types
+    assert len(services) == 2
+
+    # two of them were "foo" handlers
+    assert len(services['foo']) == 2
+    assert isinstance(services['foo'][0], FooBroadcastHandler)
+    assert isinstance(services['foo'][1], FooBroadcastHandler)
+
+    # and they both should have received the event
+    assert services['foo'][0].events == ["msg"]
+    assert services['foo'][1].events == ["msg"]
+
+    # the other was a "bar" handler
+    assert len(services['bar']) == 1
+    assert isinstance(services['bar'][0], BarBroadcastHandler)
+
+    # and it too should have received the event
+    assert services['bar'][0].events == ["msg"]
 
 """
 def test_emit_event_without_handlers(start_service):

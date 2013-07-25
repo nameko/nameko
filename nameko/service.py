@@ -39,7 +39,7 @@ class ServiceContainer(object):
         # to the service context for each call
         self.dependencies = SpawningSet()
         dependencies = get_dependencies(service_cls)
-        for dependency, name in dependencies:
+        for name, dependency in dependencies:
             dependency.name = name
             self.dependencies.add(dependency)
 

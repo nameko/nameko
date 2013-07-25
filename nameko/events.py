@@ -246,7 +246,7 @@ class EventHandler(ConsumeProvider):
                                                self.event_type,
                                                uuid.uuid4())
 
-        exchange = get_event_exchange(srv_ctx['name'])
+        exchange = get_event_exchange(self.service_name)
 
         # auto-delete queues if events are not reliably delivered
         auto_delete = not self.reliable_delivery
