@@ -6,8 +6,6 @@ import types
 
 import inspect
 
-from nameko.utils import SpawningSet
-
 
 DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
 
@@ -15,68 +13,79 @@ DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
 class DependencyProvider(object):
 
     name = None
-    service = None
-    container = None
 
-    def register(self, name, service, container):
-        """ Register this DependencyProvider as ``name`` on the ``service``
-        within ``container``.
-        """
-        self.name = name
-        self.service = service
-        self.container = container
-
-    def start(self):
+    def start(self, srv_ctx):
         """ Called when the service container starts.
 
         DependencyProviders should do any required initialisation here.
+
+        Args:
+            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def on_container_started(self):
+    def on_container_started(self, srv_ctx):
         """ Called when the service container has successfully started.
 
         This is only called after all other DependencyProviders have
         successfully initialised. If the DependencyProvider listens to
         external events, they may now start acting upon them.
+
+        Args:
+            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def stop(self):
+    def stop(self, ctx):
         """ Called when the service container begins to shut down.
 
         DependencyProviders should do any graceful shutdown here.
+
+        Args:
+            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def on_container_stopped(self):
+    def on_container_stopped(self, srv_ctx):
         """ Called when the service container stops.
 
         If the DependencyProvider has not gracefully shut down, probably
         raise an error here.
+
+        Args:
+            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def call_setup(self, method, args, kwargs):
+    def call_setup(self, worker_ctx):
         """ Called before a service worker executes a task.
 
         DependencyProviders should do any pre-processing here, raising
         exceptions in the event of failure.
 
         Example: ...
+
+        Args:
+            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_result(self, method, result, exc):
+    def call_result(self, worker_ctx):
         """ Called with the result of a service worker execution.
 
         DependencyProviders that need to process the result should do it here.
 
         Example: a database session provider may commit the transaction
+
+        Args:
+            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_teardown(self, method, result, exc):
+    def call_teardown(self, worker_ctx):
         """ Called after a service worker has executed a task.
 
         DependencyProviders should do any post-processing here, raising
         exceptions in the event of failure.
 
         Example: a database session provider may close the session
+
+        Args:
+            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
 
@@ -132,13 +141,6 @@ def get_decorator_providers(obj):
 
 def get_dependencies(obj):
     return get_attribute_providers(obj) + list(get_decorator_providers(obj))
-
-
-def register_dependencies(service, container):
-    dependencies = get_dependencies(service)
-    for name, dependency in dependencies:
-        dependency.register(name, service, container)
-    return SpawningSet([dependency for name, dependency in dependencies])
 
 
 def get_providers(fn, filter_type=object):

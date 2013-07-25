@@ -14,13 +14,17 @@ from nameko.common import UIDGEN
 from nameko.logging import log_time
 from nameko.messaging import get_consumers
 from nameko.dependencies import (
-    inject_dependencies, get_decorator_providers, register_dependencies)
+    inject_dependencies, get_decorator_providers, get_dependencies)
 from nameko.sending import process_rpc_message
-
+from nameko.utils import SpawningSet
 
 _log = getLogger(__name__)
 
 WORKER_TIMEOUT = 30
+
+
+def get_service_name(service_cls):
+    return getattr(service_cls, "name", service_cls.__name__.lower())
 
 
 class ServiceContainer(object):
@@ -29,30 +33,58 @@ class ServiceContainer(object):
         self.service_cls = service_cls
         self.config = config
 
-        self.dependencies = register_dependencies(service_cls, self)
+        # process dependencies:
+        # save their name onto themselves, add them to our set
+        # TODO: move the name setting into the dependency creation, or add
+        # to the service context for each call
+        self.dependencies = SpawningSet()
+        dependencies = get_dependencies(service_cls)
+        for name, dependency in dependencies:
+            dependency.name = name
+            self.dependencies.add(dependency)
 
+        self._ctx = None
         self._worker_pool = GreenPool(size=self.config.get('poolsize', 100))
+
+    @property
+    def ctx(self):
+        if self._ctx is None:
+            self._ctx = {
+                'name': get_service_name(self.service_cls),
+                'service': self.service_cls,
+                'container': self,
+                'config': self.config
+            }
+        return self._ctx
 
     def start(self):
         _log.debug('container starting')
-        self.dependencies.all.start()
-        self.dependencies.all.on_container_started()
+        self.dependencies.all.start(self.ctx)
+        self.dependencies.all.on_container_started(self.ctx)
 
     def stop(self):
         _log.debug('container stopping')
 
-        self.dependencies.all.stop()
-
-        self._worker_pool.waitall()
-
-        self.dependencies.all.on_container_stopped()
+        self.dependencies.all.stop(self.ctx)
+        self.dependencies.all.on_container_stopped(self.ctx)
 
     def spawn_worker(self, method_name, args, kwargs, callback=None):
         _log.debug('container spawn {}'.format(method_name))
+
         def worker():
             service = self.service_cls()
             method = getattr(service, method_name)
-            self.dependencies.all.call_setup(method, args, kwargs)
+            worker_ctx = {
+                'service': service,
+                'method': method,
+                'data': {
+                    'args': args,
+                    'kwargs': kwargs,
+                },
+                'srv_ctx': self.ctx
+            }
+
+            self.dependencies.all.call_setup(worker_ctx)
 
             result = exc = None
             try:
@@ -60,10 +92,13 @@ class ServiceContainer(object):
             except Exception as e:
                 exc = e
 
-            self.dependencies.all.call_result(method, result, exc)
+            worker_ctx['data']['result'] = result
+            worker_ctx['data']['exc'] = exc
+
+            self.dependencies.all.call_result(worker_ctx)
             if callback:
-                callback(result, exc)
-            self.dependencies.all.call_teardown(method, result, exc)
+                callback(worker_ctx)
+            self.dependencies.all.call_teardown(worker_ctx)
 
         self._worker_pool.spawn(worker)
 
