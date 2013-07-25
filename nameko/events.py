@@ -146,9 +146,9 @@ class EventDispatcher(Publisher):
     def __init__(self):
         super(EventDispatcher, self).__init__()
 
-    def start(self):
-        service_name = get_service_name(self.service)
-        self.exchange = get_event_exchange(service_name)
+    def start(self, srv_ctx):
+        # TODO: should we actually put this into the srv_ctx?
+        self.exchange = get_event_exchange(srv_ctx['name'])
 
     def __call__(self, evt):
         msg = evt.data
@@ -222,7 +222,7 @@ class EventHandler(ConsumeProvider):
         self.reliable_delivery = reliable_delivery
         self.requeue_on_error = requeue_on_error
 
-    def start(self):
+    def start(self, srv_ctx):
         """
 
         Queue names have the following formats, based on handler_type:
@@ -231,13 +231,13 @@ class EventHandler(ConsumeProvider):
         BROADCAST: evt-<src-service-type>-<event_type>-<dest-guid>
         SINGLETON: evt-<src-service-type>-<event_type>
         """
-        _log.debug('handler start {}'.format(self))
+        _log.debug('handler start {}'.format(srv_ctx))
 
         # handler_type determines queue name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}-{}".format(self.service_name,
                                                self.event_type,
-                                               get_service_name(self.service))
+                                               srv_ctx['name'])
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
                                             self.event_type)
@@ -246,7 +246,7 @@ class EventHandler(ConsumeProvider):
                                                self.event_type,
                                                uuid.uuid4())
 
-        exchange = get_event_exchange(self.service_name)
+        exchange = get_event_exchange(srv_ctx['name'])
 
         # auto-delete queues if events are not reliably delivered
         auto_delete = not self.reliable_delivery
@@ -254,4 +254,4 @@ class EventHandler(ConsumeProvider):
             queue_name, exchange=exchange, routing_key=self.event_type,
             durable=True, auto_delete=auto_delete)
 
-        super(EventHandler, self).start()
+        super(EventHandler, self).start(srv_ctx)

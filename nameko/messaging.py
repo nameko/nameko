@@ -52,29 +52,34 @@ class Publisher(DependencyProvider):
         self.exchange = exchange
         self.queue = queue
 
-        self._connection = None
+        self._proxy = None
 
-    @property
-    def connection(self):
-        if self._connection is None:
-            self._connection = Connection(self.container.config['amqp_uri'])
-        return connections[self._connection].acquire(block=True)
+    def get_connection(self, srv_ctx):
+        conn = Connection(srv_ctx['config']['amqp_uri'])
+        return connections[conn].acquire(block=True)
 
-    @property
-    def producer(self):
-        return producers[self.connection].acquire(block=True)
+    def get_producer(self, srv_ctx):
+        conn = Connection(srv_ctx['config']['amqp_uri'])
+        return producers[conn].acquire(block=True)
 
-    def start(self):
+    def start(self, srv_ctx):
         exchange = self.exchange
         queue = self.queue
 
-        with self.connection as conn:
+        with self.get_connection(srv_ctx) as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def __call__(self, msg, **kwargs):
+    def on_container_started(self, srv_ctx):
+        self._proxy = partial(self._publish, srv_ctx)
+
+    def on_container_stopped(self, srv_ctx):
+        del self._proxy
+        self._proxy = None
+
+    def _publish(self, srv_ctx, msg, **kwargs):
 
         exchange = self.exchange
         queue = self.queue
@@ -82,10 +87,13 @@ class Publisher(DependencyProvider):
         if exchange is None and queue is not None:
             exchange = queue.exchange
 
-        with self.producer as producer:
+        with self.get_producer(srv_ctx) as producer:
             # TODO: should we enable auto-retry,
             #       should that be an option in __init__?
             producer.publish(msg, exchange=exchange, **kwargs)
+
+    def __call__(self, msg, **kwargs):
+        self._proxy(msg, **kwargs)
 
 
 @dependency_decorator
@@ -169,11 +177,12 @@ def get_consumers(Consumer, service, on_message):
 queue_consumers = WeakKeyDictionary()
 
 
-def get_queue_consumer(container):
-    """ Get or create a QueueConsumer instance for our container
+def get_queue_consumer(srv_ctx):
+    """ Get or create a QueueConsumer instance for the given ``srv_ctx``
     """
+    container = srv_ctx['container']
     if container not in queue_consumers:
-        queue_consumer = QueueConsumer(container.config['amqp_uri'])
+        queue_consumer = QueueConsumer(srv_ctx['config']['amqp_uri'])
         queue_consumers[container] = queue_consumer
 
     return queue_consumers[container]
@@ -185,28 +194,28 @@ class ConsumeProvider(DependencyProvider):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def start(self):
-        qc = get_queue_consumer(self.container)
-        qc.add_consumer(self.queue, self.handle_message)
+    def start(self, srv_ctx):
+        qc = get_queue_consumer(srv_ctx)
+        qc.add_consumer(self.queue, partial(self.handle_message, srv_ctx))
 
-    def on_container_started(self):
-        qc = get_queue_consumer(self.container)
+    def on_container_started(self, srv_ctx):
+        qc = get_queue_consumer(srv_ctx)
         qc.start()
 
-    def stop(self):
-        qc = get_queue_consumer(self.container)
+    def stop(self, srv_ctx):
+        qc = get_queue_consumer(srv_ctx)
         qc.stop()
 
-    def handle_message(self, body, message):
+    def handle_message(self, srv_ctx, body, message):
         callback = partial(self.handle_message_processed, message)
         args = (body,)
         kwargs = {}
-        self.container.spawn_worker(self.name, args, kwargs, callback)
+        srv_ctx['container'].spawn_worker(self.name, args, kwargs, callback)
 
-    def handle_message_processed(self, message, result, exc):
-        qc = get_queue_consumer(self.container)
+    def handle_message_processed(self, message, worker_ctx):
+        qc = get_queue_consumer(worker_ctx['srv_ctx'])
 
-        if exc is not None and self.requeue_on_error:
+        if worker_ctx['exc'] is not None and self.requeue_on_error:
             qc.requeue_message(message)
         else:
             qc.ack_message(message)
