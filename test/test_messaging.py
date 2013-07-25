@@ -110,6 +110,11 @@ def test_publish_to_queue():
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 
+#==============================================================================
+# INTEGRATION TESTS
+#==============================================================================
+
+
 def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']

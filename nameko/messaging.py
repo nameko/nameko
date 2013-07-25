@@ -243,9 +243,13 @@ class QueueConsumer(ConsumerMixin):
             _log.debug('stopped')
 
     def add_consumer(self, queue, on_message):
+        _log.debug("queueconsumer add_consumer {}, {}".format(queue,
+                                                              on_message))
         self._registry.append((queue, on_message))
 
     def ack_message(self, message):
+        _log.debug("queueconsumer ack_message {}".format(message))
+        print self._pending_messages
         self._pending_messages.remove(message)
         self._pending_ack_messages.append(message)
 
@@ -254,6 +258,7 @@ class QueueConsumer(ConsumerMixin):
         self._pending_requeue_messages.append(message)
 
     def _on_message(self, handle_message, body, message):
+        _log.debug("queueconsumer _on_message {} {}".format(body, message))
         self._pending_messages.add(message)
         handle_message(body, message)
 

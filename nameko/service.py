@@ -23,6 +23,10 @@ _log = getLogger(__name__)
 WORKER_TIMEOUT = 30
 
 
+def get_service_name(service_cls):
+    return getattr(service_cls, "name", service_cls.__name__.lower())
+
+
 class ServiceContainer(object):
 
     def __init__(self, service_cls, config):
