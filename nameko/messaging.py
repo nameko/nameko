@@ -57,6 +57,7 @@ class Publisher(DependencyProvider):
     @property
     def connection(self):
         if self._connection is None:
+            #TODO: should we pass config explicitly to the provider?
             self._connection = Connection(self.container.config['amqp_uri'])
         return connections[self._connection].acquire(block=True)
 
@@ -201,6 +202,10 @@ class ConsumeProvider(DependencyProvider):
         callback = partial(self.handle_message_processed, message)
         args = (body,)
         kwargs = {}
+        #TODO: if we have e.g. timers taking up all workers and a consumer
+        # tries to spawn a next worker, what should the behavior be?
+        # We can't block the the consumer thread as it would mean
+        # current workers could not ack their messages and we'd deadlock
         self.container.spawn_worker(self.name, args, kwargs, callback)
 
     def handle_message_processed(self, message, result, exc):

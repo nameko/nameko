@@ -40,14 +40,15 @@ class ServiceContainer(object):
 
     def stop(self):
         _log.debug('container stopping')
-        self._worker_pool.waitall()
 
         self.dependencies.all.stop()
+
+        self._worker_pool.waitall()
+
         self.dependencies.all.on_container_stopped()
 
     def spawn_worker(self, method_name, args, kwargs, callback=None):
         _log.debug('container spawn {}'.format(method_name))
-
         def worker():
             service = self.service_cls()
             method = getattr(service, method_name)

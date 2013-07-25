@@ -72,8 +72,8 @@ def test_publish_to_exchange():
     patch_connection = as_mock_property(as_context_manager(connection))
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-        patch.object(Publisher, 'producer', patch_producer), \
-        patch.object(Publisher, 'connection', patch_connection):
+            patch.object(Publisher, 'producer', patch_producer), \
+            patch.object(Publisher, 'connection', patch_connection):
 
         publisher = Publisher(exchange=foobar_ex)
 
@@ -95,8 +95,8 @@ def test_publish_to_queue():
     patch_connection = as_mock_property(as_context_manager(connection))
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-        patch.object(Publisher, 'producer', patch_producer), \
-        patch.object(Publisher, 'connection', patch_connection):
+            patch.object(Publisher, 'producer', patch_producer), \
+            patch.object(Publisher, 'connection', patch_connection):
 
         publisher = Publisher(queue=foobar_queue)
 
