@@ -34,7 +34,7 @@ class DependencyProvider(object):
             - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def stop(self, ctx):
+    def stop(self, srv_ctx):
         """ Called when the service container begins to shut down.
 
         DependencyProviders should do any graceful shutdown here.

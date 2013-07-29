@@ -2,7 +2,6 @@
 Provides core messaging decorators and dependency injection providers.
 '''
 from __future__ import absolute_import
-import inspect
 from itertools import count
 from functools import partial
 from logging import getLogger
@@ -20,9 +19,6 @@ from kombu.mixins import ConsumerMixin
 from nameko.dependencies import DependencyProvider, dependency_decorator
 
 _log = getLogger(__name__)
-
-# stores the consumer configurations per method
-consumer_configs = WeakKeyDictionary()
 
 # delivery_mode
 PERSISTENT = 2
@@ -124,56 +120,6 @@ def consume(queue, requeue_on_error=False):
     return ConsumeProvider(queue, requeue_on_error)
 
 
-# deprecated
-class ConsumerConfig(object):
-    '''
-    Stores information about a consumer-decorated method.
-    '''
-    def __init__(self, queue, requeue_on_error):
-        self.queue = queue
-        self.requeue_on_error = requeue_on_error
-
-    def get_queue(self, service):
-        """ Base implementation for consumer config objects.
-        ``service`` is provided for sub-classes if they need to create queues
-        using information from the service object.
-
-        Args:
-            service - An instance of ``nameko.service.Service``.
-        """
-        return self.queue
-
-
-# deprecated
-def get_consumers(Consumer, service, on_message):
-    '''
-    Generates consumers for the consume-decorated method on a service.
-
-    Args:
-        Consumer: The Consumer class to use for a consumer.
-
-        service: An object which may have consume-decorated methods.
-
-    Returns:
-        A generator with each item being a Consumer instance configured
-        using the ConsumerConfig defined by the consume decorator.
-    '''
-    for name, consumer_method in inspect.getmembers(service.controller,
-                                                    inspect.ismethod):
-        try:
-            consumer_config = consumer_configs[consumer_method.im_func]
-
-            consumer = Consumer(
-                queues=[consumer_config.get_queue(service)],
-                callbacks=[
-                    partial(on_message, (consumer_method, consumer_config))
-                ]
-            )
-            yield consumer
-        except KeyError:
-            pass
-
-
 queue_consumers = WeakKeyDictionary()
 
 
@@ -263,7 +209,6 @@ class QueueConsumer(ConsumerMixin):
 
     def ack_message(self, message):
         _log.debug("queueconsumer ack_message {}".format(message))
-        print self._pending_messages
         self._pending_messages.remove(message)
         self._pending_ack_messages.append(message)
 
