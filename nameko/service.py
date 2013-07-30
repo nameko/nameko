@@ -14,9 +14,9 @@ from nameko.common import UIDGEN
 from nameko.logging import log_time
 from nameko.messaging import get_consumers
 from nameko.dependencies import (
-    inject_dependencies, get_decorator_providers, get_dependencies)
+    inject_dependencies, get_decorator_providers, get_dependencies,
+    DependencySet)
 from nameko.sending import process_rpc_message
-from nameko.utils import SpawningSet
 
 _log = getLogger(__name__)
 
@@ -37,7 +37,7 @@ class ServiceContainer(object):
         # save their name onto themselves, add them to our set
         # TODO: move the name setting into the dependency creation, or add
         # to the service context for each call
-        self.dependencies = SpawningSet()
+        self.dependencies = DependencySet()
         dependencies = get_dependencies(service_cls)
         for name, dependency in dependencies:
             dependency.name = name
@@ -69,11 +69,18 @@ class ServiceContainer(object):
         self.dependencies.all.stop(self.ctx)
         self.dependencies.all.on_container_stopped(self.ctx)
 
+    def make_service(self):
+        service = self.service_cls()
+        for dependency in self.dependencies.attributes:
+            setattr(service, dependency.name,
+                    dependency.inject(self.ctx))
+        return service
+
     def spawn_worker(self, method_name, args, kwargs, callback=None):
         _log.debug('container spawn {}'.format(method_name))
 
         def worker():
-            service = self.service_cls()
+            service = self.make_service()
             method = getattr(service, method_name)
             worker_ctx = {
                 'service': service,

@@ -87,6 +87,7 @@ def test_publish_to_exchange():
     srv_ctx = Mock()
 
     publisher = Publisher(exchange=foobar_ex)
+    publish = publisher.inject(srv_ctx)
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
         patch.object(publisher, 'get_connection') as get_connection, \
@@ -99,18 +100,10 @@ def test_publish_to_exchange():
         publisher.start(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_ex, connection)
 
-        # test proxy setup
-        publisher.on_container_started(srv_ctx)
-        assert callable(publisher._proxy)
-
         # test publish
         msg = "msg"
-        publisher(msg)
+        publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
-
-        # test proxy teardown
-        publisher.on_container_stopped(srv_ctx)
-        assert not callable(publisher._proxy)
 
 
 def test_publish_to_queue():
@@ -119,6 +112,7 @@ def test_publish_to_queue():
     srv_ctx = Mock()
 
     publisher = Publisher(queue=foobar_queue)
+    publish = publisher.inject(srv_ctx)
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
         patch.object(publisher, 'get_connection') as get_connection, \
@@ -131,18 +125,10 @@ def test_publish_to_queue():
         publisher.start(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_queue, connection)
 
-        # test proxy setup
-        publisher.on_container_started(srv_ctx)
-        assert callable(publisher._proxy)
-
         # test publish
         msg = "msg"
-        publisher(msg)
+        publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
-
-        # test proxy teardown
-        publisher.on_container_stopped(srv_ctx)
-        assert not callable(publisher._proxy)
 
 #==============================================================================
 # INTEGRATION TESTS
@@ -156,11 +142,12 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
         'config': rabbit_config
     }
 
-    publish = Publisher(exchange=foobar_ex, queue=foobar_queue)
+    publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
+    publish = publisher.inject(srv_ctx)
 
     # test queue, exchange and binding created in rabbit
-    publish.start(srv_ctx)
-    publish.on_container_started(srv_ctx)
+    publisher.start(srv_ctx)
+    publisher.on_container_started(srv_ctx)
 
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
