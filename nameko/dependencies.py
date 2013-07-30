@@ -1,13 +1,19 @@
 """
 Provides classes and method to deal with dependency injection.
 """
-from functools import wraps
+from functools import wraps, partial
 import types
 
 import inspect
 
+from nameko.utils import SpawningSet
+
 
 DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
+
+
+class NotInitializedError(Exception):
+    pass
 
 
 class DependencyProvider(object):
@@ -89,6 +95,38 @@ class DependencyProvider(object):
         """
 
 
+class DecoratorDependency(DependencyProvider):
+    pass
+
+
+class AttributeDependency(DependencyProvider):
+
+    def __call__(self, srv_ctx):
+        pass
+
+    def inject(self, srv_ctx):
+        return partial(self.__call__, srv_ctx)
+
+
+class DependencySet(SpawningSet):
+
+    @property
+    def attributes(self):
+        """ A ``SpawningSet`` of just the ``AttributeDependency`` instances in
+        this set.
+        """
+        return SpawningSet([item for item in self
+                            if is_attribute_dependency(item)])
+
+    @property
+    def decorators(self):
+        """ A ``SpawningSet`` of just the ``DecoratorDependency`` instances in
+        this set.
+        """
+        return SpawningSet([item for item in self
+                            if is_decorator_dependency(item)])
+
+
 def register_provider(fn, provider):
     providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, None)
 
@@ -128,8 +166,16 @@ def is_dependency_provider(obj):
     return isinstance(obj, DependencyProvider)
 
 
+def is_attribute_dependency(obj):
+    return isinstance(obj, AttributeDependency)
+
+
+def is_decorator_dependency(obj):
+    return isinstance(obj, DecoratorDependency)
+
+
 def get_attribute_providers(obj):
-    return inspect.getmembers(obj, is_dependency_provider)
+    return inspect.getmembers(obj, is_attribute_dependency)
 
 
 def get_decorator_providers(obj):

@@ -16,7 +16,8 @@ from kombu.pools import producers, connections
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
-from nameko.dependencies import DependencyProvider, dependency_decorator
+from nameko.dependencies import (
+    AttributeDependency, DecoratorDependency, dependency_decorator)
 
 _log = getLogger(__name__)
 
@@ -24,8 +25,8 @@ _log = getLogger(__name__)
 PERSISTENT = 2
 
 
-class Publisher(DependencyProvider):
-    '''
+class Publisher(AttributeDependency):
+    """
     Provides a message publisher method via dependency injection.
 
     Publishers usually push messages to an exchange, which dispatches
@@ -43,12 +44,10 @@ class Publisher(DependencyProvider):
             def spam(self, data):
                 self.publish('spam:' + data)
 
-    '''
+    """
     def __init__(self, exchange=None, queue=None):
         self.exchange = exchange
         self.queue = queue
-
-        self._proxy = None
 
     def get_connection(self, srv_ctx):
         conn = Connection(srv_ctx['config']['amqp_uri'])
@@ -68,15 +67,9 @@ class Publisher(DependencyProvider):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def on_container_started(self, srv_ctx):
-        self._proxy = partial(self._publish, srv_ctx)
-
-    def on_container_stopped(self, srv_ctx):
-        del self._proxy
-        self._proxy = None
-
-    def _publish(self, srv_ctx, msg, **kwargs):
-
+    def __call__(self, srv_ctx, msg, **kwargs):
+        """ Invoke this dependency's action.
+        """
         exchange = self.exchange
         queue = self.queue
 
@@ -87,9 +80,6 @@ class Publisher(DependencyProvider):
             # TODO: should we enable auto-retry,
             #       should that be an option in __init__?
             producer.publish(msg, exchange=exchange, **kwargs)
-
-    def __call__(self, msg, **kwargs):
-        self._proxy(msg, **kwargs)
 
 
 @dependency_decorator
@@ -134,7 +124,7 @@ def get_queue_consumer(srv_ctx):
     return queue_consumers[container]
 
 
-class ConsumeProvider(DependencyProvider):
+class ConsumeProvider(DecoratorDependency):
 
     def __init__(self, queue, requeue_on_error):
         self.queue = queue
