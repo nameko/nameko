@@ -54,11 +54,11 @@ class Publisher(AttributeDependency):
         self.queue = queue
 
     def get_connection(self, srv_ctx):
-        conn = Connection(srv_ctx['config']['amqp_uri'])
+        conn = Connection(srv_ctx.config['amqp_uri'])
         return connections[conn].acquire(block=True)
 
     def get_producer(self, srv_ctx):
-        conn = Connection(srv_ctx['config']['amqp_uri'])
+        conn = Connection(srv_ctx.config['amqp_uri'])
         return producers[conn].acquire(block=True)
 
     def start(self, srv_ctx):
@@ -170,9 +170,9 @@ queue_consumers = WeakKeyDictionary()
 def get_queue_consumer(srv_ctx):
     """ Get or create a QueueConsumer instance for the given ``srv_ctx``
     """
-    container = srv_ctx['container']
+    container = srv_ctx.container
     if container not in queue_consumers:
-        queue_consumer = QueueConsumer(srv_ctx['config']['amqp_uri'])
+        queue_consumer = QueueConsumer(srv_ctx.config['amqp_uri'])
         queue_consumers[container] = queue_consumer
 
     return queue_consumers[container]
@@ -200,12 +200,12 @@ class ConsumeProvider(DecoratorDependency):
         callback = partial(self.handle_message_processed, message)
         args = (body,)
         kwargs = {}
-        srv_ctx['container'].spawn_worker(self.name, args, kwargs, callback)
+        srv_ctx.container.spawn_worker(self.name, args, kwargs, callback)
 
     def handle_message_processed(self, message, worker_ctx):
-        qc = get_queue_consumer(worker_ctx['srv_ctx'])
+        qc = get_queue_consumer(worker_ctx.srv_ctx)
 
-        if worker_ctx['data']['exc'] is not None and self.requeue_on_error:
+        if worker_ctx.data['exc'] is not None and self.requeue_on_error:
             qc.requeue_message(message)
         else:
             qc.ack_message(message)
@@ -242,22 +242,21 @@ class QueueConsumer(ConsumerMixin):
             _log.debug('stopped')
 
     def add_consumer(self, queue, on_message):
-        _log.debug("queueconsumer add_consumer {}, {}".format(queue,
-                                                              on_message))
+        _log.debug("queue: {}, on_message: {}".format(queue, on_message))
         self._registry.append((queue, on_message))
 
     def ack_message(self, message):
-        _log.debug("queueconsumer ack_message {}".format(message))
-        print self._pending_messages
+        _log.debug("message: {}".format(message))
         self._pending_messages.remove(message)
         self._pending_ack_messages.append(message)
 
     def requeue_message(self, message):
+        _log.debug("message: {}".format(message))
         self._pending_messages.remove(message)
         self._pending_requeue_messages.append(message)
 
     def _on_message(self, handle_message, body, message):
-        _log.debug("queueconsumer _on_message {} {}".format(body, message))
+        _log.debug("body: {}, message: {}".format(body, message))
         self._pending_messages.add(message)
         handle_message(body, message)
 

@@ -29,7 +29,6 @@ from kombu import Exchange, Queue
 from nameko.messaging import (
     Publisher, PERSISTENT,
     ConsumeProvider)
-from nameko.service import get_service_name
 from nameko.dependencies import dependency_decorator
 
 
@@ -148,7 +147,7 @@ class EventDispatcher(Publisher):
 
     def start(self, srv_ctx):
         # TODO: should we actually put this into the srv_ctx?
-        self.exchange = get_event_exchange(srv_ctx['name'])
+        self.exchange = get_event_exchange(srv_ctx.name)
 
     def __call__(self, evt):
         msg = evt.data
@@ -237,7 +236,7 @@ class EventHandler(ConsumeProvider):
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}-{}".format(self.service_name,
                                                self.event_type,
-                                               srv_ctx['name'])
+                                               srv_ctx.name)
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
                                             self.event_type)

@@ -2,6 +2,7 @@ from kombu import Exchange, Queue
 from mock import patch, Mock, ANY
 
 from nameko.messaging import Publisher, ConsumeProvider
+from nameko.service import ServiceContext, WorkerContext
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)
 
@@ -18,9 +19,7 @@ def test_consume_provider():
     queue_consumer = Mock()
     container = Mock()
     message = Mock()
-    srv_ctx = {
-        'container': container
-    }
+    srv_ctx = ServiceContext(None, None, container)
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
@@ -37,22 +36,19 @@ def test_consume_provider():
         queue_consumer.stop.assert_called_once_with()
 
         def successful_call(method, args, kwargs, callback):
-            worker_ctx = {
-                'data': {
-                    'result': "result",
-                    'exc': None,
-                },
-                'srv_ctx': srv_ctx
+
+            worker_ctx = WorkerContext(srv_ctx, None, None)
+            worker_ctx.data = {
+                'result': "result",
+                'exc': None,
             }
             callback(worker_ctx)
 
         def failed_call(method, args, kwargs, callback):
-            worker_ctx = {
-                'data': {
-                    'result': None,
-                    'exc': Exception("Error")
-                },
-                'srv_ctx': srv_ctx
+            worker_ctx = WorkerContext(srv_ctx, None, None)
+            worker_ctx.data = {
+                'result': None,
+                'exc': Exception("Error")
             }
             callback(worker_ctx)
 
@@ -91,7 +87,7 @@ def test_publish_to_exchange():
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
         patch.object(publisher, 'get_connection') as get_connection, \
-        patch.object(publisher, 'get_producer') as get_producer:
+            patch.object(publisher, 'get_producer') as get_producer:
 
         get_connection.return_value = as_context_manager(connection)
         get_producer.return_value = as_context_manager(producer)
@@ -116,7 +112,7 @@ def test_publish_to_queue():
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
         patch.object(publisher, 'get_connection') as get_connection, \
-        patch.object(publisher, 'get_producer') as get_producer:
+            patch.object(publisher, 'get_producer') as get_producer:
 
         get_connection.return_value = as_context_manager(connection)
         get_producer.return_value = as_context_manager(producer)
@@ -138,9 +134,7 @@ def test_publish_to_queue():
 def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
-    srv_ctx = {
-        'config': rabbit_config
-    }
+    srv_ctx = ServiceContext(None, None, None, config=rabbit_config)
 
     publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
     publish = publisher.inject(srv_ctx)
@@ -168,10 +162,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
 
     mock_container = Mock()
-    srv_ctx = {
-        'config': rabbit_config,
-        'container': mock_container
-    }
+    srv_ctx = ServiceContext(None, None, mock_container, config=rabbit_config)
 
     consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
     consumer.name = "injection_name"
@@ -189,12 +180,10 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message consumed from queue
-    worker_ctx = {
-        'data': {
-            'result': "result",
-            'exc': None
-        },
-        'srv_ctx': srv_ctx
+    worker_ctx = WorkerContext(srv_ctx, None, None)
+    worker_ctx.data = {
+        'result': "result",
+        'exc': None
     }
     worker = lambda name, args, kwargs, callback: callback(worker_ctx)
     mock_container.spawn_worker.side_effect = worker

@@ -9,6 +9,7 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
 from nameko.dependencies import DECORATOR_PROVIDERS_ATTR
+from nameko.service import ServiceContext
 from nameko.testing.utils import ANY_PARTIAL
 
 
@@ -70,6 +71,7 @@ class BroadcastSpamHandler(Handler):
         self.events.append(evt)
 """
 
+
 def test_event_type_missing():
     with pytest.raises(EventTypeMissing):
         class MyEvent(Event):
@@ -106,9 +108,8 @@ def test_event_handler_decorator():
 def test_event_dispatcher():
 
     event_dispatcher = EventDispatcher()
-    srv_ctx = {
-        'name': 'destservice'
-    }
+
+    srv_ctx = ServiceContext('destservice', None, None)
 
     event_dispatcher.start(srv_ctx)
     assert event_dispatcher.exchange.name == "destservice.events"
@@ -138,9 +139,7 @@ def handler_factory(request):
 def test_event_handler(handler_factory):
 
     queue_consumer = Mock()
-    srv_ctx = {
-        'name': 'destservice'
-    }
+    srv_ctx = ServiceContext('destservice', None, None)
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
@@ -157,7 +156,8 @@ def test_event_handler(handler_factory):
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
         event_handler.start(srv_ctx)
-        assert event_handler.queue.name == "evt-srcservice-eventtype-destservice"
+        assert event_handler.queue.name == \
+            "evt-srcservice-eventtype-destservice"
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
