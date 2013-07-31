@@ -141,18 +141,27 @@ class EventDispatcher(Publisher):
             self.dispatch_spam(evt)
 
     """
-
-    def __init__(self):
-        super(EventDispatcher, self).__init__()
-
     def start(self, srv_ctx):
         # TODO: should we actually put this into the srv_ctx?
         self.exchange = get_event_exchange(srv_ctx.name)
+        super(EventDispatcher, self).start(srv_ctx)
 
-    def __call__(self, evt):
-        msg = evt.data
-        routing_key = evt.type
-        super(EventDispatcher, self).__call__(msg, routing_key=routing_key)
+    def call_setup(self, worker_ctx):
+        """ Inject a dispatch method onto the service instance
+        """
+        def dispatch(evt):
+            exchange = self.exchange
+
+            msg = evt.data
+            routing_key = evt.type
+
+            with self.get_producer(worker_ctx.srv_ctx) as producer:
+                producer.publish(
+                    msg, exchange=exchange, routing_key=routing_key)
+
+        service = worker_ctx.service
+        injection_name = self.name
+        setattr(service, injection_name, dispatch)
 
 
 @dependency_decorator

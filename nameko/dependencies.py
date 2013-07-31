@@ -1,7 +1,7 @@
 """
 Provides classes and method to deal with dependency injection.
 """
-from functools import wraps, partial
+from functools import wraps
 import types
 
 import inspect
