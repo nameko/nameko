@@ -57,7 +57,19 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def reset_rabbit(request):
+def rabbit_config(request):
+    amqp_uri = request.config.getoption('amqp_uri')
+
+    conf = {'amqp_uri': amqp_uri}
+
+    uri = urlparse(amqp_uri)
+    conf['vhost'] = uri.path[1:]
+    conf['username'] = uri.username
+    return conf
+
+
+@pytest.fixture
+def rabbit_manager(request):
     config = request.config
 
     rabbit_ctl_uri = urlparse(config.getoption('rabbit_ctl_uri'))
@@ -66,12 +78,17 @@ def reset_rabbit(request):
     rabbit = Client(
         host_port, rabbit_ctl_uri.username, rabbit_ctl_uri.password)
 
-    amqp_uri = urlparse(config.getoption('amqp_uri'))
-    vhost = amqp_uri.path[1:]
+    return rabbit
+
+
+@pytest.fixture
+def reset_rabbit(request, rabbit_manager, rabbit_config):
+    vhost = rabbit_config['vhost']
+    username = rabbit_config['username']
 
     def del_vhost():
         try:
-            rabbit.delete_vhost(vhost)
+            rabbit_manager.delete_vhost(vhost)
         except:
             pass
 
@@ -79,8 +96,8 @@ def reset_rabbit(request):
 
     del_vhost()
 
-    rabbit.create_vhost(vhost)
-    rabbit.set_vhost_permissions(vhost, amqp_uri.username, '.*', '.*', '.*')
+    rabbit_manager.create_vhost(vhost)
+    rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
 
 @pytest.fixture
@@ -99,6 +116,14 @@ def connection(request, reset_rabbit):
 def reset_mock_proxy(request):
     from nameko.testing.proxy import reset_state
     reset_state()
+
+
+@pytest.fixture
+def container_factory(request, reset_rabbit):
+    def make_container(service, config):
+        from nameko.service import ServiceContainer
+        return ServiceContainer(service, config)
+    return make_container
 
 
 @pytest.fixture

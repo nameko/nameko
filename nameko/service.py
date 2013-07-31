@@ -13,12 +13,110 @@ from nameko import entities
 from nameko.common import UIDGEN
 from nameko.logging import log_time
 from nameko.messaging import get_consumers
-from nameko.dependencies import inject_dependencies
+from nameko.dependencies import (
+    inject_dependencies, get_decorator_providers, get_dependencies,
+    DependencySet)
 from nameko.sending import process_rpc_message
-from nameko.timer import get_timers
-
 
 _log = getLogger(__name__)
+
+WORKER_TIMEOUT = 30
+
+
+def get_service_name(service_cls):
+    return getattr(service_cls, "name", service_cls.__name__.lower())
+
+
+class ServiceContext(object):
+    """ Context for a ServiceContainer
+    """
+    def __init__(self, name, service_class, container, config=None):
+        self.name = name
+        self.service_class = service_class
+        self.container = container
+        self.config = config
+
+
+class WorkerContext(object):
+    """ Context for a Worker
+    """
+    def __init__(self, srv_ctx, service, method_name, args=None, kwargs=None,
+                 data=None):
+        self.srv_ctx = srv_ctx
+        self.service = service
+        self.method_name = method_name
+        self.args = args if args is not None else ()
+        self.kwargs = kwargs if kwargs is not None else {}
+        self.data = data if data is not None else {}
+
+
+class ServiceContainer(object):
+
+    def __init__(self, service_cls, config):
+        self.service_cls = service_cls
+        self.config = config
+
+        self._ctx = None
+        self._dependencies = None
+        self._worker_pool = GreenPool(size=self.config.get('poolsize', 100))
+
+    @property
+    def dependencies(self):
+        if self._dependencies is None:
+            self._dependencies = DependencySet()
+            # process dependencies: save their name onto themselves
+            # TODO: move the name setting into the dependency creation
+            for name, dep in get_dependencies(self.service_cls):
+                dep.name = name
+                self._dependencies.add(dep)
+        return self._dependencies
+
+    @property
+    def ctx(self):
+        if self._ctx is None:
+            self._ctx = ServiceContext(get_service_name(self.service_cls),
+                                       self.service_cls, self, self.config)
+        return self._ctx
+
+    def start(self):
+        _log.debug('container starting')
+        self.dependencies.all.start(self.ctx)
+        self.dependencies.all.on_container_started(self.ctx)
+
+    def stop(self):
+        _log.debug('container stopping')
+        self._worker_pool.waitall()
+
+        self.dependencies.all.stop(self.ctx)
+        self.dependencies.all.on_container_stopped(self.ctx)
+
+    def spawn_worker(self, method_name, args, kwargs, callback=None,
+                     context_data=None):
+        _log.debug('method_name: {}'.format(method_name))
+
+        def worker():
+            service = self.service_cls()
+            worker_ctx = WorkerContext(self.ctx, service, method_name, args,
+                                       kwargs, data=context_data)
+
+            self.dependencies.all.call_setup(worker_ctx)
+
+            result = exc = None
+            method = getattr(service, method_name)
+            try:
+                result = method(*args, **kwargs)
+            except Exception as e:
+                exc = e
+
+            worker_ctx.data['result'] = result
+            worker_ctx.data['exc'] = exc
+
+            self.dependencies.all.call_result(worker_ctx)
+            if callback:
+                callback(worker_ctx)
+            self.dependencies.all.call_teardown(worker_ctx)
+
+        self._worker_pool.spawn(worker)
 
 
 class Service(ConsumerMixin):
@@ -64,7 +162,11 @@ class Service(ConsumerMixin):
         self._do_cancel_consumers = False
         self._consumers_cancelled = Event()
 
-        self._timers = list(get_timers(self.controller))
+        self._providers = []
+
+        for name, provider in get_decorator_providers(self.controller):
+            self._providers.append(provider)
+            provider.container_init(self, name)
 
     def start(self):
         self.start_timers()
@@ -74,8 +176,8 @@ class Service(ConsumerMixin):
         self.greenlet = eventlet.spawn(self.run)
 
     def start_timers(self):
-        for timer in self._timers:
-            timer.start()
+        for provider in self._providers:
+            provider.container_start()
 
     def get_consumers(self, Consumer, channel):
         nova_consumer = Consumer(
@@ -217,7 +319,7 @@ class Service(ConsumerMixin):
     def process_shutdown(self):
         consumers_cancelled = self._consumers_cancelled.ready()
 
-        no_active_timers = (len(self._timers) == 0)
+        no_active_timers = (len(self._providers) == 0)
 
         no_active_workers = (self.procpool.running() < 1)
 
@@ -250,10 +352,8 @@ class Service(ConsumerMixin):
             _log.debug('consumer thread already dead')
 
     def cancel_timers(self):
-        if self._timers:
-            _log.debug('stopping %d timers', len(self._timers))
-            while self._timers:
-                self._timers.pop().stop()
+        while self._providers:
+            self._providers.pop().container_stop()
 
     def kill_workers(self):
         _log.debug('force killing %d workers', len(self.workers))
