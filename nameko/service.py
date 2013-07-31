@@ -40,13 +40,14 @@ class ServiceContext(object):
 class WorkerContext(object):
     """ Context for a Worker
     """
-    def __init__(self, srv_ctx, service, method, args=None, kwargs=None):
+    def __init__(self, srv_ctx, service, method_name, args=None, kwargs=None,
+                 data=None):
         self.srv_ctx = srv_ctx
         self.service = service
-        self.method = method
+        self.method_name = method_name
         self.args = args if args is not None else ()
         self.kwargs = kwargs if kwargs is not None else {}
-        self.data = {}
+        self.data = data if data is not None else {}
 
 
 class ServiceContainer(object):
@@ -64,8 +65,7 @@ class ServiceContainer(object):
         if self._dependencies is None:
             self._dependencies = DependencySet()
             # process dependencies: save their name onto themselves
-            # TODO: move the name setting into the dependency creation, or add
-            # to the service context for each call
+            # TODO: move the name setting into the dependency creation
             for name, dep in get_dependencies(self.service_cls):
                 dep.name = name
                 self._dependencies.add(dep)
@@ -90,24 +90,19 @@ class ServiceContainer(object):
         self.dependencies.all.stop(self.ctx)
         self.dependencies.all.on_container_stopped(self.ctx)
 
-    def make_service(self):
-        service = self.service_cls()
-        for dependency in self.dependencies.attributes:
-            setattr(service, dependency.name,
-                    dependency.inject(self.ctx))
-        return service
-
-    def spawn_worker(self, method_name, args, kwargs, callback=None):
+    def spawn_worker(self, method_name, args, kwargs, callback=None,
+                     context_data=None):
         _log.debug('method_name: {}'.format(method_name))
 
         def worker():
-            service = self.make_service()
-            method = getattr(service, method_name)
-            worker_ctx = WorkerContext(self.ctx, service, method, args, kwargs)
+            service = self.service_cls()
+            worker_ctx = WorkerContext(self.ctx, service, method_name, args,
+                                       kwargs, data=context_data)
 
             self.dependencies.all.call_setup(worker_ctx)
 
             result = exc = None
+            method = getattr(service, method_name)
             try:
                 result = method(*args, **kwargs)
             except Exception as e:

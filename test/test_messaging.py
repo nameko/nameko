@@ -80,10 +80,12 @@ def test_consume_provider():
 def test_publish_to_exchange():
     producer = Mock()
     connection = Mock()
+    service = Mock()
     srv_ctx = Mock()
+    worker_ctx = WorkerContext(srv_ctx, service, None)
 
     publisher = Publisher(exchange=foobar_ex)
-    publish = publisher.inject(srv_ctx)
+    publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
         patch.object(publisher, 'get_connection') as get_connection, \
@@ -98,17 +100,20 @@ def test_publish_to_exchange():
 
         # test publish
         msg = "msg"
-        publish(msg)
+        publisher.call_setup(worker_ctx)
+        service.publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 
 def test_publish_to_queue():
     producer = Mock()
     connection = Mock()
+    service = Mock()
     srv_ctx = Mock()
+    worker_ctx = WorkerContext(srv_ctx, service, None)
 
     publisher = Publisher(queue=foobar_queue)
-    publish = publisher.inject(srv_ctx)
+    publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
         patch.object(publisher, 'get_connection') as get_connection, \
@@ -123,7 +128,8 @@ def test_publish_to_queue():
 
         # test publish
         msg = "msg"
-        publish(msg)
+        publisher.call_setup(worker_ctx)
+        service.publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 #==============================================================================
@@ -134,10 +140,12 @@ def test_publish_to_queue():
 def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
+    service = Mock()
     srv_ctx = ServiceContext(None, None, None, config=rabbit_config)
+    worker_ctx = WorkerContext(srv_ctx, service, None)
 
     publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
-    publish = publisher.inject(srv_ctx)
+    publisher.name = "publish"
 
     # test queue, exchange and binding created in rabbit
     publisher.start(srv_ctx)
@@ -152,7 +160,8 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message published to queue
-    publish("msg")
+    publisher.call_setup(worker_ctx)
+    service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['msg'] == [msg['payload'] for msg in messages]
 

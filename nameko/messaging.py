@@ -71,19 +71,24 @@ class Publisher(AttributeDependency):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def __call__(self, srv_ctx, msg, **kwargs):
-        """ Invoke this dependency's action.
+    def call_setup(self, worker_ctx):
+        """ Inject a publish method onto the service instance
         """
-        exchange = self.exchange
-        queue = self.queue
+        def publish(msg, **kwargs):
+            exchange = self.exchange
+            queue = self.queue
 
-        if exchange is None and queue is not None:
-            exchange = queue.exchange
+            if exchange is None and queue is not None:
+                exchange = queue.exchange
 
-        with self.get_producer(srv_ctx) as producer:
-            # TODO: should we enable auto-retry,
-            #       should that be an option in __init__?
-            producer.publish(msg, exchange=exchange, **kwargs)
+            with self.get_producer(worker_ctx.srv_ctx) as producer:
+                # TODO: should we enable auto-retry,
+                #      should that be an option in __init__?
+                producer.publish(msg, exchange=exchange, **kwargs)
+
+        service = worker_ctx.service
+        injection_name = self.name
+        setattr(service, injection_name, publish)
 
 
 @dependency_decorator
