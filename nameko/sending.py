@@ -119,6 +119,7 @@ def process_rpc_message(connection, delegate, body):
             exc_typ, exc_val, exc_tb = sys.exc_info()
             if msgid:
                 tbfmt = traceback.format_exception(exc_typ, exc_val, exc_tb)
+                tbfmt = ''.join(tbfmt)
                 ret = (exc_typ.__name__, str(exc_val), tbfmt)
                 reply(connection, msgid, failure=ret)
         else:
