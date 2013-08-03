@@ -9,12 +9,14 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
 from nameko.dependencies import DECORATOR_PROVIDERS_ATTR
-from nameko.testing.utils import ANY_PARTIAL
+from nameko.service import ServiceContext, WorkerContext
+from nameko.testing.utils import ANY_PARTIAL, as_context_manager
 
 
 EVENTS_TIMEOUT = 5
 
 
+<<<<<<< HEAD
 """
 class SpamEvent(Event):
     type = 'spammed'
@@ -71,6 +73,8 @@ class BroadcastSpamHandler(Handler):
 """
 
 
+=======
+>>>>>>> origin/dependency-injection
 def test_event_type_missing():
     with pytest.raises(EventTypeMissing):
         class MyEvent(Event):
@@ -107,18 +111,31 @@ def test_event_handler_decorator():
 def test_event_dispatcher():
 
     event_dispatcher = EventDispatcher()
-    srv_ctx = {
-        'name': 'destservice'
-    }
+    event_dispatcher.name = "dispatch"
 
-    event_dispatcher.start(srv_ctx)
-    assert event_dispatcher.exchange.name == "destservice.events"
+    producer = Mock()
+    service = Mock()
 
-    with patch('nameko.messaging.Publisher.__call__') as super_call:
-        evt = Mock(type="eventtype")
-        event_dispatcher.__call__(evt)
+    srv_ctx = ServiceContext('srcservice', None, None)
+    worker_ctx = WorkerContext(srv_ctx, service, "dispatch")
 
-        super_call.assert_called_once_with(evt.data, routing_key=evt.type)
+    with patch('nameko.messaging.Publisher.start') as super_start:
+
+        # test start method
+        event_dispatcher.start(srv_ctx)
+        assert event_dispatcher.exchange.name == "srcservice.events"
+        super_start.assert_called_once_with(srv_ctx)
+
+    evt = Mock(type="eventtype", data="msg")
+    event_dispatcher.call_setup(worker_ctx)
+
+    with patch.object(event_dispatcher, 'get_producer') as get_producer:
+        get_producer.return_value = as_context_manager(producer)
+
+        # test dispatch
+        service.dispatch(evt)
+        producer.publish.assert_called_once_with(
+            evt.data, exchange=event_dispatcher.exchange, routing_key=evt.type)
 
 
 @pytest.fixture
@@ -139,9 +156,7 @@ def handler_factory(request):
 def test_event_handler(handler_factory):
 
     queue_consumer = Mock()
-    srv_ctx = {
-        'name': 'destservice'
-    }
+    srv_ctx = ServiceContext('destservice', None, None)
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
@@ -158,9 +173,14 @@ def test_event_handler(handler_factory):
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
         event_handler.start(srv_ctx)
+<<<<<<< HEAD
 
         queue_name = event_handler.queue.name
         assert queue_name == "evt-srcservice-eventtype-destservice"
+=======
+        assert event_handler.queue.name == \
+            "evt-srcservice-eventtype-destservice"
+>>>>>>> origin/dependency-injection
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
@@ -189,80 +209,116 @@ events = []
 
 @pytest.fixture
 def reset_state():
-    while len(services):
-        services.popitem()
-    while len(events):
-        events.pop()
+    services.clear()
+    events[:] = []
 
 
-class Handler(object):
+class ExampleEvent(Event):
+    type = "eventtype"
+
+
+class HandlerService(object):
+    """ Generic service that handles events.
+    """
+    name = "srvname"
 
     def __init__(self):
         self.events = []
         services[self.name].append(self)
 
+    def handle(self, evt):
+        self.events.append(evt)
+        events.append(evt)
 
-class ServicePoolHandler(Handler):
+
+class ServicePoolHandler(HandlerService):
 
     @event_handler('srcservice', 'eventtype', handler_type=SERVICE_POOL)
     def handle(self, evt):
-        self.events.append(evt)
-        events.append(evt)
+        super(ServicePoolHandler, self).handle(evt)
 
 
-class SingletonHandler(Handler):
+class SingletonHandler(HandlerService):
 
     @event_handler('srcservice', 'eventtype', handler_type=SINGLETON)
     def handle(self, evt):
-        self.events.append(evt)
-        events.append(evt)
+        super(SingletonHandler, self).handle(evt)
 
 
-class BroadcastHandler(Handler):
+class BroadcastHandler(HandlerService):
 
     @event_handler('srcservice', 'eventtype', handler_type=BROADCAST,
                    reliable_delivery=False)
     def handle(self, evt):
-        self.events.append(evt)
-        events.append(evt)
+        super(BroadcastHandler, self).handle(evt)
 
 
-class BrokenHandler(Handler):
+class RequeueingHandler(HandlerService):
+    name = "requeue"
 
-    @event_handler('srcservice', 'eventtype')
+    @event_handler('srcservice', 'eventtype', requeue_on_error=True)
     def handle(self, evt):
+        super(RequeueingHandler, self).handle(evt)
         raise Exception("Error")
 
 
-FooServicePoolHandler = type("FooServicePoolHandler",
-                             (ServicePoolHandler,), {'name': 'foo'})
+class UnreliableHandler(HandlerService):
+    name = "unreliable"
 
-BarServicePoolHandler = type("BarServicePoolHandler",
-                             (ServicePoolHandler,), {'name': 'bar'})
-
-FooSingletonHandler = type("FooSingletonHandler",
-                           (SingletonHandler,), {'name': 'foo'})
-
-BarSingletonHandler = type("BarSingletonHandler",
-                           (SingletonHandler,), {'name': 'bar'})
-
-FooBroadcastHandler = type("FooBroadcastHandler",
-                           (BroadcastHandler,), {'name': 'foo'})
-
-BarBroadcastHandler = type("BarBroadcastHandler",
-                           (BroadcastHandler,), {'name': 'bar'})
+    @event_handler('srcservice', 'eventtype', reliable_delivery=False)
+    def handle(self, evt):
+        super(UnreliableHandler, self).handle(evt)
 
 
-def test_service_pooled_events(reset_rabbit, rabbit_manager, rabbit_config,
-                               container_factory, reset_state):
+def service_factory(prefix, base):
+    """ Test utility to create subclasses of the above ServiceHandler classes
+    based on a prefix and base. The prefix is set as the ``name`` attribute
+    on the resulting type.
+
+    e.g. ``service_factory("foo", ServicePoolHandler)`` returns a type
+    called ``FooServicePoolHandler`` that inherits from ``ServicePoolHandler``,
+    and ``FooServicePoolHandler.name`` is ``"foo"``.
+
+    If prefix is falsy, return the base without modification.
+    """
+    if not prefix:
+        return base
+    name = prefix.title() + base.__name__
+    cls = type(name, (base,), {"name": prefix})
+    return cls
+
+
+@pytest.fixture
+def make_containers(request, container_factory, rabbit_config):
+    def make(base, prefixes=("",)):
+        """ Use ``service_factory`` to create a service type inheriting from
+        ``base`` using the given prefixes, and start a container for that
+        service.
+
+        If a prefix is given multiple times, create multiple containers for
+        that service type. If no prefixes are given, create a single container
+        with a type that does not extend the base.
+
+        Stops all started containers when the test ends.
+        """
+        services = {}
+        for prefix in prefixes:
+            key = (prefix, base)
+            if key not in services:
+                service = service_factory(prefix, base)
+                services[key] = service
+            service = services.get(key)
+            ct = container_factory(service, rabbit_config)
+            ct.start()
+            request.addfinalizer(ct.stop)
+    return make
+
+
+def test_service_pooled_events(reset_rabbit, reset_state,
+                               rabbit_manager, rabbit_config,
+                               make_containers):
     vhost = rabbit_config['vhost']
-
-    container_x = container_factory(FooServicePoolHandler, rabbit_config)
-    container_y = container_factory(FooServicePoolHandler, rabbit_config)
-    container_z = container_factory(BarServicePoolHandler, rabbit_config)
-    container_x.start()
-    container_y.start()
-    container_z.start()
+    make_containers(ServicePoolHandler, ("foo", "foo", "bar"))
 
     # foo service pool queue should have two consumers
     foo_queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype-foo")
@@ -281,29 +337,21 @@ def test_service_pooled_events(reset_rabbit, rabbit_manager, rabbit_config,
             eventlet.sleep()
 
     # exactly one instance of each service should have been created
+    # each should have received an event
     assert len(services['foo']) == 1
-    assert isinstance(services['foo'][0], FooServicePoolHandler)
+    assert isinstance(services['foo'][0], ServicePoolHandler)
     assert services['foo'][0].events == ["msg"]
 
     assert len(services['bar']) == 1
-    assert isinstance(services['bar'][0], BarServicePoolHandler)
+    assert isinstance(services['bar'][0], ServicePoolHandler)
     assert services['bar'][0].events == ["msg"]
 
-    container_x.stop()
-    container_y.stop()
-    container_z.stop()
 
-
-def test_singleton_events(reset_rabbit, rabbit_manager, rabbit_config,
-                          container_factory, reset_state):
+def test_singleton_events(reset_rabbit, reset_state,
+                          rabbit_manager, rabbit_config,
+                          make_containers):
     vhost = rabbit_config['vhost']
-
-    container_x = container_factory(FooSingletonHandler, rabbit_config)
-    container_y = container_factory(FooSingletonHandler, rabbit_config)
-    container_z = container_factory(BarSingletonHandler, rabbit_config)
-    container_x.start()
-    container_y.start()
-    container_z.start()
+    make_containers(SingletonHandler, ("foo", "foo", "bar"))
 
     # the singleton queue should have three consumers
     queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype")
@@ -324,21 +372,12 @@ def test_singleton_events(reset_rabbit, rabbit_manager, rabbit_config,
     assert isinstance(services[lucky_service][0], SingletonHandler)
     assert services[lucky_service][0].events == ["msg"]
 
-    container_x.stop()
-    container_y.stop()
-    container_z.stop()
 
-
-def test_broadcast_events(reset_rabbit, rabbit_manager, rabbit_config,
-                          container_factory, reset_state):
+def test_broadcast_events(reset_rabbit, reset_state,
+                          rabbit_manager, rabbit_config,
+                          make_containers):
     vhost = rabbit_config['vhost']
-
-    container_x = container_factory(FooBroadcastHandler, rabbit_config)
-    container_y = container_factory(FooBroadcastHandler, rabbit_config)
-    container_z = container_factory(BarBroadcastHandler, rabbit_config)
-    container_x.start()
-    container_y.start()
-    container_z.start()
+    make_containers(BroadcastHandler, ("foo", "foo", "bar"))
 
     # each broadcast queue should have one consumer
     queues = rabbit_manager.get_queues(vhost)
@@ -364,8 +403,8 @@ def test_broadcast_events(reset_rabbit, rabbit_manager, rabbit_config,
 
     # two of them were "foo" handlers
     assert len(services['foo']) == 2
-    assert isinstance(services['foo'][0], FooBroadcastHandler)
-    assert isinstance(services['foo'][1], FooBroadcastHandler)
+    assert isinstance(services['foo'][0], BroadcastHandler)
+    assert isinstance(services['foo'][1], BroadcastHandler)
 
     # and they both should have received the event
     assert services['foo'][0].events == ["msg"]
@@ -373,88 +412,188 @@ def test_broadcast_events(reset_rabbit, rabbit_manager, rabbit_config,
 
     # the other was a "bar" handler
     assert len(services['bar']) == 1
-    assert isinstance(services['bar'][0], BarBroadcastHandler)
+    assert isinstance(services['bar'][0], BroadcastHandler)
 
     # and it too should have received the event
     assert services['bar'][0].events == ["msg"]
 
-"""
-def test_emit_event_without_handlers(start_service):
-    spammer = start_service(Spammer, 'spammer_nobody_listening')
-    spammer.emit_event('ham and eggs')
 
+def test_requeue_on_error(reset_rabbit, reset_state,
+                          rabbit_manager, rabbit_config,
+                          make_containers):
+    vhost = rabbit_config['vhost']
+    make_containers(RequeueingHandler)
 
-def test_event_lost_without_listener(start_service, kill_services):
-    handler = start_service(SpamHandler, 'spamhandler')
+    # the queue should been created and have one consumer
+    queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype-requeue")
+    assert len(queue['consumer_details']) == 1
 
-    spammer = start_service(Spammer, 'spammer')
-    spammer.emit_event('ham')
+    exchange_name = "srcservice.events"
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
 
-    # we want to make sure that events have been received before
-    # killing the services, that way we know we had an event queue
+    # the event will be received multiple times as it gets requeued and then
+    # consumed again
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        events = handler.events
-        while not events:
-            eventlet.sleep()
-
-    kill_services('spamhandler')
-
-    # we don't have any handler listening anymore, so the event should vanish
-    spammer.emit_event('lost ham')
-
-    handler = start_service(SpamHandler, 'spamhandler')
-    # we now have a service listening and should receive events again
-    spammer.emit_event('eggs')
-
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        events = handler.events
-        while not events:
-            eventlet.sleep()
-
-    assert events == ['eggs']
-
-
-def test_event_not_lost_with_reliable_delivery(start_service, kill_services):
-    spammer = start_service(Spammer, 'spammer')
-    # this event should vanish, as there is no ReliableSpamHandler running yet
-    spammer.emit_event('lost')
-
-    # this service can die, as it's event queue will survive
-    handler = start_service(ReliableSpamHandler, 'spamhandler')
-    kill_services('spamhandler')
-    eventlet.sleep()
-
-    # since we have a reliable event queue, event s should not get lost
-    spammer.emit_event('ham')
-
-    handler = start_service(ReliableSpamHandler, 'spamhandler')
-    spammer.emit_event('eggs')
-
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        events = handler.events
         while len(events) < 2:
             eventlet.sleep()
 
-    assert events == ['ham', 'eggs']
+    # multiple instances of the service should have been instantiated
+    assert len(services['requeue']) > 1
+
+    # each instance should have received one event
+    for service in services['requeue']:
+        assert service.events == ["msg"]
 
 
-def test_requeue_event_on_error(start_service):
-    requeueing_handler = start_service(RequeueingSpamHandler, 'spamhandler')
+def test_reliable_delivery(reset_rabbit, reset_state,
+                           rabbit_manager, rabbit_config,
+                           container_factory):
+    """ Events sent to queues declared by ``reliable_delivery`` handlers
+    should be received even if no service was listening when they were
+    dispatched.
+    """
+    vhost = rabbit_config['vhost']
 
-    spammer = start_service(Spammer, 'spammer')
-    spammer.emit_event('ham and eggs')
+    container = container_factory(ServicePoolHandler, rabbit_config)
+    container.start()
 
-    # we want to wait until at least one event was received
+    # test queue created, with one consumer
+    queue_name = "evt-srcservice-eventtype-srvname"
+    queue = rabbit_manager.get_queue(vhost, queue_name)
+    assert len(queue['consumer_details']) == 1
+
+    # publish an event
+    exchange_name = "srcservice.events"
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_1')
+
+    # wait for the event to be received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(requeueing_handler.events) < 1:
+        while len(events) == 0:
+            eventlet.sleep()
+    assert events == ["msg_1"]
+
+    # stop container, check queue still exists, without consumers
+    container.stop()
+    queues = rabbit_manager.get_queues(vhost)
+    assert queue_name in [q['name'] for q in queues]
+    queue = rabbit_manager.get_queue(vhost, queue_name)
+    assert len(queue['consumer_details']) == 0
+
+    # publish another event while nobody is listening
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_2')
+
+    # verify the message gets queued
+    messages = rabbit_manager.get_messages(vhost, queue_name, requeue=True)
+    assert ['msg_2'] == [msg['payload'] for msg in messages]
+
+    # start another container
+    container = container_factory(ServicePoolHandler, rabbit_config)
+    container.start()
+
+    # wait for the service to collect the pending event
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        while len(events) < 2:
+            eventlet.sleep()
+    assert len(events) == 2
+    assert events == ["msg_1", "msg_2"]
+
+    container.stop()
+
+
+def test_unreliable_delivery(reset_rabbit, reset_state,
+                             rabbit_manager, rabbit_config,
+                             make_containers, container_factory):
+    """ Events sent to queues declared by non- ``reliable_delivery`` handlers
+    should be lost if no service was listening when they were dispatched.
+    """
+    vhost = rabbit_config['vhost']
+
+    container = container_factory(UnreliableHandler, rabbit_config)
+    container.start()
+
+    # start a normal handler service so the auto-delete events exchange
+    # for srcservice is not removed when we stop the UnreliableHandler
+    make_containers(ServicePoolHandler)
+
+    # test queue created, with one consumer
+    queue_name = "evt-srcservice-eventtype-unreliable"
+    queue = rabbit_manager.get_queue(vhost, queue_name)
+    assert len(queue['consumer_details']) == 1
+
+    # publish an event
+    exchange_name = "srcservice.events"
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_1')
+
+    # wait for it to arrive in both services
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        while len(events) < 2:
+            eventlet.sleep()
+    assert events == ["msg_1", "msg_1"]
+
+    # test that the unreliable service received it
+    assert len(services['unreliable']) == 1
+    assert services['unreliable'][0].events == ["msg_1"]
+
+    # stop container, test queue deleted
+    container.stop()
+    queues = rabbit_manager.get_queues(vhost)
+    assert queue_name not in [q['name'] for q in queues]
+
+    # publish a second event while nobody is listening
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_2')
+
+    # start another container
+    container = container_factory(UnreliableHandler, rabbit_config)
+    container.start()
+
+    # verify the queue is recreated, with one consumer
+    queue = rabbit_manager.get_queue(vhost, queue_name)
+    assert len(queue['consumer_details']) == 1
+
+    # publish a third event
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_3')
+
+    # wait for it to arrive in both services
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        while len(events) < 5:
             eventlet.sleep()
 
-    # the new service should pick up the event
-    handler = start_service(SpamHandler, 'spamhandler')
+    # verify that the "unreliable" handler didn't receive the message sent
+    # while it wasn't running
+    assert len(services['unreliable']) == 2
+    assert services['unreliable'][0].events == ["msg_1"]
+    assert services['unreliable'][1].events == ["msg_3"]
 
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(handler.events) < 1:
-            eventlet.sleep()
+    container.stop()
 
-    assert len(handler.events) == 1
-"""
+
+def test_dispatch_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
+
+    vhost = rabbit_config['vhost']
+    service = Mock()
+    srv_ctx = ServiceContext("srcservice", None, None, config=rabbit_config)
+    worker_ctx = WorkerContext(srv_ctx, service, None)
+
+    dispatcher = EventDispatcher()
+    dispatcher.name = "dispatch"
+
+    dispatcher.start(srv_ctx)
+    dispatcher.on_container_started(srv_ctx)
+
+    # we should have an exchange but no queues
+    exchanges = rabbit_manager.get_exchanges(vhost)
+    queues = rabbit_manager.get_queues(vhost)
+    assert "srcservice.events" in [exchange['name'] for exchange in exchanges]
+    assert queues == []
+
+    # manually add a queue to capture the events
+    rabbit_manager.create_queue(vhost, "event-sink", auto_delete=True)
+    rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
+                                  rt_key=ExampleEvent.type)
+
+    dispatcher.call_setup(worker_ctx)
+    service.dispatch(ExampleEvent("msg"))
+
+    # test event receieved on manually added queue
+    messages = rabbit_manager.get_messages(vhost, "event-sink")
+    assert ['msg'] == [msg['payload'] for msg in messages]

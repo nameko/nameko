@@ -50,11 +50,11 @@ class Publisher(AttributeDependency):
         self.queue = queue
 
     def get_connection(self, srv_ctx):
-        conn = Connection(srv_ctx['config']['amqp_uri'])
+        conn = Connection(srv_ctx.config['amqp_uri'])
         return connections[conn].acquire(block=True)
 
     def get_producer(self, srv_ctx):
-        conn = Connection(srv_ctx['config']['amqp_uri'])
+        conn = Connection(srv_ctx.config['amqp_uri'])
         return producers[conn].acquire(block=True)
 
     def start(self, srv_ctx):
@@ -67,19 +67,24 @@ class Publisher(AttributeDependency):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def __call__(self, srv_ctx, msg, **kwargs):
-        """ Invoke this dependency's action.
+    def call_setup(self, worker_ctx):
+        """ Inject a publish method onto the service instance
         """
-        exchange = self.exchange
-        queue = self.queue
+        def publish(msg, **kwargs):
+            exchange = self.exchange
+            queue = self.queue
 
-        if exchange is None and queue is not None:
-            exchange = queue.exchange
+            if exchange is None and queue is not None:
+                exchange = queue.exchange
 
-        with self.get_producer(srv_ctx) as producer:
-            # TODO: should we enable auto-retry,
-            #       should that be an option in __init__?
-            producer.publish(msg, exchange=exchange, **kwargs)
+            with self.get_producer(worker_ctx.srv_ctx) as producer:
+                # TODO: should we enable auto-retry,
+                #      should that be an option in __init__?
+                producer.publish(msg, exchange=exchange, **kwargs)
+
+        service = worker_ctx.service
+        injection_name = self.name
+        setattr(service, injection_name, publish)
 
 
 @dependency_decorator
@@ -116,9 +121,9 @@ queue_consumers = WeakKeyDictionary()
 def get_queue_consumer(srv_ctx):
     """ Get or create a QueueConsumer instance for the given ``srv_ctx``
     """
-    container = srv_ctx['container']
+    container = srv_ctx.container
     if container not in queue_consumers:
-        queue_consumer = QueueConsumer(srv_ctx['config']['amqp_uri'])
+        queue_consumer = QueueConsumer(srv_ctx.config['amqp_uri'])
         queue_consumers[container] = queue_consumer
 
     return queue_consumers[container]
@@ -146,17 +151,12 @@ class ConsumeProvider(DecoratorDependency):
         callback = partial(self.handle_message_processed, message)
         args = (body,)
         kwargs = {}
-        #TODO: if we have e.g. timers taking up all workers and a consumer
-        # tries to spawn a next worker, what should the behavior be?
-        # We can't block the the consumer thread as it would mean
-        # current workers could not ack their messages and we'd deadlock
-
-        srv_ctx['container'].spawn_worker(self.name, args, kwargs, callback)
+        srv_ctx.container.spawn_worker(self.name, args, kwargs, callback)
 
     def handle_message_processed(self, message, worker_ctx):
-        qc = get_queue_consumer(worker_ctx['srv_ctx'])
+        qc = get_queue_consumer(worker_ctx.srv_ctx)
 
-        if worker_ctx['data']['exc'] is not None and self.requeue_on_error:
+        if worker_ctx.data['exc'] is not None and self.requeue_on_error:
             qc.requeue_message(message)
         else:
             qc.ack_message(message)
@@ -193,21 +193,21 @@ class QueueConsumer(ConsumerMixin):
             _log.debug('stopped')
 
     def add_consumer(self, queue, on_message):
-        _log.debug("queueconsumer add_consumer {}, {}".format(queue,
-                                                              on_message))
+        _log.debug("queue: {}, on_message: {}".format(queue, on_message))
         self._registry.append((queue, on_message))
 
     def ack_message(self, message):
-        _log.debug("queueconsumer ack_message {}".format(message))
+        _log.debug("message: {}".format(message))
         self._pending_messages.remove(message)
         self._pending_ack_messages.append(message)
 
     def requeue_message(self, message):
+        _log.debug("message: {}".format(message))
         self._pending_messages.remove(message)
         self._pending_requeue_messages.append(message)
 
     def _on_message(self, handle_message, body, message):
-        _log.debug("queueconsumer _on_message {} {}".format(body, message))
+        _log.debug("body: {}, message: {}".format(body, message))
         self._pending_messages.add(message)
         handle_message(body, message)
 

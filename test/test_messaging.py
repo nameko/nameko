@@ -2,6 +2,7 @@ from kombu import Exchange, Queue
 from mock import patch, Mock, ANY
 
 from nameko.messaging import Publisher, ConsumeProvider
+from nameko.service import ServiceContext, WorkerContext
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)
 
@@ -18,9 +19,7 @@ def test_consume_provider():
     queue_consumer = Mock()
     container = Mock()
     message = Mock()
-    srv_ctx = {
-        'container': container
-    }
+    srv_ctx = ServiceContext(None, None, container)
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
@@ -37,22 +36,19 @@ def test_consume_provider():
         queue_consumer.stop.assert_called_once_with()
 
         def successful_call(method, args, kwargs, callback):
-            worker_ctx = {
-                'data': {
-                    'result': "result",
-                    'exc': None,
-                },
-                'srv_ctx': srv_ctx
+
+            worker_ctx = WorkerContext(srv_ctx, None, None)
+            worker_ctx.data = {
+                'result': "result",
+                'exc': None,
             }
             callback(worker_ctx)
 
         def failed_call(method, args, kwargs, callback):
-            worker_ctx = {
-                'data': {
-                    'result': None,
-                    'exc': Exception("Error")
-                },
-                'srv_ctx': srv_ctx
+            worker_ctx = WorkerContext(srv_ctx, None, None)
+            worker_ctx.data = {
+                'result': None,
+                'exc': Exception("Error")
             }
             callback(worker_ctx)
 
@@ -84,10 +80,12 @@ def test_consume_provider():
 def test_publish_to_exchange():
     producer = Mock()
     connection = Mock()
+    service = Mock()
     srv_ctx = Mock()
+    worker_ctx = WorkerContext(srv_ctx, service, None)
 
     publisher = Publisher(exchange=foobar_ex)
-    publish = publisher.inject(srv_ctx)
+    publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
             patch.object(publisher, 'get_connection') as get_connection, \
@@ -102,17 +100,20 @@ def test_publish_to_exchange():
 
         # test publish
         msg = "msg"
-        publish(msg)
+        publisher.call_setup(worker_ctx)
+        service.publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 
 def test_publish_to_queue():
     producer = Mock()
     connection = Mock()
+    service = Mock()
     srv_ctx = Mock()
+    worker_ctx = WorkerContext(srv_ctx, service, None)
 
     publisher = Publisher(queue=foobar_queue)
-    publish = publisher.inject(srv_ctx)
+    publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
             patch.object(publisher, 'get_connection') as get_connection, \
@@ -127,7 +128,8 @@ def test_publish_to_queue():
 
         # test publish
         msg = "msg"
-        publish(msg)
+        publisher.call_setup(worker_ctx)
+        service.publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
 #==============================================================================
@@ -138,12 +140,12 @@ def test_publish_to_queue():
 def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
-    srv_ctx = {
-        'config': rabbit_config
-    }
+    service = Mock()
+    srv_ctx = ServiceContext(None, None, None, config=rabbit_config)
+    worker_ctx = WorkerContext(srv_ctx, service, None)
 
     publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
-    publish = publisher.inject(srv_ctx)
+    publisher.name = "publish"
 
     # test queue, exchange and binding created in rabbit
     publisher.start(srv_ctx)
@@ -158,7 +160,8 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message published to queue
-    publish("msg")
+    publisher.call_setup(worker_ctx)
+    service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['msg'] == [msg['payload'] for msg in messages]
 
@@ -168,10 +171,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
 
     mock_container = Mock()
-    srv_ctx = {
-        'config': rabbit_config,
-        'container': mock_container
-    }
+    srv_ctx = ServiceContext(None, None, mock_container, config=rabbit_config)
 
     consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
     consumer.name = "injection_name"
@@ -189,12 +189,10 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message consumed from queue
-    worker_ctx = {
-        'data': {
-            'result': "result",
-            'exc': None
-        },
-        'srv_ctx': srv_ctx
+    worker_ctx = WorkerContext(srv_ctx, None, None)
+    worker_ctx.data = {
+        'result': "result",
+        'exc': None
     }
     worker = lambda name, args, kwargs, callback: callback(worker_ctx)
     mock_container.spawn_worker.side_effect = worker

@@ -1,4 +1,4 @@
-import socket
+§import socket
 
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool

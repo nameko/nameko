@@ -1,7 +1,7 @@
 """
 Provides classes and method to deal with dependency injection.
 """
-from functools import wraps, partial
+from functools import wraps
 import types
 
 import inspect
@@ -100,12 +100,7 @@ class DecoratorDependency(DependencyProvider):
 
 
 class AttributeDependency(DependencyProvider):
-
-    def __call__(self, srv_ctx):
-        pass
-
-    def inject(self, srv_ctx):
-        return partial(self.__call__, srv_ctx)
+    pass
 
 
 class DependencySet(SpawningSet):
