@@ -1,7 +1,8 @@
 from kombu import Exchange, Queue
 from mock import patch, Mock, ANY
 
-from nameko.messaging import Publisher, ConsumeProvider
+from nameko.dependencies import get_decorator_providers
+from nameko.messaging import Publisher, ConsumeProvider, consume
 from nameko.service import ServiceContext, WorkerContext
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)
@@ -10,6 +11,22 @@ foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
 CONSUME_TIMEOUT = 1
+
+
+def test_consume_creates_provider():
+    class Spam(object):
+        @consume(queue=foobar_queue)
+        def foobar():
+            pass
+
+    providers = list(get_decorator_providers(Spam))
+    assert len(providers) == 1
+
+    name, provider = providers[0]
+    assert name == 'foobar'
+    assert isinstance(provider, ConsumeProvider)
+    assert provider.queue == foobar_queue
+    assert provider.requeue_on_error == False
 
 
 def test_consume_provider():

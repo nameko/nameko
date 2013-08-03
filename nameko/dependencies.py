@@ -2,9 +2,10 @@
 Provides classes and method to deal with dependency injection.
 """
 from functools import wraps
+import inspect
+from itertools import chain
 import types
 
-import inspect
 
 from nameko.utils import SpawningSet
 
@@ -181,7 +182,7 @@ def get_decorator_providers(obj):
 
 
 def get_dependencies(obj):
-    return get_attribute_providers(obj) + list(get_decorator_providers(obj))
+    return chain(get_attribute_providers(obj), get_decorator_providers(obj))
 
 
 def get_providers(fn, filter_type=object):
