@@ -1,66 +1,28 @@
-import pytest
 import eventlet
 from mock import Mock
 
-from nameko.timer import Timer, TimerProvider, timer
+from nameko.timer import Timer, TimerProvider
+from nameko.service import ServiceContext
 from nameko.testing.utils import wait_for_call
 
 
-class Foobar(object):
-    def __init__(self, raise_at_call=0):
-        self.timer_calls = 0
-        self.raise_at_call = raise_at_call
-
-    @timer(interval=0)
-    def foobar(self):
-        self.timer_calls += 1
-        if self.timer_calls == self.raise_at_call:
-            raise FooError('error in call: %d' % self.timer_calls)
-
-
-class TimerProvider(DependencyProvider):
-    def __init__(self, interval):
-        self.timers_by_ctx = WeakKeyDictionary()
-        self.interval = None
-
-    def start(self, srv_ctx):
-        def handler():
-            srv_ctx['container'].spawn_worker(self.name)
-
-        self.timers_by_ctx[srv_ctx] = Timer(self.interval, handler)
-
-    def on_container_started(self, srv_ctx):
-        timer = self.timers_by_ctx[srv_ctx]
-        _log.debug(
-            'started timer for %s with %ss interval',
-            self.name, timer.interval)
-        timer.start()
-
-    def stop(self, srv_ctx):
-        self.timers_by_ctx[srv_ctx].stop()
-
-
 def test_provider():
-
     tmrprov = TimerProvider(0)
+    tmrprov.name = 'foobar'
     container = Mock()
-    srv_ctx = {'container': container}
-    tmrprov.start()
+    srv_ctx = ServiceContext('foo', None, container)
+    tmrprov.start(srv_ctx)
 
     timer = tmrprov.timers_by_ctx[srv_ctx]
-    assert timer.interval == 5
+    assert timer.interval == 0
 
     tmrprov.on_container_started(srv_ctx)
 
-    with wait_for_call(container.spawn_worker) as spawn_worker:
-        spawn_worker.assert_called_once_with()
+    with wait_for_call(1, container.spawn_worker) as spawn_worker:
+        spawn_worker.assert_called_once_with('foobar', (), {})
 
-
-
-    get_timer(foo.foobar).interval = 5
-    tmr = get_timer(foo.foobar)
-    assert tmr.interval == 5
-
+    tmrprov.stop(srv_ctx)
+    assert timer.gt.dead
 
 def test_stop_running_timer():
     handler = Mock()
@@ -77,7 +39,7 @@ def test_stop_running_timer():
         eventlet.sleep()
 
     assert handler.call_count == count
-
+    assert timer.gt.dead
 
 def test_stop_timer_immediatly():
     handler = Mock()
@@ -86,11 +48,11 @@ def test_stop_timer_immediatly():
     eventlet.sleep(0.1)
     timer.stop()
     assert handler.call_count == 1
-
+    assert timer.gt.dead
 
 def test_exception_in_timer_method_ignored():
     handler = Mock()
-    handler.side_effect = FooError
+    handler.side_effect = Exception('foo')
 
     timer = Timer(0, handler)
     timer.start()
@@ -100,3 +62,4 @@ def test_exception_in_timer_method_ignored():
             eventlet.sleep()
 
     assert handler.call_count >= 5
+    timer.stop()

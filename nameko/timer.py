@@ -31,13 +31,15 @@ def timer(interval):
 class TimerProvider(DependencyProvider):
     def __init__(self, interval):
         self.timers_by_ctx = WeakKeyDictionary()
-        self.interval = None
+        self.interval = interval
 
     def start(self, srv_ctx):
-        def handler():
-            srv_ctx['container'].spawn_worker(self.name)
+        def timer_handler():
+            args = tuple()
+            kwargs = {}
+            srv_ctx.container.spawn_worker(self.name, args, kwargs)
 
-        self.timers_by_ctx[srv_ctx] = Timer(self.interval, handler)
+        self.timers_by_ctx[srv_ctx] = Timer(self.interval, timer_handler)
 
     def on_container_started(self, srv_ctx):
         timer = self.timers_by_ctx[srv_ctx]
