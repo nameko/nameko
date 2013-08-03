@@ -95,6 +95,8 @@ class ServiceContainer(object):
             except Exception as e:
                 exc = e
 
+            # TODO: result, exc should be properties on the worker context
+            # TODO: data should be reserved for non-nameko specific purposes
             worker_ctx.data['result'] = result
             worker_ctx.data['exc'] = exc
 
