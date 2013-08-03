@@ -16,65 +16,6 @@ from nameko.testing.utils import ANY_PARTIAL, as_context_manager
 EVENTS_TIMEOUT = 5
 
 
-<<<<<<< HEAD
-"""
-class SpamEvent(Event):
-    type = 'spammed'
-
-
-class Spammer(object):
-
-    dispatch = EventDispatcher()
-
-    def emit_event(self, data):
-        self.dispatch(SpamEvent(data))
-
-
-class Handler(object):
-    def __init__(self):
-        self.events = []
-
-
-class SpamHandler(Handler):
-    # force reliable delivery off until we have test cleanup
-    @event_handler('spammer', 'spammed', reliable_delivery=False)
-    def handle(self, evt):
-        self.events.append(evt)
-
-
-class ReliableSpamHandler(Handler):
-    @event_handler('spammer', 'spammed', reliable_delivery=True)
-    def handle(self, evt):
-        self.events.append(evt)
-
-
-class RequeueingSpamHandler(Handler):
-    @event_handler('spammer', 'spammed',
-                   reliable_delivery=False, requeue_on_error=True)
-    def handle(self, evt):
-        self.events.append(evt)
-        raise Exception('foobar')
-
-
-class SingletonSpamHandler(Handler):
-    # force reliable delivery off until we have test cleanup
-    @event_handler('spammer', 'spammed', reliable_delivery=False,
-                   handler_type=SINGLETON)
-    def handle(self, evt):
-        self.events.append(evt)
-
-
-class BroadcastSpamHandler(Handler):
-    # force reliable delivery off until we have test cleanup
-    @event_handler('spammer', 'spammed', reliable_delivery=False,
-                   handler_type=BROADCAST)
-    def handle(self, evt):
-        self.events.append(evt)
-"""
-
-
-=======
->>>>>>> origin/dependency-injection
 def test_event_type_missing():
     with pytest.raises(EventTypeMissing):
         class MyEvent(Event):
@@ -173,14 +114,9 @@ def test_event_handler(handler_factory):
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
         event_handler.start(srv_ctx)
-<<<<<<< HEAD
 
-        queue_name = event_handler.queue.name
-        assert queue_name == "evt-srcservice-eventtype-destservice"
-=======
-        assert event_handler.queue.name == \
-            "evt-srcservice-eventtype-destservice"
->>>>>>> origin/dependency-injection
+        assert (event_handler.queue.name ==
+            "evt-srcservice-eventtype-destservice")
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
