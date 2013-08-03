@@ -7,8 +7,7 @@ import eventlet
 from eventlet import Timeout
 from eventlet.event import Event
 
-from nameko.dependencies import (
-    dependency_decorator, get_providers, DependencyProvider)
+from nameko.dependencies import dependency_decorator, DependencyProvider
 
 _log = getLogger(__name__)
 
