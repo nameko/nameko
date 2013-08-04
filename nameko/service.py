@@ -77,14 +77,15 @@ class ServiceContainer(object):
         self.dependencies.all.stop(self.ctx)
         self.dependencies.all.on_container_stopped(self.ctx)
 
-    def spawn_worker(self, method_name, args, kwargs, callback=None,
-                     context_data=None):
+    def spawn_worker(self, method_name, args, kwargs, context_data=None):
         _log.debug('method_name: {}'.format(method_name))
+
+        worker_ctx = WorkerContext(
+            self.ctx, method_name, args, kwargs, data=context_data)
 
         def worker():
             service = self.service_cls()
-            worker_ctx = WorkerContext(self.ctx, service, method_name, args,
-                                       kwargs, data=context_data)
+            worker_ctx.service = service
 
             self.dependencies.all.call_setup(worker_ctx)
 
@@ -101,9 +102,10 @@ class ServiceContainer(object):
             worker_ctx.data['exc'] = exc
 
             self.dependencies.all.call_result(worker_ctx)
-            if callback:
-                callback(worker_ctx)
+
             self.dependencies.all.call_teardown(worker_ctx)
 
         self._worker_pool.spawn(worker)
+
+        return worker_ctx
 

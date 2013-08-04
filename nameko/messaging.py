@@ -70,6 +70,12 @@ class Publisher(AttributeDependency):
     def call_setup(self, worker_ctx):
         """ Inject a publish method onto the service instance
         """
+        service = worker_ctx.service
+        injection_name = self.name
+        publish = self.get_publisher(worker_ctx)
+        setattr(service, injection_name, publish)
+
+    def get_publisher(self, worker_ctx):
         def publish(msg, **kwargs):
             exchange = self.exchange
             queue = self.queue
@@ -82,9 +88,7 @@ class Publisher(AttributeDependency):
                 #      should that be an option in __init__?
                 producer.publish(msg, exchange=exchange, **kwargs)
 
-        service = worker_ctx.service
-        injection_name = self.name
-        setattr(service, injection_name, publish)
+        return publish
 
 
 @dependency_decorator
@@ -134,6 +138,7 @@ class ConsumeProvider(DecoratorDependency):
     def __init__(self, queue, requeue_on_error):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
+        self.pending_worker_message = {}
 
     def start(self, srv_ctx):
         qc = get_queue_consumer(srv_ctx)
@@ -148,10 +153,14 @@ class ConsumeProvider(DecoratorDependency):
         qc.stop()
 
     def handle_message(self, srv_ctx, body, message):
-        callback = partial(self.handle_message_processed, message)
         args = (body,)
         kwargs = {}
-        srv_ctx.container.spawn_worker(self.name, args, kwargs, callback)
+        worker_ctx = srv_ctx.container.spawn_worker(self.name, args, kwargs)
+        self.pending_worker_message[worker_ctx] = message
+
+    def call_result(self, worker_ctx):
+        message = self.pending_worker_message.pop(worker_ctx)
+        self.handle_message_processed(message, worker_ctx)
 
     def handle_message_processed(self, message, worker_ctx):
         qc = get_queue_consumer(worker_ctx.srv_ctx)

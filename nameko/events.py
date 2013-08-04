@@ -224,11 +224,14 @@ class EventHandler(ConsumeProvider):
 
     def __init__(self, service_name, event_type, handler_type,
                  reliable_delivery, requeue_on_error):
+
         self.service_name = service_name
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
-        self.requeue_on_error = requeue_on_error
+
+        super(EventHandler, self).__init__(
+            queue=None, requeue_on_error=requeue_on_error)
 
     def start(self, srv_ctx):
         """
