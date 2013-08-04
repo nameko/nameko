@@ -72,7 +72,7 @@ class DependencyProvider(object):
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_result(self, worker_ctx):
+    def call_result(self, worker_ctx, result=None, exc=None):
         """ Called with the result of a service worker execution.
 
         DependencyProviders that need to process the result should do it here.
