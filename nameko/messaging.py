@@ -160,11 +160,12 @@ class ConsumeProvider(DecoratorDependency):
 
     def call_result(self, worker_ctx, result=None, exc=None):
         message = self.pending_worker_message.pop(worker_ctx)
-        self.handle_message_processed(worker_ctx, message, result, exc)
+        srv_ctx = worker_ctx.srv_ctx
+        self.handle_message_processed(srv_ctx, message, result, exc)
 
     def handle_message_processed(
-            self, worker_ctx, message, result=None, exc=None):
-        qc = get_queue_consumer(worker_ctx.srv_ctx)
+            self, srv_ctx, message, result=None, exc=None):
+        qc = get_queue_consumer(srv_ctx)
 
         if exc is not None and self.requeue_on_error:
             qc.requeue_message(message)
