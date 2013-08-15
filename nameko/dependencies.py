@@ -99,9 +99,31 @@ class DependencyProvider(object):
 class DecoratorDependency(DependencyProvider):
     pass
 
+from abc import ABCMeta, abstractmethod
 
 class AttributeDependency(DependencyProvider):
-    pass
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def acquire_injection(self, worker_ctx):
+        pass
+
+    def release_injection(self, worker_ctx):
+        pass
+
+    def call_setup(self, worker_ctx):
+        injection = self.acquire_injection(worker_ctx)
+
+        injection_name = self.name
+        service = worker_ctx.service
+        setattr(service, injection_name, injection)
+
+    def call_teardown(self, worker_ctx):
+        self.release_injection(worker_ctx)
+
+        service = worker_ctx.service
+        injection_name = self.name
+        delattr(service, injection_name)
 
 
 class DependencySet(SpawningSet):

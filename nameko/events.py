@@ -146,7 +146,7 @@ class EventDispatcher(Publisher):
         self.exchange = get_event_exchange(srv_ctx.name)
         super(EventDispatcher, self).start(srv_ctx)
 
-    def call_setup(self, worker_ctx):
+    def acquire_injection(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
         def dispatch(evt):
@@ -159,9 +159,7 @@ class EventDispatcher(Publisher):
                 producer.publish(
                     msg, exchange=exchange, routing_key=routing_key)
 
-        service = worker_ctx.service
-        injection_name = self.name
-        setattr(service, injection_name, dispatch)
+        return dispatch
 
 
 @dependency_decorator

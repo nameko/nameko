@@ -1,6 +1,5 @@
 import eventlet
 
-
 class SpawningProxy(object):
     """ Wraps an iterable set of items such that a call on the SpawningProxy
     will spawn a call in a greenthread for each item.
@@ -12,14 +11,16 @@ class SpawningProxy(object):
 
     def __getattr__(self, name):
 
-        def fn(*args, **kwargs):
+        def spawning_method(*args, **kwargs):
             items = self._items
             pool = eventlet.GreenPool(len(items))
 
-            call = lambda item: getattr(item, name)(*args, **kwargs)
+            def call(item):
+                return getattr(item, name)(*args, **kwargs)
+
             list(pool.imap(call, self._items))
 
-        return fn
+        return spawning_method
 
 
 class SpawningSet(set):

@@ -31,6 +31,7 @@ class WorkerContext(object):
     def __init__(self, srv_ctx, service, method_name, args=None, kwargs=None,
                  data=None):
         self.srv_ctx = srv_ctx
+        self.config = srv_ctx.config
         self.service = service
         self.method_name = method_name
         self.args = args if args is not None else ()
@@ -78,7 +79,7 @@ class ServiceContainer(object):
         self.dependencies.all.on_container_stopped(self.ctx)
 
     def spawn_worker(self, method_name, args, kwargs, context_data=None):
-        _log.debug('method_name: {}'.format(method_name))
+        _log.debug('spawning worker for method_name: {}'.format(method_name))
 
         worker_ctx = WorkerContext(
             self.ctx, method_name, args, kwargs, data=context_data)
@@ -96,6 +97,8 @@ class ServiceContainer(object):
             except Exception as e:
                 exc = e
 
+            # TODO: should we only call the call_result() handler on the
+            #       dependency which initiated the worker?
             self.dependencies.all.call_result(worker_ctx, result, exc)
 
             self.dependencies.all.call_teardown(worker_ctx)

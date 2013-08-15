@@ -50,6 +50,7 @@ class Publisher(AttributeDependency):
         self.queue = queue
 
     def get_connection(self, srv_ctx):
+        #TODO: should this live outside of the class or be a class method?
         conn = Connection(srv_ctx.config['amqp_uri'])
         return connections[conn].acquire(block=True)
 
@@ -67,15 +68,7 @@ class Publisher(AttributeDependency):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def call_setup(self, worker_ctx):
-        """ Inject a publish method onto the service instance
-        """
-        service = worker_ctx.service
-        injection_name = self.name
-        publish = self.get_publisher(worker_ctx)
-        setattr(service, injection_name, publish)
-
-    def get_publisher(self, worker_ctx):
+    def acquire_injection(self, worker_ctx):
         def publish(msg, **kwargs):
             exchange = self.exchange
             queue = self.queue
@@ -159,9 +152,12 @@ class ConsumeProvider(DecoratorDependency):
         self.pending_worker_message[worker_ctx] = message
 
     def call_result(self, worker_ctx, result=None, exc=None):
-        message = self.pending_worker_message.pop(worker_ctx)
-        srv_ctx = worker_ctx.srv_ctx
-        self.handle_message_processed(srv_ctx, message, result, exc)
+        message = self.pending_worker_message.pop(worker_ctx, None)
+        # TODO: every provider gets called, so we have to make sure
+        # we only proccess messages if they are available
+        if message is not None:
+            srv_ctx = worker_ctx.srv_ctx
+            self.handle_message_processed(srv_ctx, message, result, exc)
 
     def handle_message_processed(
             self, srv_ctx, message, result=None, exc=None):
