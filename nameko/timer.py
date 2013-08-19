@@ -1,20 +1,17 @@
 from __future__ import absolute_import
 from logging import getLogger
-from weakref import WeakKeyDictionary
 import time
-import inspect
 
 import eventlet
 from eventlet import Timeout
 from eventlet.event import Event
 
+from nameko.dependencies import dependency_decorator, get_providers
+
 _log = getLogger(__name__)
 
 
-intervals = WeakKeyDictionary()
-timers = WeakKeyDictionary()
-
-
+@dependency_decorator
 def timer(interval):
     '''
     Decorates a method as a timer, which will be called every `interval` sec.
@@ -27,25 +24,23 @@ def timer(interval):
         def handle_timer(self):
             self.shrub(body)
     '''
-
-    def timer_decorator(func):
-        intervals[func] = interval
-        return func
-
-    return timer_decorator
+    return Timer(interval)
 
 
 class Timer(object):
     ''' A timer object, which will call a given method repeatedly at a given
     interval.
     '''
-    def __init__(self, interval, func):
+    def __init__(self, interval):
         self.interval = interval
-        self.func = func
+
+    def container_init(self, container, handler_name):
         self.gt = None
         self.should_stop = Event()
+        self.container = container
+        self.handler_name = handler_name
 
-    def start(self):
+    def container_start(self):
         ''' Starts the timer in a separate green thread.
 
         Once started it may be stopped using its `stop()` method.
@@ -53,7 +48,10 @@ class Timer(object):
         self.gt = eventlet.spawn(self._run)
         _log.debug(
             'started timer for %s with %ss interval',
-            self.func, self.interval)
+            self.handler_name, self.interval)
+
+    def container_stop(self):
+        self.stop()
 
     def _run(self):
         ''' Runs the interval loop.
@@ -64,7 +62,10 @@ class Timer(object):
         while not self.should_stop.ready():
             start = time.time()
             try:
-                self.func()
+                # TODO: this needs to tell the container to start a worker
+                #       and call the method
+                fn = getattr(self.container.controller, self.handler_name)
+                fn()
             except Exception as e:
                 _log.error('error in timer handler: %s', e)
 
@@ -94,40 +95,14 @@ class NoTimerForMethdod(Exception):
     pass
 
 
-def get_interval(timer_method):
-    ''' Returns the initial interval set for the decorated `timer_method`.
-
-    It will raise a NoTimerForMethdod if the `timer_method` was not
-    decorated with `@timer`.
-    '''
-    try:
-        return intervals[timer_method.im_func]
-    except KeyError:
-        raise NoTimerForMethdod(timer_method)
-
-
 def get_timer(timer_method):
     ''' Returns the timer for a `@timer` decorated method.
 
     It will raise a NoTimerForMethdod if the `timer_method` was not
     decorated with `@timer`.
     '''
+
     try:
-        tmr = timers[timer_method]
-    except KeyError:
-        interval = get_interval(timer_method)
-        tmr = Timer(interval, timer_method)
-        timers[timer_method] = tmr
-
-    return tmr
-
-
-def get_timers(service):
-    ''' Returns all the timers of all the methods decorated with `@timer`
-    on the `service` object.
-    '''
-    for _, timer_method in inspect.getmembers(service, inspect.ismethod):
-        try:
-            yield get_timer(timer_method)
-        except NoTimerForMethdod:
-            pass
+        return next(get_providers(timer_method, Timer))
+    except StopIteration:
+        raise NoTimerForMethdod()
