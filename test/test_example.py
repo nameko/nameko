@@ -22,11 +22,11 @@ class SpamEvent(Event):
 
 
 class FooService(object):
-    name = "foo_service"
+    name = "foo-service"
 
     foo_session = ORMSession(DeclBase)
     dispatch_event = EventDispatcher()
-    foo_service = Service()
+    foo_service = Service('foo-service')
 
 
     @timer(interval=1)
@@ -34,7 +34,7 @@ class FooService(object):
         ham = 'ham'
         self.dispatch_event(SpamEvent(ham))
 
-    @event_handler('foo_service', 'spam')
+    @event_handler('foo-service', 'spam')
     def handle_spam(self, evt_data):
         ham = self.foo_service.spam(evt_data)
         handle_spam_called(ham)
@@ -57,7 +57,7 @@ def test_example_service(container_factory, rabbit_config):
     config = {
         'amqp_uri': rabbit_config['amqp_uri'],
         'orm_db_uris': {
-            'foo_service:foo_base': db_uri
+            'foo-service:foo_base': db_uri
         }
     }
 

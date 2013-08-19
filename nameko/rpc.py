@@ -75,8 +75,11 @@ class Responder(object):
 
 
 class Service(AttributeDependency):
+    def __init__(self, service_name):
+        self.service_name = service_name
+
     def acquire_injection(self, worker_ctx):
-        return ServiceProxy(self.name, worker_ctx)
+        return ServiceProxy(self.service_name, worker_ctx)
 
 
 class ServiceProxy(object):
