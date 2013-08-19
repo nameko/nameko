@@ -148,16 +148,13 @@ class ConsumeProvider(DecoratorDependency):
     def handle_message(self, srv_ctx, body, message):
         args = (body,)
         kwargs = {}
-        worker_ctx = srv_ctx.container.spawn_worker(self.name, args, kwargs)
+        worker_ctx = srv_ctx.container.spawn_worker(self, args, kwargs)
         self.pending_worker_message[worker_ctx] = message
 
     def call_result(self, worker_ctx, result=None, exc=None):
         message = self.pending_worker_message.pop(worker_ctx, None)
-        # TODO: every provider gets called, so we have to make sure
-        # we only proccess messages if they are available
-        if message is not None:
-            srv_ctx = worker_ctx.srv_ctx
-            self.handle_message_processed(srv_ctx, message, result, exc)
+        srv_ctx = worker_ctx.srv_ctx
+        self.handle_message_processed(srv_ctx, message, result, exc)
 
     def handle_message_processed(
             self, srv_ctx, message, result=None, exc=None):

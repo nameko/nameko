@@ -28,6 +28,7 @@ class FooService(object):
     dispatch_event = EventDispatcher()
     foo_service = Service()
 
+
     @timer(interval=1)
     def handle_timer(self):
         ham = 'ham'
@@ -43,7 +44,6 @@ class FooService(object):
         self.foo_session.add(FooModel(data=ham))
         self.foo_session.flush()
         return ham + ' & eggs'
-
 
 
 handle_spam_called = Mock()
@@ -71,3 +71,4 @@ def test_example_service(container_factory, rabbit_config):
     assert entries ==  [('ham',)]
 
     container.stop()
+

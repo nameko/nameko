@@ -37,7 +37,7 @@ class TimerProvider(DependencyProvider):
         def timer_handler():
             args = tuple()
             kwargs = {}
-            srv_ctx.container.spawn_worker(self.name, args, kwargs)
+            srv_ctx.container.spawn_worker(self, args, kwargs)
 
         self.timers_by_ctx[srv_ctx] = Timer(self.interval, timer_handler)
 

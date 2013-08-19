@@ -7,7 +7,7 @@ from nameko.service import ServiceContext, WorkerContext
 
 
 
-def test_event_dispatcher():
+def test_db():
 
     DeclBase = declarative_base(name='spam_base')
 

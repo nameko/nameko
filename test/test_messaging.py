@@ -198,7 +198,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     rabbit_manager.publish(vhost, foobar_ex.name, '', 'msg')
 
     with wait_for_call(CONSUME_TIMEOUT, mock_container.spawn_worker) as method:
-        method.assert_called_once_with(consumer.name, ('msg',), {})
+        method.assert_called_once_with(consumer, ('msg',), {})
 
     consumer.call_result(worker_ctx, 'result')
     # stop will hang if the consumer hasn't acked or requeued messages

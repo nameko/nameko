@@ -19,7 +19,7 @@ def test_provider():
     tmrprov.on_container_started(srv_ctx)
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
-        spawn_worker.assert_called_once_with('foobar', (), {})
+        spawn_worker.assert_called_once_with(tmrprov, (), {})
 
     tmrprov.stop(srv_ctx)
     assert timer.gt.dead

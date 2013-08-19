@@ -62,6 +62,7 @@ class ServiceContainer(object):
 
     @property
     def ctx(self):
+        # TODO: why ctx a lazy property?
         if self._ctx is None:
             self._ctx = ServiceContext(get_service_name(self.service_cls),
                                        self.service_cls, self, self.config)
@@ -78,7 +79,9 @@ class ServiceContainer(object):
         self.dependencies.all.stop(self.ctx)
         self.dependencies.all.on_container_stopped(self.ctx)
 
-    def spawn_worker(self, method_name, args, kwargs, context_data=None):
+    def spawn_worker(self, provider, args, kwargs, context_data=None):
+        method_name = provider.name
+
         _log.debug('spawning worker for method_name: {}'.format(method_name))
 
         worker_ctx = WorkerContext(
@@ -99,7 +102,8 @@ class ServiceContainer(object):
 
             # TODO: should we only call the call_result() handler on the
             #       dependency which initiated the worker?
-            self.dependencies.all.call_result(worker_ctx, result, exc)
+            # self.dependencies.all.call_result(worker_ctx, result, exc)
+            provider.call_result(worker_ctx, result, exc)
 
             self.dependencies.all.call_teardown(worker_ctx)
 

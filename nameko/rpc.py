@@ -43,16 +43,14 @@ class RpcProvider(ConsumeProvider):
         reply_to = message.properties['reply_to']
 
         container = srv_ctx.container
-        worker_ctx = container.spawn_worker(self.name, args, kwargs)
+        worker_ctx = container.spawn_worker(self, args, kwargs)
         self.pending_worker_message[worker_ctx] = message
         self.responders[worker_ctx] = Responder(reply_to)
 
     def call_result(self, worker_ctx, result, exc):
         responder = self.responders.pop(worker_ctx, None)
-        # TODO: see ConsumeProvider
-        if responder is not None:
-            responder.send_response(worker_ctx, result, exc)
-            super(RpcProvider, self).call_result(worker_ctx)
+        responder.send_response(worker_ctx, result, exc)
+        super(RpcProvider, self).call_result(worker_ctx)
 
 
 class Responder(object):
