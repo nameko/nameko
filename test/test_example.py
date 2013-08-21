@@ -42,6 +42,7 @@ class FooService(object):
     @rpc
     def spam(self, ham):
         self.foo_session.add(FooModel(data=ham))
+        self.foo_session.commit()
         self.foo_session.flush()
         return ham + ' & eggs'
 
