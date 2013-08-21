@@ -2,9 +2,10 @@
 Provides classes and method to deal with dependency injection.
 """
 from functools import wraps
+import inspect
+from itertools import chain
 import types
 
-import inspect
 
 from nameko.utils import SpawningSet
 
@@ -71,7 +72,7 @@ class DependencyProvider(object):
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_result(self, worker_ctx):
+    def call_result(self, worker_ctx, result=None, exc=None):
         """ Called with the result of a service worker execution.
 
         DependencyProviders that need to process the result should do it here.
@@ -98,9 +99,32 @@ class DependencyProvider(object):
 class DecoratorDependency(DependencyProvider):
     pass
 
+from abc import ABCMeta, abstractmethod
+
 
 class AttributeDependency(DependencyProvider):
-    pass
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def acquire_injection(self, worker_ctx):
+        pass
+
+    def release_injection(self, worker_ctx):
+        pass
+
+    def call_setup(self, worker_ctx):
+        injection = self.acquire_injection(worker_ctx)
+
+        injection_name = self.name
+        service = worker_ctx.service
+        setattr(service, injection_name, injection)
+
+    def call_teardown(self, worker_ctx):
+        self.release_injection(worker_ctx)
+
+        service = worker_ctx.service
+        injection_name = self.name
+        delattr(service, injection_name)
 
 
 class DependencySet(SpawningSet):
@@ -181,7 +205,7 @@ def get_decorator_providers(obj):
 
 
 def get_dependencies(obj):
-    return get_attribute_providers(obj) + list(get_decorator_providers(obj))
+    return chain(get_attribute_providers(obj), get_decorator_providers(obj))
 
 
 def get_providers(fn, filter_type=object):

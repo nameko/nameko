@@ -1,7 +1,8 @@
 from kombu import Exchange, Queue
-from mock import patch, Mock, ANY
+from mock import patch, Mock
 
-from nameko.messaging import Publisher, ConsumeProvider
+from nameko.dependencies import get_decorator_providers
+from nameko.messaging import Publisher, ConsumeProvider, consume
 from nameko.service import ServiceContext, WorkerContext
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)
@@ -10,6 +11,22 @@ foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
 CONSUME_TIMEOUT = 1
+
+
+def test_consume_creates_provider():
+    class Spam(object):
+        @consume(queue=foobar_queue)
+        def foobar():
+            pass
+
+    providers = list(get_decorator_providers(Spam))
+    assert len(providers) == 1
+
+    name, provider = providers[0]
+    assert name == 'foobar'
+    assert isinstance(provider, ConsumeProvider)
+    assert provider.queue == foobar_queue
+    assert provider.requeue_on_error is False
 
 
 def test_consume_provider():
@@ -35,44 +52,28 @@ def test_consume_provider():
         consume_provider.stop(srv_ctx)
         queue_consumer.stop.assert_called_once_with()
 
-        def successful_call(method, args, kwargs, callback):
+        worker_ctx = WorkerContext(srv_ctx, None, None)
 
-            worker_ctx = WorkerContext(srv_ctx, None, None)
-            worker_ctx.data = {
-                'result': "result",
-                'exc': None,
-            }
-            callback(worker_ctx)
-
-        def failed_call(method, args, kwargs, callback):
-            worker_ctx = WorkerContext(srv_ctx, None, None)
-            worker_ctx.data = {
-                'result': None,
-                'exc': Exception("Error")
-            }
-            callback(worker_ctx)
+        container.spawn_worker.return_value = worker_ctx
 
         # test handling successful call
         queue_consumer.reset_mock()
-        container.spawn_worker.side_effect = successful_call
-
         consume_provider.handle_message(srv_ctx, "body", message)
+        consume_provider.call_result(worker_ctx, 'result')
         queue_consumer.ack_message.assert_called_once_with(message)
 
-        # test handling failed call...
-        container.reset_mock()
-        container.spawn_worker.side_effect = failed_call
-
-        # without requeue
+        # test handling failed call without requeue
         queue_consumer.reset_mock()
+        consume_provider.requeue_on_error = False
         consume_provider.handle_message(srv_ctx, "body", message)
+        consume_provider.call_result(worker_ctx, None, Exception('Error'))
         queue_consumer.ack_message.assert_called_once_with(message)
 
-        # with requeue
+        # test handling failed call with requeue
         queue_consumer.reset_mock()
         consume_provider.requeue_on_error = True
-
         consume_provider.handle_message(srv_ctx, "body", message)
+        consume_provider.call_result(worker_ctx, None, Exception('Error'))
         assert not queue_consumer.ack_message.called
         queue_consumer.requeue_message.assert_called_once_with(message)
 
@@ -88,7 +89,7 @@ def test_publish_to_exchange():
     publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-        patch.object(publisher, 'get_connection') as get_connection, \
+            patch.object(publisher, 'get_connection') as get_connection, \
             patch.object(publisher, 'get_producer') as get_producer:
 
         get_connection.return_value = as_context_manager(connection)
@@ -116,7 +117,7 @@ def test_publish_to_queue():
     publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-        patch.object(publisher, 'get_connection') as get_connection, \
+            patch.object(publisher, 'get_connection') as get_connection, \
             patch.object(publisher, 'get_producer') as get_producer:
 
         get_connection.return_value = as_context_manager(connection)
@@ -190,17 +191,14 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     # test message consumed from queue
     worker_ctx = WorkerContext(srv_ctx, None, None)
-    worker_ctx.data = {
-        'result': "result",
-        'exc': None
-    }
-    worker = lambda name, args, kwargs, callback: callback(worker_ctx)
-    mock_container.spawn_worker.side_effect = worker
+
+    mock_container.spawn_worker.return_value = worker_ctx
 
     rabbit_manager.publish(vhost, foobar_ex.name, '', 'msg')
 
     with wait_for_call(CONSUME_TIMEOUT, mock_container.spawn_worker) as method:
-        method.assert_called_once_with(consumer.name, ('msg',), {}, ANY)
+        method.assert_called_once_with(consumer, ('msg',), {})
 
+    consumer.call_result(worker_ctx, 'result')
     # stop will hang if the consumer hasn't acked or requeued messages
     consumer.stop(srv_ctx)

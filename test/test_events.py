@@ -114,8 +114,9 @@ def test_event_handler(handler_factory):
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
         event_handler.start(srv_ctx)
-        assert event_handler.queue.name == \
-            "evt-srcservice-eventtype-destservice"
+
+        assert (event_handler.queue.name ==
+                "evt-srcservice-eventtype-destservice")
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
