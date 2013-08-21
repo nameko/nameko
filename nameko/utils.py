@@ -1,5 +1,6 @@
 import eventlet
 
+
 class SpawningProxy(object):
     """ Wraps an iterable set of items such that a call on the SpawningProxy
     will spawn a call in a greenthread for each item.

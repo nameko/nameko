@@ -11,6 +11,7 @@ from nameko.dependencies import dependency_decorator, AttributeDependency
 
 _log = getLogger(__name__)
 
+
 @dependency_decorator
 def rpc():
     return RpcProvider()
@@ -123,9 +124,9 @@ class MethodProxy(object):
                 # TODO: should use correlation-id property and check after
                 # receiving a response
                 producer.publish(msg,
-                    exchange=RPC_EXCHANGE,
-                    routing_key=routing_key,
-                    reply_to=reply_queue.name)
+                                 exchange=RPC_EXCHANGE,
+                                 routing_key=routing_key,
+                                 reply_to=reply_queue.name)
 
             resp_messages = itermessages(
                 conn, conn.channel(), reply_queue)
@@ -137,4 +138,3 @@ class MethodProxy(object):
 
     def __str__(self):
         return '<proxy method: %s.%s>' % (self.service_name, self.method_name)
-

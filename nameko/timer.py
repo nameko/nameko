@@ -102,4 +102,3 @@ class Timer(object):
         except Timeout:
             # we use the timeout as a cancellable sleep
             pass
-

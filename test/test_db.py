@@ -6,7 +6,6 @@ from nameko.contrib.sqlalchemy import ORMSession
 from nameko.service import ServiceContext, WorkerContext
 
 
-
 def test_db():
 
     DeclBase = declarative_base(name='spam_base')
@@ -15,15 +14,13 @@ def test_db():
         __tablename__ = 'spam'
         id = Column(Integer, primary_key=True)
 
-
     class FooService(object):
         foo_session = ORMSession(DeclBase)
-
 
     FooService.foo_session.name = 'foo_session'
 
     config = {
-        'orm_db_uris':{
+        'orm_db_uris': {
             'foo_service:spam_base': 'sqlite:///:memory:'
         }
     }
@@ -49,4 +46,3 @@ def test_db():
     # because the actual session was deleted, we should get and instance
     # of the declared ORMSession from the service class
     assert service.foo_session is FooService.foo_session
-

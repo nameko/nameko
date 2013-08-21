@@ -24,6 +24,7 @@ def test_provider():
     tmrprov.stop(srv_ctx)
     assert timer.gt.dead
 
+
 def test_stop_running_timer():
     handler = Mock()
 
@@ -41,6 +42,7 @@ def test_stop_running_timer():
     assert handler.call_count == count
     assert timer.gt.dead
 
+
 def test_stop_timer_immediatly():
     handler = Mock()
     timer = Timer(5, handler)
@@ -49,6 +51,7 @@ def test_stop_timer_immediatly():
     timer.stop()
     assert handler.call_count == 1
     assert timer.gt.dead
+
 
 def test_exception_in_timer_method_ignored():
     handler = Mock()

@@ -110,4 +110,3 @@ class ServiceContainer(object):
         self._worker_pool.spawn(worker)
 
         return worker_ctx
-

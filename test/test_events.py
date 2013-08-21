@@ -116,7 +116,7 @@ def test_event_handler(handler_factory):
         event_handler.start(srv_ctx)
 
         assert (event_handler.queue.name ==
-            "evt-srcservice-eventtype-destservice")
+                "evt-srcservice-eventtype-destservice")
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)

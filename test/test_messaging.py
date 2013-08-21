@@ -1,5 +1,5 @@
 from kombu import Exchange, Queue
-from mock import patch, Mock, ANY
+from mock import patch, Mock
 
 from nameko.dependencies import get_decorator_providers
 from nameko.messaging import Publisher, ConsumeProvider, consume
@@ -26,7 +26,7 @@ def test_consume_creates_provider():
     assert name == 'foobar'
     assert isinstance(provider, ConsumeProvider)
     assert provider.queue == foobar_queue
-    assert provider.requeue_on_error == False
+    assert provider.requeue_on_error is False
 
 
 def test_consume_provider():
@@ -53,7 +53,6 @@ def test_consume_provider():
         queue_consumer.stop.assert_called_once_with()
 
         worker_ctx = WorkerContext(srv_ctx, None, None)
-
 
         container.spawn_worker.return_value = worker_ctx
 

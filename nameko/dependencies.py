@@ -101,6 +101,7 @@ class DecoratorDependency(DependencyProvider):
 
 from abc import ABCMeta, abstractmethod
 
+
 class AttributeDependency(DependencyProvider):
     __metaclass__ = ABCMeta
 

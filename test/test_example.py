@@ -18,7 +18,7 @@ class FooModel(DeclBase):
 
 
 class SpamEvent(Event):
-    type='spam'
+    type = 'spam'
 
 
 class FooService(object):
@@ -27,7 +27,6 @@ class FooService(object):
     foo_session = ORMSession(DeclBase)
     dispatch_event = EventDispatcher()
     foo_service = Service('foo-service')
-
 
     @timer(interval=1)
     def handle_timer(self):
@@ -69,7 +68,6 @@ def test_example_service(container_factory, rabbit_config):
         handle_spam.assert_called_with('ham & eggs')
 
     entries = list(engine.execute('SELECT data FROM spam LIMIT 1'))
-    assert entries ==  [('ham',)]
+    assert entries == [('ham',)]
 
     container.stop()
-
