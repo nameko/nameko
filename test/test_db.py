@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import Session
 
-from nameko.db import ORMSession
+from nameko.contrib.sqlalchemy import ORMSession
 from nameko.service import ServiceContext, WorkerContext
 
 

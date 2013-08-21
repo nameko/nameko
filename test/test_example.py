@@ -2,7 +2,7 @@ from mock import Mock
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-from nameko.db import ORMSession
+from nameko.contrib.sqlalchemy import ORMSession
 from nameko.events import event_handler, EventDispatcher, Event
 from nameko.rpc import rpc, Service
 from nameko.timer import timer

@@ -31,4 +31,5 @@ class ORMSession(AttributeDependency):
 
     def release_injection(self, worker_ctx):
         session = self.sessions.pop(worker_ctx)
+        session.commit()
         session.close()
