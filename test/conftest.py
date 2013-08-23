@@ -1,9 +1,9 @@
+import eventlet
+eventlet.monkey_patch()
+
 from functools import partial
 import logging
 from urlparse import urlparse
-
-import eventlet
-eventlet.monkey_patch()
 
 from kombu import Connection
 from pyrabbit.api import Client

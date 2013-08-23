@@ -1,88 +1,68 @@
-import pytest
 import eventlet
 from mock import Mock
 
-from nameko.timer import timer, get_timer, NoTimerForMethdod
-from nameko.dependencies import get_decorator_providers
+from nameko.timer import Timer, TimerProvider
+from nameko.service import ServiceContext
+from nameko.testing.utils import wait_for_call
 
 
-class FooError(Exception):
-    pass
+def test_provider():
+    tmrprov = TimerProvider(0)
+    tmrprov.name = 'foobar'
+    container = Mock()
+    srv_ctx = ServiceContext('foo', None, container)
+    tmrprov.start(srv_ctx)
 
+    timer = tmrprov.timers_by_ctx[srv_ctx]
+    assert timer.interval == 0
 
-class Foobar(object):
-    def __init__(self, raise_at_call=0):
-        self.timer_calls = 0
-        self.raise_at_call = raise_at_call
+    tmrprov.on_container_started(srv_ctx)
 
-    @timer(interval=0)
-    def foobar(self):
-        self.timer_calls += 1
-        if self.timer_calls == self.raise_at_call:
-            raise FooError('error in call: %d' % self.timer_calls)
+    with wait_for_call(1, container.spawn_worker) as spawn_worker:
+        spawn_worker.assert_called_once_with(tmrprov, (), {})
 
-
-def test_get_timer_fails():
-    with pytest.raises(NoTimerForMethdod):
-        get_timer(test_get_timer_fails)
-
-
-def test_set_interval():
-    foo = Foobar()
-    get_timer(foo.foobar).interval = 5
-    tmr = get_timer(foo.foobar)
-    assert tmr.interval == 5
+    tmrprov.stop(srv_ctx)
+    assert timer.gt.dead
 
 
 def test_stop_running_timer():
-    foo = Foobar()
-    container = Mock()
-    container.controller = foo
+    handler = Mock()
 
-    for name, tmr in get_decorator_providers(foo):
-        tmr.interval = 0
-        tmr.container_init(container, name)
+    timer = Timer(0, handler)
+    timer.start()
 
-        tmr.container_start()
+    with eventlet.Timeout(0.5):
+        while handler.call_count < 5:
+            eventlet.sleep()
+        count = handler.call_count
 
-        with eventlet.Timeout(0.5):
-            while foo.timer_calls < 5:
-                eventlet.sleep()
+        timer.stop()
+        eventlet.sleep()
 
-        count = foo.timer_calls
-        tmr.stop()
-
-    assert foo.timer_calls == count
+    assert handler.call_count == count
+    assert timer.gt.dead
 
 
 def test_stop_timer_immediatly():
-    foo = Foobar()
-    container = Mock()
-    container.controller = foo
-
-    for name, tmr in get_decorator_providers(foo):
-        tmr.interval = 5
-        tmr.container_init(container, name)
-        tmr.container_start()
-        eventlet.sleep(0.1)
-        tmr.stop()
-
-    assert foo.timer_calls == 1
+    handler = Mock()
+    timer = Timer(5, handler)
+    timer.start()
+    eventlet.sleep(0.1)
+    timer.stop()
+    assert handler.call_count == 1
+    assert timer.gt.dead
 
 
 def test_exception_in_timer_method_ignored():
-    foo = Foobar(2)
-    container = Mock()
-    container.controller = foo
+    handler = Mock()
+    handler.side_effect = Exception('foo')
 
-    for name, tmr in get_decorator_providers(foo):
-        tmr.interval = 0
-        tmr.container_init(container, name)
+    timer = Timer(0, handler)
+    timer.start()
 
-        tmr.container_start()
+    with eventlet.Timeout(0.5):
+        while handler.call_count < 5:
+            eventlet.sleep()
 
-        with eventlet.Timeout(0.5):
-            while foo.timer_calls < 5:
-                eventlet.sleep()
-
-    assert foo.timer_calls >= 5
+    assert handler.call_count >= 5
+    timer.stop()

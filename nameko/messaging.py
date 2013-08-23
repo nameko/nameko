@@ -2,7 +2,6 @@
 Provides core messaging decorators and dependency injection providers.
 '''
 from __future__ import absolute_import
-import inspect
 from itertools import count
 from functools import partial
 from logging import getLogger
@@ -21,9 +20,6 @@ from nameko.dependencies import (
     AttributeDependency, DecoratorDependency, dependency_decorator)
 
 _log = getLogger(__name__)
-
-# stores the consumer configurations per method
-consumer_configs = WeakKeyDictionary()
 
 # delivery_mode
 PERSISTENT = 2
@@ -54,6 +50,7 @@ class Publisher(AttributeDependency):
         self.queue = queue
 
     def get_connection(self, srv_ctx):
+        #TODO: should this live outside of the class or be a class method?
         conn = Connection(srv_ctx.config['amqp_uri'])
         return connections[conn].acquire(block=True)
 
@@ -71,9 +68,7 @@ class Publisher(AttributeDependency):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def call_setup(self, worker_ctx):
-        """ Inject a publish method onto the service instance
-        """
+    def acquire_injection(self, worker_ctx):
         def publish(msg, **kwargs):
             exchange = self.exchange
             queue = self.queue
@@ -86,9 +81,7 @@ class Publisher(AttributeDependency):
                 #      should that be an option in __init__?
                 producer.publish(msg, exchange=exchange, **kwargs)
 
-        service = worker_ctx.service
-        injection_name = self.name
-        setattr(service, injection_name, publish)
+        return publish
 
 
 @dependency_decorator
@@ -119,56 +112,6 @@ def consume(queue, requeue_on_error=False):
     return ConsumeProvider(queue, requeue_on_error)
 
 
-# deprecated
-class ConsumerConfig(object):
-    '''
-    Stores information about a consumer-decorated method.
-    '''
-    def __init__(self, queue, requeue_on_error):
-        self.queue = queue
-        self.requeue_on_error = requeue_on_error
-
-    def get_queue(self, service):
-        """ Base implementation for consumer config objects.
-        ``service`` is provided for sub-classes if they need to create queues
-        using information from the service object.
-
-        Args:
-            service - An instance of ``nameko.service.Service``.
-        """
-        return self.queue
-
-
-# deprecated
-def get_consumers(Consumer, service, on_message):
-    '''
-    Generates consumers for the consume-decorated method on a service.
-
-    Args:
-        Consumer: The Consumer class to use for a consumer.
-
-        service: An object which may have consume-decorated methods.
-
-    Returns:
-        A generator with each item being a Consumer instance configured
-        using the ConsumerConfig defined by the consume decorator.
-    '''
-    for name, consumer_method in inspect.getmembers(service.controller,
-                                                    inspect.ismethod):
-        try:
-            consumer_config = consumer_configs[consumer_method.im_func]
-
-            consumer = Consumer(
-                queues=[consumer_config.get_queue(service)],
-                callbacks=[
-                    partial(on_message, (consumer_method, consumer_config))
-                ]
-            )
-            yield consumer
-        except KeyError:
-            pass
-
-
 queue_consumers = WeakKeyDictionary()
 
 
@@ -188,6 +131,7 @@ class ConsumeProvider(DecoratorDependency):
     def __init__(self, queue, requeue_on_error):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
+        self.pending_worker_message = {}
 
     def start(self, srv_ctx):
         qc = get_queue_consumer(srv_ctx)
@@ -202,15 +146,21 @@ class ConsumeProvider(DecoratorDependency):
         qc.stop()
 
     def handle_message(self, srv_ctx, body, message):
-        callback = partial(self.handle_message_processed, message)
         args = (body,)
         kwargs = {}
-        srv_ctx.container.spawn_worker(self.name, args, kwargs, callback)
+        worker_ctx = srv_ctx.container.spawn_worker(self, args, kwargs)
+        self.pending_worker_message[worker_ctx] = message
 
-    def handle_message_processed(self, message, worker_ctx):
-        qc = get_queue_consumer(worker_ctx.srv_ctx)
+    def call_result(self, worker_ctx, result=None, exc=None):
+        message = self.pending_worker_message.pop(worker_ctx, None)
+        srv_ctx = worker_ctx.srv_ctx
+        self.handle_message_processed(srv_ctx, message, result, exc)
 
-        if worker_ctx.data['exc'] is not None and self.requeue_on_error:
+    def handle_message_processed(
+            self, srv_ctx, message, result=None, exc=None):
+        qc = get_queue_consumer(srv_ctx)
+
+        if exc is not None and self.requeue_on_error:
             qc.requeue_message(message)
         else:
             qc.ack_message(message)
