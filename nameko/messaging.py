@@ -118,12 +118,12 @@ queue_consumers = WeakKeyDictionary()
 def get_queue_consumer(srv_ctx):
     """ Get or create a QueueConsumer instance for the given ``srv_ctx``
     """
-    container = srv_ctx.container
-    if container not in queue_consumers:
-        queue_consumer = QueueConsumer(srv_ctx.config['amqp_uri'])
-        queue_consumers[container] = queue_consumer
+    if srv_ctx not in queue_consumers:
+        queue_consumer = QueueConsumer(
+            srv_ctx.config['amqp_uri'], srv_ctx.max_workers)
+        queue_consumers[srv_ctx] = queue_consumer
 
-    return queue_consumers[container]
+    return queue_consumers[srv_ctx]
 
 
 class ConsumeProvider(DecoratorDependency):
@@ -167,9 +167,10 @@ class ConsumeProvider(DecoratorDependency):
 
 
 class QueueConsumer(ConsumerMixin):
-    def __init__(self, amqp_uri):
+    def __init__(self, amqp_uri, prefetch_count):
         self._connection = None
         self._amqp_uri = amqp_uri
+        self._prefetch_count = prefetch_count
         self._registry = []
 
         self._pending_messages = set()
@@ -187,6 +188,7 @@ class QueueConsumer(ConsumerMixin):
             _log.debug('starting')
             self._gt = eventlet.spawn(self.run)
             self._consumers_ready.wait()
+            _log.debug('started')
 
     def stop(self):
         if self._gt is not None:
@@ -259,7 +261,7 @@ class QueueConsumer(ConsumerMixin):
         for queue, handle_message in self._registry:
             callback = partial(self._on_message, handle_message)
             consumer = Consumer(queues=[queue], callbacks=[callback])
-            consumer.qos(prefetch_count=10)
+            consumer.qos(prefetch_count=self._prefetch_count)
             consumers.append(consumer)
 
         self._consumers = consumers

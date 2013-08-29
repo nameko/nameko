@@ -7,7 +7,7 @@ import eventlet
 from eventlet import Timeout
 from eventlet.event import Event
 
-from nameko.dependencies import dependency_decorator, DependencyProvider
+from nameko.dependencies import dependency_decorator, DecoratorDependency
 
 _log = getLogger(__name__)
 
@@ -28,8 +28,10 @@ def timer(interval):
     return TimerProvider(interval)
 
 
-class TimerProvider(DependencyProvider):
+class TimerProvider(DecoratorDependency):
     def __init__(self, interval):
+        # The map is only used to support using the same class in multiple
+        # concurrently running containers.
         self.timers_by_ctx = WeakKeyDictionary()
         self.interval = interval
 
@@ -43,13 +45,15 @@ class TimerProvider(DependencyProvider):
 
     def on_container_started(self, srv_ctx):
         timer = self.timers_by_ctx[srv_ctx]
-        _log.debug(
-            'started timer for %s with %ss interval',
-            self.name, timer.interval)
+        _log.debug('started %s', self)
         timer.start()
 
     def stop(self, srv_ctx):
         self.timers_by_ctx[srv_ctx].stop()
+
+    def __str__(self):
+        return '<TimerProvider %s with %ss interval at at 0x{:x}>'.format(
+            self.name, self.interval, id(self))
 
 
 class Timer(object):

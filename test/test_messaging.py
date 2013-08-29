@@ -133,6 +133,7 @@ def test_publish_to_queue():
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
+
 #==============================================================================
 # INTEGRATION TESTS
 #==============================================================================

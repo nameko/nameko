@@ -1,4 +1,6 @@
 import eventlet
+from eventlet import Timeout
+
 from mock import Mock
 
 from nameko.timer import Timer, TimerProvider
@@ -21,7 +23,9 @@ def test_provider():
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         spawn_worker.assert_called_once_with(tmrprov, (), {})
 
-    tmrprov.stop(srv_ctx)
+    with Timeout(1):
+        tmrprov.stop(srv_ctx)
+
     assert timer.gt.dead
 
 
