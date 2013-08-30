@@ -48,10 +48,10 @@ class RpcProvider(ConsumeProvider):
         self.pending_worker_message[worker_ctx] = message
         self.responders[worker_ctx] = Responder(reply_to)
 
-    def call_result(self, worker_ctx, result, exc):
+    def handle_result(self, worker_ctx, result, exc):
         responder = self.responders.pop(worker_ctx, None)
         responder.send_response(worker_ctx, result, exc)
-        super(RpcProvider, self).call_result(worker_ctx)
+        super(RpcProvider, self).handle_result(worker_ctx)
 
 
 class Responder(object):
