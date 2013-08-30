@@ -100,11 +100,9 @@ class ServiceContainer(object):
             except Exception as e:
                 exc = e
 
-            # TODO: should we only call the call_result() handler on the
-            #       dependency which initiated the worker?
-            # self.dependencies.all.call_result(worker_ctx, result, exc)
-            provider.call_result(worker_ctx, result, exc)
+            provider.handle_result(worker_ctx, result, exc)
 
+            self.dependencies.attributes.call_result(worker_ctx, result, exc)
             self.dependencies.all.call_teardown(worker_ctx)
 
         self._worker_pool.spawn(worker)
