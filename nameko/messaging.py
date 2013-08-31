@@ -131,7 +131,6 @@ class ConsumeProvider(DecoratorDependency):
     def __init__(self, queue, requeue_on_error):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
-        self.pending_worker_message = {}
 
     def start(self, srv_ctx):
         qc = get_queue_consumer(srv_ctx)
@@ -148,11 +147,12 @@ class ConsumeProvider(DecoratorDependency):
     def handle_message(self, srv_ctx, body, message):
         args = (body,)
         kwargs = {}
-        worker_ctx = srv_ctx.container.spawn_worker(self, args, kwargs)
-        self.pending_worker_message[worker_ctx] = message
 
-    def call_result(self, worker_ctx, result=None, exc=None):
-        message = self.pending_worker_message.pop(worker_ctx, None)
+        srv_ctx.container.spawn_worker(
+            self, args, kwargs,
+            handle_result=partial(self.handle_result, message))
+
+    def handle_result(self, message, worker_ctx, result=None, exc=None):
         srv_ctx = worker_ctx.srv_ctx
         self.handle_message_processed(srv_ctx, message, result, exc)
 

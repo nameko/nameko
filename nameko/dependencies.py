@@ -1,6 +1,7 @@
 """
 Provides classes and method to deal with dependency injection.
 """
+from abc import ABCMeta, abstractmethod
 from functools import wraps
 import inspect
 from itertools import chain
@@ -72,17 +73,6 @@ class DependencyProvider(object):
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_result(self, worker_ctx, result=None, exc=None):
-        """ Called with the result of a service worker execution.
-
-        DependencyProviders that need to process the result should do it here.
-
-        Example: a database session provider may commit the transaction
-
-        Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
-        """
-
     def call_teardown(self, worker_ctx):
         """ Called after a service worker has executed a task.
 
@@ -98,8 +88,6 @@ class DependencyProvider(object):
 
 class DecoratorDependency(DependencyProvider):
     pass
-
-from abc import ABCMeta, abstractmethod
 
 
 class AttributeDependency(DependencyProvider):
@@ -125,6 +113,19 @@ class AttributeDependency(DependencyProvider):
         injection_name = self.name
         service = worker_ctx.service
         setattr(service, injection_name, injection)
+
+    def call_result(self, worker_ctx, result=None, exc=None):
+        """ Called with the result of a service worker execution.
+
+        DependencyProviders that need to process the result should do it here.
+        Note that all DependencyProviders defining this method will be called,
+        not just those that initiated the worker.
+
+        Example: a database session provider may commit the transaction
+
+        Args:
+            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
+        """
 
     def call_teardown(self, worker_ctx):
         self.release_injection(worker_ctx)

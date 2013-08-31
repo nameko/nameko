@@ -286,6 +286,7 @@ def test_service_pooled_events(reset_rabbit, reset_state,
 def test_singleton_events(reset_rabbit, reset_state,
                           rabbit_manager, rabbit_config,
                           make_containers):
+
     vhost = rabbit_config['vhost']
     make_containers(SingletonHandler, ("foo", "foo", "bar"))
 

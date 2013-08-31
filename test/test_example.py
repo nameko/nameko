@@ -1,3 +1,5 @@
+import tempfile
+
 from mock import Mock
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -50,7 +52,8 @@ handle_spam_called = Mock()
 
 
 def test_example_service(container_factory, rabbit_config):
-    db_uri = 'sqlite:///foobar.sqlite'
+
+    db_uri = 'sqlite:///{}'.format(tempfile.NamedTemporaryFile().name)
     engine = create_engine(db_uri)
     FooModel.metadata.create_all(engine)
 
