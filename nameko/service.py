@@ -95,12 +95,10 @@ class ServiceContainer(object):
 
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):
-        # TODO: should we have an extra arg for call_result() (e.g. messages)
-        method_name = provider.name
 
         service = self.service_cls()
         worker_ctx = WorkerContext(
-            self.ctx, service, method_name, args, kwargs, data=context_data)
+            self.ctx, service, provider.name, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx)
         self._worker_pool.spawn(self._run_worker, worker_ctx, handle_result)
