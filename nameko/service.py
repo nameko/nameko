@@ -93,7 +93,8 @@ class ServiceContainer(object):
         dependencies.all.on_container_stopped(self.ctx)
         self._died.send(None)
 
-    def spawn_worker(self, provider, args, kwargs, context_data=None):
+    def spawn_worker(self, provider, args, kwargs,
+                     context_data=None, handle_result=None):
         # TODO: should we have an extra arg for call_result() (e.g. messages)
         method_name = provider.name
 
@@ -115,8 +116,13 @@ class ServiceContainer(object):
             except Exception as e:
                 exc = e
 
-            _log.debug('handling result for %s', worker_ctx)
-            provider.call_result(worker_ctx, result, exc)
+            if handle_result is not None:
+                _log.debug('handling result for %s', worker_ctx)
+                handle_result(worker_ctx, result, exc)
+
+            _log.debug('signalling result for %s', worker_ctx)
+            self.dependencies.attributes.all.call_result(
+                worker_ctx, result, exc)
 
             _log.debug('tearing down %s', worker_ctx)
             self.dependencies.all.call_teardown(worker_ctx)

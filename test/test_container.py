@@ -45,10 +45,6 @@ class CallCollectorMixin(object):
         self._log_call(('setup', worker_ctx))
         super(CallCollectorMixin, self).call_setup(worker_ctx)
 
-    def call_result(self, worker_ctx, result=None, exc=None):
-        self._log_call(('result', worker_ctx, (result, exc)))
-        super(CallCollectorMixin, self).call_result(worker_ctx, result, exc)
-
     def call_teardown(self, worker_ctx):
         self._log_call(('teardown', worker_ctx))
         super(CallCollectorMixin, self).call_teardown(worker_ctx)
@@ -67,6 +63,10 @@ class AttrDep(CallCollectorMixin, AttributeDependency):
 
     def release_injection(self, worker_ctx):
         self._log_call(('release', worker_ctx))
+
+    def call_result(self, worker_ctx, result=None, exc=None):
+        self._log_call(('result', worker_ctx, (result, exc)))
+        super(CallCollectorMixin, self).call_result(worker_ctx, result, exc)
 
 
 @dependency_decorator
@@ -152,20 +152,23 @@ def test_woker_life_cycle(container):
     egg_worker_ctx = container.spawn_worker(egg_dep, [], {})
     container._worker_pool.waitall()
 
+    #TODO: test handle_result callback for spawn
+
     assert spam_dep.calls == [
         ('setup', ham_worker_ctx),
         ('acquire', ham_worker_ctx),
+        ('result', ham_worker_ctx, ('ham', None)),
         ('teardown', ham_worker_ctx),
         ('release', ham_worker_ctx),
         ('setup', egg_worker_ctx),
         ('acquire', egg_worker_ctx),
+        ('result', egg_worker_ctx, (None, egg_error)),
         ('teardown', egg_worker_ctx),
         ('release', egg_worker_ctx),
     ]
 
     assert ham_dep.calls == [
         ('setup', ham_worker_ctx),
-        ('result', ham_worker_ctx, ('ham', None)),
         ('teardown', ham_worker_ctx),
         ('setup', egg_worker_ctx),
         ('teardown', egg_worker_ctx),
@@ -175,7 +178,6 @@ def test_woker_life_cycle(container):
         ('setup', ham_worker_ctx),
         ('teardown', ham_worker_ctx),
         ('setup', egg_worker_ctx),
-        ('result', egg_worker_ctx, (None, egg_error)),
         ('teardown', egg_worker_ctx),
     ]
 
