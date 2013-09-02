@@ -102,37 +102,35 @@ class ServiceContainer(object):
         worker_ctx = WorkerContext(
             self.ctx, service, method_name, args, kwargs, data=context_data)
 
-        _log.debug('created %s', worker_ctx)
-
-        def worker():
-            _log.debug('setting up %s', worker_ctx)
-            self.dependencies.all.call_setup(worker_ctx)
-
-            result = exc = None
-            try:
-                _log.debug('calling handler for %s', worker_ctx)
-                method = getattr(service, worker_ctx.method_name)
-                result = method(*args, **kwargs)
-            except Exception as e:
-                exc = e
-
-            if handle_result is not None:
-                _log.debug('handling result for %s', worker_ctx)
-                handle_result(worker_ctx, result, exc)
-
-            _log.debug('signalling result for %s', worker_ctx)
-            self.dependencies.attributes.all.call_result(
-                worker_ctx, result, exc)
-
-            _log.debug('tearing down %s', worker_ctx)
-            self.dependencies.all.call_teardown(worker_ctx)
-
         _log.debug('spawning %s', worker_ctx)
-        self._worker_pool.spawn(worker)
+        self._worker_pool.spawn(self._run_worker, worker_ctx, handle_result)
 
         # TODO: should we link with the new thread to handle/re-raise errors?
 
         return worker_ctx
+
+    def _run_worker(self, worker_ctx, handle_result):
+        _log.debug('setting up %s', worker_ctx)
+        self.dependencies.all.call_setup(worker_ctx)
+
+        result = exc = None
+        try:
+            _log.debug('calling handler for %s', worker_ctx)
+            method = getattr(worker_ctx.service, worker_ctx.method_name)
+            result = method(*worker_ctx.args, **worker_ctx.kwargs)
+        except Exception as e:
+            exc = e
+
+        if handle_result is not None:
+            _log.debug('handling result for %s', worker_ctx)
+            handle_result(worker_ctx, result, exc)
+
+        _log.debug('signalling result for %s', worker_ctx)
+        self.dependencies.attributes.all.call_result(
+            worker_ctx, result, exc)
+
+        _log.debug('tearing down %s', worker_ctx)
+        self.dependencies.all.call_teardown(worker_ctx)
 
     def wait(self):
         return self._died.wait()
