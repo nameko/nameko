@@ -1,6 +1,8 @@
 from __future__ import absolute_import
+from functools import partial
 from logging import getLogger
 import uuid
+
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 from kombu.common import itermessages, maybe_declare
@@ -22,7 +24,6 @@ RPC_QUEUE_TEMPLATE = 'rpc-{}.{}'
 
 class RpcProvider(ConsumeProvider):
     def __init__(self):
-        self.responders = {}
         super(RpcProvider, self).__init__(queue=None, requeue_on_error=False)
 
     def start(self, srv_ctx):
@@ -42,16 +43,16 @@ class RpcProvider(ConsumeProvider):
         kwargs = body['kwargs']
 
         reply_to = message.properties['reply_to']
+        responder = Responder(reply_to)
 
-        container = srv_ctx.container
-        worker_ctx = container.spawn_worker(self, args, kwargs)
-        self.pending_worker_message[worker_ctx] = message
-        self.responders[worker_ctx] = Responder(reply_to)
+        srv_ctx.container.spawn_worker(
+            self, args, kwargs,
+            handle_result=partial(self.handle_result, message, responder))
 
-    def handle_result(self, worker_ctx, result, exc):
-        responder = self.responders.pop(worker_ctx, None)
+    def handle_result(self, message, responder, worker_ctx, result, exc):
         responder.send_response(worker_ctx, result, exc)
-        super(RpcProvider, self).handle_result(worker_ctx)
+        super(RpcProvider, self).handle_result(
+            message, worker_ctx, result, exc)
 
 
 class Responder(object):
@@ -99,6 +100,8 @@ class MethodProxy(object):
         self.method_name = method_name
 
     def __call__(self, *args, **kwargs):
+        _log.debug('invoking %s', self)
+
         worker_ctx = self.worker_ctx
         srv_ctx = worker_ctx.srv_ctx
 

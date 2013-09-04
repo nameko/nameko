@@ -2,13 +2,14 @@ from __future__ import absolute_import
 
 from logging import getLogger
 
+from eventlet.event import Event
 from eventlet.greenpool import GreenPool
-
 from nameko.dependencies import get_dependencies, DependencySet
 
 _log = getLogger(__name__)
 
-WORKER_TIMEOUT = 30
+
+MAX_WOKERS_KEY = 'max_workers'
 
 
 def get_service_name(service_cls):
@@ -24,6 +25,11 @@ class ServiceContext(object):
         self.container = container
         self.config = config
 
+        if config is not None:
+            self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
+        else:
+            self.max_workers = 10
+
 
 class WorkerContext(object):
     """ Context for a Worker
@@ -38,17 +44,23 @@ class WorkerContext(object):
         self.kwargs = kwargs if kwargs is not None else {}
         self.data = data if data is not None else {}
 
+    def __str__(self):
+        return '<WorkerContext {}.{} at 0x{:x}>'.format(
+            self.srv_ctx.name, self.method_name, id(self))
+
 
 class ServiceContainer(object):
 
     def __init__(self, service_cls, config):
         self.service_cls = service_cls
         self.config = config
-
-        self._ctx = None
+        self.ctx = ServiceContext(get_service_name(self.service_cls),
+                                  self.service_cls, self, self.config)
         self._dependencies = None
-        self._worker_pool = GreenPool(size=self.config.get('poolsize', 100))
+        self._worker_pool = GreenPool(size=self.ctx.max_workers)
+        self._died = Event()
 
+    # TODO: why is this a lazy property?
     @property
     def dependencies(self):
         if self._dependencies is None:
@@ -60,51 +72,67 @@ class ServiceContainer(object):
                 self._dependencies.add(dep)
         return self._dependencies
 
-    @property
-    def ctx(self):
-        # TODO: why ctx a lazy property?
-        if self._ctx is None:
-            self._ctx = ServiceContext(get_service_name(self.service_cls),
-                                       self.service_cls, self, self.config)
-        return self._ctx
-
     def start(self):
-        _log.debug('container starting')
+        _log.debug('starting %s', self)
         self.dependencies.all.start(self.ctx)
         self.dependencies.all.on_container_started(self.ctx)
 
     def stop(self):
-        _log.debug('container stopping')
+        _log.debug('stopping %s', self)
+        dependencies = self.dependencies
 
-        self.dependencies.all.stop(self.ctx)
-        self.dependencies.all.on_container_stopped(self.ctx)
+        # decorator deps have to be stopped before attribute deps
+        # to ensure that running workers can successfully complete
+        dependencies.decorators.all.stop(self.ctx)
 
-    def spawn_worker(self, provider, args, kwargs, context_data=None):
-        method_name = provider.name
+        # there might still be some running workers, which we have to
+        # wait for to complete before we can stop attribute dependencies
+        self._worker_pool.waitall()
+        dependencies.attributes.all.stop(self.ctx)
 
-        _log.debug('spawning worker for method_name: {}'.format(method_name))
+        dependencies.all.on_container_stopped(self.ctx)
+        self._died.send(None)
 
+    def spawn_worker(self, provider, args, kwargs,
+                     context_data=None, handle_result=None):
+
+        service = self.service_cls()
         worker_ctx = WorkerContext(
-            self.ctx, method_name, args, kwargs, data=context_data)
+            self.ctx, service, provider.name, args, kwargs, data=context_data)
 
-        def worker():
-            service = self.service_cls()
-            worker_ctx.service = service
+        _log.debug('spawning %s', worker_ctx)
+        self._worker_pool.spawn(self._run_worker, worker_ctx, handle_result)
 
-            self.dependencies.all.call_setup(worker_ctx)
-
-            result = exc = None
-            method = getattr(service, method_name)
-            try:
-                result = method(*args, **kwargs)
-            except Exception as e:
-                exc = e
-
-            provider.handle_result(worker_ctx, result, exc)
-
-            self.dependencies.attributes.call_result(worker_ctx, result, exc)
-            self.dependencies.all.call_teardown(worker_ctx)
-
-        self._worker_pool.spawn(worker)
+        # TODO: should we link with the new thread to handle/re-raise errors?
 
         return worker_ctx
+
+    def _run_worker(self, worker_ctx, handle_result):
+        _log.debug('setting up %s', worker_ctx)
+        self.dependencies.all.call_setup(worker_ctx)
+
+        result = exc = None
+        try:
+            _log.debug('calling handler for %s', worker_ctx)
+            method = getattr(worker_ctx.service, worker_ctx.method_name)
+            result = method(*worker_ctx.args, **worker_ctx.kwargs)
+        except Exception as e:
+            exc = e
+
+        if handle_result is not None:
+            _log.debug('handling result for %s', worker_ctx)
+            handle_result(worker_ctx, result, exc)
+
+        _log.debug('signalling result for %s', worker_ctx)
+        self.dependencies.attributes.all.call_result(
+            worker_ctx, result, exc)
+
+        _log.debug('tearing down %s', worker_ctx)
+        self.dependencies.all.call_teardown(worker_ctx)
+
+    def wait(self):
+        return self._died.wait()
+
+    def __str__(self):
+        return '<ServiceContainer {} at 0x{:x}>'.format(
+            self.ctx.name, id(self))

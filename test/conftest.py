@@ -1,5 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
+import sys
 
 from functools import partial
 import logging
@@ -53,7 +54,8 @@ def pytest_configure(config):
 
     log_level = config.getoption('log_level')
     if log_level is not None:
-        logging.basicConfig(level=getattr(logging, log_level))
+        log_level = getattr(logging, log_level)
+        logging.basicConfig(level=log_level, stream=sys.stderr)
 
 
 @pytest.fixture

@@ -1,37 +1,37 @@
 from nameko.dependencies import (
-    dependency_decorator, get_decorator_providers, DependencyProvider)
+    dependency_decorator, get_decorator_providers, DecoratorDependency)
 
 
-class ConsumerProvider(DependencyProvider):
+class FooProvider(DecoratorDependency):
     def __init__(self, args, kwargs):
         self.args = args
         self.kwargs = kwargs
 
 
-class RPCProvider(DependencyProvider):
+class CheeseProvider(DecoratorDependency):
     pass
 
 
 @dependency_decorator
-def consume(*args, **kwargs):
-    """consume-doc"""
-    return ConsumerProvider(args, kwargs)
+def foobar(*args, **kwargs):
+    """foobar-doc"""
+    return FooProvider(args, kwargs)
 
 
 @dependency_decorator
-def rpc():
-    return RPCProvider()
+def cheese():
+    return CheeseProvider()
 
 
 def test_dependency_decorator():
-    # make sure consume is properly wrapped
-    assert consume.__doc__ == 'consume-doc'
-    assert consume.func_name == 'consume'
+    # make sure foobar is properly wrapped
+    assert foobar.__doc__ == 'foobar-doc'
+    assert foobar.func_name == 'foobar'
 
     def foo(spam):
         pass
 
-    decorated_foo = consume(foo='bar')(foo)
+    decorated_foo = foobar(foo='bar')(foo)
 
     # make sure dependency_deocorator passes through the decorated method
     assert decorated_foo is foo
@@ -40,11 +40,11 @@ def test_dependency_decorator():
 def test_get_decorator_providers():
 
     class Foobar(object):
-        @consume('spam', oof="rab")
+        @foobar('spam', oof="rab")
         def shrub(self, arg):
             return arg
 
-        @rpc
+        @cheese
         def ni(self, arg):
             return arg
 
@@ -55,12 +55,12 @@ def test_get_decorator_providers():
 
     name, provider = providers.pop()
     assert name == "shrub"
-    assert isinstance(provider, ConsumerProvider)
+    assert isinstance(provider, FooProvider)
     assert provider.args == ("spam",)
     assert provider.kwargs == {"oof": "rab"}
     assert foo.shrub(1) == 1
 
     name, provider = providers.pop()
     assert name == "ni"
-    assert isinstance(provider, RPCProvider)
+    assert isinstance(provider, CheeseProvider)
     assert foo.ni(2) == 2

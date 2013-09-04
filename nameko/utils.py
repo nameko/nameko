@@ -14,12 +14,13 @@ class SpawningProxy(object):
 
         def spawning_method(*args, **kwargs):
             items = self._items
-            pool = eventlet.GreenPool(len(items))
+            if items:
+                pool = eventlet.GreenPool(len(items))
 
-            def call(item):
-                return getattr(item, name)(*args, **kwargs)
+                def call(item):
+                    return getattr(item, name)(*args, **kwargs)
 
-            list(pool.imap(call, self._items))
+                list(pool.imap(call, self._items))
 
         return spawning_method
 
