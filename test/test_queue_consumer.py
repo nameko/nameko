@@ -1,11 +1,8 @@
-import socket
-
 import eventlet
 from eventlet.event import Event
-import pytest
 
 from nameko.messaging import QueueConsumer
-from kombu import Queue, Exchange, Connection
+from kombu import Queue, Exchange
 
 
 TIMEOUT = 5
@@ -83,10 +80,10 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     exchange = Exchange('spam')
     queue = Queue('spam', exchange=exchange)
 
-    godot = Event()
+    consumer_continue = Event()
 
     def handler1(body, message):
-        godot.wait()
+        consumer_continue.wait()
         qconsumer1.ack_message(message)
 
     messages = []
@@ -115,28 +112,10 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
         while len(messages) < 2:
             eventlet.sleep()
 
-    godot.send('will come the next day')
+    # allow the waiting consumer to ack its message
+    consumer_continue.send(None)
 
     assert messages == ['eggs', 'bacon']
 
     qconsumer1.stop()
     qconsumer2.stop()
-
-
-# TODO: this is a pointless test
-# It should signal the dependency provider errors it cannot recover from
-# which, in turn, should signal the container, which should handle the error
-def test_socket_error():
-
-    class FailConnection(Connection):
-        # a connection that will give a socket.error when the service starts
-        def drain_events(self, *args, **kwargs):
-            raise socket.error
-
-    qconsumer = QueueConsumer(None, 3)
-    qconsumer._connection = FailConnection(transport='memory')
-
-    with pytest.raises(socket.error):
-        qconsumer.start()
-        # This is pointless, why would anyone want to wait for it?
-        qconsumer._gt.wait()

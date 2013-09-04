@@ -136,6 +136,9 @@ def test_publish_to_queue():
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
 
+# TODO: we need to define the expected behavior for errors raised by
+# DeoratorDependencies and add tests to ensure the behavior, e.g. socket errors
+
 
 #==============================================================================
 # INTEGRATION TESTS

@@ -10,7 +10,7 @@ from nameko.dependencies import(
 
 
 class CallCollectorMixin(object):
-    call_time = 0
+    call_counter = 0
 
     def __init__(self):
         self.instances.add(self)
@@ -18,12 +18,12 @@ class CallCollectorMixin(object):
 
     def _reset_calls(self):
         self.calls = []
-        self.call_times = []
+        self.call_ids = []
 
     def _log_call(self, data):
-        CallCollectorMixin.call_time += 1
+        CallCollectorMixin.call_counter += 1
         self.calls.append(data)
-        self.call_times.append(CallCollectorMixin.call_time)
+        self.call_ids.append(CallCollectorMixin.call_counter)
 
     def start(self, srv_ctx):
         self._log_call(('start', srv_ctx))
@@ -50,11 +50,13 @@ class CallCollectorMixin(object):
         super(CallCollectorMixin, self).call_teardown(worker_ctx)
 
 
-class DecDep(CallCollectorMixin, DecoratorDependency):
+class CallCollectingDecoratorDependency(
+        CallCollectorMixin, DecoratorDependency):
     instances = set()
 
 
-class AttrDep(CallCollectorMixin, AttributeDependency):
+class CallCollectingAttributeDependency(
+        CallCollectorMixin, AttributeDependency):
     instances = set()
 
     def acquire_injection(self, worker_ctx):
@@ -71,14 +73,14 @@ class AttrDep(CallCollectorMixin, AttributeDependency):
 
 @dependency_decorator
 def foobar():
-    dec = DecDep()
+    dec = CallCollectingDecoratorDependency()
     return dec
 
 egg_error = Exception('broken')
 
 
 class Service(object):
-    spam = AttrDep()
+    spam = CallCollectingAttributeDependency()
 
     @foobar
     def ham(self):
@@ -95,13 +97,15 @@ def container():
     for dep in container.dependencies:
         dep._reset_calls()
 
-    CallCollectorMixin.call_time = 0
+    CallCollectorMixin.call_counter = 0
     return container
 
 
 def test_collects_dependencies(container):
     assert len(container.dependencies) == 3
-    assert container.dependencies == (DecDep.instances | AttrDep.instances)
+    assert container.dependencies == (
+        CallCollectingDecoratorDependency.instances |
+        CallCollectingAttributeDependency.instances)
 
 
 def test_starts_dependencies(container):
@@ -137,10 +141,10 @@ def test_stops_decdeps_before_attrdeps(container):
     spam_dep = next(iter(dependencies.attributes))
 
     for dec_dep in dependencies.decorators:
-        assert dec_dep.call_times[0] < spam_dep.call_times[0]
+        assert dec_dep.call_ids[0] < spam_dep.call_ids[0]
 
 
-def test_woker_life_cycle(container):
+def test_worker_life_cycle(container):
     dependencies = container.dependencies
 
     (spam_dep,) = [dep for dep in dependencies if dep.name == 'spam']
@@ -238,42 +242,22 @@ def test_container_doesnt_exhaust_max_workers():
 
     dep = next(iter(container.dependencies))
 
+    # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, ['ham'], {})
+
+    # start the next worker in a speparate thread,
+    # because it should block until the first one completed
     gt = spawn(container.spawn_worker, dep, ['eggs'], {})
 
     with Timeout(1):
         assert spam_called.wait() == 'ham'
-        # if the container had spawned multiple workers, we would have had
-        # an error indicating spam_called being sent twice adn the 2nd spawn
-        # whould already be dead
+        # if the container had spawned the second worker, we would see
+        # an error indicating that spam_called was fired twice, and the
+        # greenthread would now be dead.
         assert not gt.dead
+        # reset the calls and allow the waiting worker to complete.
         spam_called.reset()
         spam_continue.send(None)
+        # the second worker should now run and complete
         assert spam_called.wait() == 'eggs'
         assert gt.dead
-
-
-# def test_force_kill_no_workers(get_connection):
-#     spam_continue = Event()
-#     spam_called = Event()
-
-#     class Foobar(object):
-#         def spam(self, context):
-#             spam_called.send(1)
-#             spam_continue.wait()
-
-#     srv = service.Service(
-#         Foobar, connection_factory=get_connection,
-#         exchange='testrpc', topic='test', poolsize=1)
-#     srv.start()
-#     eventlet.sleep()
-
-#     foobar = TestProxy(get_connection, timeout=3).test
-#     eventlet.spawn(foobar.spam)
-
-#     spam_called.wait()
-#     spam_continue.send(2)
-#     # spam has completed - but force anyway
-#     srv.kill(force=True)
-
-#     assert srv.greenlet.dead
