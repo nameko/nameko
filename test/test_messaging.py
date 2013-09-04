@@ -59,21 +59,24 @@ def test_consume_provider():
         # test handling successful call
         queue_consumer.reset_mock()
         consume_provider.handle_message(srv_ctx, "body", message)
-        consume_provider.handle_result(worker_ctx, 'result')
+        handle_result = container.spawn_worker.call_args[1]['handle_result']
+        handle_result(worker_ctx, 'result')
         queue_consumer.ack_message.assert_called_once_with(message)
 
         # test handling failed call without requeue
         queue_consumer.reset_mock()
         consume_provider.requeue_on_error = False
         consume_provider.handle_message(srv_ctx, "body", message)
-        consume_provider.handle_result(worker_ctx, None, Exception('Error'))
+        handle_result = container.spawn_worker.call_args[1]['handle_result']
+        handle_result(worker_ctx, None, Exception('Error'))
         queue_consumer.ack_message.assert_called_once_with(message)
 
         # test handling failed call with requeue
         queue_consumer.reset_mock()
         consume_provider.requeue_on_error = True
         consume_provider.handle_message(srv_ctx, "body", message)
-        consume_provider.handle_result(worker_ctx, None, Exception('Error'))
+        handle_result = container.spawn_worker.call_args[1]['handle_result']
+        handle_result(worker_ctx, None, Exception('Error'))
         assert not queue_consumer.ack_message.called
         queue_consumer.requeue_message.assert_called_once_with(message)
 
@@ -132,6 +135,10 @@ def test_publish_to_queue():
         publisher.call_setup(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
+
+# TODO: we need to define the expected behavior for errors raised by
+# DeoratorDependencies and add tests to ensure the behavior, e.g. socket errors
+
 
 #==============================================================================
 # INTEGRATION TESTS
@@ -197,8 +204,10 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     rabbit_manager.publish(vhost, foobar_ex.name, '', 'msg')
 
     with wait_for_call(CONSUME_TIMEOUT, mock_container.spawn_worker) as method:
-        method.assert_called_once_with(consumer, ('msg',), {})
+        method.assert_called_once_with(consumer, ('msg',), {},
+                                       handle_result=ANY_PARTIAL)
+        handle_result = method.call_args[1]['handle_result']
 
-    consumer.handle_result(worker_ctx, 'result')
+    handle_result(worker_ctx, 'result')
     # stop will hang if the consumer hasn't acked or requeued messages
     consumer.stop(srv_ctx)

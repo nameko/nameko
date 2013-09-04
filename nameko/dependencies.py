@@ -87,18 +87,7 @@ class DependencyProvider(object):
 
 
 class DecoratorDependency(DependencyProvider):
-    __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def handle_result(self, worker_ctx, result=None, exc=None):
-        """ Called with the result of a service worker initiated by this
-        provider.
-
-        Example: an RPC provider would return the result to the caller
-
-        Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
-        """
+    pass
 
 
 class AttributeDependency(DependencyProvider):
@@ -106,10 +95,17 @@ class AttributeDependency(DependencyProvider):
 
     @abstractmethod
     def acquire_injection(self, worker_ctx):
-        pass
+        """ A subclass must return the instance that should be injected
+        into the worker instance of the service by the container.
+        """
 
     def release_injection(self, worker_ctx):
-        pass
+        """ A subclass may use this method to handle any cleanup of
+        the injection.
+
+        By default the injection will be deleted from the worker instance
+        during the call_teardown.
+        """
 
     def call_setup(self, worker_ctx):
         injection = self.acquire_injection(worker_ctx)
@@ -188,15 +184,6 @@ def dependency_decorator(provider_decorator):
     return wrapper
 
 
-def is_dependency_provider(obj):
-    """
-    Returns true if the obj is a DependencyProvider.
-
-    This helper function can be used as a predicate for inspect.getmembers()
-    """
-    return isinstance(obj, DependencyProvider)
-
-
 def is_attribute_dependency(obj):
     return isinstance(obj, AttributeDependency)
 
@@ -218,15 +205,3 @@ def get_decorator_providers(obj):
 
 def get_dependencies(obj):
     return chain(get_attribute_providers(obj), get_decorator_providers(obj))
-
-
-def get_providers(fn, filter_type=object):
-    providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, [])
-    for provider in providers:
-        if isinstance(provider, filter_type):
-            yield provider
-
-
-def inject_dependencies(service, container):
-    for name, provider in inspect.getmembers(service, is_dependency_provider):
-        setattr(service, name, provider.get_instance(container))
