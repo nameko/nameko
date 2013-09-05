@@ -121,58 +121,6 @@ def test_control_exchange_config(rpc, constructor):
         timeout=None)
 
 
-@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'rpc')
-def test_cast(rpc, constructor):
-    connection = ANY
-    context = Mock()
-    context_factory = lambda: context
-    rpcproxy = constructor(context_factory=context_factory)
-
-    with pytest.raises(ValueError):
-        # no topic, no method
-        rpcproxy.cast(key='value')
-
-    with pytest.raises(ValueError):
-        # no method
-        rpcproxy.service.cast(key='value')
-
-    rpcproxy.service.controller.cast(key='value')
-
-    rpc.cast.assert_called_once_with(
-        connection, context, 'service',
-        {'method': 'controller', 'args': {'key': 'value'}},
-        options=rpcproxy.call_options())
-
-
-@pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'rpc')
-def test_cast_dynamic_route(rpc, constructor):
-    connection = ANY
-    context = Mock()
-    context_factory = lambda: context
-    rpcproxy = constructor(context_factory=context_factory)
-
-    with pytest.raises(ValueError):
-        # no topic, no method
-        rpcproxy.cast(key='value')
-
-    with pytest.raises(ValueError):
-        # no method
-        rpcproxy.cast(topic='service', key='value')
-
-    with pytest.raises(ValueError):
-        # no topic
-        rpcproxy.cast(method='controller', key='value')
-
-    rpcproxy.cast(topic='service', method='controller', key='value')
-
-    rpc.cast.assert_called_once_with(
-        connection, context, 'service',
-        {'method': 'controller', 'args': {'key': 'value'}},
-        options=rpcproxy.call_options())
-
-
 # MockRPCProxy Tests
 
 def test_add_dummy():

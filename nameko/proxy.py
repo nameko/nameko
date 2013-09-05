@@ -84,18 +84,5 @@ class RPCProxy(object):
                 options=self.call_options(),
             )
 
-    def cast(self, context=None, **kwargs):
-        topic, method = self._get_route(kwargs)
-
-        if context is None:
-            context = self.context_factory()
-
-        with self.create_connection() as connection:
-            return rpc.cast(
-                connection, context, topic,
-                {'method': method, 'args': kwargs, },
-                options=self.call_options()
-            )
-
     def __call__(self, context=None, **kwargs):
         return self.call(context, **kwargs)

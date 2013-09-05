@@ -27,26 +27,3 @@ def call(connection, context, topic, msg,
         method=msg['method'],
         args=msg['args'],
         timeout=timeout)
-
-
-def cast(connection, context, topic, msg, options=None):
-    exchange = _get_exchange(options)
-    return sending.send_rpc(
-        connection,
-        context=context,
-        exchange=exchange,
-        topic=topic,
-        method=msg['method'],
-        args=msg['args'],
-        noreply=True)
-
-
-def fanout_cast(connection, context, topic, msg, options=None):
-    return sending.send_rpc(
-        connection,
-        context=context,
-        exchange=None,
-        topic=topic,
-        method=msg['method'],
-        args=msg['args'],
-        fanout=True)
