@@ -12,7 +12,6 @@ from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import get_queue_consumer
 from nameko.dependencies import (
     dependency_decorator, AttributeDependency, DecoratorDependency)
-from nameko.service import WorkerContext
 
 
 _log = getLogger(__name__)
