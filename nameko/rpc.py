@@ -9,9 +9,10 @@ from kombu.pools import producers
 from kombu.common import itermessages, maybe_declare
 
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
-from nameko.messaging import QueueConsumer
+from nameko.messaging import get_queue_consumer
 from nameko.dependencies import (
     dependency_decorator, AttributeDependency, DecoratorDependency)
+from nameko.service import WorkerContext
 
 
 _log = getLogger(__name__)
@@ -38,16 +39,12 @@ def get_rpc_consumer(srv_ctx):
     return rpc_consumers[srv_ctx]
 
 
-class RpcConsumer(QueueConsumer):
+class RpcConsumer(object):
 
     def __init__(self, srv_ctx):
         self._queue = None
         self._providers = {}
         self._srv_ctx = srv_ctx
-
-        amqp_uri = srv_ctx.config['amqp_uri']
-        max_workers = srv_ctx.max_workers
-        super(RpcConsumer, self).__init__(amqp_uri, max_workers)
 
     def prepare_queue(self):
         if self._queue is None:
@@ -62,7 +59,17 @@ class RpcConsumer(QueueConsumer):
                 routing_key=routing_key,
                 durable=True)
 
-            self.add_consumer(self._queue, self.handle_message)
+            srv_ctx = self._srv_ctx
+            qc = get_queue_consumer(srv_ctx)
+            qc.add_consumer(self._queue, self.handle_message)
+
+    def start(self):
+        qc = get_queue_consumer(self._srv_ctx)
+        qc.start()
+
+    def stop(self):
+        qc = get_queue_consumer(self._srv_ctx)
+        qc.stop()
 
     def register_provider(self, rpc_provider):
         service_name = self._srv_ctx.name
@@ -77,32 +84,32 @@ class RpcConsumer(QueueConsumer):
         except KeyError:
             pass  # not registered
 
+    def get_provider_for_method(self, routing_key):
+        return self._providers.get(routing_key)
+
     def handle_message(self, body, message):
         routing_key = message.delivery_info['routing_key']
-        try:
-            provider = self._providers[routing_key]
-        except KeyError:
-            self.handle_method_not_found(body, message)
-        else:
-            srv_ctx = self._srv_ctx
-            provider.handle_message(srv_ctx, body, message)
-
-    def handle_method_not_found(self, body, message):
-        routing_key = message.delivery_info['routing_key']
-        method_name = routing_key.split(".")[-1]
-
-        try:  # raise to generate a sensible traceback
-            raise MethodNotFound(method_name)
-        except MethodNotFound as exc:
-            error = RemoteErrorWrapper(exc)
-
-        reply_to = message.properties['reply_to']
-        correlation_id = message.properties.get('correlation_id')
-        responder = Responder(reply_to, correlation_id)
+        provider = self.get_provider_for_method(routing_key)
 
         srv_ctx = self._srv_ctx
-        responder.send_response(srv_ctx, None, error)
-        self.ack_message(message)
+        if provider:
+            provider.handle_message(srv_ctx, body, message)
+        else:
+            method_name = routing_key.split(".")[-1]
+            exc = MethodNotFound(method_name)
+            self.handle_result(message, srv_ctx, None, exc)
+
+    def handle_result(self, message, srv_ctx, result, exc):
+
+        error = None
+        if exc is not None:
+            error = RemoteErrorWrapper(exc)
+
+        responder = Responder(message)
+        responder.send_response(srv_ctx, result, error)
+
+        qc = get_queue_consumer(srv_ctx)
+        qc.ack_message(message)
 
 
 class RpcProvider(DecoratorDependency):
@@ -120,35 +127,25 @@ class RpcProvider(DecoratorDependency):
     def stop(self, srv_ctx):
         rpc_consumer = get_rpc_consumer(srv_ctx)
         rpc_consumer.unregister_provider(self)
-        rpc_consumer.stop()  # waits for jobs?
+        rpc_consumer.stop()
 
     def handle_message(self, srv_ctx, body, message):
         args = body['args']
         kwargs = body['kwargs']
 
-        reply_to = message.properties['reply_to']
-        correlation_id = message.properties.get('correlation_id')
+        handle_result = partial(self.handle_result, message)
+        srv_ctx.container.spawn_worker(self, args, kwargs,
+                                       handle_result=handle_result)
 
-        responder = Responder(reply_to, correlation_id)
-        srv_ctx.container.spawn_worker(
-            self, args, kwargs,
-            handle_result=partial(self.handle_result, message, responder))
-
-    def handle_result(self, message, responder, worker_ctx, result, exc):
-
-        error = None
-        if exc is not None:
-            error = RemoteErrorWrapper(exc)
-
-        responder.send_response(worker_ctx.srv_ctx, result, error)
-        rpc_consumer = get_rpc_consumer(worker_ctx.srv_ctx)
-        rpc_consumer.ack_message(message)
+    def handle_result(self, message, worker_ctx, result, exc):
+        srv_ctx = worker_ctx.srv_ctx
+        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer.handle_result(message, srv_ctx, result, exc)
 
 
 class Responder(object):
-    def __init__(self, reply_to, correlation_id):
-        self.reply_to = reply_to
-        self.correlation_id = correlation_id
+    def __init__(self, message):
+        self.message = message
 
     def send_response(self, srv_ctx, result, error_wrapper):
 
@@ -167,9 +164,12 @@ class Responder(object):
             # TODO: should we enable auto-retry,
             #      should that be an option in __init__?
 
+            reply_to = self.message.properties['reply_to']
+            correlation_id = self.message.properties.get('correlation_id')
+
             # all queues are bound to the anonymous direct exchange
-            producer.publish(msg, routing_key=self.reply_to,
-                             correlation_id=self.correlation_id)
+            producer.publish(msg, routing_key=reply_to,
+                             correlation_id=correlation_id)
 
 
 class Service(AttributeDependency):

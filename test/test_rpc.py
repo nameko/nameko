@@ -63,6 +63,9 @@ def service_proxy_factory(request):
     return make_proxy
 
 
+# test rpc proxy ...
+
+
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
                                               rabbit_manager):
     container = container_factory(ExampleService, rabbit_config)
@@ -126,4 +129,5 @@ def test_rpc_broken_method(container_factory, rabbit_config,
     assert exc_info.value.exc_type == "ExampleError"
 
 
+# test failure in reply publish
 # test reply-to and correlation-id correct
