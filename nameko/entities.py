@@ -1,5 +1,4 @@
 from kombu import Exchange, Queue
-from nameko.common import UIDGEN
 
 
 DURABLE_QUEUES = False
@@ -45,25 +44,3 @@ def get_topic_queue(exchange_name, topic, channel=None):
         durable=DURABLE_QUEUES,
         auto_delete=False,
         exclusive=False)
-
-
-def get_fanout_exchange(topic, channel=None):
-    return Exchange(
-        name='{}_fanout'.format(topic),
-        channel=channel,
-        type='fanout',
-        durable=False,
-        auto_delete=True)
-
-
-def get_fanout_queue(topic, channel=None, uidgen=None):
-    exchange = get_fanout_exchange(topic, channel=channel)
-    unique = uidgen() if uidgen is not None else UIDGEN()
-    return Queue(
-        name='{}_fanout_{}'.format(topic, unique),
-        channel=channel,
-        exchange=exchange,
-        routing_key=topic,
-        durable=False,
-        auto_delete=True,
-        exclusive=True)
