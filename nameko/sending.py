@@ -20,13 +20,11 @@ from nameko.logging import log_time
 _log = getLogger(__name__)
 
 
-def create_rpcpayload(context, method, args, msg_id=None):
+def create_rpcpayload(context, method, args):
     message = {'method': method, 'args': args, }
     message = context.add_to_message(message)
-    if msg_id is None:
-        msg_id = UIDGEN()
-    if msg_id is not False:
-        message['_msg_id'] = msg_id
+    msg_id = UIDGEN()
+    message['_msg_id'] = msg_id
     return msg_id, message
 
 
@@ -50,29 +48,11 @@ def send_topic(connection, exchange, topic, data):
         ch.ensure(producer.publish)(data, declare=[exchange])
 
 
-def send_fanout(connection, topic, data):
-    exchange = entities.get_fanout_exchange(topic)
-    with ChannelHandler(connection) as ch:
-        producer = Producer(
-            ch.channel,
-            exchange=exchange,
-            routing_key=topic)
-        ch.ensure(producer.publish)(data, declare=[exchange])
-
-
 @ensure
-def send_rpc(connection, context, exchange, topic, method, args,
-             timeout=None, noreply=False, fanout=False):
+def send_rpc(connection, context, exchange, topic, method, args, timeout=None):
 
-    msgid = (False if noreply or fanout else None)
-    msgid, payload = create_rpcpayload(context, method, args, msg_id=msgid)
+    msgid, payload = create_rpcpayload(context, method, args)
 
-    if fanout:
-        send_fanout(connection, topic, payload)
-        return
-    if noreply:
-        send_topic(connection, exchange, topic, payload)
-        return
     with connection.channel() as channel:
         queue = entities.get_reply_queue(msgid, channel=channel)
         queue.declare()
