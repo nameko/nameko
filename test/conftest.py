@@ -11,6 +11,7 @@ from pyrabbit.api import Client
 import pytest
 
 running_services = []
+all_containers = []
 
 
 def _get_connection(uri):
@@ -124,7 +125,19 @@ def reset_mock_proxy(request):
 def container_factory(request, reset_rabbit):
     def make_container(service, config):
         from nameko.service import ServiceContainer
-        return ServiceContainer(service, config)
+        container = ServiceContainer(service, config)
+        all_containers.append(container)
+        return container
+
+    def stop_all_containers():
+        for c in all_containers:
+            try:
+                c.stop()
+            except:
+                pass
+        del all_containers[:]
+
+    request.addfinalizer(stop_all_containers)
     return make_container
 
 
