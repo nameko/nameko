@@ -57,7 +57,8 @@ class FailingConnection(Connection):
         return fun(*args, **kwargs)
 
     def ensure(self, obj, fun, **kwargs):
-        wrapped = lambda *args, **kwargs: self.maybe_raise(fun, *args, **kwargs)
+        def wrapped(*args, **kwargs):
+            return self.maybe_raise(fun, *args, **kwargs)
         return super(FailingConnection, self).ensure(obj, wrapped, **kwargs)
 
     def connect(self, *args, **kwargs):
@@ -155,7 +156,7 @@ def test_rpc_broken_method(container_factory, rabbit_config,
 
 
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,
-                           rabbit_manager, service_proxy_factory):
+                                    rabbit_manager, service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()

@@ -504,7 +504,7 @@ def test_unreliable_delivery(reset_rabbit, reset_state,
     container.stop()
 
 
-def test_dispatch_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
+def test_dispatch_to_rabbit_xxx(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
     service = Mock()
