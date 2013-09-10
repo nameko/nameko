@@ -1,13 +1,7 @@
 
 import mock
-import pytest
 
 from nameko import nova
-
-
-def test_multicall():
-    with pytest.raises(NotImplementedError):
-        nova.multicall(None, None, None, None)
 
 
 def test_delegation_to_send_rpc():

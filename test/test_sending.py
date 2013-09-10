@@ -2,7 +2,6 @@
 import uuid
 
 import eventlet
-import pytest
 
 from kombu import Producer
 
@@ -13,22 +12,11 @@ from nameko.consuming import queue_iterator
 from nameko.responses import ifirst
 
 
-def test_replying(connection):
-    with connection as conn:
-        msgid = uuid.uuid4().hex
-        with conn.channel() as chan:
-            queue = entities.get_reply_queue(msgid=msgid, channel=chan)
-            queue.declare()
-
-            sending.reply(conn, msgid, 'success')
-            msg = ifirst(queue_iterator(
-                queue, no_ack=True, timeout=0.2))
-            assert msg.payload['result'] == 'success'
-
-
-def test_replying_no_support_for_on_return():
-    with pytest.raises(NotImplementedError):
-        sending.reply(None, None, on_return=lambda: None)
+def reply(connection, msg_id, replydata=None, failure=None):
+    msg = {'result': replydata, 'failure': failure, 'ending': False, }
+    sending.send_direct(connection, msg_id, msg)
+    msg = {'result': None, 'failure': None, 'ending': True, }
+    sending.send_direct(connection, msg_id, msg)
 
 
 def test_send_direct(connection):
@@ -67,7 +55,7 @@ def test_send_rpc(get_connection):
                 queue.declare()
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = context.parse_message(msg.payload)
-                sending.reply(conn, msgid, args)
+                reply(conn, msgid, args)
 
     g = eventlet.spawn_n(response_greenthread)
     eventlet.sleep(0)

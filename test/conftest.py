@@ -24,6 +24,7 @@ def pytest_addoption(parser):
         '--blocking-detection',
         action='store_true',
         dest='blocking_detection',
+        default=True,
         help='turn on eventlet hub blocking detection')
 
     parser.addoption(
@@ -139,41 +140,3 @@ def container_factory(request, reset_rabbit):
 
     request.addfinalizer(stop_all_containers)
     return make_container
-
-
-@pytest.fixture
-def start_service(request, get_connection):
-
-    def _start_service(cls, service_name):
-        # making sure we import this as late as possible
-        # to get correct coverage
-        from nameko.service import Service
-
-        srv = Service(cls, get_connection, 'rpc', service_name)
-        running_services.append(srv)
-        srv.start()
-        srv.consume_ready.wait()
-        eventlet.sleep()
-        return srv.service
-
-    def kill_all_services():
-        for s in running_services:
-            try:
-                s.kill()
-            except:
-                pass
-        del running_services[:]
-
-    request.addfinalizer(kill_all_services)
-    return _start_service
-
-
-@pytest.fixture
-def kill_services(request, reset_rabbit):
-
-    def _kill_services(name):
-        for s in running_services:
-            if s.topic == name:
-                s.kill()
-
-    return _kill_services

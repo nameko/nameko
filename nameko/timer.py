@@ -52,7 +52,7 @@ class TimerProvider(DecoratorDependency):
         self.timers_by_ctx[srv_ctx].stop()
 
     def __str__(self):
-        return '<TimerProvider %s with %ss interval at at 0x{:x}>'.format(
+        return '<TimerProvider {} with {}s interval at at 0x{:x}>'.format(
             self.name, self.interval, id(self))
 
 

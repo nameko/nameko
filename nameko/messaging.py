@@ -185,35 +185,38 @@ class QueueConsumer(ConsumerMixin):
 
     def start(self):
         if self._gt is None:
-            _log.debug('starting')
+            _log.debug('starting %s', self)
             self._gt = eventlet.spawn(self.run)
             self._consumers_ready.wait()
-            _log.debug('started')
+            _log.debug('started %s', self)
 
     def stop(self):
         if self._gt is not None:
-            _log.debug('stopping')
+            _log.debug('stopping %s', self)
             self._cancel_consumers = True
             self._gt.wait()
             self._gt = None
-            _log.debug('stopped')
+            _log.debug('stopped %s', self)
+        else:
+            _log.debug('already stopped %s', self)
 
     def add_consumer(self, queue, on_message):
-        _log.debug("queue: {}, on_message: {}".format(queue, on_message))
+        _log.debug("adding consumer for {}, on_message: {}".format(
+            queue, on_message))
         self._registry.append((queue, on_message))
 
     def ack_message(self, message):
-        _log.debug("message: {}".format(message))
+        _log.debug("stashing message-ack: {}".format(message))
         self._pending_messages.remove(message)
         self._pending_ack_messages.append(message)
 
     def requeue_message(self, message):
-        _log.debug("message: {}".format(message))
+        _log.debug("staching message-requeue: {}".format(message))
         self._pending_messages.remove(message)
         self._pending_requeue_messages.append(message)
 
     def _on_message(self, handle_message, body, message):
-        _log.debug("body: {}, message: {}".format(body, message))
+        _log.debug("received body: {}, message: {}".format(body, message))
         self._pending_messages.add(message)
         handle_message(body, message)
 
@@ -315,3 +318,28 @@ class QueueConsumer(ConsumerMixin):
                     else:
                         yield
                         elapsed = 0
+
+
+# def _handle_consumer_exited(self, gt):
+#     try:
+#         resp = gt.wait()
+#     except greenlet.GreenletExit:
+#         logger.info('%s consumer killed', self.service_name, exc_info=True)
+#         self.should_stop = True
+#     except Exception:
+#         logger.critical(
+#             '%s consumer exited', self.service_name, exc_info=True)
+#     else:
+#         if self.should_stop:
+#             logger.debug(
+#                 '%s consumer returned %s', self.service_name, repr(resp))
+#         else:
+#             logger.critical(
+#                 '%s consumer unexpectedly returned %s',
+#                 self.service_name, repr(resp))
+#     if not self.should_stop:
+#         def restart_after_death():
+#             while not gt.dead:
+#                 eventlet.sleep(0)
+#             self.start()
+#         eventlet.spawn_n(restart_after_death)
