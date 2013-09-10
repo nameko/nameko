@@ -143,12 +143,18 @@ class RpcProvider(DecoratorDependency):
 
 
 class Responder(object):
-    def __init__(self, message):
+    def __init__(self, message, retry=True, retry_policy=None):
+        self._connection = None
         self.message = message
+        self.retry = retry
+        if retry_policy is None:
+            retry_policy = {'max_retries': 3}
+        self.retry_policy = retry_policy
+
+    def connection_factory(self, srv_ctx):
+        return Connection(srv_ctx.config['amqp_uri'])
 
     def send_response(self, srv_ctx, result, error_wrapper):
-
-        conn = Connection(srv_ctx.config['amqp_uri'])
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
@@ -157,18 +163,19 @@ class Responder(object):
         if error_wrapper is not None:
             error = error_wrapper.serialize()
 
-        msg = {'result': result, 'error': error}
+        with self.connection_factory(srv_ctx) as conn:
 
-        with producers[conn].acquire(block=True) as producer:
-            # TODO: should we enable auto-retry,
-            #      should that be an option in __init__?
+            with producers[conn].acquire(block=True) as producer:
 
-            reply_to = self.message.properties['reply_to']
-            correlation_id = self.message.properties.get('correlation_id')
+                reply_to = self.message.properties['reply_to']
+                correlation_id = self.message.properties.get('correlation_id')
 
-            # all queues are bound to the anonymous direct exchange
-            producer.publish(msg, routing_key=reply_to,
-                             correlation_id=correlation_id)
+                msg = {'result': result, 'error': error}
+
+                # all queues are bound to the anonymous direct exchange
+                producer.publish(
+                    msg, retry=self.retry, retry_policy=self.retry_policy,
+                    routing_key=reply_to, correlation_id=correlation_id)
 
 
 class Service(AttributeDependency):
