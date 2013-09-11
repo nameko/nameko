@@ -165,15 +165,18 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
 
     ``handler_type`` determines the behaviour of the handler:
         - ``events.SERVICE_POOL``: event handlers will be pooled by service
-            type and one from each pool will receive the event
+            type and handler-method and one from each pool will receive
+            the event
 
-                        [queue] - service X instance
+                        - [queue] - service X - handler-method-1
                       /
-            exchange o           service Y instance
-                      \        /
-                        [queue]
-                               \
-                                 service Y instance
+            exchange o -- [queue] - service X - handler-method-2
+                      \
+                       \          service Y(instance 1) - hanlder-method-1
+                        \        /
+                          [queue]
+                                 \
+                                  service Y(instance 2) - handler-method-1
 
         - ``events.SINGLETON``: events will be received by only one registered
             handler. If requeued on error, they may be given to a different
@@ -228,7 +231,7 @@ class EventConfig(ConsumerConfig):
         self.reliable_delivery = reliable_delivery
         self.requeue_on_error = requeue_on_error
 
-    def get_queue(self, service):
+    def get_queue(self, service, method_name):
         """ Get a queue for the given ``service`` instance to listen to events
         with this configuration.
 
@@ -240,16 +243,19 @@ class EventConfig(ConsumerConfig):
         """
         # handler_type determines queue name
         if self.handler_type is SERVICE_POOL:
-            queue_name = "evt-{}-{}-{}".format(self.service_name,
-                                               self.event_type,
-                                               service.topic)
+            queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
+                                                   self.event_type,
+                                                   service.topic,
+                                                   method_name)
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
-            queue_name = "evt-{}-{}-{}".format(self.service_name,
-                                               self.event_type,
-                                               uuid.uuid4())
+            queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
+                                                      self.event_type,
+                                                      service.topic,
+                                                      method_name,
+                                                      uuid.uuid4().hex)
 
         exchange = get_event_exchange(self.service_name)
 

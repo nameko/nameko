@@ -32,6 +32,16 @@ class SpamHandler(Handler):
         self.events.append(evt)
 
 
+class DoubleHandler(Handler):
+    @event_handler('spammer', 'spammed', reliable_delivery=False)
+    def handle_1(self, evt):
+        self.events.append(('handle_1', evt))
+
+    @event_handler('spammer', 'spammed', reliable_delivery=False)
+    def handle_2(self, evt):
+        self.events.append(('handle_2', evt))
+
+
 class ReliableSpamHandler(Handler):
     @event_handler('spammer', 'spammed', reliable_delivery=True)
     def handle(self, evt):
@@ -110,6 +120,28 @@ def test_service_pooled_events(start_service):
 
     # only one of handler_x or handler_y will receive the event
     assert handler_x.events + handler_y.events == ['ham and eggs']
+
+
+def test_service_pooled_events_with_multiple_handlers(start_service):
+    handler_x = start_service(DoubleHandler, 'spamhandler')
+    handler_y = start_service(SpamHandler, 'special_spamhandler')
+
+    spammer = start_service(Spammer, 'spammer')
+    spammer.emit_event('ham and eggs')
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        events = []
+        while len(events) < 3:
+            events = handler_x.events + handler_y.events
+            eventlet.sleep()
+
+    # handler_y will receive the event
+    assert handler_y.events == ['ham and eggs']
+
+    # both handlers of the DoubleHandler will receive the same event
+    assert sorted(handler_x.events) == [
+        ('handle_1', 'ham and eggs'),
+        ('handle_2', 'ham and eggs'),
+    ]
 
 
 def test_singleton_events(start_service):
