@@ -23,6 +23,7 @@ _log = getLogger(__name__)
 
 # delivery_mode
 PERSISTENT = 2
+AMQP_URI_CONFIG_KEY = 'amqp_uri'
 
 
 class Publisher(AttributeDependency):
@@ -51,11 +52,11 @@ class Publisher(AttributeDependency):
 
     def get_connection(self, srv_ctx):
         #TODO: should this live outside of the class or be a class method?
-        conn = Connection(srv_ctx.config['amqp_uri'])
+        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         return connections[conn].acquire(block=True)
 
     def get_producer(self, srv_ctx):
-        conn = Connection(srv_ctx.config['amqp_uri'])
+        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         return producers[conn].acquire(block=True)
 
     def start(self, srv_ctx):
@@ -120,7 +121,7 @@ def get_queue_consumer(srv_ctx):
     """
     if srv_ctx not in queue_consumers:
         queue_consumer = QueueConsumer(
-            srv_ctx.config['amqp_uri'], srv_ctx.max_workers)
+            srv_ctx.config[AMQP_URI_CONFIG_KEY], srv_ctx.max_workers)
         queue_consumers[srv_ctx] = queue_consumer
 
     return queue_consumers[srv_ctx]

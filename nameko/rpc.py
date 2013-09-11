@@ -9,7 +9,7 @@ from kombu.pools import producers
 from kombu.common import itermessages, maybe_declare
 
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
-from nameko.messaging import get_queue_consumer
+from nameko.messaging import get_queue_consumer, AMQP_URI_CONFIG_KEY
 from nameko.dependencies import (
     dependency_decorator, AttributeDependency, DecoratorDependency)
 
@@ -23,7 +23,7 @@ def rpc():
 
 RPC_EXCHANGE = Exchange('nameko-rpc', durable=True, type="topic")
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
-
+RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
 rpc_consumers = WeakKeyDictionary()
 
@@ -152,7 +152,7 @@ class Responder(object):
 
     def send_response(self, srv_ctx, result, error_wrapper):
 
-        conn = Connection(srv_ctx.config['amqp_uri'])
+        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
@@ -206,13 +206,13 @@ class MethodProxy(object):
 
         msg = {'args': args, 'kwargs': kwargs}
 
-        conn = Connection(srv_ctx.config['amqp_uri'])
+        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         # TODO: should connection sharing be done during call_setup in the
         #       dependency provider?
         with conn as conn:
-            reply_queue_name = 'rpc.reply-{}-{}'.format(
+            reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
                 routing_key, uuid.uuid4())
 
             reply_queue = Queue(
