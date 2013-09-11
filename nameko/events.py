@@ -168,34 +168,34 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             type and handler-method and one from each pool will receive
             the event
 
-                       .-[queue]- service X handler-method-1
+                       .-[queue]- (service X handler-method-1)
                       /
-            exchange o --[queue]- service X handler-method-2
+            exchange o --[queue]- (service X handler-method-2)
                       \
-                       \         service Y(instance 1) hanlder-method
+                       \          (service Y(instance 1) hanlder-method)
                         \       /
                          [queue]
                                 \
-                                 service Y(instance 2) handler-method
+                                  (service Y(instance 2) handler-method)
 
         - ``events.SINGLETON``: events will be received by only one registered
             handler. If requeued on error, they may be given to a different
             handler.
-                                   service X instance
+                                   (service X handler-method)
                                  /
             exchange o -- [queue]
                                  \
-                                   service Y instance
+                                   (service Y handler-method)
 
         - ``events.BROADCAST``: events will be received by every handler. This
             will broadcast to every service instance, not just every service
             type - use wisely!
 
-                        [queue] -- service X instance
+                        [queue]- (service X(instance 1) handler-method)
                       /
-            exchange o - [queue] -- service X instance
+            exchange o - [queue]- (service X(instance 2) handler-method)
                       \
-                        [queue] -- service Y instance
+                        [queue]- (service Y handler-method)
 
     If ``requeue_on_error``, handlers will return the event to the queue if an
     error occurs while handling it. Defaults to False.
