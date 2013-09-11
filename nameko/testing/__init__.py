@@ -1,6 +1,6 @@
 
 from nameko import context
-from nameko import sending
+from nameko import nova
 
 
 class TestProxy(object):
@@ -25,7 +25,7 @@ class TestProxy(object):
     def __call__(self, **kwargs):
         ctx = context.get_admin_context()
         with self.get_connection() as conn:
-            return sending.send_rpc(
+            return nova.send_rpc(
                 conn, ctx, 'testrpc',
                 self.service, self.method, args=kwargs,
                 timeout=self.timeout)
