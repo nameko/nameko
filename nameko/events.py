@@ -168,15 +168,15 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             type and handler-method and one from each pool will receive
             the event
 
-                        - [queue] - service X - handler-method-1
+                       .-[queue]- service X handler-method-1
                       /
-            exchange o -- [queue] - service X - handler-method-2
+            exchange o --[queue]- service X handler-method-2
                       \
-                       \          service Y(instance 1) - hanlder-method-1
-                        \        /
-                          [queue]
-                                 \
-                                  service Y(instance 2) - handler-method-1
+                       \         service Y(instance 1) hanlder-method
+                        \       /
+                         [queue]
+                                \
+                                 service Y(instance 2) handler-method
 
         - ``events.SINGLETON``: events will be received by only one registered
             handler. If requeued on error, they may be given to a different
