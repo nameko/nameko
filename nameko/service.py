@@ -135,12 +135,12 @@ class Service(ConsumerMixin):
                 consumer_method(body)
             except Exception as e:
                 if consumer_config.requeue_on_error:
-                    _log.error(
+                    _log.exception(
                         'failed to consume message, requeueing message: '
                         '%s(): %s', consumer_method, e)
                     self._pending_requeue_messages.append(message)
                 else:
-                    _log.error(
+                    _log.exception(
                         'failed to consume message, ignoring message: '
                         '%s(): %s', consumer_method, e)
                     self._pending_ack_messages.append(message)

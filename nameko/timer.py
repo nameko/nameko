@@ -66,7 +66,7 @@ class Timer(object):
             try:
                 self.func()
             except Exception as e:
-                _log.error('error in timer handler: %s', e)
+                _log.exception('error in timer handler: %s', e)
 
             sleep_time = max(self.interval - (time.time() - start), 0)
             self._sleep_or_stop(sleep_time)
