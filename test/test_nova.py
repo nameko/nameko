@@ -4,7 +4,6 @@ from kombu import Producer
 import mock
 
 from nameko import context
-from nameko import entities
 from nameko import nova
 from nameko.consuming import queue_iterator
 from nameko.responses import ifirst
@@ -37,13 +36,13 @@ def test_send_rpc(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
-                queue = entities.get_topic_queue(
+                queue = nova.get_topic_queue(
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = nova.parse_message(msg.payload)
 
-                exchange = entities.get_reply_exchange(msgid)
+                exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
 
                 msg = {'result': args, 'failure': None, 'ending': False}
@@ -74,14 +73,14 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
-                queue = entities.get_topic_queue(
+                queue = nova.get_topic_queue(
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
 
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = nova.parse_message(msg.payload)
 
-                exchange = entities.get_reply_exchange(msgid)
+                exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
 
                 for _ in range(3):
