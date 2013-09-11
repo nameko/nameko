@@ -234,12 +234,6 @@ class EventConfig(ConsumerConfig):
     def get_queue(self, service, method_name):
         """ Get a queue for the given ``service`` instance to listen to events
         with this configuration.
-
-        Queue names have the following formats, based on handler_type:
-
-        SERVICE_POOL: evt-<src-service-type>-<event_type>-<dest-service-type>
-        BROADCAST: evt-<src-service-type>-<event_type>-<dest-guid>
-        SINGLETON: evt-<src-service-type>-<event_type>
         """
         # handler_type determines queue name
         if self.handler_type is SERVICE_POOL:
