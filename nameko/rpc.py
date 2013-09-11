@@ -28,11 +28,11 @@ RPC_QUEUE_TEMPLATE = 'rpc-{}'
 rpc_consumers = WeakKeyDictionary()
 
 
-def get_rpc_consumer(srv_ctx):
+def get_rpc_consumer(srv_ctx, consumer_cls):
     """ Get or create an RpcConsumer instance for the given ``srv_ctx``
     """
     if srv_ctx not in rpc_consumers:
-        rpc_consumer = RpcConsumer(srv_ctx)
+        rpc_consumer = consumer_cls(srv_ctx)
         rpc_consumers[srv_ctx] = rpc_consumer
 
     return rpc_consumers[srv_ctx]
@@ -112,19 +112,23 @@ class RpcConsumer(object):
 
 
 class RpcProvider(DecoratorDependency):
+    _consumer_cls = RpcConsumer
+
+    def get_consumer(self, srv_ctx):
+        return get_rpc_consumer(srv_ctx, self._consumer_cls)
 
     def start(self, srv_ctx):
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.register_provider(self)
         rpc_consumer.prepare_queue()
 
     def on_container_started(self, srv_ctx):
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.register_provider(self)
         rpc_consumer.start()
 
     def stop(self, srv_ctx):
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.unregister_provider(self)
         rpc_consumer.stop()
 
@@ -138,7 +142,7 @@ class RpcProvider(DecoratorDependency):
 
     def handle_result(self, message, worker_ctx, result, exc):
         srv_ctx = worker_ctx.srv_ctx
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.handle_result(message, srv_ctx, result, exc)
 
 
