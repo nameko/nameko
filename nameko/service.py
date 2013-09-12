@@ -133,22 +133,3 @@ class ServiceContainer(object):
     def __str__(self):
         return '<ServiceContainer {} at 0x{:x}>'.format(
             self.ctx.name, id(self))
-
-
-class ServiceRunner(object):
-    def __init__(self):
-        self.service_map = {}
-        self.containers = []
-
-    def add_service(self, name, class_name):
-        self.service_map[name] = class_name
-
-    def start(self):
-        for service_name, class_name in self.service_map:
-            container = ServiceContainer(service_cls)
-
-    def stop(self):
-        pass
-
-    def wait(self):
-        pass
