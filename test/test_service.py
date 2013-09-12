@@ -305,7 +305,7 @@ def test_service_custom_pool(get_connection):
         exchange='testrpc', topic='test', pool=pool)
 
     srv.start()
-    eventlet.sleep()
+    srv.consume_ready.wait()
 
     foobar = TestProxy(get_connection, timeout=3).test
     foobar.spam()

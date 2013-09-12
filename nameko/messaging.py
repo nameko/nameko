@@ -124,7 +124,7 @@ class ConsumerConfig(object):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def get_queue(self, service):
+    def get_queue(self, service, method_name):
         """ Base implementation for consumer config objects.
         ``service`` is provided for sub-classes if they need to create queues
         using information from the service object.
@@ -154,7 +154,7 @@ def get_consumers(Consumer, service, on_message):
             consumer_config = consumer_configs[consumer_method.im_func]
 
             consumer = Consumer(
-                queues=[consumer_config.get_queue(service)],
+                queues=[consumer_config.get_queue(service, name)],
                 callbacks=[
                     partial(on_message, (consumer_method, consumer_config))
                 ]
