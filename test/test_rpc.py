@@ -68,22 +68,22 @@ def service_proxy_factory(request):
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
                                               rabbit_manager):
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory('example', ExampleService, rabbit_config)
     container.start()
 
     vhost = rabbit_config['vhost']
     queues = rabbit_manager.get_queues(vhost)
     assert len(queues) == 1
-    assert queues[0]['name'] == "rpc-exampleservice"
+    assert queues[0]['name'] == "rpc-example"
 
 
 def test_rpc_args_kwargs(container_factory, rabbit_config,
                          service_proxy_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory('example', ExampleService, rabbit_config)
     container.start()
 
-    proxy = service_proxy_factory(container, "exampleservice")
+    proxy = service_proxy_factory(container, "example")
 
     assert proxy.echo() == [[], {}]
     assert proxy.echo("a", "b") == [["a", "b"], {}]
@@ -94,10 +94,10 @@ def test_rpc_args_kwargs(container_factory, rabbit_config,
 def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager,
                              service_proxy_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory('example', ExampleService, rabbit_config)
     container.start()
 
-    proxy = service_proxy_factory(container, "exampleservice")
+    proxy = service_proxy_factory(container, "example")
 
     assert proxy.task_a() == "result_a"
     assert proxy.task_b() == "result_b"
@@ -106,10 +106,10 @@ def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager,
 def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager,
                             service_proxy_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory('example', ExampleService, rabbit_config)
     container.start()
 
-    proxy = service_proxy_factory(container, "exampleservice")
+    proxy = service_proxy_factory(container, "example")
 
     with pytest.raises(RemoteError) as exc_info:
         proxy.task_c()
@@ -119,10 +119,10 @@ def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager,
 def test_rpc_broken_method(container_factory, rabbit_config,
                            rabbit_manager, service_proxy_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory('example', ExampleService, rabbit_config)
     container.start()
 
-    proxy = service_proxy_factory(container, "exampleservice")
+    proxy = service_proxy_factory(container, "example")
 
     with pytest.raises(RemoteError) as exc_info:
         proxy.broken()

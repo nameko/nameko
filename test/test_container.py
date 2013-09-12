@@ -93,7 +93,9 @@ class Service(object):
 
 @pytest.fixture
 def container():
-    container = ServiceContainer(service_cls=Service, config=None)
+    container = ServiceContainer(service_name='test-container',
+                                 service_cls=Service,
+                                 config=None)
     for dep in container.dependencies:
         dep._reset_calls()
 
@@ -206,7 +208,9 @@ def test_stop_waits_for_running_workers_before_signalling_container_stopped():
             spam_called.send(a)
             sleep(0.01)
 
-    container = ServiceContainer(service_cls=Service, config=None)
+    container = ServiceContainer(service_name='wait-for-worker',
+                                 service_cls=Service,
+                                 config=None)
 
     dep = next(iter(container.dependencies.decorators))
     container.spawn_worker(dep, ['ham'], {})
@@ -237,7 +241,8 @@ def test_container_doesnt_exhaust_max_workers():
             spam_called.send(a)
             spam_continue.wait()
 
-    container = ServiceContainer(service_cls=Service,
+    container = ServiceContainer(service_name='max-workers',
+                                 service_cls=Service,
                                  config={MAX_WOKERS_KEY: 1})
 
     dep = next(iter(container.dependencies))
