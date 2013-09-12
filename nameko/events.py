@@ -165,34 +165,37 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
 
     ``handler_type`` determines the behaviour of the handler:
         - ``events.SERVICE_POOL``: event handlers will be pooled by service
-            type and one from each pool will receive the event
+            type and handler-method and one from each pool will receive
+            the event
 
-                        [queue] - service X instance
+                       .-[queue]- (service X handler-method-1)
                       /
-            exchange o           service Y instance
-                      \        /
-                        [queue]
-                               \
-                                 service Y instance
+            exchange o --[queue]- (service X handler-method-2)
+                      \
+                       \          (service Y(instance 1) hanlder-method)
+                        \       /
+                         [queue]
+                                \
+                                  (service Y(instance 2) handler-method)
 
         - ``events.SINGLETON``: events will be received by only one registered
             handler. If requeued on error, they may be given to a different
             handler.
-                                   service X instance
+                                   (service X handler-method)
                                  /
             exchange o -- [queue]
                                  \
-                                   service Y instance
+                                   (service Y handler-method)
 
         - ``events.BROADCAST``: events will be received by every handler. This
             will broadcast to every service instance, not just every service
             type - use wisely!
 
-                        [queue] -- service X instance
+                        [queue]- (service X(instance 1) handler-method)
                       /
-            exchange o - [queue] -- service X instance
+            exchange o - [queue]- (service X(instance 2) handler-method)
                       \
-                        [queue] -- service Y instance
+                        [queue]- (service Y handler-method)
 
     If ``requeue_on_error``, handlers will return the event to the queue if an
     error occurs while handling it. Defaults to False.
@@ -228,28 +231,25 @@ class EventConfig(ConsumerConfig):
         self.reliable_delivery = reliable_delivery
         self.requeue_on_error = requeue_on_error
 
-    def get_queue(self, service):
+    def get_queue(self, service, method_name):
         """ Get a queue for the given ``service`` instance to listen to events
         with this configuration.
-
-        Queue names have the following formats, based on handler_type:
-
-        SERVICE_POOL: evt-<src-service-type>-<event_type>-<dest-service-type>
-        BROADCAST: evt-<src-service-type>-<event_type>-<dest-guid>
-        SINGLETON: evt-<src-service-type>-<event_type>
         """
         # handler_type determines queue name
         if self.handler_type is SERVICE_POOL:
-            queue_name = "evt-{}-{}-{}".format(self.service_name,
-                                               self.event_type,
-                                               service.topic)
+            queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
+                                                   self.event_type,
+                                                   service.topic,
+                                                   method_name)
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
-            queue_name = "evt-{}-{}-{}".format(self.service_name,
-                                               self.event_type,
-                                               uuid.uuid4())
+            queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
+                                                      self.event_type,
+                                                      service.topic,
+                                                      method_name,
+                                                      uuid.uuid4().hex)
 
         exchange = get_event_exchange(self.service_name)
 
