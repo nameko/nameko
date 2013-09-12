@@ -26,46 +26,48 @@ class Handler(object):
 
 
 class SpamHandler(Handler):
-    # force reliable delivery off until we have test cleanup
-    @event_handler('spammer', 'spammed', reliable_delivery=False)
+    @event_handler('spammer', 'spammed')
     def handle(self, evt):
         self.events.append(evt)
 
 
 class DoubleHandler(Handler):
-    @event_handler('spammer', 'spammed', reliable_delivery=False)
+    @event_handler('spammer', 'spammed')
     def handle_1(self, evt):
         self.events.append(('handle_1', evt))
 
-    @event_handler('spammer', 'spammed', reliable_delivery=False)
+    @event_handler('spammer', 'spammed')
     def handle_2(self, evt):
         self.events.append(('handle_2', evt))
 
 
 class ReliableSpamHandler(Handler):
-    @event_handler('spammer', 'spammed', reliable_delivery=True)
+    @event_handler('spammer', 'spammed')
+    def handle(self, evt):
+        self.events.append(evt)
+
+
+class UnreliableSpamHandler(Handler):
+    @event_handler('spammer', 'spammed', reliable_delivery=False)
     def handle(self, evt):
         self.events.append(evt)
 
 
 class RequeueingSpamHandler(Handler):
-    @event_handler('spammer', 'spammed',
-                   reliable_delivery=False, requeue_on_error=True)
+    @event_handler('spammer', 'spammed', requeue_on_error=True)
     def handle(self, evt):
         self.events.append(evt)
         raise Exception('foobar')
 
 
 class SingletonSpamHandler(Handler):
-    # force reliable delivery off until we have test cleanup
-    @event_handler('spammer', 'spammed', reliable_delivery=False,
-                   handler_type=SINGLETON)
+    @event_handler('spammer', 'spammed', handler_type=SINGLETON)
     def handle(self, evt):
         self.events.append(evt)
 
 
 class BroadcastSpamHandler(Handler):
-    # force reliable delivery off until we have test cleanup
+    # boradcast handlers may not have reliable_delivery set to True
     @event_handler('spammer', 'spammed', reliable_delivery=False,
                    handler_type=BROADCAST)
     def handle(self, evt):
@@ -184,7 +186,7 @@ def test_broadcast_events(start_service):
 
 
 def test_event_lost_without_listener(start_service, kill_services):
-    handler = start_service(SpamHandler, 'spamhandler')
+    handler = start_service(UnreliableSpamHandler, 'unreliable')
 
     spammer = start_service(Spammer, 'spammer')
     spammer.emit_event('ham')
@@ -196,7 +198,7 @@ def test_event_lost_without_listener(start_service, kill_services):
         while not events:
             eventlet.sleep()
 
-    kill_services('spamhandler')
+    kill_services('unreliable')
 
     # we don't have any handler listening anymore, so the event should vanish
     spammer.emit_event('lost ham')
@@ -238,7 +240,7 @@ def test_event_not_lost_with_reliable_delivery(start_service, kill_services):
 
 
 def test_requeue_event_on_error(start_service):
-    requeueing_handler = start_service(RequeueingSpamHandler, 'spamhandler')
+    requeueing_handler = start_service(RequeueingSpamHandler, 'requeue')
 
     spammer = start_service(Spammer, 'spammer')
     spammer.emit_event('ham and eggs')
@@ -249,7 +251,8 @@ def test_requeue_event_on_error(start_service):
             eventlet.sleep()
 
     # the new service should pick up the event
-    handler = start_service(SpamHandler, 'spamhandler')
+    # we are pretending to be the same service with the same handler method
+    handler = start_service(SpamHandler, 'requeue')
 
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
         while len(handler.events) < 1:
