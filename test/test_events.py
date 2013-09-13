@@ -513,8 +513,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_2')
 
     # start another container
-    (container,) = start_containers(UnreliableHandler, ('unreliable',))
-    container.start()
+    start_containers(UnreliableHandler, ('unreliable',))
 
     # verify the queue is recreated, with one consumer
     queue = rabbit_manager.get_queue(vhost, queue_name)
@@ -533,8 +532,6 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert len(services['unreliable']) == 2
     assert services['unreliable'][0].events == ["msg_1"]
     assert services['unreliable'][1].events == ["msg_3"]
-
-    container.stop()
 
 
 def test_dispatch_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):

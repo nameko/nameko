@@ -4,7 +4,9 @@ from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
+
 from nameko.dependencies import get_dependencies, DependencySet
+from nameko.utils import SpawningProxy
 
 _log = getLogger(__name__)
 
@@ -141,3 +143,44 @@ class ServiceContainer(object):
     def __str__(self):
         return '<ServiceContainer {} at 0x{:x}>'.format(
             self.ctx.name, id(self))
+
+
+class ServiceRunner(object):
+    def __init__(self, container_cls=ServiceContainer):
+        self.service_map = {}
+        self.containers = []
+        self.container_cls = container_cls
+
+    def add_service(self, name, cls):
+        self.service_map[name] = cls
+
+    def start(self):
+        service_map = self.service_map
+        _log.info('starting services: %s', service_map.keys())
+
+        for service_name, service_cls in service_map.items():
+            container = self.container_cls(service_name, service_cls)
+            self.containers.append(container)
+
+        SpawningProxy(self.containers).start()
+
+        _log.info('services started: %s', service_map.keys())
+
+    def stop(self):
+        service_map = self.service_map
+        _log.info('stopping services: %s', service_map.keys())
+
+        SpawningProxy(self.containers).stop()
+
+        _log.info('services stopped: %s', service_map.keys())
+
+    def kill(self):
+        service_map = self.service_map
+        _log.info('killing services: %s', service_map.keys())
+
+        SpawningProxy(self.containers).kill()
+
+        _log.info('services killed: %s ', service_map.keys())
+
+    def wait(self):
+        SpawningProxy(self.containers).wait()
