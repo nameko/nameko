@@ -1,7 +1,6 @@
 import pytest
 import eventlet
 from collections import defaultdict
-from functools import partial
 
 from mock import Mock, patch
 
@@ -233,11 +232,6 @@ def service_factory(prefix, base):
     return cls
 
 
-def stop_container(container):
-    if not container._died.ready():
-        container.stop()
-
-
 @pytest.fixture
 def start_containers(request, container_factory,
                      rabbit_config, reset_rabbit, reset_state):
@@ -265,7 +259,7 @@ def start_containers(request, container_factory,
             containers.append(ct)
             ct.start()
 
-            request.addfinalizer(partial(stop_container, ct))
+            request.addfinalizer(ct.stop)
 
         return containers
     return make

@@ -48,7 +48,9 @@ class WorkerContext(object):
 class ServiceContainer(object):
 
     def __init__(self, service_name, service_cls, config):
+        self.service_name = service_name
         self.service_cls = service_cls
+
         self.config = config
         self.ctx = ServiceContext(
             service_name, self.service_cls, self, self.config)
@@ -73,8 +75,13 @@ class ServiceContainer(object):
         _log.debug('starting %s', self)
         self.dependencies.all.start(self.ctx)
         self.dependencies.all.on_container_started(self.ctx)
+        _log.debug('started %s', self)
 
     def stop(self):
+        if self._died.ready():
+            _log.debug('already stopping %s', self)
+            return
+
         _log.debug('stopping %s', self)
         dependencies = self.dependencies
 
@@ -89,6 +96,7 @@ class ServiceContainer(object):
 
         dependencies.all.on_container_stopped(self.ctx)
         self._died.send(None)
+        _log.debug('stopped %s', self)
 
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):

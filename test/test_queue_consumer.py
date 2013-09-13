@@ -1,8 +1,10 @@
 import eventlet
 from eventlet.event import Event
+from kombu import Queue, Exchange, Connection
+from kombu.exceptions import TimeoutError
+from mock import patch
 
 from nameko.messaging import QueueConsumer
-from kombu import Queue, Exchange
 
 
 TIMEOUT = 5
@@ -69,6 +71,32 @@ def test_reentrant_start_stops(reset_rabbit, rabbit_config):
     # we should be able to call stop multiple times without errors
     qconsumer.stop()
     qconsumer.stop()
+
+
+def test_stop_while_starting():
+    started = Event()
+
+    class BrokenConnConsumer(QueueConsumer):
+        def consume(self, *args, **kwargs):
+            started.send(None)
+            started.reset()
+            return super(BrokenConnConsumer, self).consume(*args, **kwargs)
+
+    qconsumer = BrokenConnConsumer(None, 3)
+
+    with eventlet.Timeout(TIMEOUT):
+        with patch.object(Connection, 'connect') as connect:
+            connect.side_effect = TimeoutError('test')
+            gt = eventlet.spawn(qconsumer.start)
+            started.wait()
+
+    with eventlet.Timeout(TIMEOUT):
+        qconsumer.stop()
+
+    eventlet.sleep()
+
+    assert qconsumer._gt.dead
+    assert gt.dead
 
 
 def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):

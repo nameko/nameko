@@ -24,7 +24,7 @@ def pytest_addoption(parser):
         '--blocking-detection',
         action='store_true',
         dest='blocking_detection',
-        default=True,
+        default=False,
         help='turn on eventlet hub blocking detection')
 
     parser.addoption(

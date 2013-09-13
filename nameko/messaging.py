@@ -167,6 +167,10 @@ class ConsumeProvider(DecoratorDependency):
             qc.ack_message(message)
 
 
+class QueueConsumerStopped(Exception):
+    pass
+
+
 class QueueConsumer(ConsumerMixin):
     def __init__(self, amqp_uri, prefetch_count):
         self._connection = None
@@ -182,24 +186,58 @@ class QueueConsumer(ConsumerMixin):
         self._consumers_stopped = False
 
         self._gt = None
+        self._starting = False
+        self._stopping = False
+
         self._consumers_ready = Event()
 
     def start(self):
-        if self._gt is None:
+        if not self._starting:
+            self._starting = True
+
             _log.debug('starting %s', self)
             self._gt = eventlet.spawn(self.run)
+        else:
+            _log.debug('already starting %s', self)
+
+        try:
+            _log.debug('waiting for consumer read %s', self)
             self._consumers_ready.wait()
+        except QueueConsumerStopped:
+            _log.debug('consumer was stopped before it started %s', self)
+        else:
             _log.debug('started %s', self)
 
     def stop(self):
-        if self._gt is not None:
-            _log.debug('stopping %s', self)
-            self._cancel_consumers = True
-            self._gt.wait()
-            self._gt = None
-            _log.debug('stopped %s', self)
+        if not self._stopping:
+            self._stopping = True
+
+            if not self._consumers_ready.ready():
+                _log.debug('stopping while consumer is starting %s', self)
+
+                stop_exc = QueueConsumerStopped()
+                # stopping before we have started successfully by brutally
+                # killing the consumer thread as we don't have a way to hook
+                # into the pre-consumption startup process
+                self._gt.kill(stop_exc)
+                # we also want to let the start method know that we died
+                # it is waiting for the consumer to be ready
+                # so we send the same exceptions
+                self._consumers_ready.send_exception(stop_exc)
+            else:
+                _log.debug('stopping %s', self)
+
+                self._cancel_consumers = True
         else:
-            _log.debug('already stopped %s', self)
+            _log.debug('already stopping %s', self)
+
+        try:
+            _log.debug('waiting for consumer death %s', self)
+            self._gt.wait()
+        except QueueConsumerStopped:
+            pass
+
+        _log.debug('stopped %s', self)
 
     def add_consumer(self, queue, on_message):
         _log.debug("adding consumer for {}, on_message: {}".format(
