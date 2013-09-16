@@ -33,12 +33,12 @@ def pytest_addoption(parser):
         help=("The logging-level for the test run."))
 
     parser.addoption(
-        "--amqp-uri", action="store",
+        "--amqp-uri", action="store", dest='AMQP_URI',
         default='amqp://guest:guest@localhost:5672/nameko',
         help=("The AMQP-URI to connect to rabbit with."))
 
     parser.addoption(
-        "--rabbit-ctl-uri", action="store",
+        "--rabbit-ctl-uri", action="store", dest='RABBIT_CTL_URI',
         default='http://guest:guest@localhost:15672',
         help=("The URI for rabbit's management API."))
 
@@ -62,9 +62,9 @@ def pytest_configure(config):
 
 @pytest.fixture
 def rabbit_config(request):
-    amqp_uri = request.config.getoption('amqp_uri')
+    amqp_uri = request.config.getoption('AMQP_URI')
 
-    conf = {'amqp_uri': amqp_uri}
+    conf = {'AMQP_URI': amqp_uri}
 
     uri = urlparse(amqp_uri)
     conf['vhost'] = uri.path[1:]
@@ -76,7 +76,7 @@ def rabbit_config(request):
 def rabbit_manager(request):
     config = request.config
 
-    rabbit_ctl_uri = urlparse(config.getoption('rabbit_ctl_uri'))
+    rabbit_ctl_uri = urlparse(config.getoption('RABBIT_CTL_URI'))
     host_port = '{0.hostname}:{0.port}'.format(rabbit_ctl_uri)
 
     rabbit = Client(
@@ -106,13 +106,13 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
 
 @pytest.fixture
 def get_connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('amqp_uri')
+    amqp_uri = request.config.getoption('AMQP_URI')
     return partial(_get_connection, amqp_uri)
 
 
 @pytest.fixture
 def connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('amqp_uri')
+    amqp_uri = request.config.getoption('AMQP_URI')
     return _get_connection(amqp_uri)
 
 

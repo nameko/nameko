@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import Session
 
-from nameko.contrib.sqlalchemy import ORMSession
+from nameko.contrib.sqlalchemy import ORMSession, ORM_DB_URIS_KEY
 from nameko.service import ServiceContext, WorkerContext
 
 
@@ -20,7 +20,7 @@ def test_db():
     FooService.foo_session.name = 'foo_session'
 
     config = {
-        'orm_db_uris': {
+        ORM_DB_URIS_KEY: {
             'foo_service:spam_base': 'sqlite:///:memory:'
         }
     }

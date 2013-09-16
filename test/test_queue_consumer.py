@@ -4,7 +4,7 @@ from kombu import Queue, Exchange, Connection
 from kombu.exceptions import TimeoutError
 from mock import patch
 
-from nameko.messaging import QueueConsumer
+from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
 
 
 TIMEOUT = 5
@@ -12,7 +12,7 @@ TIMEOUT = 5
 
 def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
-    amqp_uri = rabbit_config['amqp_uri']
+    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
     qconsumer = QueueConsumer(amqp_uri, 3)
 
@@ -57,7 +57,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
 
 def test_reentrant_start_stops(reset_rabbit, rabbit_config):
-    amqp_uri = rabbit_config['amqp_uri']
+    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
     qconsumer = QueueConsumer(amqp_uri, 3)
 
@@ -100,7 +100,7 @@ def test_stop_while_starting():
 
 
 def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
-    amqp_uri = rabbit_config['amqp_uri']
+    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
     qconsumer1 = QueueConsumer(amqp_uri, 1)
     qconsumer2 = QueueConsumer(amqp_uri, 1)

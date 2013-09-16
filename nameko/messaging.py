@@ -23,7 +23,7 @@ _log = getLogger(__name__)
 
 # delivery_mode
 PERSISTENT = 2
-AMQP_URI_CONFIG_KEY = 'amqp_uri'
+AMQP_URI_CONFIG_KEY = 'AMQP_URI'
 
 
 class Publisher(AttributeDependency):
