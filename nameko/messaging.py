@@ -240,22 +240,21 @@ class QueueConsumer(ConsumerMixin):
         _log.debug('stopped %s', self)
 
     def add_consumer(self, queue, on_message):
-        _log.debug("adding consumer for {}, on_message: {}".format(
-            queue, on_message))
+        _log.debug("adding consumer for %s, on_message: %s", queue, on_message)
         self._registry.append((queue, on_message))
 
     def ack_message(self, message):
-        _log.debug("stashing message-ack: {}".format(message))
+        _log.debug("stashing message-ack: %s", message)
         self._pending_messages.remove(message)
         self._pending_ack_messages.append(message)
 
     def requeue_message(self, message):
-        _log.debug("staching message-requeue: {}".format(message))
+        _log.debug("staching message-requeue: %s", message)
         self._pending_messages.remove(message)
         self._pending_requeue_messages.append(message)
 
     def _on_message(self, handle_message, body, message):
-        _log.debug("received body: {}, message: {}".format(body, message))
+        _log.debug("received message: %s", message)
         self._pending_messages.add(message)
         handle_message(body, message)
 
