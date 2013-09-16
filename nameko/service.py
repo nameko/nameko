@@ -6,6 +6,7 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 
 from nameko.dependencies import get_dependencies, DependencySet
+from nameko.logging import log_time
 from nameko.utils import SpawningProxy
 
 _log = getLogger(__name__)
@@ -116,26 +117,38 @@ class ServiceContainer(object):
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
-        self.dependencies.all.call_setup(worker_ctx)
 
-        result = exc = None
-        try:
-            _log.debug('calling handler for %s', worker_ctx)
-            method = getattr(worker_ctx.service, worker_ctx.method_name)
-            result = method(*worker_ctx.args, **worker_ctx.kwargs)
-        except Exception as e:
-            exc = e
+        with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
-        if handle_result is not None:
-            _log.debug('handling result for %s', worker_ctx)
-            handle_result(worker_ctx, result, exc)
+            self.dependencies.all.call_setup(worker_ctx)
 
-        _log.debug('signalling result for %s', worker_ctx)
-        self.dependencies.attributes.all.call_result(
-            worker_ctx, result, exc)
+            result = exc = None
+            try:
+                _log.debug('calling handler for %s', worker_ctx)
 
-        _log.debug('tearing down %s', worker_ctx)
-        self.dependencies.all.call_teardown(worker_ctx)
+                method = getattr(worker_ctx.service, worker_ctx.method_name)
+
+                with log_time(_log.debug, 'ran handler for %s in %0.3fsec',
+                              worker_ctx):
+                    result = method(*worker_ctx.args, **worker_ctx.kwargs)
+            except Exception as e:
+                exc = e
+
+            if handle_result is not None:
+                _log.debug('handling result for %s', worker_ctx)
+
+                with log_time(_log.debug, 'handled result for %s in %0.3fsec',
+                              worker_ctx):
+                    handle_result(worker_ctx, result, exc)
+
+            with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
+                          worker_ctx):
+                _log.debug('signalling result for %s', worker_ctx)
+                self.dependencies.attributes.all.call_result(
+                    worker_ctx, result, exc)
+
+                _log.debug('tearing down %s', worker_ctx)
+                self.dependencies.all.call_teardown(worker_ctx)
 
     def wait(self):
         return self._died.wait()
