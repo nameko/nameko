@@ -67,7 +67,7 @@ def rabbit_config(request):
     conf = {'AMQP_URI': amqp_uri}
 
     uri = urlparse(amqp_uri)
-    conf['vhost'] = uri.path[1:]
+    conf['vhost'] = uri.path[1:].replace('/', '%2F')
     conf['username'] = uri.username
     return conf
 
