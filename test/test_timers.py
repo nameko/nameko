@@ -9,7 +9,7 @@ from nameko.testing.utils import wait_for_call
 
 
 def test_provider():
-    tmrprov = TimerProvider(0)
+    tmrprov = TimerProvider(0, None)
     tmrprov.name = 'foobar'
     container = Mock()
     srv_ctx = ServiceContext('foo', None, container)
@@ -27,6 +27,28 @@ def test_provider():
         tmrprov.stop(srv_ctx)
 
     assert timer.gt.dead
+
+
+def test_provider_uses_config_for_interval():
+    tmrprov = TimerProvider(None, 'spam-conf')
+    tmrprov.name = 'foobar'
+    container = Mock()
+    srv_ctx = ServiceContext('foo', None, container, {'spam-conf': 10})
+    tmrprov.start(srv_ctx)
+
+    timer = tmrprov.timers_by_ctx[srv_ctx]
+    assert timer.interval == 10
+
+
+def test_provider_interval_as_config_fallback():
+    tmrprov = TimerProvider(1, 'spam-conf')
+    tmrprov.name = 'foobar'
+    container = Mock()
+    srv_ctx = ServiceContext('foo', None, container, {})
+    tmrprov.start(srv_ctx)
+
+    timer = tmrprov.timers_by_ctx[srv_ctx]
+    assert timer.interval == 1
 
 
 def test_stop_running_timer():
