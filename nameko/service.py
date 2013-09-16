@@ -76,30 +76,34 @@ class ServiceContainer(object):
 
     def start(self):
         _log.debug('starting %s', self)
-        self.dependencies.all.start(self.ctx)
-        self.dependencies.all.on_container_started(self.ctx)
-        _log.debug('started %s', self)
+
+        with log_time(_log.debug, 'started %s in %0.3f sec', self):
+            self.dependencies.all.start(self.ctx)
+            self.dependencies.all.on_container_started(self.ctx)
 
     def stop(self):
         if self._died.ready():
             _log.debug('already stopping %s', self)
+            # TODO: should we wait for self._died?
             return
 
         _log.debug('stopping %s', self)
-        dependencies = self.dependencies
 
-        # decorator deps have to be stopped before attribute deps
-        # to ensure that running workers can successfully complete
-        dependencies.decorators.all.stop(self.ctx)
+        with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
 
-        # there might still be some running workers, which we have to
-        # wait for to complete before we can stop attribute dependencies
-        self._worker_pool.waitall()
-        dependencies.attributes.all.stop(self.ctx)
+            dependencies = self.dependencies
 
-        dependencies.all.on_container_stopped(self.ctx)
-        self._died.send(None)
-        _log.debug('stopped %s', self)
+            # decorator deps have to be stopped before attribute deps
+            # to ensure that running workers can successfully complete
+            dependencies.decorators.all.stop(self.ctx)
+
+            # there might still be some running workers, which we have to
+            # wait for to complete before we can stop attribute dependencies
+            self._worker_pool.waitall()
+            dependencies.attributes.all.stop(self.ctx)
+
+            dependencies.all.on_container_stopped(self.ctx)
+            self._died.send(None)
 
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):
