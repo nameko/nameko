@@ -1,4 +1,3 @@
-# TODO: close channels
 import eventlet
 from kombu import Producer
 import mock

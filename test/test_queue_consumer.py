@@ -79,15 +79,22 @@ def test_stop_while_starting():
     class BrokenConnConsumer(QueueConsumer):
         def consume(self, *args, **kwargs):
             started.send(None)
+            # kombu will retry again and again on broken connections
+            # so we have to make sure the event is reset to allow consume
+            # to be called again
             started.reset()
             return super(BrokenConnConsumer, self).consume(*args, **kwargs)
 
-    qconsumer = BrokenConnConsumer(None, 3)
+    qconsumer = BrokenConnConsumer(amqp_uri=None, prefetch_count=3)
 
     with eventlet.Timeout(TIMEOUT):
         with patch.object(Connection, 'connect') as connect:
+            # patch connection to raise an error
             connect.side_effect = TimeoutError('test')
+            # try to start the queue consumer
             gt = eventlet.spawn(qconsumer.start)
+            # wait for the queue consumer to begin starting and
+            # then immediately stop it
             started.wait()
 
     with eventlet.Timeout(TIMEOUT):
