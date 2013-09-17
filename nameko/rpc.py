@@ -90,10 +90,11 @@ class RpcConsumer(object):
             pass  # not registered
 
     def get_provider_for_method(self, routing_key):
-        if routing_key not in self._providers:
+        try:
+            return self._providers[routing_key]
+        except KeyError:
             method_name = routing_key.split(".")[-1]
             raise MethodNotFound(method_name)
-        return self._providers.get(routing_key)
 
     def handle_message(self, body, message):
         routing_key = message.delivery_info['routing_key']
