@@ -58,64 +58,6 @@ def test_send_topic(connection):
             assert msg.payload == 'success'
 
 
-def test_send_topic_using_send_rpc(connection):
-    with connection as conn:
-        with conn.channel() as chan:
-            queue = entities.get_topic_queue('test_rpc', 'test', channel=chan)
-            queue.declare()
-            ctx = context.get_admin_context()
-            sending.send_rpc(
-                conn,
-                context=ctx,
-                exchange='test_rpc',
-                topic='test',
-                method='test_method',
-                args={'foo': 'bar', },
-                timeout=3,
-                noreply=True)
-
-            msg = ifirst(queue_iterator(queue, no_ack=True, timeout=0.2))
-            expected = {'args': {'foo': 'bar'}, 'method': 'test_method'}
-            ctx.add_to_message(expected)
-            assert msg.payload == expected
-
-
-def test_send_fanout(connection):
-    with connection as conn:
-        with conn.channel() as chan:
-            queue = entities.get_fanout_queue('test', channel=chan)
-            queue.declare()
-
-            sending.send_fanout(
-                conn,
-                topic='test',
-                data='success')
-            msg = ifirst(queue_iterator(queue, no_ack=True, timeout=0.2))
-            assert msg.payload == 'success'
-
-
-def test_send_fanout_using_send_rpc(connection):
-    with connection as conn:
-        with conn.channel() as chan:
-            queue = entities.get_fanout_queue('test', channel=chan)
-            queue.declare()
-            ctx = context.get_admin_context()
-            sending.send_rpc(
-                conn,
-                context=ctx,
-                exchange='test_rpc',
-                topic='test',
-                method='test_method',
-                args={'foo': 'bar', },
-                timeout=3,
-                fanout=True)
-
-            msg = ifirst(queue_iterator(queue, no_ack=True, timeout=0.2))
-            expected = {'args': {'foo': 'bar'}, 'method': 'test_method'}
-            ctx.add_to_message(expected)
-            assert msg.payload == expected
-
-
 def test_send_rpc(get_connection):
     def response_greenthread():
         with get_connection() as conn:

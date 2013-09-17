@@ -31,18 +31,3 @@ def test_delegation_to_send_rpc():
             conn, context=ctx, exchange=exchange,
             topic=topic, method=method, args=args,
             timeout=timeout)
-
-        nova.cast(
-            connection=conn, context=ctx, topic=topic,
-            msg=msg, options=options)
-
-        send_rpc.assert_called_with(
-            conn, context=ctx, exchange=exchange,
-            topic=topic, method=method, args=args,
-            noreply=True)
-
-        nova.fanout_cast(connection=conn, context=ctx, topic=topic, msg=msg)
-
-        send_rpc.assert_called_with(
-            conn, context=ctx, exchange=None,
-            topic=topic, method=method, args=args, fanout=True)

@@ -113,10 +113,11 @@ def test_event_handler(handler_factory):
 
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
+        event_handler.name = 'foobar'
         event_handler.start(srv_ctx)
 
         assert (event_handler.queue.name ==
-                "evt-srcservice-eventtype-destservice")
+                "evt-srcservice-eventtype--destservice.foobar")
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
@@ -172,6 +173,17 @@ class ServicePoolHandler(HandlerService):
     @event_handler('srcservice', 'eventtype', handler_type=SERVICE_POOL)
     def handle(self, evt):
         super(ServicePoolHandler, self).handle(evt)
+
+
+class DoubleServicePoolHandler(HandlerService):
+
+    @event_handler('srcservice', 'eventtype', handler_type=SERVICE_POOL)
+    def handle_1(self, evt):
+        super(DoubleServicePoolHandler, self).handle(evt)
+
+    @event_handler('srcservice', 'eventtype', handler_type=SERVICE_POOL)
+    def handle_2(self, evt):
+        super(DoubleServicePoolHandler, self).handle(evt)
 
 
 class SingletonHandler(HandlerService):
@@ -257,11 +269,13 @@ def test_service_pooled_events(reset_rabbit, reset_state,
     make_containers(ServicePoolHandler, ("foo", "foo", "bar"))
 
     # foo service pool queue should have two consumers
-    foo_queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype-foo")
+    foo_queue = rabbit_manager.get_queue(
+        vhost, "evt-srcservice-eventtype--foo.handle")
     assert len(foo_queue['consumer_details']) == 2
 
     # bar service pool queue should have one consumer
-    bar_queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype-bar")
+    bar_queue = rabbit_manager.get_queue(
+        vhost, "evt-srcservice-eventtype--bar.handle")
     assert len(bar_queue['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
@@ -281,6 +295,35 @@ def test_service_pooled_events(reset_rabbit, reset_state,
     assert len(services['bar']) == 1
     assert isinstance(services['bar'][0], ServicePoolHandler)
     assert services['bar'][0].events == ["msg"]
+
+
+def test_service_pooled_events_multiple_handlers(reset_rabbit, reset_state,
+                                                 rabbit_manager, rabbit_config,
+                                                 make_containers):
+    vhost = rabbit_config['vhost']
+    make_containers(DoubleServicePoolHandler, ("double",))
+
+    # we should have two queues with a consumer each
+    foo_queue_1 = rabbit_manager.get_queue(
+        vhost, "evt-srcservice-eventtype--double.handle_1")
+    assert len(foo_queue_1['consumer_details']) == 1
+
+    foo_queue_2 = rabbit_manager.get_queue(
+        vhost, "evt-srcservice-eventtype--double.handle_2")
+    assert len(foo_queue_2['consumer_details']) == 1
+
+    exchange_name = "srcservice.events"
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
+
+    # each handler (3 of them) of the two services should have received the evt
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        while len(events) < 2:
+            eventlet.sleep()
+
+    # two worker instances would have been created to deal with the handling
+    assert len(services['double']) == 2
+    assert services['double'][0].events == ["msg"]
+    assert services['double'][1].events == ["msg"]
 
 
 def test_singleton_events(reset_rabbit, reset_state,
@@ -362,7 +405,8 @@ def test_requeue_on_error(reset_rabbit, reset_state,
     make_containers(RequeueingHandler)
 
     # the queue should been created and have one consumer
-    queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype-requeue")
+    queue = rabbit_manager.get_queue(
+        vhost, "evt-srcservice-eventtype--requeue.handle")
     assert len(queue['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
@@ -395,7 +439,7 @@ def test_reliable_delivery(reset_rabbit, reset_state,
     container.start()
 
     # test queue created, with one consumer
-    queue_name = "evt-srcservice-eventtype-srvname"
+    queue_name = "evt-srcservice-eventtype--srvname.handle"
     queue = rabbit_manager.get_queue(vhost, queue_name)
     assert len(queue['consumer_details']) == 1
 
@@ -453,7 +497,7 @@ def test_unreliable_delivery(reset_rabbit, reset_state,
     make_containers(ServicePoolHandler)
 
     # test queue created, with one consumer
-    queue_name = "evt-srcservice-eventtype-unreliable"
+    queue_name = "evt-srcservice-eventtype--unreliable.handle"
     queue = rabbit_manager.get_queue(vhost, queue_name)
     assert len(queue['consumer_details']) == 1
 
