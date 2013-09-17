@@ -12,11 +12,19 @@ import pytest
 
 running_services = []
 all_containers = []
+connections = []
 
 
 def _get_connection(uri):
     conn = Connection(uri)
+    connections.append(conn)
     return conn
+
+
+def close_connections():
+    for c in connections:
+        c.close()
+    connections[:]
 
 
 def pytest_addoption(parser):
@@ -85,7 +93,7 @@ def rabbit_manager(request):
     return rabbit
 
 
-@pytest.fixture
+@pytest.fixture  # TODO: consider making this autouse=True
 def reset_rabbit(request, rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     username = rabbit_config['username']
@@ -105,15 +113,25 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
 
 
 @pytest.fixture
-def get_connection(request, reset_rabbit):
+def connection(request, reset_rabbit):
     amqp_uri = request.config.getoption('AMQP_URI')
-    return partial(_get_connection, amqp_uri)
+
+    request.addfinalizer(close_connections)
+    return _get_connection(amqp_uri)
 
 
 @pytest.fixture
-def connection(request, reset_rabbit):
+def get_connection(request, reset_rabbit):
     amqp_uri = request.config.getoption('AMQP_URI')
-    return _get_connection(amqp_uri)
+
+    request.addfinalizer(close_connections)
+    return partial(_get_connection, amqp_uri)
+
+
+@pytest.fixture(autouse=True)
+def reset_kombu_pools(request):
+    from kombu.pools import reset
+    reset()
 
 
 @pytest.fixture(autouse=True)

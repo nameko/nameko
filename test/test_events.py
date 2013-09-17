@@ -534,7 +534,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert services['unreliable'][1].events == ["msg_3"]
 
 
-def test_dispatch_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
+def test_dispatch_to_rabbit_xxx(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
     service = Mock()

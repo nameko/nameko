@@ -21,7 +21,7 @@ _log = getLogger(__name__)
 def rpc():
     return RpcProvider()
 
-RPC_EXCHANGE = Exchange('nameko-rpc', durable=True, type="topic")
+RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
@@ -38,6 +38,12 @@ def get_rpc_consumer(srv_ctx, consumer_cls):
     return rpc_consumers[srv_ctx]
 
 
+def get_rpc_exchange(srv_ctx):
+    exchange_name = srv_ctx.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
+    exchange = Exchange(exchange_name, durable=True, type="topic")
+    return exchange
+
+
 class RpcConsumer(object):
 
     def __init__(self, srv_ctx):
@@ -48,17 +54,18 @@ class RpcConsumer(object):
     def prepare_queue(self):
         if self._queue is None:
 
-            service_name = self._srv_ctx.name
+            srv_ctx = self._srv_ctx
+            service_name = srv_ctx.name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
+            exchange = get_rpc_exchange(srv_ctx)
 
             self._queue = Queue(
                 queue_name,
-                exchange=RPC_EXCHANGE,
+                exchange=exchange,
                 routing_key=routing_key,
                 durable=True)
 
-            srv_ctx = self._srv_ctx
             qc = get_queue_consumer(srv_ctx)
             qc.add_consumer(self._queue, self.handle_message)
 
@@ -84,22 +91,22 @@ class RpcConsumer(object):
             pass  # not registered
 
     def get_provider_for_method(self, routing_key):
-        return self._providers.get(routing_key)
+        try:
+            return self._providers[routing_key]
+        except KeyError:
+            method_name = routing_key.split(".")[-1]
+            raise MethodNotFound(method_name)
 
     def handle_message(self, body, message):
         routing_key = message.delivery_info['routing_key']
-        provider = self.get_provider_for_method(routing_key)
-
         srv_ctx = self._srv_ctx
-        if provider:
+        try:
+            provider = self.get_provider_for_method(routing_key)
             provider.handle_message(srv_ctx, body, message)
-        else:
-            method_name = routing_key.split(".")[-1]
-            exc = MethodNotFound(method_name)
+        except MethodNotFound as exc:
             self.handle_result(message, srv_ctx, None, exc)
 
     def handle_result(self, message, srv_ctx, result, exc):
-
         error = None
         if exc is not None:
             error = RemoteErrorWrapper(exc)
@@ -147,12 +154,18 @@ class RpcProvider(DecoratorDependency):
 
 
 class Responder(object):
-    def __init__(self, message):
+    def __init__(self, message, retry=True, retry_policy=None):
+        self._connection = None
         self.message = message
+        self.retry = retry
+        if retry_policy is None:
+            retry_policy = {'max_retries': 3}
+        self.retry_policy = retry_policy
+
+    def connection_factory(self, srv_ctx):
+        return Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
 
     def send_response(self, srv_ctx, result, error_wrapper):
-
-        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
@@ -161,18 +174,19 @@ class Responder(object):
         if error_wrapper is not None:
             error = error_wrapper.serialize()
 
-        msg = {'result': result, 'error': error}
+        with self.connection_factory(srv_ctx) as conn:
 
-        with producers[conn].acquire(block=True) as producer:
-            # TODO: should we enable auto-retry,
-            #      should that be an option in __init__?
+            with producers[conn].acquire(block=True) as producer:
 
-            reply_to = self.message.properties['reply_to']
-            correlation_id = self.message.properties.get('correlation_id')
+                reply_to = self.message.properties['reply_to']
+                correlation_id = self.message.properties.get('correlation_id')
 
-            # all queues are bound to the anonymous direct exchange
-            producer.publish(msg, routing_key=reply_to,
-                             correlation_id=correlation_id)
+                msg = {'result': result, 'error': error}
+
+                # all queues are bound to the anonymous direct exchange
+                producer.publish(
+                    msg, retry=self.retry, retry_policy=self.retry_policy,
+                    routing_key=reply_to, correlation_id=correlation_id)
 
 
 class Service(AttributeDependency):
@@ -215,8 +229,9 @@ class MethodProxy(object):
             reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
                 routing_key, uuid.uuid4())
 
+            exchange = get_rpc_exchange(srv_ctx)
             reply_queue = Queue(
-                reply_queue_name, exchange=RPC_EXCHANGE, exclusive=True)
+                reply_queue_name, exchange=exchange, exclusive=True)
             maybe_declare(reply_queue, conn)
 
             with producers[conn].acquire(block=True) as producer:
@@ -226,14 +241,14 @@ class MethodProxy(object):
                 # TODO: should use correlation-id property and check after
                 # receiving a response
                 producer.publish(msg,
-                                 exchange=RPC_EXCHANGE,
+                                 exchange=exchange,
                                  routing_key=routing_key,
                                  reply_to=reply_queue.name)
 
             resp_messages = itermessages(
                 conn, conn.channel(), reply_queue)
 
-            resp_body, resp_message = next(resp_messages)
+            resp_body, _ = next(resp_messages)
 
             error = resp_body.get('error')
             if error:

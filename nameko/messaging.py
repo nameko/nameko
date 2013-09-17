@@ -249,7 +249,7 @@ class QueueConsumer(ConsumerMixin):
         self._pending_ack_messages.append(message)
 
     def requeue_message(self, message):
-        _log.debug("staching message-requeue: %s", message)
+        _log.debug("stashing message-requeue: %s", message)
         self._pending_messages.remove(message)
         self._pending_requeue_messages.append(message)
 
