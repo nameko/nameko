@@ -21,7 +21,7 @@ def patch_attr_dependency(provider):
 
         def test_service_dispatches_event():
 
-            test_srv = TestContainer(MyService)
+            test_srv = TestProxy(MyService)
 
             with patch_attr_dependency(MyService.dispatch) as dispatch:
                 test_srv.foo()
