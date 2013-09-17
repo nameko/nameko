@@ -163,15 +163,42 @@ class ServiceContainer(object):
 
 
 class ServiceRunner(object):
+    """ Allows the user to server a number of services concurrently.
+    The caller can register a number of service classes with a name and
+    then use the start method to serve them and the stop and kill methods
+    to stop them. The wait method will block untill all services have stopped.
+
+    example:
+
+        runner = ServiceRunner()
+        runner.add_service('foobar', Foobar)
+        runner.add_service('spam', Spam)
+
+        add_sig_term_handler(runner.kill)
+
+        runner.start()
+
+        runner.wait()
+    """
     def __init__(self, container_cls=ServiceContainer):
         self.service_map = {}
         self.containers = []
         self.container_cls = container_cls
 
     def add_service(self, name, cls):
+        """ Adds a service class to be served under the given name.
+        There can only be one service class for a given name.
+        Service classes must be registered before calling start()
+        """
         self.service_map[name] = cls
 
     def start(self):
+        """ Starts all the registered services.
+
+        A new container will be created for each service.
+        All containers will be started concurently and the method will block
+        until they all complete their startup implementation.
+        """
         service_map = self.service_map
         _log.info('starting services: %s', service_map.keys())
 
@@ -184,6 +211,9 @@ class ServiceRunner(object):
         _log.info('services started: %s', service_map.keys())
 
     def stop(self):
+        """ Stops all running containers concurrently.
+        The method will block until all containers have stopped.
+        """
         service_map = self.service_map
         _log.info('stopping services: %s', service_map.keys())
 
@@ -192,6 +222,10 @@ class ServiceRunner(object):
         _log.info('services stopped: %s', service_map.keys())
 
     def kill(self):
+        """ Kill all running containers concurrently.
+        The method will block until all containers have stopped.
+        """
+
         service_map = self.service_map
         _log.info('killing services: %s', service_map.keys())
 
@@ -200,4 +234,6 @@ class ServiceRunner(object):
         _log.info('services killed: %s ', service_map.keys())
 
     def wait(self):
+        """ Waits for all running containers to stop.
+        """
         SpawningProxy(self.containers).wait()
