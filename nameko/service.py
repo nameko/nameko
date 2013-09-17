@@ -195,9 +195,10 @@ class ServiceRunner(object):
     def start(self):
         """ Starts all the registered services.
 
-        A new container will be created for each service.
+        A new container will be created for each service using the container
+        class provided in the __init__ method.
         All containers will be started concurently and the method will block
-        until they all complete their startup implementation.
+        until all have completed their startup routine.
         """
         service_map = self.service_map
         _log.info('starting services: %s', service_map.keys())
