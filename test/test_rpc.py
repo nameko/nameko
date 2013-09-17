@@ -95,7 +95,7 @@ def test_rpc_queue_and_connection_creation(container_factory, rabbit_config,
     rpc_queue = rabbit_manager.get_queue(vhost, "rpc-exampleservice")
     assert len(rpc_queue['consumer_details']) == 1
     evt_queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype-exampleservice")
+        vhost, "evt-srcservice-eventtype--exampleservice.async_task")
     assert len(evt_queue['consumer_details']) == 1
 
     # and both share a single connection
