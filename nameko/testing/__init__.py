@@ -7,7 +7,7 @@ from mock import patch, Mock
 def patch_attr_dependency(provider):
     """ Patches an `AttributeDependency` provider's acquire_injection
     such that it returns a `Mock` as the injection object.
-    The injection object will be yield by the contextmanager.
+    The injection object will be yielded by the contextmanager.
 
     example:
 
