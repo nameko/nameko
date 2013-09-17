@@ -129,7 +129,7 @@ def container_factory(request, reset_rabbit):
 
 
 @pytest.fixture
-def start_service(request, get_connection):
+def start_service(request, get_connection, reset_rabbit):
 
     def _start_service(cls, service_name):
         # making sure we import this as late as possible
