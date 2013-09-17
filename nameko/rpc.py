@@ -131,7 +131,6 @@ class RpcProvider(DecoratorDependency):
 
     def on_container_started(self, srv_ctx):
         rpc_consumer = self.get_consumer(srv_ctx)
-        rpc_consumer.register_provider(self)
         rpc_consumer.start()
 
     def stop(self, srv_ctx):
