@@ -21,7 +21,6 @@ _log = getLogger(__name__)
 def rpc():
     return RpcProvider()
 
-RPC_EXCHANGE = Exchange('nameko-rpc', durable=True, type="topic")
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 
 
@@ -38,6 +37,12 @@ def get_rpc_consumer(srv_ctx):
     return rpc_consumers[srv_ctx]
 
 
+def get_rpc_exchange(srv_ctx):
+    exchange_name = srv_ctx.config.get('rpc_exchange', 'nameko-rpc')
+    exchange = Exchange(exchange_name, durable=True, type="topic")
+    return exchange
+
+
 class RpcConsumer(object):
 
     def __init__(self, srv_ctx):
@@ -48,17 +53,18 @@ class RpcConsumer(object):
     def prepare_queue(self):
         if self._queue is None:
 
-            service_name = self._srv_ctx.name
+            srv_ctx = self._srv_ctx
+            service_name = srv_ctx.name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
+            exchange = get_rpc_exchange(srv_ctx)
 
             self._queue = Queue(
                 queue_name,
-                exchange=RPC_EXCHANGE,
+                exchange=exchange,
                 routing_key=routing_key,
                 durable=True)
 
-            srv_ctx = self._srv_ctx
             qc = get_queue_consumer(srv_ctx)
             qc.add_consumer(self._queue, self.handle_message)
 
@@ -84,22 +90,21 @@ class RpcConsumer(object):
             pass  # not registered
 
     def get_provider_for_method(self, routing_key):
+        if routing_key not in self._providers:
+            method_name = routing_key.split(".")[-1]
+            raise MethodNotFound(method_name)
         return self._providers.get(routing_key)
 
     def handle_message(self, body, message):
         routing_key = message.delivery_info['routing_key']
-        provider = self.get_provider_for_method(routing_key)
-
         srv_ctx = self._srv_ctx
-        if provider:
+        try:
+            provider = self.get_provider_for_method(routing_key)
             provider.handle_message(srv_ctx, body, message)
-        else:
-            method_name = routing_key.split(".")[-1]
-            exc = MethodNotFound(method_name)
+        except MethodNotFound as exc:
             self.handle_result(message, srv_ctx, None, exc)
 
     def handle_result(self, message, srv_ctx, result, exc):
-
         error = None
         if exc is not None:
             error = RemoteErrorWrapper(exc)
@@ -120,7 +125,6 @@ class RpcProvider(DecoratorDependency):
 
     def on_container_started(self, srv_ctx):
         rpc_consumer = get_rpc_consumer(srv_ctx)
-        rpc_consumer.register_provider(self)
         rpc_consumer.start()
 
     def stop(self, srv_ctx):
@@ -218,8 +222,9 @@ class MethodProxy(object):
             reply_queue_name = 'rpc.reply-{}-{}'.format(
                 routing_key, uuid.uuid4())
 
+            exchange = get_rpc_exchange(srv_ctx)
             reply_queue = Queue(
-                reply_queue_name, exchange=RPC_EXCHANGE, exclusive=True)
+                reply_queue_name, exchange=exchange, exclusive=True)
             maybe_declare(reply_queue, conn)
 
             with producers[conn].acquire(block=True) as producer:
@@ -229,14 +234,14 @@ class MethodProxy(object):
                 # TODO: should use correlation-id property and check after
                 # receiving a response
                 producer.publish(msg,
-                                 exchange=RPC_EXCHANGE,
+                                 exchange=exchange,
                                  routing_key=routing_key,
                                  reply_to=reply_queue.name)
 
             resp_messages = itermessages(
                 conn, conn.channel(), reply_queue)
 
-            resp_body, resp_message = next(resp_messages)
+            resp_body, _ = next(resp_messages)
 
             error = resp_body.get('error')
             if error:
