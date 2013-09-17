@@ -21,6 +21,7 @@ _log = getLogger(__name__)
 def rpc():
     return RpcProvider()
 
+RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 
 
@@ -38,7 +39,7 @@ def get_rpc_consumer(srv_ctx):
 
 
 def get_rpc_exchange(srv_ctx):
-    exchange_name = srv_ctx.config.get('rpc_exchange', 'nameko-rpc')
+    exchange_name = srv_ctx.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
     exchange = Exchange(exchange_name, durable=True, type="topic")
     return exchange
 
