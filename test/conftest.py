@@ -32,6 +32,7 @@ def pytest_addoption(parser):
         '--blocking-detection',
         action='store_true',
         dest='blocking_detection',
+        default=False,
         help='turn on eventlet hub blocking detection')
 
     parser.addoption(
@@ -40,12 +41,12 @@ def pytest_addoption(parser):
         help=("The logging-level for the test run."))
 
     parser.addoption(
-        "--amqp-uri", action="store",
+        "--amqp-uri", action="store", dest='AMQP_URI',
         default='amqp://guest:guest@localhost:5672/nameko',
         help=("The AMQP-URI to connect to rabbit with."))
 
     parser.addoption(
-        "--rabbit-ctl-uri", action="store",
+        "--rabbit-ctl-uri", action="store", dest='RABBIT_CTL_URI',
         default='http://guest:guest@localhost:15672',
         help=("The URI for rabbit's management API."))
 
@@ -69,12 +70,12 @@ def pytest_configure(config):
 
 @pytest.fixture
 def rabbit_config(request):
-    amqp_uri = request.config.getoption('amqp_uri')
+    amqp_uri = request.config.getoption('AMQP_URI')
 
-    conf = {'amqp_uri': amqp_uri}
+    conf = {'AMQP_URI': amqp_uri}
 
     uri = urlparse(amqp_uri)
-    conf['vhost'] = uri.path[1:]
+    conf['vhost'] = uri.path[1:].replace('/', '%2F')
     conf['username'] = uri.username
     return conf
 
@@ -83,7 +84,7 @@ def rabbit_config(request):
 def rabbit_manager(request):
     config = request.config
 
-    rabbit_ctl_uri = urlparse(config.getoption('rabbit_ctl_uri'))
+    rabbit_ctl_uri = urlparse(config.getoption('RABBIT_CTL_URI'))
     host_port = '{0.hostname}:{0.port}'.format(rabbit_ctl_uri)
 
     rabbit = Client(
@@ -113,7 +114,7 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
 
 @pytest.fixture
 def connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('amqp_uri')
+    amqp_uri = request.config.getoption('AMQP_URI')
 
     request.addfinalizer(close_connections)
     return _get_connection(amqp_uri)
@@ -121,7 +122,7 @@ def connection(request, reset_rabbit):
 
 @pytest.fixture
 def get_connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('amqp_uri')
+    amqp_uri = request.config.getoption('AMQP_URI')
 
     request.addfinalizer(close_connections)
     return partial(_get_connection, amqp_uri)
@@ -141,9 +142,9 @@ def reset_mock_proxy(request):
 
 @pytest.fixture
 def container_factory(request, reset_rabbit):
-    def make_container(service, config):
+    def make_container(service_cls, config):
         from nameko.service import ServiceContainer
-        container = ServiceContainer(service, config)
+        container = ServiceContainer(service_cls, config)
         all_containers.append(container)
         return container
 
@@ -157,41 +158,3 @@ def container_factory(request, reset_rabbit):
 
     request.addfinalizer(stop_all_containers)
     return make_container
-
-
-@pytest.fixture
-def start_service(request, get_connection, reset_rabbit):
-
-    def _start_service(cls, service_name):
-        # making sure we import this as late as possible
-        # to get correct coverage
-        from nameko.service import Service
-
-        srv = Service(cls, get_connection, 'rpc', service_name)
-        running_services.append(srv)
-        srv.start()
-        srv.consume_ready.wait()
-        eventlet.sleep()
-        return srv.service
-
-    def kill_all_services():
-        for s in running_services:
-            try:
-                s.kill()
-            except:
-                pass
-        del running_services[:]
-
-    request.addfinalizer(kill_all_services)
-    return _start_service
-
-
-@pytest.fixture
-def kill_services(request, reset_rabbit):
-
-    def _kill_services(name):
-        for s in running_services:
-            if s.topic == name:
-                s.kill()
-
-    return _kill_services

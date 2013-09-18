@@ -13,27 +13,32 @@ _log = getLogger(__name__)
 
 
 @dependency_decorator
-def timer(interval):
+def timer(interval=None, config_key=None):
     '''
     Decorates a method as a timer, which will be called every `interval` sec.
+
+    Either the `interval` or the `config_key` have to be provided or both.
+    If the `config_key` is given the value for that key in the config will be
+    used as the interval otherwise the `interval` provided will be used.
 
     Example:
 
     class Foobar(object):
 
-        @timer(interval=5)
+        @timer(interval=5, config_key='foobar_interval')
         def handle_timer(self):
             self.shrub(body)
     '''
-    return TimerProvider(interval)
+    return TimerProvider(interval, config_key)
 
 
 class TimerProvider(DecoratorDependency):
-    def __init__(self, interval):
+    def __init__(self, interval, config_key):
         # The map is only used to support using the same class in multiple
         # concurrently running containers.
         self.timers_by_ctx = WeakKeyDictionary()
         self.interval = interval
+        self.config_key = config_key
 
     def start(self, srv_ctx):
         def timer_handler():
@@ -41,7 +46,12 @@ class TimerProvider(DecoratorDependency):
             kwargs = {}
             srv_ctx.container.spawn_worker(self, args, kwargs)
 
-        self.timers_by_ctx[srv_ctx] = Timer(self.interval, timer_handler)
+        if self.config_key:
+            interval = srv_ctx.config.get(self.config_key, self.interval)
+        else:
+            interval = self.interval
+
+        self.timers_by_ctx[srv_ctx] = Timer(interval, timer_handler)
 
     def on_container_started(self, srv_ctx):
         timer = self.timers_by_ctx[srv_ctx]
@@ -52,7 +62,7 @@ class TimerProvider(DecoratorDependency):
         self.timers_by_ctx[srv_ctx].stop()
 
     def __str__(self):
-        return '<TimerProvider %s with %ss interval at at 0x{:x}>'.format(
+        return '<TimerProvider {} with {}s interval at at 0x{:x}>'.format(
             self.name, self.interval, id(self))
 
 

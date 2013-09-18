@@ -4,7 +4,10 @@ from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
+
 from nameko.dependencies import get_dependencies, DependencySet
+from nameko.logging import log_time
+from nameko.utils import SpawningProxy
 
 _log = getLogger(__name__)
 
@@ -54,8 +57,11 @@ class ServiceContainer(object):
     def __init__(self, service_cls, config):
         self.service_cls = service_cls
         self.config = config
-        self.ctx = ServiceContext(get_service_name(self.service_cls),
-                                  self.service_cls, self, self.config)
+        self.service_name = get_service_name(service_cls)
+
+        self.ctx = ServiceContext(
+            self.service_name, service_cls, self, self.config)
+
         self._dependencies = None
         self._worker_pool = GreenPool(size=self.ctx.max_workers)
         self._died = Event()
@@ -74,24 +80,34 @@ class ServiceContainer(object):
 
     def start(self):
         _log.debug('starting %s', self)
-        self.dependencies.all.start(self.ctx)
-        self.dependencies.all.on_container_started(self.ctx)
+
+        with log_time(_log.debug, 'started %s in %0.3f sec', self):
+            self.dependencies.all.start(self.ctx)
+            self.dependencies.all.on_container_started(self.ctx)
 
     def stop(self):
+        if self._died.ready():
+            _log.debug('already stopping %s', self)
+            # TODO: should we wait for self._died?
+            return
+
         _log.debug('stopping %s', self)
-        dependencies = self.dependencies
 
-        # decorator deps have to be stopped before attribute deps
-        # to ensure that running workers can successfully complete
-        dependencies.decorators.all.stop(self.ctx)
+        with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
 
-        # there might still be some running workers, which we have to
-        # wait for to complete before we can stop attribute dependencies
-        self._worker_pool.waitall()
-        dependencies.attributes.all.stop(self.ctx)
+            dependencies = self.dependencies
 
-        dependencies.all.on_container_stopped(self.ctx)
-        self._died.send(None)
+            # decorator deps have to be stopped before attribute deps
+            # to ensure that running workers can successfully complete
+            dependencies.decorators.all.stop(self.ctx)
+
+            # there might still be some running workers, which we have to
+            # wait for to complete before we can stop attribute dependencies
+            self._worker_pool.waitall()
+            dependencies.attributes.all.stop(self.ctx)
+
+            dependencies.all.on_container_stopped(self.ctx)
+            self._died.send(None)
 
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):
@@ -109,26 +125,38 @@ class ServiceContainer(object):
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
-        self.dependencies.all.call_setup(worker_ctx)
 
-        result = exc = None
-        try:
-            _log.debug('calling handler for %s', worker_ctx)
-            method = getattr(worker_ctx.service, worker_ctx.method_name)
-            result = method(*worker_ctx.args, **worker_ctx.kwargs)
-        except Exception as e:
-            exc = e
+        with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
-        if handle_result is not None:
-            _log.debug('handling result for %s', worker_ctx)
-            handle_result(worker_ctx, result, exc)
+            self.dependencies.all.call_setup(worker_ctx)
 
-        _log.debug('signalling result for %s', worker_ctx)
-        self.dependencies.attributes.all.call_result(
-            worker_ctx, result, exc)
+            result = exc = None
+            try:
+                _log.debug('calling handler for %s', worker_ctx)
 
-        _log.debug('tearing down %s', worker_ctx)
-        self.dependencies.all.call_teardown(worker_ctx)
+                method = getattr(worker_ctx.service, worker_ctx.method_name)
+
+                with log_time(_log.debug, 'ran handler for %s in %0.3fsec',
+                              worker_ctx):
+                    result = method(*worker_ctx.args, **worker_ctx.kwargs)
+            except Exception as e:
+                exc = e
+
+            if handle_result is not None:
+                _log.debug('handling result for %s', worker_ctx)
+
+                with log_time(_log.debug, 'handled result for %s in %0.3fsec',
+                              worker_ctx):
+                    handle_result(worker_ctx, result, exc)
+
+            with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
+                          worker_ctx):
+                _log.debug('signalling result for %s', worker_ctx)
+                self.dependencies.attributes.all.call_result(
+                    worker_ctx, result, exc)
+
+                _log.debug('tearing down %s', worker_ctx)
+                self.dependencies.all.call_teardown(worker_ctx)
 
     def wait(self):
         return self._died.wait()
@@ -136,3 +164,82 @@ class ServiceContainer(object):
     def __str__(self):
         return '<ServiceContainer {} at 0x{:x}>'.format(
             self.ctx.name, id(self))
+
+
+class ServiceRunner(object):
+    """ Allows the user to serve a number of services concurrently.
+    The caller can register a number of service classes with a name and
+    then use the start method to serve them and the stop and kill methods
+    to stop them. The wait method will block until all services have stopped.
+
+    Example:
+
+        runner = ServiceRunner()
+        runner.add_service('foobar', Foobar)
+        runner.add_service('spam', Spam)
+
+        add_sig_term_handler(runner.kill)
+
+        runner.start()
+
+        runner.wait()
+    """
+    def __init__(self, container_cls=ServiceContainer):
+        self.service_map = {}
+        self.containers = []
+        self.container_cls = container_cls
+
+    def add_service(self, cls):
+        """ Adds a service class to the runner.
+        There can only be one service class for a given service name.
+        Service classes must be registered before calling start()
+        """
+        service_name = get_service_name(cls)
+        self.service_map[service_name] = cls
+
+    def start(self):
+        """ Starts all the registered services.
+
+        A new container will be created for each service using the container
+        class provided in the __init__ method.
+        All containers will be started concurently and the method will block
+        until all have completed their startup routine.
+        """
+        service_map = self.service_map
+        _log.info('starting services: %s', service_map.keys())
+
+        for service_name, service_cls in service_map.items():
+            container = self.container_cls(service_cls)
+            self.containers.append(container)
+
+        SpawningProxy(self.containers).start()
+
+        _log.info('services started: %s', service_map.keys())
+
+    def stop(self):
+        """ Stops all running containers concurrently.
+        The method will block until all containers have stopped.
+        """
+        service_map = self.service_map
+        _log.info('stopping services: %s', service_map.keys())
+
+        SpawningProxy(self.containers).stop()
+
+        _log.info('services stopped: %s', service_map.keys())
+
+    def kill(self):
+        """ Kill all running containers concurrently.
+        The method will block until all containers have stopped.
+        """
+
+        service_map = self.service_map
+        _log.info('killing services: %s', service_map.keys())
+
+        SpawningProxy(self.containers).kill()
+
+        _log.info('services killed: %s ', service_map.keys())
+
+    def wait(self):
+        """ Waits for all running containers to stop.
+        """
+        SpawningProxy(self.containers).wait()
