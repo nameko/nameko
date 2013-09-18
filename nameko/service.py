@@ -167,12 +167,12 @@ class ServiceContainer(object):
 
 
 class ServiceRunner(object):
-    """ Allows the user to server a number of services concurrently.
+    """ Allows the user to serve a number of services concurrently.
     The caller can register a number of service classes with a name and
     then use the start method to serve them and the stop and kill methods
-    to stop them. The wait method will block untill all services have stopped.
+    to stop them. The wait method will block until all services have stopped.
 
-    example:
+    Example:
 
         runner = ServiceRunner()
         runner.add_service('foobar', Foobar)
