@@ -254,8 +254,7 @@ def start_containers(request, container_factory,
                 service = service_factory(prefix, base)
                 services[key] = service
             service_cls = services.get(key)
-            service_name = prefix
-            ct = container_factory(service_name, service_cls, rabbit_config)
+            ct = container_factory(service_cls, rabbit_config)
             containers.append(ct)
             ct.start()
 

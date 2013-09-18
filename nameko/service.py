@@ -15,6 +15,10 @@ _log = getLogger(__name__)
 MAX_WOKERS_KEY = 'max_workers'
 
 
+def get_service_name(service_cls):
+    return getattr(service_cls, "name", service_cls.__name__.lower())
+
+
 class ServiceContext(object):
     """ Context for a ServiceContainer
     """
@@ -50,13 +54,13 @@ class WorkerContext(object):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_name, service_cls, config):
-        self.service_name = service_name
+    def __init__(self, service_cls, config):
         self.service_cls = service_cls
-
         self.config = config
+        self.service_name = get_service_name(service_cls)
+
         self.ctx = ServiceContext(
-            service_name, self.service_cls, self, self.config)
+            self.service_name, service_cls, self, self.config)
 
         self._dependencies = None
         self._worker_pool = GreenPool(size=self.ctx.max_workers)

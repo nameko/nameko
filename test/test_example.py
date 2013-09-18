@@ -24,6 +24,7 @@ class SpamEvent(Event):
 
 
 class FooService(object):
+    name = 'foo-service'
 
     foo_session = ORMSession(DeclBase)
     dispatch_event = EventDispatcher()
@@ -63,7 +64,7 @@ def test_example_service(container_factory, rabbit_config):
     }
     config.update(rabbit_config)
 
-    container = container_factory('foo-service', FooService, config)
+    container = container_factory(FooService, config)
     container.start()
 
     with wait_for_call(5, handle_spam_called) as handle_spam:
