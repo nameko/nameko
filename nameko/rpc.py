@@ -24,6 +24,10 @@ def rpc():
 RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 
+MESSAGE_HEADER_PREFIX = '_nameko_'
+VALID_MESSAGE_HEADERS = (
+    'lang',
+)
 
 rpc_consumers = WeakKeyDictionary()
 
@@ -120,6 +124,8 @@ class RpcConsumer(object):
 
 class RpcProvider(DecoratorDependency):
 
+    message_headers = VALID_MESSAGE_HEADERS
+
     def start(self, srv_ctx):
         rpc_consumer = get_rpc_consumer(srv_ctx)
         rpc_consumer.register_provider(self)
@@ -138,8 +144,19 @@ class RpcProvider(DecoratorDependency):
         args = body['args']
         kwargs = body['kwargs']
 
+        context_data = {}
+        header_prefix = MESSAGE_HEADER_PREFIX
+        message_headers = self.message_headers
+
+        for key, value in message.headers.iteritems():
+            if key.startswith(header_prefix):
+                name = key[len(header_prefix):]
+                if name in message_headers:
+                    context_data[name] = value
+
         handle_result = partial(self.handle_result, message)
         srv_ctx.container.spawn_worker(self, args, kwargs,
+                                       context_data=context_data,
                                        handle_result=handle_result)
 
     def handle_result(self, message, worker_ctx, result, exc):
@@ -185,27 +202,36 @@ class Responder(object):
 
 
 class Service(AttributeDependency):
+
+    message_headers = VALID_MESSAGE_HEADERS
+
     def __init__(self, service_name):
         self.service_name = service_name
 
     def acquire_injection(self, worker_ctx):
-        return ServiceProxy(self.service_name, worker_ctx)
+        return ServiceProxy(worker_ctx,
+                            self.service_name,
+                            self.message_headers)
 
 
 class ServiceProxy(object):
-    def __init__(self, service_name, worker_ctx):
+    def __init__(self, worker_ctx, service_name, message_headers):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
+        self.message_headers = message_headers
 
     def __getattr__(self, name):
-        return MethodProxy(self.service_name, name, self.worker_ctx)
+        return MethodProxy(self.worker_ctx, self.service_name, name,
+                           self.message_headers)
 
 
 class MethodProxy(object):
-    def __init__(self, service_name, method_name, worker_ctx):
+
+    def __init__(self, worker_ctx, service_name, method_name, message_headers):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
+        self.message_headers = message_headers
 
     def __call__(self, *args, **kwargs):
         _log.debug('invoking %s', self)
@@ -233,12 +259,22 @@ class MethodProxy(object):
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
 
+                headers = {}
+                header_prefix = MESSAGE_HEADER_PREFIX
+                valid_headers = self.message_headers
+
+                for key in valid_headers:
+                    if key in worker_ctx.data:
+                        name = header_prefix + key
+                        headers[name] = worker_ctx.data[key]
+
                 # TODO: should use correlation-id property and check after
                 # receiving a response
                 producer.publish(msg,
                                  exchange=exchange,
                                  routing_key=routing_key,
-                                 reply_to=reply_queue.name)
+                                 reply_to=reply_queue.name,
+                                 headers=headers)
 
             resp_messages = itermessages(
                 conn, conn.channel(), reply_queue)
