@@ -189,12 +189,13 @@ class ServiceRunner(object):
         self.containers = []
         self.container_cls = container_cls
 
-    def add_service(self, name, cls):
-        """ Adds a service class to be served under the given name.
-        There can only be one service class for a given name.
+    def add_service(self, cls):
+        """ Adds a service class to the runner.
+        There can only be one service class for a given service name.
         Service classes must be registered before calling start()
         """
-        self.service_map[name] = cls
+        service_name = get_service_name(cls)
+        self.service_map[service_name] = cls
 
     def start(self):
         """ Starts all the registered services.
@@ -208,7 +209,7 @@ class ServiceRunner(object):
         _log.info('starting services: %s', service_map.keys())
 
         for service_name, service_cls in service_map.items():
-            container = self.container_cls(service_name, service_cls)
+            container = self.container_cls(service_cls)
             self.containers.append(container)
 
         SpawningProxy(self.containers).start()
