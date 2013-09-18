@@ -100,10 +100,14 @@ def test_stop_while_starting():
     with eventlet.Timeout(TIMEOUT):
         qconsumer.stop()
 
-    eventlet.sleep()
+    with eventlet.Timeout(TIMEOUT):
+        # we expect the qconsumer.start thread to finish
+        # almost immediately adn when it does the qconsumer thread
+        # should be dead too
+        while not gt.dead:
+            eventlet.sleep()
 
-    assert qconsumer._gt.dead
-    assert gt.dead
+        assert qconsumer._gt.dead
 
 
 def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
