@@ -2,11 +2,11 @@ from nameko.service import ServiceRunner
 
 
 class TestService1(object):
-    pass
+    name = 'foobar_1'
 
 
 class TestService2(object):
-    pass
+    name = 'foobar_2'
 
 
 def test_runner_lifecycle():
@@ -14,19 +14,20 @@ def test_runner_lifecycle():
 
     class Container(object):
         def __init__(self, service_cls):
+            self.service_name = service_cls.__name__
             self.service_cls = service_cls
 
         def start(self):
-            events.append(('start', self.service_cls))
+            events.append(('start', self.service_cls.name, self.service_cls))
 
         def stop(self):
-            events.append(('stop', self.service_cls))
+            events.append(('stop', self.service_cls.name, self.service_cls))
 
         def kill(self):
-            events.append(('kill', self.service_cls))
+            events.append(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
-            events.append(('wait', self.service_cls))
+            events.append(('wait', self.service_cls.name, self.service_cls))
 
     runner = ServiceRunner(Container)
 
@@ -36,27 +37,27 @@ def test_runner_lifecycle():
     runner.start()
 
     assert sorted(events) == [
-        ('start', TestService1),
-        ('start', TestService2),
+        ('start', 'foobar_1', TestService1),
+        ('start', 'foobar_2', TestService2),
     ]
 
     events = []
     runner.stop()
     assert sorted(events) == [
-        ('stop', TestService1),
-        ('stop', TestService2),
+        ('stop', 'foobar_1', TestService1),
+        ('stop', 'foobar_2', TestService2),
     ]
 
     events = []
     runner.kill()
     assert sorted(events) == [
-        ('kill', TestService1),
-        ('kill', TestService2),
+        ('kill', 'foobar_1', TestService1),
+        ('kill', 'foobar_2', TestService2),
     ]
 
     events = []
     runner.wait()
     assert sorted(events) == [
-        ('wait', TestService1),
-        ('wait', TestService2),
+        ('wait', 'foobar_1', TestService1),
+        ('wait', 'foobar_2', TestService2),
     ]
