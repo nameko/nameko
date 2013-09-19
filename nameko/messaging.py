@@ -79,7 +79,9 @@ class Publisher(AttributeDependency):
             with self.get_producer(worker_ctx.srv_ctx) as producer:
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
-                producer.publish(msg, exchange=exchange, **kwargs)
+                headers = worker_ctx.get_message_headers()
+                producer.publish(msg, exchange=exchange, headers=headers,
+                                 **kwargs)
 
         return publish
 
@@ -148,8 +150,12 @@ class ConsumeProvider(DecoratorDependency):
         args = (body,)
         kwargs = {}
 
+        worker_ctx_cls = srv_ctx.container.worker_ctx_cls
+        context_data = worker_ctx_cls.unpack_message_headers(message.headers)
+
         srv_ctx.container.spawn_worker(
             self, args, kwargs,
+            context_data=context_data,
             handle_result=partial(self.handle_result, message))
 
     def handle_result(self, message, worker_ctx, result=None, exc=None):

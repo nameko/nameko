@@ -156,8 +156,10 @@ class EventDispatcher(Publisher):
             routing_key = evt.type
 
             with self.get_producer(worker_ctx.srv_ctx) as producer:
-                producer.publish(
-                    msg, exchange=exchange, routing_key=routing_key)
+
+                headers = worker_ctx.get_message_headers()
+                producer.publish(msg, exchange=exchange, headers=headers,
+                                 routing_key=routing_key)
 
         return dispatch
 

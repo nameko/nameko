@@ -75,8 +75,10 @@ def test_event_dispatcher():
 
         # test dispatch
         service.dispatch(evt)
+        headers = worker_ctx.get_message_headers()
         producer.publish.assert_called_once_with(
-            evt.data, exchange=event_dispatcher.exchange, routing_key=evt.type)
+            evt.data, exchange=event_dispatcher.exchange, headers=headers,
+            routing_key=evt.type)
 
 
 @pytest.fixture

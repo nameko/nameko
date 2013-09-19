@@ -1,15 +1,22 @@
 from __future__ import absolute_import
 
+from abc import ABCMeta, abstractproperty
 from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
+
 from nameko.dependencies import get_dependencies, DependencySet
+from nameko.exceptions import HeaderConflict
 
 _log = getLogger(__name__)
 
 
 MAX_WOKERS_KEY = 'max_workers'
+
+VALID_MESSAGE_HEADERS = (
+    'nameko.lang',
+)
 
 
 def get_service_name(service_cls):
@@ -31,9 +38,11 @@ class ServiceContext(object):
             self.max_workers = 10
 
 
-class WorkerContext(object):
-    """ Context for a Worker
+class WorkerContextBase(object):
+    """ Abstract base class for a WorkerContext
     """
+    __metaclass__ = ABCMeta
+
     def __init__(self, srv_ctx, service, method_name, args=None, kwargs=None,
                  data=None):
         self.srv_ctx = srv_ctx
@@ -44,15 +53,75 @@ class WorkerContext(object):
         self.kwargs = kwargs if kwargs is not None else {}
         self.data = data if data is not None else {}
 
+    @abstractproperty
+    def valid_message_headers(self):
+        """ Return a tuple of message headers that should be created from
+        data on this WorkerContext.
+
+        Message headers take the form ``<prefix>.<name>`` to aid debugging
+        over the wire, where <name> specifies the key in a WorkerContext
+        instance's data dictionary from which the header value is taken.
+        """
+
+    def get_message_headers(self):
+        """ Return a dictionary of message headers generated from the data
+        on this WorkerContext instance.
+
+        For example, given a WorkerContext ``worker_ctx``:
+
+            >>> worker_ctx.valid_message_headers
+            {'nameko.lang', 'customlib.customkey'}
+            >>> worker_ctx.data
+            {'lang': 'en', 'customkey':'customvalue' }
+            >>> worker_ctx.get_message_headers()
+            {'nameko.lang': 'en', 'customlib.customkey': 'customvalue' }
+
+        """
+        message_headers = self.valid_message_headers
+
+        headers = {}
+        for key in message_headers:
+            _, name = key.split(".")
+            if name in self.data:
+                headers[key] = self.data[name]
+        return headers
+
+    @classmethod
+    def unpack_message_headers(cls, headers):
+        """ Transform a dictionary of message headers into a data dictionary
+        according to the headers allowed by this WorkerContext class.
+        """
+        message_headers = cls.valid_message_headers
+
+        data = {}
+        for key, value in headers.iteritems():
+            _, name = key.split(".")
+            if key in message_headers:
+                if name in data:
+                    # TODO: needs test
+                    raise HeaderConflict("Headers contain muliple values for "
+                                         "the key '{}'. Full headers: "
+                                         "{}".format(name, headers))
+                data[name] = value
+        return data
+
     def __str__(self):
-        return '<WorkerContext {}.{} at 0x{:x}>'.format(
-            self.srv_ctx.name, self.method_name, id(self))
+        cls_name = self.__class__.__name__
+        return '<{} {}.{} at 0x{:x}>'.format(
+            cls_name, self.srv_ctx.name, self.method_name, id(self))
+
+
+class WorkerContext(WorkerContextBase):
+    """ Default WorkerContext implementation
+    """
+    valid_message_headers = VALID_MESSAGE_HEADERS
 
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, config):
+    def __init__(self, service_cls, worker_ctx_cls, config):
         self.service_cls = service_cls
+        self.worker_ctx_cls = worker_ctx_cls
         self.config = config
         self.ctx = ServiceContext(get_service_name(self.service_cls),
                                   self.service_cls, self, self.config)
@@ -97,7 +166,7 @@ class ServiceContainer(object):
                      context_data=None, handle_result=None):
 
         service = self.service_cls()
-        worker_ctx = WorkerContext(
+        worker_ctx = self.worker_ctx_cls(
             self.ctx, service, provider.name, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx)

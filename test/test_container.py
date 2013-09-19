@@ -3,7 +3,7 @@ from eventlet.event import Event
 
 import pytest
 
-from nameko.service import ServiceContainer, MAX_WOKERS_KEY
+from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
 
 from nameko.dependencies import(
     AttributeDependency, DecoratorDependency, dependency_decorator)
@@ -93,7 +93,9 @@ class Service(object):
 
 @pytest.fixture
 def container():
-    container = ServiceContainer(service_cls=Service, config=None)
+    container = ServiceContainer(service_cls=Service,
+                                 worker_ctx_cls=WorkerContext,
+                                 config=None)
     for dep in container.dependencies:
         dep._reset_calls()
 
@@ -206,7 +208,9 @@ def test_stop_waits_for_running_workers_before_signalling_container_stopped():
             spam_called.send(a)
             sleep(0.01)
 
-    container = ServiceContainer(service_cls=Service, config=None)
+    container = ServiceContainer(service_cls=Service,
+                                 worker_ctx_cls=WorkerContext,
+                                 config=None)
 
     dep = next(iter(container.dependencies.decorators))
     container.spawn_worker(dep, ['ham'], {})
@@ -227,7 +231,7 @@ def test_wait_waits_for_container_stopped(container):
         assert gt.dead
 
 
-def test_container_doesnt_exhaust_max_workers():
+def test_container_doesnt_exhaust_max_workers(container):
     spam_called = Event()
     spam_continue = Event()
 
@@ -238,6 +242,7 @@ def test_container_doesnt_exhaust_max_workers():
             spam_continue.wait()
 
     container = ServiceContainer(service_cls=Service,
+                                 worker_ctx_cls=WorkerContext,
                                  config={MAX_WOKERS_KEY: 1})
 
     dep = next(iter(container.dependencies))

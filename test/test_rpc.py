@@ -3,12 +3,14 @@ import pytest
 import socket
 
 from kombu import Connection
-from mock import Mock, patch
+from mock import patch
 
-from nameko.dependencies import AttributeDependency, dependency_decorator
+from nameko.dependencies import AttributeDependency
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc, Service, get_rpc_consumer, RpcProvider
+from nameko.rpc import rpc, Service, get_rpc_consumer
+from nameko.service import (
+    WorkerContext, WorkerContextBase, VALID_MESSAGE_HEADERS)
 
 
 class ExampleError(Exception):
@@ -16,10 +18,9 @@ class ExampleError(Exception):
 
 
 hello = object()
-goodbye = object()
 translations = {
-    'en': {hello: 'hello', goodbye: 'goodbye'},
-    'fr': {hello: 'bonjour', goodbye: 'au revoir'},
+    'en': {hello: 'hello'},
+    'fr': {hello: 'bonjour'},
 }
 
 
@@ -32,13 +33,8 @@ class Translator(AttributeDependency):
         return translate
 
 
-class CustomRpcProvider(RpcProvider):
-    message_headers = ('lang', 'custom_header')
-
-
-@dependency_decorator
-def custom_rpc():
-    return CustomRpcProvider()
+class CustomWorkerContext(WorkerContextBase):
+    valid_message_headers = VALID_MESSAGE_HEADERS + ('foobar.custom_header',)
 
 
 class ExampleService(object):
@@ -66,10 +62,6 @@ class ExampleService(object):
     @rpc
     def say_hello(self):
         return self.translate(hello)
-
-    @custom_rpc
-    def say_goodbye(self):
-        return self.translate(goodbye)
 
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
@@ -107,9 +99,11 @@ class FailingConnection(Connection):
 
 @pytest.fixture
 def service_proxy_factory(request):
+
     def make_proxy(container, service_name, worker_ctx=None):
         if worker_ctx is None:
-            worker_ctx = Mock(srv_ctx=container.ctx, data={})
+            worker_ctx_cls = container.worker_ctx_cls
+            worker_ctx = worker_ctx_cls(container.ctx, None, None, data={})
         service_proxy = Service(service_name)
         proxy = service_proxy.acquire_injection(worker_ctx)
         return proxy
@@ -166,18 +160,21 @@ def test_rpc_context_data(container_factory, rabbit_config,
         'auth_token': '123456789'
     }
 
-    worker_ctx = Mock(srv_ctx=container.ctx, data=context_data.copy())
+    worker_ctx = WorkerContext(container.ctx, None, None,
+                               data=context_data.copy())
     en_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
 
     context_data['lang'] = 'fr'
 
-    worker_ctx = Mock(srv_ctx=container.ctx, data=context_data.copy())
+    worker_ctx = WorkerContext(container.ctx, None, None,
+                               data=context_data.copy())
     fr_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
 
     assert en_proxy.say_hello() == "hello"
     assert fr_proxy.say_hello() == "bonjour"
 
 
+# move to messaging?
 def test_rpc_headers(container_factory, rabbit_config,
                      service_proxy_factory):
 
@@ -200,14 +197,15 @@ def test_rpc_headers(container_factory, rabbit_config,
         patched_handler.side_effect = side_effect
         container.start()
 
-    worker_ctx = Mock(srv_ctx=container.ctx, data=context_data.copy())
+    worker_ctx = WorkerContext(container.ctx, None, None,
+                               data=context_data.copy())
     proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
 
     assert proxy.say_hello() == "hello"
-    assert headers["_nameko_lang"] == "en"
-    assert "_nameko_bogus_header" not in headers
+    assert headers == {'nameko.lang': 'en'}  # bogus_header dropped
 
 
+# move to messaging?
 def test_rpc_custom_headers(container_factory, rabbit_config,
                             service_proxy_factory):
 
@@ -231,14 +229,16 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
         patched_handler.side_effect = side_effect
         container.start()
 
-    worker_ctx = Mock(srv_ctx=container.ctx, data=context_data.copy())
+    worker_ctx = CustomWorkerContext(container.ctx, None, None,
+                                     data=context_data.copy())
     proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
-    proxy.message_headers = CustomRpcProvider.message_headers
 
     assert proxy.say_hello() == "hello"
-    assert headers["_nameko_lang"] == "en"
-    assert "_nameko_bogus_header" not in headers
-    assert headers["_nameko_custom_header"] == "specialvalue"
+    # bogus_header dropped, custom_header present
+    assert headers == {
+        'nameko.lang': 'en',
+        'foobar.custom_header': 'specialvalue'
+    }
 
 
 def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager,
