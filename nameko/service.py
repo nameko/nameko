@@ -69,11 +69,11 @@ class WorkerContextBase(object):
 
         For example, given a WorkerContext ``worker_ctx``:
 
-            >>> worker_ctx.valid_message_headers
+            > worker_ctx.valid_message_headers
             {'nameko.lang', 'customlib.customkey'}
-            >>> worker_ctx.data
+            > worker_ctx.data
             {'lang': 'en', 'customkey':'customvalue' }
-            >>> worker_ctx.get_message_headers()
+            > worker_ctx.get_message_headers()
             {'nameko.lang': 'en', 'customlib.customkey': 'customvalue' }
 
         """
