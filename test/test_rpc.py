@@ -8,6 +8,7 @@ from mock import Mock, patch
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, Service
+from nameko.messaging import AMQP_URI_CONFIG_KEY
 
 
 class ExampleError(Exception):
@@ -15,6 +16,7 @@ class ExampleError(Exception):
 
 
 class ExampleService(object):
+    name = 'exampleservice'
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -81,8 +83,8 @@ def service_proxy_factory(request):
 # test rpc proxy ...
 
 
-def test_rpc_queue_and_connection_creation(container_factory, rabbit_config,
-                                           rabbit_manager):
+def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
+                                              rabbit_manager):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -162,7 +164,7 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
     container.start()
 
     proxy = service_proxy_factory(container, "exampleservice")
-    uri = container.ctx.config['amqp_uri']
+    uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri, max_failure_count=2)
 
     with patch("kombu.connection.ConnectionPool.new") as new_connection:
@@ -170,7 +172,6 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
 
         assert proxy.task_a() == "result_a"
         assert conn.failure_count == 2
-
 
 # test_rpc_responder_eventual_failure -- TODO
 # test reply-to and correlation-id correct

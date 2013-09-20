@@ -80,6 +80,8 @@ egg_error = Exception('broken')
 
 
 class Service(object):
+    name = 'test-service'
+
     spam = CallCollectingAttributeDependency()
 
     @foobar
@@ -199,6 +201,8 @@ def test_stop_waits_for_running_workers_before_signalling_container_stopped():
             container_stopped.send(container._worker_pool.running())
 
     class Service(object):
+        name = 'wait-for-worker'
+
         stop = StopDep()
 
         @foobar
@@ -232,6 +236,8 @@ def test_container_doesnt_exhaust_max_workers():
     spam_continue = Event()
 
     class Service(object):
+        name = 'max-workers'
+
         @foobar
         def spam(self, a):
             spam_called.send(a)

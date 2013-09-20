@@ -4,7 +4,7 @@ from mock import Mock
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-from nameko.contrib.sqlalchemy import ORMSession
+from nameko.contrib.sqlalchemy import ORMSession, ORM_DB_URIS_KEY
 from nameko.events import event_handler, EventDispatcher, Event
 from nameko.rpc import rpc, Service
 from nameko.timer import timer
@@ -24,7 +24,7 @@ class SpamEvent(Event):
 
 
 class FooService(object):
-    name = "foo-service"
+    name = 'foo-service'
 
     foo_session = ORMSession(DeclBase)
     dispatch_event = EventDispatcher()
@@ -58,11 +58,11 @@ def test_example_service(container_factory, rabbit_config):
     FooModel.metadata.create_all(engine)
 
     config = {
-        'amqp_uri': rabbit_config['amqp_uri'],
-        'orm_db_uris': {
+        ORM_DB_URIS_KEY: {
             'foo-service:foo_base': db_uri
         }
     }
+    config.update(rabbit_config)
 
     container = container_factory(FooService, config)
     container.start()

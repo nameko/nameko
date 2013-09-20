@@ -9,7 +9,7 @@ from kombu.pools import producers
 from kombu.common import itermessages, maybe_declare
 
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
-from nameko.messaging import get_queue_consumer
+from nameko.messaging import get_queue_consumer, AMQP_URI_CONFIG_KEY
 from nameko.dependencies import (
     dependency_decorator, AttributeDependency, DecoratorDependency)
 
@@ -23,16 +23,16 @@ def rpc():
 
 RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
-
+RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
 rpc_consumers = WeakKeyDictionary()
 
 
-def get_rpc_consumer(srv_ctx):
+def get_rpc_consumer(srv_ctx, consumer_cls):
     """ Get or create an RpcConsumer instance for the given ``srv_ctx``
     """
     if srv_ctx not in rpc_consumers:
-        rpc_consumer = RpcConsumer(srv_ctx)
+        rpc_consumer = consumer_cls(srv_ctx)
         rpc_consumers[srv_ctx] = rpc_consumer
 
     return rpc_consumers[srv_ctx]
@@ -119,18 +119,22 @@ class RpcConsumer(object):
 
 
 class RpcProvider(DecoratorDependency):
+    _consumer_cls = RpcConsumer
+
+    def get_consumer(self, srv_ctx):
+        return get_rpc_consumer(srv_ctx, self._consumer_cls)
 
     def start(self, srv_ctx):
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.register_provider(self)
         rpc_consumer.prepare_queue()
 
     def on_container_started(self, srv_ctx):
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.start()
 
     def stop(self, srv_ctx):
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.unregister_provider(self)
         rpc_consumer.stop()
 
@@ -144,7 +148,7 @@ class RpcProvider(DecoratorDependency):
 
     def handle_result(self, message, worker_ctx, result, exc):
         srv_ctx = worker_ctx.srv_ctx
-        rpc_consumer = get_rpc_consumer(srv_ctx)
+        rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.handle_result(message, srv_ctx, result, exc)
 
 
@@ -158,7 +162,7 @@ class Responder(object):
         self.retry_policy = retry_policy
 
     def connection_factory(self, srv_ctx):
-        return Connection(srv_ctx.config['amqp_uri'])
+        return Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
 
     def send_response(self, srv_ctx, result, error_wrapper):
 
@@ -215,13 +219,13 @@ class MethodProxy(object):
 
         msg = {'args': args, 'kwargs': kwargs}
 
-        conn = Connection(srv_ctx.config['amqp_uri'])
+        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         # TODO: should connection sharing be done during call_setup in the
         #       dependency provider?
         with conn as conn:
-            reply_queue_name = 'rpc.reply-{}-{}'.format(
+            reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
                 routing_key, uuid.uuid4())
 
             exchange = get_rpc_exchange(srv_ctx)
