@@ -7,15 +7,16 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 
 from nameko.dependencies import get_dependencies, DependencySet
-from nameko.exceptions import HeaderConflict
 
 _log = getLogger(__name__)
 
 
 MAX_WOKERS_KEY = 'max_workers'
 
-VALID_MESSAGE_HEADERS = (
-    'nameko.lang',
+NAMEKO_DATA_KEYS = (
+    'lang',
+    'user_id',
+    'auth_token',
 )
 
 
@@ -54,56 +55,9 @@ class WorkerContextBase(object):
         self.data = data if data is not None else {}
 
     @abstractproperty
-    def valid_message_headers(self):
-        """ Return a tuple of message headers that should be created from
-        data on this WorkerContext.
-
-        Message headers take the form ``<prefix>.<name>`` to aid debugging
-        over the wire, where <name> specifies the key in a WorkerContext
-        instance's data dictionary from which the header value is taken.
+    def data_keys(self):
+        """ Return a tuple of keys describing data kept on this WorkerContext.
         """
-
-    def get_message_headers(self):
-        """ Return a dictionary of message headers generated from the data
-        on this WorkerContext instance.
-
-        For example, given a WorkerContext ``worker_ctx``:
-
-            >>> worker_ctx.valid_message_headers
-            {'nameko.lang', 'customlib.customkey'}
-            >>> worker_ctx.data
-            {'lang': 'en', 'customkey':'customvalue' }
-            >>> worker_ctx.get_message_headers()
-            {'nameko.lang': 'en', 'customlib.customkey': 'customvalue' }
-
-        """
-        message_headers = self.valid_message_headers
-
-        headers = {}
-        for key in message_headers:
-            _, name = key.split(".")
-            if name in self.data:
-                headers[key] = self.data[name]
-        return headers
-
-    @classmethod
-    def unpack_message_headers(cls, headers):
-        """ Transform a dictionary of message headers into a data dictionary
-        according to the headers allowed by this WorkerContext class.
-        """
-        message_headers = cls.valid_message_headers
-
-        data = {}
-        for key, value in headers.iteritems():
-            _, name = key.split(".")
-            if key in message_headers:
-                if name in data:
-                    # TODO: needs test
-                    raise HeaderConflict("Headers contain muliple values for "
-                                         "the key '{}'. Full headers: "
-                                         "{}".format(name, headers))
-                data[name] = value
-        return data
 
     def __str__(self):
         cls_name = self.__class__.__name__
@@ -114,7 +68,7 @@ class WorkerContextBase(object):
 class WorkerContext(WorkerContextBase):
     """ Default WorkerContext implementation
     """
-    valid_message_headers = VALID_MESSAGE_HEADERS
+    data_keys = NAMEKO_DATA_KEYS
 
 
 class ServiceContainer(object):

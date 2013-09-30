@@ -9,10 +9,6 @@ class WaiterTimeout(Exception):
     pass
 
 
-class HeaderConflict(Exception):
-    pass
-
-
 class RemoteError(Exception):
     def __init__(self, exc_type=None, value=None, traceback=None):
         self.exc_type = exc_type

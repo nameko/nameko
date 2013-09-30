@@ -75,7 +75,7 @@ def test_event_dispatcher():
 
         # test dispatch
         service.dispatch(evt)
-        headers = worker_ctx.get_message_headers()
+        headers = event_dispatcher.get_message_headers(worker_ctx)
         producer.publish.assert_called_once_with(
             evt.data, exchange=event_dispatcher.exchange, headers=headers,
             routing_key=evt.type)

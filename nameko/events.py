@@ -27,8 +27,7 @@ import uuid
 from kombu import Exchange, Queue
 
 from nameko.messaging import (
-    Publisher, PERSISTENT,
-    ConsumeProvider)
+    Publisher, PERSISTENT, ConsumeProvider, HeaderEncoder)
 from nameko.dependencies import dependency_decorator
 
 
@@ -111,7 +110,7 @@ class Event(object):
         self.data = data
 
 
-class EventDispatcher(Publisher):
+class EventDispatcher(Publisher, HeaderEncoder):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,
@@ -157,7 +156,7 @@ class EventDispatcher(Publisher):
 
             with self.get_producer(worker_ctx.srv_ctx) as producer:
 
-                headers = worker_ctx.get_message_headers()
+                headers = self.get_message_headers(worker_ctx)
                 producer.publish(msg, exchange=exchange, headers=headers,
                                  routing_key=routing_key)
 

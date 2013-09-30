@@ -10,7 +10,7 @@ from nameko.events import event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, Service, get_rpc_consumer
 from nameko.service import (
-    WorkerContext, WorkerContextBase, VALID_MESSAGE_HEADERS)
+    WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 
 
 class ExampleError(Exception):
@@ -34,7 +34,7 @@ class Translator(AttributeDependency):
 
 
 class CustomWorkerContext(WorkerContextBase):
-    valid_message_headers = VALID_MESSAGE_HEADERS + ('foobar.custom_header',)
+    data_keys = NAMEKO_DATA_KEYS + ('custom_header',)
 
 
 class ExampleService(object):
@@ -237,7 +237,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
     # bogus_header dropped, custom_header present
     assert headers == {
         'nameko.lang': 'en',
-        'foobar.custom_header': 'specialvalue'
+        'nameko.custom_header': 'specialvalue'
     }
 
 

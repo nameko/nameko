@@ -9,7 +9,7 @@ from kombu.pools import producers
 from kombu.common import itermessages, maybe_declare
 
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
-from nameko.messaging import get_queue_consumer
+from nameko.messaging import get_queue_consumer, HeaderEncoder, HeaderDecoder
 from nameko.dependencies import (
     dependency_decorator, AttributeDependency, DecoratorDependency)
 
@@ -117,7 +117,7 @@ class RpcConsumer(object):
         qc.ack_message(message)
 
 
-class RpcProvider(DecoratorDependency):
+class RpcProvider(DecoratorDependency, HeaderDecoder):
 
     def start(self, srv_ctx):
         rpc_consumer = get_rpc_consumer(srv_ctx)
@@ -138,7 +138,7 @@ class RpcProvider(DecoratorDependency):
         kwargs = body['kwargs']
 
         worker_ctx_cls = srv_ctx.container.worker_ctx_cls
-        context_data = worker_ctx_cls.unpack_message_headers(message.headers)
+        context_data = self.unpack_message_headers(worker_ctx_cls, message)
 
         handle_result = partial(self.handle_result, message)
         srv_ctx.container.spawn_worker(self, args, kwargs,
@@ -205,7 +205,7 @@ class ServiceProxy(object):
         return MethodProxy(self.worker_ctx, self.service_name, name)
 
 
-class MethodProxy(object):
+class MethodProxy(HeaderEncoder):
 
     def __init__(self, worker_ctx, service_name, method_name):
         self.worker_ctx = worker_ctx
@@ -238,7 +238,7 @@ class MethodProxy(object):
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
 
-                headers = worker_ctx.get_message_headers()
+                headers = self.get_message_headers(worker_ctx)
 
                 # TODO: should use correlation-id property and check after
                 # receiving a response

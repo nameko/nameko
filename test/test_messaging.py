@@ -5,7 +5,7 @@ from mock import patch, Mock
 from nameko.dependencies import get_decorator_providers
 from nameko.messaging import Publisher, ConsumeProvider, consume
 from nameko.service import (
-    ServiceContext, WorkerContext, WorkerContextBase, VALID_MESSAGE_HEADERS)
+    ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)
 
@@ -16,7 +16,7 @@ CONSUME_TIMEOUT = 1
 
 
 class CustomWorkerContext(WorkerContextBase):
-    valid_message_headers = VALID_MESSAGE_HEADERS + ('foobar.customheader',)
+    data_keys = NAMEKO_DATA_KEYS + ('customheader',)
 
 
 def test_consume_creates_provider():
@@ -40,8 +40,8 @@ def test_consume_provider():
     consume_provider = ConsumeProvider(queue=foobar_queue,
                                        requeue_on_error=False)
     queue_consumer = Mock()
-    container = Mock()
-    message = Mock()
+    container = Mock(worker_ctx_cls=WorkerContext)
+    message = Mock(headers={})
     srv_ctx = ServiceContext(None, None, container)
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
@@ -173,7 +173,7 @@ def test_publish_custom_headers():
 
         # test publish
         msg = "msg"
-        headers = {'nameko.lang': 'en', 'foobar.customheader': 'customvalue'}
+        headers = {'nameko.lang': 'en', 'nameko.customheader': 'customvalue'}
         publisher.call_setup(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
@@ -221,7 +221,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     # test message headers
     assert messages[0]['properties']['headers'] == {
         'nameko.lang': 'en',
-        'foobar.customheader': 'customvalue'
+        'nameko.customheader': 'customvalue'
     }
 
 
@@ -251,7 +251,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     worker_ctx = mock_container.worker_ctx_cls(srv_ctx, None, None)
     mock_container.spawn_worker.return_value = worker_ctx
 
-    headers = {'nameko.lang': 'en', 'foobar.customheader': 'customvalue'}
+    headers = {'nameko.lang': 'en', 'nameko.customheader': 'customvalue'}
     rabbit_manager.publish(
         vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
