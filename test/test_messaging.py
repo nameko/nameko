@@ -3,7 +3,8 @@ from kombu import Exchange, Queue
 from mock import patch, Mock
 
 from nameko.dependencies import get_decorator_providers
-from nameko.messaging import Publisher, ConsumeProvider, consume
+from nameko.messaging import (
+    Publisher, ConsumeProvider, consume, HeaderEncoder, HeaderDecoder)
 from nameko.service import (
     ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 from nameko.testing.utils import (
@@ -178,6 +179,42 @@ def test_publish_custom_headers():
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
+
+
+def test_header_encoder():
+
+    context_data = {
+        'foo': 'FOO',
+        'bar': 'BAR',
+        'baz': 'BAZ'
+    }
+
+    encoder = HeaderEncoder()
+    with patch.object(encoder, 'header_prefix', new="testprefix"):
+
+        worker_ctx = Mock(data_keys=("foo", "bar", "xxx"), data=context_data)
+
+        res = encoder.get_message_headers(worker_ctx)
+        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR'}
+
+
+def test_header_decoder():
+
+    headers = {
+        'testprefix.foo': 'FOO',
+        'testprefix.bar': 'BAR',
+        'testprefix.baz': 'BAZ',
+        'bogusprefix.foo': 'XXX'
+    }
+
+    decoder = HeaderDecoder()
+    with patch.object(decoder, 'header_prefix', new="testprefix"):
+
+        worker_ctx_cls = Mock(data_keys=("foo", "bar"))
+        message = Mock(headers=headers)
+
+        res = decoder.unpack_message_headers(worker_ctx_cls, message)
+        assert res == {'foo': 'FOO', 'bar': 'BAR'}
 
 
 # TODO: we need to define the expected behavior for errors raised by
