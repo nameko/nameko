@@ -28,7 +28,7 @@ class Translator(AttributeDependency):
 
     def acquire_injection(self, worker_ctx):
         def translate(value):
-            lang = worker_ctx.data['lang']
+            lang = worker_ctx.data['language']
             return translations[lang][value]
         return translate
 
@@ -156,7 +156,7 @@ def test_rpc_context_data(container_factory, rabbit_config,
     container.start()
 
     context_data = {
-        'lang': 'en',
+        'language': 'en',
         'auth_token': '123456789'
     }
 
@@ -164,7 +164,7 @@ def test_rpc_context_data(container_factory, rabbit_config,
                                data=context_data.copy())
     en_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
 
-    context_data['lang'] = 'fr'
+    context_data['language'] = 'fr'
 
     worker_ctx = WorkerContext(container.ctx, None, None,
                                data=context_data.copy())
@@ -174,14 +174,13 @@ def test_rpc_context_data(container_factory, rabbit_config,
     assert fr_proxy.say_hello() == "bonjour"
 
 
-# move to messaging?
 def test_rpc_headers(container_factory, rabbit_config,
                      service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
 
     context_data = {
-        'lang': 'en',
+        'language': 'en',
         'bogus_header': '123456789'
     }
 
@@ -202,17 +201,16 @@ def test_rpc_headers(container_factory, rabbit_config,
     proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
 
     assert proxy.say_hello() == "hello"
-    assert headers == {'nameko.lang': 'en'}  # bogus_header dropped
+    assert headers == {'nameko.language': 'en'}  # bogus_header dropped
 
 
-# move to messaging?
 def test_rpc_custom_headers(container_factory, rabbit_config,
                             service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
 
     context_data = {
-        'lang': 'en',
+        'language': 'en',
         'bogus_header': '123456789',
         'custom_header': 'specialvalue',
     }
@@ -236,7 +234,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
     assert proxy.say_hello() == "hello"
     # bogus_header dropped, custom_header present
     assert headers == {
-        'nameko.lang': 'en',
+        'nameko.language': 'en',
         'nameko.custom_header': 'specialvalue'
     }
 

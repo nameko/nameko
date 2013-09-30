@@ -14,7 +14,7 @@ _log = getLogger(__name__)
 MAX_WOKERS_KEY = 'max_workers'
 
 NAMEKO_DATA_KEYS = (
-    'lang',
+    'language',
     'user_id',
     'auth_token',
 )

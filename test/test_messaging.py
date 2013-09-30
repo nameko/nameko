@@ -123,7 +123,7 @@ def test_publish_to_queue():
     service = Mock()
     srv_ctx = Mock()
 
-    ctx_data = {'lang': 'en'}
+    ctx_data = {'language': 'en'}
     worker_ctx = WorkerContext(srv_ctx, service, None, data=ctx_data)
 
     publisher = Publisher(queue=foobar_queue)
@@ -142,7 +142,7 @@ def test_publish_to_queue():
 
         # test publish
         msg = "msg"
-        headers = {'nameko.lang': 'en'}
+        headers = {'nameko.language': 'en'}
         publisher.call_setup(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
@@ -155,7 +155,7 @@ def test_publish_custom_headers():
     service = Mock()
     srv_ctx = Mock()
 
-    ctx_data = {'lang': 'en', 'customheader': 'customvalue'}
+    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
 
     publisher = Publisher(queue=foobar_queue)
@@ -174,7 +174,8 @@ def test_publish_custom_headers():
 
         # test publish
         msg = "msg"
-        headers = {'nameko.lang': 'en', 'nameko.customheader': 'customvalue'}
+        headers = {'nameko.language': 'en',
+                   'nameko.customheader': 'customvalue'}
         publisher.call_setup(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
@@ -231,7 +232,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     service = Mock()
     srv_ctx = ServiceContext(None, None, None, config=rabbit_config)
-    ctx_data = {'lang': 'en', 'customheader': 'customvalue'}
+    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
 
     publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
@@ -257,7 +258,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     # test message headers
     assert messages[0]['properties']['headers'] == {
-        'nameko.lang': 'en',
+        'nameko.language': 'en',
         'nameko.customheader': 'customvalue'
     }
 
@@ -288,11 +289,11 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     worker_ctx = mock_container.worker_ctx_cls(srv_ctx, None, None)
     mock_container.spawn_worker.return_value = worker_ctx
 
-    headers = {'nameko.lang': 'en', 'nameko.customheader': 'customvalue'}
+    headers = {'nameko.language': 'en', 'nameko.customheader': 'customvalue'}
     rabbit_manager.publish(
         vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
-    ctx_data = {'lang': 'en', 'customheader': 'customvalue'}
+    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     with wait_for_call(CONSUME_TIMEOUT, mock_container.spawn_worker) as method:
         method.assert_called_once_with(consumer, ('msg',), {},
                                        context_data=ctx_data,
