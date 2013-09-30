@@ -24,6 +24,7 @@ _log = getLogger(__name__)
 # delivery_mode
 PERSISTENT = 2
 HEADER_PREFIX = "nameko"
+AMQP_URI_CONFIG_KEY = 'AMQP_URI'
 
 
 class HeaderEncoder(object):
@@ -80,11 +81,11 @@ class Publisher(AttributeDependency, HeaderEncoder):
 
     def get_connection(self, srv_ctx):
         # TODO: should this live outside of the class or be a class method?
-        conn = Connection(srv_ctx.config['amqp_uri'])
+        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         return connections[conn].acquire(block=True)
 
     def get_producer(self, srv_ctx):
-        conn = Connection(srv_ctx.config['amqp_uri'])
+        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         return producers[conn].acquire(block=True)
 
     def start(self, srv_ctx):
@@ -151,7 +152,7 @@ def get_queue_consumer(srv_ctx):
     """
     if srv_ctx not in queue_consumers:
         queue_consumer = QueueConsumer(
-            srv_ctx.config['amqp_uri'], srv_ctx.max_workers)
+            srv_ctx.config[AMQP_URI_CONFIG_KEY], srv_ctx.max_workers)
         queue_consumers[srv_ctx] = queue_consumer
 
     return queue_consumers[srv_ctx]
@@ -201,6 +202,10 @@ class ConsumeProvider(DecoratorDependency, HeaderDecoder):
             qc.ack_message(message)
 
 
+class QueueConsumerStopped(Exception):
+    pass
+
+
 class QueueConsumer(ConsumerMixin):
     def __init__(self, amqp_uri, prefetch_count):
         self._connection = None
@@ -216,39 +221,75 @@ class QueueConsumer(ConsumerMixin):
         self._consumers_stopped = False
 
         self._gt = None
+        self._starting = False
+        self._stopping = False
+
         self._consumers_ready = Event()
 
     def start(self):
-        if self._gt is None:
-            _log.debug('starting')
+        if not self._starting:
+            self._starting = True
+
+            _log.debug('starting %s', self)
             self._gt = eventlet.spawn(self.run)
+        else:
+            _log.debug('already starting %s', self)
+
+        try:
+            _log.debug('waiting for consumer read %s', self)
             self._consumers_ready.wait()
-            _log.debug('started')
+        except QueueConsumerStopped:
+            _log.debug('consumer was stopped before it started %s', self)
+        else:
+            _log.debug('started %s', self)
 
     def stop(self):
-        if self._gt is not None:
-            _log.debug('stopping')
-            self._cancel_consumers = True
+        if not self._stopping:
+            self._stopping = True
+
+            if not self._consumers_ready.ready():
+                _log.debug('stopping while consumer is starting %s', self)
+
+                stop_exc = QueueConsumerStopped()
+                # stopping before we have started successfully by brutally
+                # killing the consumer thread as we don't have a way to hook
+                # into the pre-consumption startup process
+                self._gt.kill(stop_exc)
+                # we also want to let the start method know that we died
+                # it is waiting for the consumer to be ready
+                # so we send the same exceptions
+                self._consumers_ready.send_exception(stop_exc)
+            else:
+                _log.debug('stopping %s', self)
+
+                self._cancel_consumers = True
+        else:
+            _log.debug('already stopping %s', self)
+
+        try:
+            _log.debug('waiting for consumer death %s', self)
             self._gt.wait()
-            self._gt = None
-            _log.debug('stopped')
+        except QueueConsumerStopped:
+            pass
+
+        _log.debug('stopped %s', self)
 
     def add_consumer(self, queue, on_message):
-        _log.debug("queue: {}, on_message: {}".format(queue, on_message))
+        _log.debug("adding consumer for %s, on_message: %s", queue, on_message)
         self._registry.append((queue, on_message))
 
     def ack_message(self, message):
-        _log.debug("message: {}".format(message))
+        _log.debug("stashing message-ack: %s", message)
         self._pending_messages.remove(message)
         self._pending_ack_messages.append(message)
 
     def requeue_message(self, message):
-        _log.debug("message: {}".format(message))
+        _log.debug("stashing message-requeue: %s", message)
         self._pending_messages.remove(message)
         self._pending_requeue_messages.append(message)
 
     def _on_message(self, handle_message, body, message):
-        _log.debug("body: {}, message: {}".format(body, message))
+        _log.debug("received message: %s", message)
         self._pending_messages.add(message)
         handle_message(body, message)
 
@@ -350,3 +391,28 @@ class QueueConsumer(ConsumerMixin):
                     else:
                         yield
                         elapsed = 0
+
+
+# def _handle_consumer_exited(self, gt):
+#     try:
+#         resp = gt.wait()
+#     except greenlet.GreenletExit:
+#         logger.info('%s consumer killed', self.service_name, exc_info=True)
+#         self.should_stop = True
+#     except Exception:
+#         logger.critical(
+#             '%s consumer exited', self.service_name, exc_info=True)
+#     else:
+#         if self.should_stop:
+#             logger.debug(
+#                 '%s consumer returned %s', self.service_name, repr(resp))
+#         else:
+#             logger.critical(
+#                 '%s consumer unexpectedly returned %s',
+#                 self.service_name, repr(resp))
+#     if not self.should_stop:
+#         def restart_after_death():
+#             while not gt.dead:
+#                 eventlet.sleep(0)
+#             self.start()
+#         eventlet.spawn_n(restart_after_death)

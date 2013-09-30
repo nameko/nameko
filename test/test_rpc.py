@@ -8,9 +8,9 @@ from mock import patch
 from nameko.dependencies import AttributeDependency
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc, Service, get_rpc_consumer
-from nameko.service import (
-    WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
+from nameko.messaging import AMQP_URI_CONFIG_KEY
+from nameko.rpc import rpc, Service, get_rpc_consumer, RpcConsumer
+from nameko.service import WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS
 
 
 class ExampleError(Exception):
@@ -38,6 +38,7 @@ class CustomWorkerContext(WorkerContextBase):
 
 
 class ExampleService(object):
+    name = 'exampleservice'
 
     translate = Translator()
 
@@ -113,8 +114,8 @@ def service_proxy_factory(request):
 # test rpc proxy ...
 
 
-def test_rpc_queue_and_connection_creation(container_factory, rabbit_config,
-                                           rabbit_manager):
+def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
+                                              rabbit_manager):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -185,7 +186,7 @@ def test_rpc_headers(container_factory, rabbit_config,
     }
 
     headers = {}
-    rpc_consumer = get_rpc_consumer(container.ctx)
+    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(rpc_consumer, 'handle_message') as patched_handler:
@@ -216,7 +217,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
     }
 
     headers = {}
-    rpc_consumer = get_rpc_consumer(container.ctx)
+    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(rpc_consumer, 'handle_message') as patched_handler:
@@ -284,7 +285,7 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
     container.start()
 
     proxy = service_proxy_factory(container, "exampleservice")
-    uri = container.ctx.config['amqp_uri']
+    uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri, max_failure_count=2)
 
     with patch("kombu.connection.ConnectionPool.new") as new_connection:
@@ -292,7 +293,6 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
 
         assert proxy.task_a() == "result_a"
         assert conn.failure_count == 2
-
 
 # test_rpc_responder_eventual_failure -- TODO
 # test reply-to and correlation-id correct

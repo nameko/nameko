@@ -159,8 +159,6 @@ class ExampleEvent(Event):
 class HandlerService(object):
     """ Generic service that handles events.
     """
-    name = "srvname"
-
     def __init__(self):
         self.events = []
         services[self.name].append(self)
@@ -204,7 +202,6 @@ class BroadcastHandler(HandlerService):
 
 
 class RequeueingHandler(HandlerService):
-    name = "requeue"
 
     @event_handler('srcservice', 'eventtype', requeue_on_error=True)
     def handle(self, evt):
@@ -213,7 +210,6 @@ class RequeueingHandler(HandlerService):
 
 
 class UnreliableHandler(HandlerService):
-    name = "unreliable"
 
     @event_handler('srcservice', 'eventtype', reliable_delivery=False)
     def handle(self, evt):
@@ -234,13 +230,14 @@ def service_factory(prefix, base):
     if not prefix:
         return base
     name = prefix.title() + base.__name__
-    cls = type(name, (base,), {"name": prefix})
+    cls = type(name, (base,), {'name': prefix})
     return cls
 
 
 @pytest.fixture
-def make_containers(request, container_factory, rabbit_config):
-    def make(base, prefixes=("",)):
+def start_containers(request, container_factory,
+                     rabbit_config, reset_rabbit, reset_state):
+    def make(base, prefixes):
         """ Use ``service_factory`` to create a service type inheriting from
         ``base`` using the given prefixes, and start a container for that
         service.
@@ -252,23 +249,27 @@ def make_containers(request, container_factory, rabbit_config):
         Stops all started containers when the test ends.
         """
         services = {}
+        containers = []
         for prefix in prefixes:
             key = (prefix, base)
             if key not in services:
                 service = service_factory(prefix, base)
                 services[key] = service
-            service = services.get(key)
-            ct = container_factory(service, rabbit_config)
+            service_cls = services.get(key)
+            ct = container_factory(service_cls, rabbit_config)
+            containers.append(ct)
             ct.start()
+
             request.addfinalizer(ct.stop)
+
+        return containers
     return make
 
 
-def test_service_pooled_events(reset_rabbit, reset_state,
-                               rabbit_manager, rabbit_config,
-                               make_containers):
+def test_service_pooled_events(rabbit_manager, rabbit_config,
+                               start_containers):
     vhost = rabbit_config['vhost']
-    make_containers(ServicePoolHandler, ("foo", "foo", "bar"))
+    start_containers(ServicePoolHandler, ("foo", "foo", "bar"))
 
     # foo service pool queue should have two consumers
     foo_queue = rabbit_manager.get_queue(
@@ -299,11 +300,11 @@ def test_service_pooled_events(reset_rabbit, reset_state,
     assert services['bar'][0].events == ["msg"]
 
 
-def test_service_pooled_events_multiple_handlers(reset_rabbit, reset_state,
-                                                 rabbit_manager, rabbit_config,
-                                                 make_containers):
+def test_service_pooled_events_multiple_handlers(
+        rabbit_manager, rabbit_config, start_containers):
+
     vhost = rabbit_config['vhost']
-    make_containers(DoubleServicePoolHandler, ("double",))
+    start_containers(DoubleServicePoolHandler, ("double",))
 
     # we should have two queues with a consumer each
     foo_queue_1 = rabbit_manager.get_queue(
@@ -328,12 +329,10 @@ def test_service_pooled_events_multiple_handlers(reset_rabbit, reset_state,
     assert services['double'][1].events == ["msg"]
 
 
-def test_singleton_events(reset_rabbit, reset_state,
-                          rabbit_manager, rabbit_config,
-                          make_containers):
+def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
 
     vhost = rabbit_config['vhost']
-    make_containers(SingletonHandler, ("foo", "foo", "bar"))
+    start_containers(SingletonHandler, ("foo", "foo", "bar"))
 
     # the singleton queue should have three consumers
     queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype")
@@ -355,11 +354,9 @@ def test_singleton_events(reset_rabbit, reset_state,
     assert services[lucky_service][0].events == ["msg"]
 
 
-def test_broadcast_events(reset_rabbit, reset_state,
-                          rabbit_manager, rabbit_config,
-                          make_containers):
+def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
     vhost = rabbit_config['vhost']
-    make_containers(BroadcastHandler, ("foo", "foo", "bar"))
+    start_containers(BroadcastHandler, ("foo", "foo", "bar"))
 
     # each broadcast queue should have one consumer
     queues = rabbit_manager.get_queues(vhost)
@@ -400,11 +397,9 @@ def test_broadcast_events(reset_rabbit, reset_state,
     assert services['bar'][0].events == ["msg"]
 
 
-def test_requeue_on_error(reset_rabbit, reset_state,
-                          rabbit_manager, rabbit_config,
-                          make_containers):
+def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
     vhost = rabbit_config['vhost']
-    make_containers(RequeueingHandler)
+    start_containers(RequeueingHandler, ('requeue',))
 
     # the queue should been created and have one consumer
     queue = rabbit_manager.get_queue(
@@ -428,20 +423,17 @@ def test_requeue_on_error(reset_rabbit, reset_state,
         assert service.events == ["msg"]
 
 
-def test_reliable_delivery(reset_rabbit, reset_state,
-                           rabbit_manager, rabbit_config,
-                           container_factory):
+def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
     """ Events sent to queues declared by ``reliable_delivery`` handlers
     should be received even if no service was listening when they were
     dispatched.
     """
     vhost = rabbit_config['vhost']
 
-    container = container_factory(ServicePoolHandler, rabbit_config)
-    container.start()
+    (container,) = start_containers(ServicePoolHandler, ('service-pool',))
 
     # test queue created, with one consumer
-    queue_name = "evt-srcservice-eventtype--srvname.handle"
+    queue_name = "evt-srcservice-eventtype--service-pool.handle"
     queue = rabbit_manager.get_queue(vhost, queue_name)
     assert len(queue['consumer_details']) == 1
 
@@ -470,8 +462,7 @@ def test_reliable_delivery(reset_rabbit, reset_state,
     assert ['msg_2'] == [msg['payload'] for msg in messages]
 
     # start another container
-    container = container_factory(ServicePoolHandler, rabbit_config)
-    container.start()
+    (container,) = start_containers(ServicePoolHandler, ('service-pool',))
 
     # wait for the service to collect the pending event
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -483,20 +474,17 @@ def test_reliable_delivery(reset_rabbit, reset_state,
     container.stop()
 
 
-def test_unreliable_delivery(reset_rabbit, reset_state,
-                             rabbit_manager, rabbit_config,
-                             make_containers, container_factory):
+def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     """ Events sent to queues declared by non- ``reliable_delivery`` handlers
     should be lost if no service was listening when they were dispatched.
     """
     vhost = rabbit_config['vhost']
 
-    container = container_factory(UnreliableHandler, rabbit_config)
-    container.start()
+    (container,) = start_containers(UnreliableHandler, ('unreliable',))
 
     # start a normal handler service so the auto-delete events exchange
     # for srcservice is not removed when we stop the UnreliableHandler
-    make_containers(ServicePoolHandler)
+    start_containers(ServicePoolHandler, ('keep-exchange-alive',))
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--unreliable.handle"
@@ -526,8 +514,7 @@ def test_unreliable_delivery(reset_rabbit, reset_state,
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_2')
 
     # start another container
-    container = container_factory(UnreliableHandler, rabbit_config)
-    container.start()
+    start_containers(UnreliableHandler, ('unreliable',))
 
     # verify the queue is recreated, with one consumer
     queue = rabbit_manager.get_queue(vhost, queue_name)
@@ -546,8 +533,6 @@ def test_unreliable_delivery(reset_rabbit, reset_state,
     assert len(services['unreliable']) == 2
     assert services['unreliable'][0].events == ["msg_1"]
     assert services['unreliable'][1].events == ["msg_3"]
-
-    container.stop()
 
 
 def test_dispatch_to_rabbit_xxx(reset_rabbit, rabbit_manager, rabbit_config):

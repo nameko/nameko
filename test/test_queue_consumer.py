@@ -1,8 +1,10 @@
 import eventlet
 from eventlet.event import Event
+from kombu import Queue, Exchange, Connection
+from kombu.exceptions import TimeoutError
+from mock import patch
 
-from nameko.messaging import QueueConsumer
-from kombu import Queue, Exchange
+from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
 
 
 TIMEOUT = 5
@@ -10,7 +12,7 @@ TIMEOUT = 5
 
 def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
-    amqp_uri = rabbit_config['amqp_uri']
+    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
     qconsumer = QueueConsumer(amqp_uri, 3)
 
@@ -55,7 +57,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
 
 def test_reentrant_start_stops(reset_rabbit, rabbit_config):
-    amqp_uri = rabbit_config['amqp_uri']
+    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
     qconsumer = QueueConsumer(amqp_uri, 3)
 
@@ -71,8 +73,45 @@ def test_reentrant_start_stops(reset_rabbit, rabbit_config):
     qconsumer.stop()
 
 
+def test_stop_while_starting():
+    started = Event()
+
+    class BrokenConnConsumer(QueueConsumer):
+        def consume(self, *args, **kwargs):
+            started.send(None)
+            # kombu will retry again and again on broken connections
+            # so we have to make sure the event is reset to allow consume
+            # to be called again
+            started.reset()
+            return super(BrokenConnConsumer, self).consume(*args, **kwargs)
+
+    qconsumer = BrokenConnConsumer(amqp_uri=None, prefetch_count=3)
+
+    with eventlet.Timeout(TIMEOUT):
+        with patch.object(Connection, 'connect') as connect:
+            # patch connection to raise an error
+            connect.side_effect = TimeoutError('test')
+            # try to start the queue consumer
+            gt = eventlet.spawn(qconsumer.start)
+            # wait for the queue consumer to begin starting and
+            # then immediately stop it
+            started.wait()
+
+    with eventlet.Timeout(TIMEOUT):
+        qconsumer.stop()
+
+    with eventlet.Timeout(TIMEOUT):
+        # we expect the qconsumer.start thread to finish
+        # almost immediately adn when it does the qconsumer thread
+        # should be dead too
+        while not gt.dead:
+            eventlet.sleep()
+
+        assert qconsumer._gt.dead
+
+
 def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
-    amqp_uri = rabbit_config['amqp_uri']
+    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
     qconsumer1 = QueueConsumer(amqp_uri, 1)
     qconsumer2 = QueueConsumer(amqp_uri, 1)

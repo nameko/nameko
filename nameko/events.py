@@ -236,7 +236,7 @@ class EventHandler(ConsumeProvider):
             queue=None, requeue_on_error=requeue_on_error)
 
     def start(self, srv_ctx):
-        _log.debug('handler start {}'.format(srv_ctx))
+        _log.debug('starting handler for %s', srv_ctx)
 
         # handler_type determines queue name
         if self.handler_type is SERVICE_POOL:

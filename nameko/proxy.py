@@ -1,7 +1,7 @@
 import kombu
 
 from nameko.context import Context
-from nameko import nova as rpc
+from nameko import nova
 
 
 def get_anon_context():
@@ -77,7 +77,7 @@ class RPCProxy(object):
             context = self.context_factory()
 
         with self.create_connection() as connection:
-            return rpc.call(
+            return nova.call(
                 connection, context, topic,
                 {'method': method, 'args': kwargs, },
                 timeout=timeout,

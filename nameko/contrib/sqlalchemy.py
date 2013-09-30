@@ -5,6 +5,8 @@ from sqlalchemy.orm import sessionmaker
 
 from nameko.dependencies import AttributeDependency
 
+ORM_DB_URIS_KEY = 'ORM_DB_URIS'
+
 
 class ORMSession(AttributeDependency):
     def __init__(self, declarative_base):
@@ -16,7 +18,7 @@ class ORMSession(AttributeDependency):
         decl_base_name = self.declarative_base.__name__
         uri_key = '{}:{}'.format(service_name, decl_base_name)
 
-        db_uris = worker_ctx.config['orm_db_uris']
+        db_uris = worker_ctx.config[ORM_DB_URIS_KEY]
         db_uri = db_uris[uri_key].format({
             'service_name': service_name,
             'declarative_base_name': decl_base_name,
