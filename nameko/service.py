@@ -60,7 +60,7 @@ class WorkerContextBase(object):
         """
 
     def __str__(self):
-        cls_name = self.__class__.__name__
+        cls_name = type(self).__name__
         return '<{} {}.{} at 0x{:x}>'.format(
             cls_name, self.srv_ctx.name, self.method_name, id(self))
 
