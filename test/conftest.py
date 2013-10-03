@@ -7,6 +7,7 @@ import logging
 from urlparse import urlparse
 
 from kombu import Connection
+from mock import Mock
 from pyrabbit.api import Client
 import pytest
 
@@ -158,3 +159,14 @@ def container_factory(request, reset_rabbit):
 
     request.addfinalizer(stop_all_containers)
     return make_container
+
+
+@pytest.fixture
+def service_proxy_factory(request):
+    def make_proxy(container, service_name):
+        from nameko.rpc import Service
+        worker_ctx = Mock(srv_ctx=container.ctx)
+        service_proxy = Service(service_name)
+        proxy = service_proxy.acquire_injection(worker_ctx)
+        return proxy
+    return make_proxy

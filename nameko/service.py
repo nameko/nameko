@@ -4,6 +4,7 @@ from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
+import greenlet
 
 from nameko.dependencies import get_dependencies, DependencySet
 from nameko.logging import log_time
@@ -87,8 +88,7 @@ class ServiceContainer(object):
 
     def stop(self):
         if self._died.ready():
-            _log.debug('already stopping %s', self)
-            # TODO: should we wait for self._died?
+            _log.debug('already stopping %s', self)  # already stopped?
             return
 
         _log.debug('stopping %s', self)
@@ -109,6 +109,9 @@ class ServiceContainer(object):
             dependencies.all.on_container_stopped(self.ctx)
             self._died.send(None)
 
+    def kill(self):
+        self.stop()
+
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):
 
@@ -117,11 +120,22 @@ class ServiceContainer(object):
             self.ctx, service, provider.name, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx)
-        self._worker_pool.spawn(self._run_worker, worker_ctx, handle_result)
-
-        # TODO: should we link with the new thread to handle/re-raise errors?
-
+        gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
+                                     handle_result)
+        gt.link(self._handle_consumer_exited)
         return worker_ctx
+
+    def _handle_consumer_exited(self, gt):
+        try:
+            gt.wait()
+        except greenlet.GreenletExit:
+            _log.info('%s consumer killed', self.service_name, exc_info=True)
+            # self.should_stop = True
+        except Exception:
+            _log.error('%s consumer exited with error', self.service_name,
+                       exc_info=True)
+            # self.stop()
+            # recoverable error?
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)

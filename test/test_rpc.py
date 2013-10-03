@@ -2,12 +2,13 @@ from itertools import count
 import pytest
 import socket
 
+import eventlet
 from kombu import Connection
-from mock import Mock, patch
+from mock import patch
 
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc, Service
+from nameko.rpc import rpc
 from nameko.messaging import AMQP_URI_CONFIG_KEY
 
 
@@ -68,16 +69,6 @@ class FailingConnection(Connection):
             self.failure_count += 1
             raise self.exc_type()
         return super(FailingConnection, self).connect(*args, **kwargs)
-
-
-@pytest.fixture
-def service_proxy_factory(request):
-    def make_proxy(container, service_name):
-        worker_ctx = Mock(srv_ctx=container.ctx)
-        service_proxy = Service(service_name)
-        proxy = service_proxy.acquire_injection(worker_ctx)
-        return proxy
-    return make_proxy
 
 
 # test rpc proxy ...
@@ -173,5 +164,27 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
         assert proxy.task_a() == "result_a"
         assert conn.failure_count == 2
 
-# test_rpc_responder_eventual_failure -- TODO
+
+def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
+                                        rabbit_manager, service_proxy_factory):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    proxy = service_proxy_factory(container, "exampleservice")
+    uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
+    conn = FailingConnection(uri)
+
+    with patch("kombu.connection.ConnectionPool.new") as new_connection:
+        new_connection.return_value = conn
+
+        # how do i test that the service has really killed itself?
+
+        # with eventlet.Timeout(15):
+        # with pytest.raises(Exception):
+        proxy.task_a()
+
+    while True:
+        eventlet.sleep()
+
 # test reply-to and correlation-id correct

@@ -51,7 +51,7 @@ class Publisher(AttributeDependency):
         self.queue = queue
 
     def get_connection(self, srv_ctx):
-        #TODO: should this live outside of the class or be a class method?
+        # TODO: should this live outside of the class or be a class method?
         conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         return connections[conn].acquire(block=True)
 
@@ -233,11 +233,19 @@ class QueueConsumer(ConsumerMixin):
 
         try:
             _log.debug('waiting for consumer death %s', self)
+            # WHY IS THIS CALLED FOLLOWING THE CONNECTION ERROR?
+            import ipdb
+            ipdb.set_trace()
             self._gt.wait()
         except QueueConsumerStopped:
             pass
 
         _log.debug('stopped %s', self)
+
+    # MAYBE?
+    def kill(self):
+        pass
+        # kill the greenthread?
 
     def add_consumer(self, queue, on_message):
         _log.debug("adding consumer for %s, on_message: %s", queue, on_message)
@@ -330,10 +338,11 @@ class QueueConsumer(ConsumerMixin):
             after a shutdown is triggered rather than waiting for the timeout.
         """
         elapsed = 0
-        with self.Consumer() as (connection, channel, consumers):
+        with self.Consumer() as ccc:
+            connection, channel, consumers = ccc
             with self.extra_context(connection, channel):
                 self.on_consume_ready(connection, channel, consumers, **kwargs)
-                for i in limit and xrange(limit) or count():
+                for _ in limit and xrange(limit) or count():
                     # moved from after the following `should_stop` condition to
                     # avoid waiting on a drain_events timeout before breaking
                     # the loop.
@@ -356,28 +365,3 @@ class QueueConsumer(ConsumerMixin):
                     else:
                         yield
                         elapsed = 0
-
-
-# def _handle_consumer_exited(self, gt):
-#     try:
-#         resp = gt.wait()
-#     except greenlet.GreenletExit:
-#         logger.info('%s consumer killed', self.service_name, exc_info=True)
-#         self.should_stop = True
-#     except Exception:
-#         logger.critical(
-#             '%s consumer exited', self.service_name, exc_info=True)
-#     else:
-#         if self.should_stop:
-#             logger.debug(
-#                 '%s consumer returned %s', self.service_name, repr(resp))
-#         else:
-#             logger.critical(
-#                 '%s consumer unexpectedly returned %s',
-#                 self.service_name, repr(resp))
-#     if not self.should_stop:
-#         def restart_after_death():
-#             while not gt.dead:
-#                 eventlet.sleep(0)
-#             self.start()
-#         eventlet.spawn_n(restart_after_death)
