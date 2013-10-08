@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from logging import getLogger
 
+import eventlet
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 import greenlet
@@ -14,6 +15,7 @@ _log = getLogger(__name__)
 
 
 MAX_WOKERS_KEY = 'max_workers'
+KILL_TIMEOUT = 3  # seconds
 
 
 def get_service_name(service_cls):
@@ -88,7 +90,7 @@ class ServiceContainer(object):
 
     def stop(self):
         if self._died.ready():
-            _log.debug('already stopping %s', self)  # already stopped?
+            _log.debug('already stopped %s', self)
             return
 
         _log.debug('stopping %s', self)
@@ -109,8 +111,16 @@ class ServiceContainer(object):
             dependencies.all.on_container_stopped(self.ctx)
             self._died.send(None)
 
-    def kill(self):
-        self.stop()
+    def kill(self, exc):
+        if self._died.ready():
+            _log.debug('already stopped %s', self)
+            return
+
+        _log.info('killing container due to "%s"', exc)
+
+        with eventlet.Timeout(KILL_TIMEOUT):
+            self.dependencies.all.kill(self.ctx, exc)
+        self._died.send_exception(exc)
 
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):
@@ -131,11 +141,10 @@ class ServiceContainer(object):
         except greenlet.GreenletExit:
             _log.info('%s consumer killed', self.service_name, exc_info=True)
             # self.should_stop = True
-        except Exception:
+        except Exception as exc:
             _log.error('%s consumer exited with error', self.service_name,
                        exc_info=True)
-            # self.stop()
-            # recoverable error?
+            self.kill(exc)
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
@@ -227,6 +236,8 @@ class ServiceRunner(object):
             self.containers.append(container)
 
         SpawningProxy(self.containers).start()
+
+        # listen for container death...
 
         _log.info('services started: %s', service_map.keys())
 

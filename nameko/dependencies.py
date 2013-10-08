@@ -85,6 +85,14 @@ class DependencyProvider(object):
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
+    def kill(self, srv_ctx, exc=None):
+        """ Called to stop this dependency without grace. The exception
+        causing the kill may be provided.
+
+        DependencyProviders should urgently shut down here. This method must
+        return within XXX seconds, otherwise it will be be forcibly stopped.
+        """
+
 
 class DecoratorDependency(DependencyProvider):
     pass

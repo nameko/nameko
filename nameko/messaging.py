@@ -145,6 +145,10 @@ class ConsumeProvider(DecoratorDependency):
         qc = get_queue_consumer(srv_ctx)
         qc.stop()
 
+    def kill(self, srv_ctx, exc=None):
+        qc = get_queue_consumer(srv_ctx)
+        qc.kill(exc)
+
     def handle_message(self, srv_ctx, body, message):
         args = (body,)
         kwargs = {}
@@ -216,14 +220,16 @@ class QueueConsumer(ConsumerMixin):
                 _log.debug('stopping while consumer is starting %s', self)
 
                 stop_exc = QueueConsumerStopped()
+
                 # stopping before we have started successfully by brutally
                 # killing the consumer thread as we don't have a way to hook
                 # into the pre-consumption startup process
-                self._gt.kill(stop_exc)
-                # we also want to let the start method know that we died
+                self.kill(stop_exc)
+                # we also want to let the start method know that we died.
                 # it is waiting for the consumer to be ready
                 # so we send the same exceptions
                 self._consumers_ready.send_exception(stop_exc)
+
             else:
                 _log.debug('stopping %s', self)
 
@@ -233,19 +239,17 @@ class QueueConsumer(ConsumerMixin):
 
         try:
             _log.debug('waiting for consumer death %s', self)
-            # WHY IS THIS CALLED FOLLOWING THE CONNECTION ERROR?
-            import ipdb
-            ipdb.set_trace()
             self._gt.wait()
         except QueueConsumerStopped:
             pass
 
         _log.debug('stopped %s', self)
 
-    # MAYBE?
-    def kill(self):
-        pass
-        # kill the greenthread?
+    def kill(self, exc):
+        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
+        if not self._gt.dead:
+            self._gt.kill(exc)
+            _log.debug('killed %s', self)
 
     def add_consumer(self, queue, on_message):
         _log.debug("adding consumer for %s, on_message: %s", queue, on_message)

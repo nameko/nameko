@@ -178,13 +178,10 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
     with patch("kombu.connection.ConnectionPool.new") as new_connection:
         new_connection.return_value = conn
 
-        # how do i test that the service has really killed itself?
-
-        # with eventlet.Timeout(15):
-        # with pytest.raises(Exception):
-        proxy.task_a()
-
-    while True:
-        eventlet.sleep()
+        eventlet.spawn(proxy.task_a)
+        with eventlet.Timeout(10):
+            with pytest.raises(Exception) as exc_info:
+                container.wait()
+            assert type(exc_info.value) == socket.error
 
 # test reply-to and correlation-id correct
