@@ -8,6 +8,7 @@ from eventlet.greenpool import GreenPool
 import greenlet
 
 from nameko.dependencies import get_dependencies, DependencySet
+from nameko.exceptions import RemoteError
 from nameko.logging import log_time
 from nameko.utils import SpawningProxy
 
@@ -20,6 +21,12 @@ KILL_TIMEOUT = 3  # seconds
 
 def get_service_name(service_cls):
     return getattr(service_cls, "name", service_cls.__name__.lower())
+
+
+def log_worker_exception(worker_ctx, exc):
+    if isinstance(exc, RemoteError):
+        exc = "RemoteError"
+    _log.error('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
 
 
 class ServiceContext(object):
@@ -163,6 +170,7 @@ class ServiceContainer(object):
                               worker_ctx):
                     result = method(*worker_ctx.args, **worker_ctx.kwargs)
             except Exception as e:
+                log_worker_exception(worker_ctx, e)
                 exc = e
 
             if handle_result is not None:
@@ -183,7 +191,6 @@ class ServiceContainer(object):
 
     def wait(self):
         return self._died.wait()
-        _log.warning('DIED')
 
     def __str__(self):
         return '<ServiceContainer {} at 0x{:x}>'.format(

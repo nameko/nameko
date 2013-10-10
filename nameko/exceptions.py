@@ -14,7 +14,7 @@ class RemoteError(Exception):
         self.exc_type = exc_type
         self.value = value
         self.traceback = traceback
-        message = 'Remote error: {} {}\n{}'.format(exc_type, value, traceback)
+        message = '{} {}\n{}'.format(exc_type, value, traceback)
         super(RemoteError, self).__init__(message)
 
 

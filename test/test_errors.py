@@ -27,8 +27,14 @@ class ExampleService(object):
         raise ExampleError("broken")
 
 
+@pytest.yield_fixture
+def log_worker_exception():
+    with patch('nameko.service.log_worker_exception') as log_worker_exception:
+        yield log_worker_exception
+
+
 def test_error_in_worker(container_factory, rabbit_config,
-                         service_proxy_factory):
+                         service_proxy_factory, log_worker_exception):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -38,6 +44,8 @@ def test_error_in_worker(container_factory, rabbit_config,
     with pytest.raises(RemoteError) as exc_info:
         proxy.broken()
     assert exc_info.value.exc_type == "ExampleError"
+    assert log_worker_exception.called
+    assert not container._died.ready()
 
 
 def test_handle_result_error(container_factory, rabbit_config,
