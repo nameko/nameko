@@ -13,7 +13,7 @@ def test_runner_lifecycle():
     events = []
 
     class Container(object):
-        def __init__(self, service_cls):
+        def __init__(self, service_cls, config):
             self.service_name = service_cls.__name__
             self.service_cls = service_cls
 
@@ -29,7 +29,8 @@ def test_runner_lifecycle():
         def wait(self):
             events.append(('wait', self.service_cls.name, self.service_cls))
 
-    runner = ServiceRunner(Container)
+    config = {}
+    runner = ServiceRunner(config, container_cls=Container)
 
     runner.add_service(TestService1)
     runner.add_service(TestService2)
