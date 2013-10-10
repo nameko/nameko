@@ -29,7 +29,7 @@ Here's the business logic:
         def hello(self, name):
             print "Hello, {}!".format(name)
         
-To make it respond to an event, we have to make ``say_hello`` an event handler:
+To make it respond to an event, we have to make ``hello`` an event handler:
 
 .. code:: python
 
@@ -41,7 +41,7 @@ To make it respond to an event, we have to make ``say_hello`` an event handler:
        def hello(self, name):
           print "Hello, {}!".format(name)
 
-Now, whenever a "friendlyservice" fires a "hello" event, ``say_hello`` will be
+Now, whenever a "friendlyservice" fires a "hello" event, ``hello`` will be
 called. Let's create ``FriendlyService`` now:
 
 .. code:: python
