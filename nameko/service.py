@@ -183,6 +183,7 @@ class ServiceContainer(object):
 
     def wait(self):
         return self._died.wait()
+        _log.warning('DIED')
 
     def __str__(self):
         return '<ServiceContainer {} at 0x{:x}>'.format(
@@ -197,7 +198,7 @@ class ServiceRunner(object):
 
     Example:
 
-        runner = ServiceRunner()
+        runner = ServiceRunner(config)
         runner.add_service('foobar', Foobar)
         runner.add_service('spam', Spam)
 
@@ -207,9 +208,10 @@ class ServiceRunner(object):
 
         runner.wait()
     """
-    def __init__(self, container_cls=ServiceContainer):
+    def __init__(self, config, container_cls=ServiceContainer):
         self.service_map = {}
         self.containers = []
+        self.config = config
         self.container_cls = container_cls
 
     def add_service(self, cls):
@@ -232,7 +234,7 @@ class ServiceRunner(object):
         _log.info('starting services: %s', service_map.keys())
 
         for service_name, service_cls in service_map.items():
-            container = self.container_cls(service_cls)
+            container = self.container_cls(service_cls, self.config)
             self.containers.append(container)
 
         SpawningProxy(self.containers).start()
