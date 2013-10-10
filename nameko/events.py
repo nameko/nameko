@@ -28,14 +28,15 @@ from kombu import Exchange, Queue
 
 from nameko.messaging import (
     Publisher, PERSISTENT,
-    ConsumerConfig, consumer_configs)
+    ConsumeProvider)
+from nameko.dependencies import dependency_decorator
 
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
 BROADCAST = "broadcast"
 
-log = getLogger(__name__)
+_log = getLogger(__name__)
 
 
 def get_event_exchange(service_name):
@@ -140,23 +141,28 @@ class EventDispatcher(Publisher):
             self.dispatch_spam(evt)
 
     """
+    def start(self, srv_ctx):
+        # TODO: should we actually put this into the srv_ctx?
+        self.exchange = get_event_exchange(srv_ctx.name)
+        super(EventDispatcher, self).start(srv_ctx)
 
-    def __init__(self):
-        super(EventDispatcher, self).__init__()
-
-    def get_instance(self, service):
-        service_name = service.topic
-        self.exchange = get_event_exchange(service_name)
-        publish = super(EventDispatcher, self).get_instance(service)
-
+    def acquire_injection(self, worker_ctx):
+        """ Inject a dispatch method onto the service instance
+        """
         def dispatch(evt):
+            exchange = self.exchange
+
             msg = evt.data
             routing_key = evt.type
-            publish(msg, routing_key=routing_key)
+
+            with self.get_producer(worker_ctx.srv_ctx) as producer:
+                producer.publish(
+                    msg, exchange=exchange, routing_key=routing_key)
 
         return dispatch
 
 
+@dependency_decorator
 def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                   reliable_delivery=True, requeue_on_error=False):
     """
@@ -211,52 +217,48 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             "Broadcast event handlers cannot be configured with reliable "
             "delivery.")
 
-    def event_decorator(fn):
-        consumer_configs[fn] = EventConfig(
-            service_name, event_type, handler_type, reliable_delivery,
-            requeue_on_error)
-        return fn
-
-    return event_decorator
+    return EventHandler(service_name, event_type, handler_type,
+                        reliable_delivery, requeue_on_error)
 
 
-class EventConfig(ConsumerConfig):
-    """ Configuration object for an Event listener.
-    """
+class EventHandler(ConsumeProvider):
+
     def __init__(self, service_name, event_type, handler_type,
                  reliable_delivery, requeue_on_error):
+
         self.service_name = service_name
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
-        self.requeue_on_error = requeue_on_error
 
-    def get_queue(self, service, method_name):
-        """ Get a queue for the given ``service`` instance to listen to events
-        with this configuration.
-        """
+        super(EventHandler, self).__init__(
+            queue=None, requeue_on_error=requeue_on_error)
+
+    def start(self, srv_ctx):
+        _log.debug('starting handler for %s', srv_ctx)
+
         # handler_type determines queue name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
                                                    self.event_type,
-                                                   service.topic,
-                                                   method_name)
+                                                   srv_ctx.name,
+                                                   self.name)
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
                                                       self.event_type,
-                                                      service.topic,
-                                                      method_name,
+                                                      srv_ctx.name,
+                                                      self.name,
                                                       uuid.uuid4().hex)
 
         exchange = get_event_exchange(self.service_name)
 
         # auto-delete queues if events are not reliably delivered
         auto_delete = not self.reliable_delivery
-        queue = Queue(
+        self.queue = Queue(
             queue_name, exchange=exchange, routing_key=self.event_type,
             durable=True, auto_delete=auto_delete)
 
-        return queue
+        super(EventHandler, self).start(srv_ctx)

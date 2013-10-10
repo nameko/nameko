@@ -50,18 +50,6 @@ def get_admin_context():
     return Context(user_id=None, is_admin=True)
 
 
-def parse_message(message_body):
-    method = message_body.pop('method')
-    args = message_body.pop('args')
-    msg_id = message_body.pop('_msg_id', None)
-    context_dict = dict(
-        (k[9:], message_body.pop(k))
-        for k in message_body.keys() if k.startswith('_context_')
-    )
-    context = Context(**context_dict)
-    return msg_id, context, method, args
-
-
 def add_context_to_payload(context, payload):
     for key, value in context.to_dict().iteritems():
         payload['_context_{}'.format(key)] = value
