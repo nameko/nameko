@@ -35,11 +35,11 @@ To make it respond to an event, we have to make ``hello`` an event handler:
 
     from nameko.events import event_handler
    
-   class HelloWorld(object):
+    class HelloWorld(object):
      
-       @event_handler('friendlyservice', 'hello')
-       def hello(self, name):
-          print "Hello, {}!".format(name)
+        @event_handler('friendlyservice', 'hello')
+        def hello(self, name):
+            print "Hello, {}!".format(name)
 
 Now, whenever a "friendlyservice" fires a "hello" event, ``hello`` will be
 called. Let's create ``FriendlyService`` now:
@@ -91,11 +91,11 @@ Adder service:
 
     from nameko.rpc import rpc
 
-   class AdderService(object):
+    class AdderService(object):
       
-      @rpc
-      def add(self, x, y):
-         return x + y
+        @rpc
+        def add(self, x, y):
+            return x + y
 
 If your service needs to call an RPC method in another service, you can use
 the ``Service`` proxy to access it.
@@ -104,22 +104,22 @@ Adder client:
 
 .. code:: python
 
-   import random
+    import random
 
-   from nameko.rpc import rpc, Service
-   from nameko.timer import timer
+    from nameko.rpc import rpc, Service
+    from nameko.timer import timer
+    
+    
+    class RpcClient(object):
    
-   
-   class RpcClient(object):
-   
-      adder = Service('adderservice')
+        adder = Service('adderservice')
       
-      @timer(interval=2)
-      def add(self):
-         x = random.randint(0, 10)
-         y = random.randint(0, 10)
-         res = self.adder.add(x, y)
-         print "{} + {} = {}".format(x, y, res)
+        @timer(interval=2)
+        def add(self):
+            x = random.randint(0, 10)
+            y = random.randint(0, 10)
+            res = self.adder.add(x, y)
+            print "{} + {} = {}".format(x, y, res)
 
         
 Messaging Example
@@ -137,26 +137,26 @@ consume from AMQP directly.
 
 .. code:: python
 
-   demo_ex = Exchange('demo_ex', durable=False, auto_delete=True)
-   demo_queue = Queue('demo_queue', exchange=demo_ex, durable=False,
-                      auto_delete=True)
+    demo_ex = Exchange('demo_ex', durable=False, auto_delete=True)
+    demo_queue = Queue('demo_queue', exchange=demo_ex, durable=False,
+                       auto_delete=True)
 
-   class MessagingClient(object):
-      """ Publish a message to the ``demo_ex`` exchange every two seconds.
-      """
-      publish = Publisher(exchange=demo_ex)
+    class MessagingPublisher(object):
+        """ Publish messages to the ``demo_ex`` exchange every two seconds.
+        """
+        publish = Publisher(exchange=demo_ex)
    
-      @timer(interval=2)
-      def send_msg(self):
-         msg = "log-{}".format(uuid.uuid4())
-         self.publish(msg)
+        @timer(interval=2)
+        def send_msg(self):
+            msg = "log-{}".format(uuid.uuid4())
+            self.publish(msg)
 
-   class ListenerService(object):
-      """ Listen to messages a queue bound to the ``demo_ex`` exchange.
-      """
-      @consume(demo_queue)
-      def process(self, payload):
-         print payload
+    class MessagingConsumer(object):
+        """ Consume messages from a queue bound to the ``demo_ex`` exchange.
+        """
+        @consume(demo_queue)
+        def process(self, payload):
+            print payload
 
 
 Dependencies
@@ -213,17 +213,17 @@ Moving the 'plumbing' into a dependency means that service developers can
 concentrate on the business logic of their code, and fosters a write-once,
 use-many-times philosophy.
 
-To incorporate this dependency into our ``ListenerService``, we'd do this:
+To incorporate this dependency into our ``MessagingConsumer``, we'd do this:
 
 .. code:: python
 
-   class ListenerService(object):
+    class MessagingConsumer(object):
       
-      log = LogFile('/tmp/nameko')
+        log = LogFile('/var/log/nameko.log')
    
-      @consume(demo_queue)
-      def process(self, payload):
-         self.log(payload)
+        @consume(demo_queue)
+        def process(self, payload):
+            self.log(payload)
 
 Working examples of the above can be found in docs/examples.
 

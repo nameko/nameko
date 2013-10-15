@@ -5,6 +5,8 @@
 import eventlet
 eventlet.monkey_patch()
 
+import logging
+logger = logging.getLogger(__name__)
 
 import random
 
@@ -22,11 +24,11 @@ class RpcClient(object):
         x = random.randint(0, 10)
         y = random.randint(0, 10)
         res = self.adder.add(x, y)
-        print "{} + {} = {}".format(x, y, res)
+        logger.info("{} + {} = {}".format(x, y, res))
 
 
 def main():
-    import logging
+
     logging.basicConfig(level=logging.DEBUG)
 
     config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/'}
