@@ -90,7 +90,8 @@ class DependencyProvider(object):
         causing the kill may be provided.
 
         DependencyProviders should urgently shut down here. This method must
-        return within XXX seconds, otherwise it will be be forcibly stopped.
+        return within ``nameko.service.KILL_TIMEOUT`` seconds, otherwise it
+        may be forcibly stopped.
         """
 
 

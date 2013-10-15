@@ -114,6 +114,9 @@ class RpcConsumer(object):
     def handle_result(self, message, srv_ctx, result, exc):
         error = None
         if exc is not None:
+            # TODO: this is helpful for debug, but shouldn't be used in
+            # production (since it exposes the callee's internals).
+            # Replace this when we can correlate exceptions properly.
             error = RemoteErrorWrapper(exc)
 
         responder = Responder(message)
