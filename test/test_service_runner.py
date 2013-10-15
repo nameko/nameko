@@ -1,5 +1,6 @@
+from mock import patch
+
 from nameko.service import ServiceRunner
-from nameko.testing.service import MockWorkerContext
 
 
 class TestService1(object):
@@ -37,30 +38,32 @@ def test_runner_lifecycle():
     runner.add_service(TestService1)
     runner.add_service(TestService2)
 
-    runner.start()
+    with patch.object(runner, "_monitor_containers") as monitor:
+        runner.start()
 
-    assert sorted(events) == [
-        ('start', 'foobar_1', TestService1),
-        ('start', 'foobar_2', TestService2),
-    ]
+        assert sorted(events) == [
+            ('start', 'foobar_1', TestService1),
+            ('start', 'foobar_2', TestService2),
+        ]
+        assert monitor.called
 
-    events = []
-    runner.stop()
-    assert sorted(events) == [
-        ('stop', 'foobar_1', TestService1),
-        ('stop', 'foobar_2', TestService2),
-    ]
+        events = []
+        runner.stop()
+        assert sorted(events) == [
+            ('stop', 'foobar_1', TestService1),
+            ('stop', 'foobar_2', TestService2),
+        ]
 
-    events = []
-    runner.kill()
-    assert sorted(events) == [
-        ('kill', 'foobar_1', TestService1),
-        ('kill', 'foobar_2', TestService2),
-    ]
+        events = []
+        runner.kill()
+        assert sorted(events) == [
+            ('kill', 'foobar_1', TestService1),
+            ('kill', 'foobar_2', TestService2),
+        ]
 
-    events = []
-    runner.wait()
-    assert sorted(events) == [
-        ('wait', 'foobar_1', TestService1),
-        ('wait', 'foobar_2', TestService2),
-    ]
+        events = []
+        runner.wait()
+        assert sorted(events) == [
+            ('wait', 'foobar_1', TestService1),
+            ('wait', 'foobar_2', TestService2),
+        ]

@@ -8,6 +8,8 @@ import pytest
 from nameko.exceptions import RemoteError
 from nameko.events import EventDispatcher
 from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer
+from nameko.service import ServiceRunner
+from nameko.testing.utils import wait_for_call
 
 
 class ExampleError(Exception):
@@ -92,6 +94,23 @@ def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
             assert exc_info.value.message == err
 
 
-def test_runner_dies_on_container_error():
-    pass
-    # TODO
+def test_runner_catches_container_errors(container_factory, rabbit_config,
+                                         service_proxy_factory):
+
+    runner = ServiceRunner(rabbit_config)
+    runner.add_service(ExampleService)
+    runner.start()
+
+    container = runner.containers[0]
+    proxy = service_proxy_factory(container, "exampleservice")
+
+    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
+    with patch.object(rpc_consumer, 'handle_result') as handle_result:
+        exception = Exception("error")
+        handle_result.side_effect = exception
+
+        eventlet.spawn(proxy.task)
+
+        with patch.object(runner, 'on_container_exited') as on_ct_exited:
+            with wait_for_call(1, on_ct_exited):
+                on_ct_exited.assert_called_once_with(exception)
