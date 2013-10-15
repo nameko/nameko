@@ -2,7 +2,7 @@ flake8==2.0
 mock==1.0.1
 pylint==0.27.0
 pyrabbit==1.0.1
-pytest==2.3.4
+pytest==2.4.1
 pytest-cov==1.6
 # patched version of coverage, to deal with eventlet
 git+https://github.com/newbrough/coverage.git#egg=coverage-3.5.2pl1

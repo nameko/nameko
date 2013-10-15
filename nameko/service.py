@@ -3,10 +3,13 @@ from __future__ import absolute_import
 from abc import ABCMeta, abstractproperty
 from logging import getLogger
 
+import eventlet
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
+import greenlet
 
 from nameko.dependencies import get_dependencies, DependencySet
+from nameko.exceptions import RemoteError
 from nameko.logging import log_time
 from nameko.utils import SpawningProxy
 
@@ -14,6 +17,7 @@ _log = getLogger(__name__)
 
 
 MAX_WOKERS_KEY = 'max_workers'
+KILL_TIMEOUT = 3  # seconds
 
 NAMEKO_DATA_KEYS = (
     'language',
@@ -24,6 +28,12 @@ NAMEKO_DATA_KEYS = (
 
 def get_service_name(service_cls):
     return getattr(service_cls, "name", service_cls.__name__.lower())
+
+
+def log_worker_exception(worker_ctx, exc):
+    if isinstance(exc, RemoteError):
+        exc = "RemoteError"
+    _log.error('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
 
 
 class ServiceContext(object):
@@ -86,6 +96,7 @@ class ServiceContainer(object):
 
         self._dependencies = None
         self._worker_pool = GreenPool(size=self.ctx.max_workers)
+        self._active_workers = []
         self._died = Event()
 
     # TODO: why is this a lazy property?
@@ -109,8 +120,7 @@ class ServiceContainer(object):
 
     def stop(self):
         if self._died.ready():
-            _log.debug('already stopping %s', self)
-            # TODO: should we wait for self._died?
+            _log.debug('already stopped %s', self)
             return
 
         _log.debug('stopping %s', self)
@@ -131,6 +141,22 @@ class ServiceContainer(object):
             dependencies.all.on_container_stopped(self.ctx)
             self._died.send(None)
 
+    def kill(self, exc):
+        if self._died.ready():
+            _log.debug('already stopped %s', self)
+            return
+
+        _log.info('killing container due to "%s"', exc)
+
+        with eventlet.Timeout(KILL_TIMEOUT):
+            self.dependencies.all.kill(self.ctx, exc)
+
+        _log.info('killing remaining workers (%s)', len(self._active_workers))
+        for gt in self._active_workers:
+            gt.kill(exc)
+
+        self._died.send_exception(exc)
+
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):
 
@@ -139,11 +165,24 @@ class ServiceContainer(object):
             self.ctx, service, provider.name, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx)
-        self._worker_pool.spawn(self._run_worker, worker_ctx, handle_result)
-
-        # TODO: should we link with the new thread to handle/re-raise errors?
+        gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
+                                     handle_result)
+        self._active_workers.append(gt)
+        gt.link(self._handle_worker_exited)
 
         return worker_ctx
+
+    def _handle_worker_exited(self, gt):
+        self._active_workers.remove(gt)
+        try:
+            gt.wait()
+        except greenlet.GreenletExit:
+            _log.info('%s worker killed', self.service_name, exc_info=True)
+            # self.should_stop = True
+        except Exception as exc:
+            _log.error('%s worker exited with error', self.service_name,
+                       exc_info=True)
+            self.kill(exc)
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
@@ -162,6 +201,7 @@ class ServiceContainer(object):
                               worker_ctx):
                     result = method(*worker_ctx.args, **worker_ctx.kwargs)
             except Exception as e:
+                log_worker_exception(worker_ctx, e)
                 exc = e
 
             if handle_result is not None:
@@ -196,7 +236,7 @@ class ServiceRunner(object):
 
     Example:
 
-        runner = ServiceRunner()
+        runner = ServiceRunner(config)
         runner.add_service('foobar', Foobar)
         runner.add_service('spam', Spam)
 
@@ -206,18 +246,43 @@ class ServiceRunner(object):
 
         runner.wait()
     """
-    def __init__(self, container_cls=ServiceContainer):
+    def __init__(self, config, container_cls=ServiceContainer):
         self.service_map = {}
         self.containers = []
+        self.config = config
         self.container_cls = container_cls
 
-    def add_service(self, cls):
+    def _monitor_containers(self):
+        """ Wait for running containers to exit.
+        """
+        def monitor(container):
+            exc = None
+            try:
+                container.wait()
+            except Exception as e:
+                exc = e
+            self.on_container_exited(exc)
+
+        for container in self.containers:
+            eventlet.spawn(monitor, container)
+
+    def on_container_exited(self, exc=None):
+        """ Called when a hosted container exits. ``exc`` will be provided
+        if an error occured.
+
+        Subclasses should implement this method to handle container deaths.
+        For example, it may be desirable to try to restart the dead container.
+        Or the runnner could stop or kill the remaining containers and sys.exit
+        for a process manager to handle.
+        """
+
+    def add_service(self, cls, worker_ctx_cls=WorkerContext):
         """ Adds a service class to the runner.
         There can only be one service class for a given service name.
         Service classes must be registered before calling start()
         """
         service_name = get_service_name(cls)
-        self.service_map[service_name] = cls
+        self.service_map[service_name] = (cls, worker_ctx_cls)
 
     def start(self):
         """ Starts all the registered services.
@@ -227,14 +292,16 @@ class ServiceRunner(object):
         All containers will be started concurently and the method will block
         until all have completed their startup routine.
         """
+        config = self.config
         service_map = self.service_map
         _log.info('starting services: %s', service_map.keys())
 
-        for service_name, service_cls in service_map.items():
-            container = self.container_cls(service_cls)
+        for _, (service_cls, worker_ctx_cls) in service_map.items():
+            container = self.container_cls(service_cls, worker_ctx_cls, config)
             self.containers.append(container)
 
         SpawningProxy(self.containers).start()
+        self._monitor_containers()
 
         _log.info('services started: %s', service_map.keys())
 

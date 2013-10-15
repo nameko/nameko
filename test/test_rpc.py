@@ -2,12 +2,14 @@ from itertools import count
 import pytest
 import socket
 
+import eventlet
 from kombu import Connection
 from mock import patch
 
 from nameko.dependencies import AttributeDependency
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError
+
 from nameko.messaging import AMQP_URI_CONFIG_KEY
 from nameko.rpc import rpc, Service, get_rpc_consumer, RpcConsumer
 from nameko.service import WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS
@@ -294,5 +296,24 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
         assert proxy.task_a() == "result_a"
         assert conn.failure_count == 2
 
-# test_rpc_responder_eventual_failure -- TODO
+
+def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
+                                        rabbit_manager, service_proxy_factory):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    proxy = service_proxy_factory(container, "exampleservice")
+    uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
+    conn = FailingConnection(uri)
+
+    with patch("kombu.connection.ConnectionPool.new") as new_connection:
+        new_connection.return_value = conn
+
+        eventlet.spawn(proxy.task_a)
+        with eventlet.Timeout(10):
+            with pytest.raises(Exception) as exc_info:
+                container.wait()
+            assert type(exc_info.value) == socket.error
+
 # test reply-to and correlation-id correct
