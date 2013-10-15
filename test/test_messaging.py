@@ -1,9 +1,12 @@
+import eventlet
 from kombu import Exchange, Queue
 from mock import patch, Mock
 
 from nameko.dependencies import get_decorator_providers
-from nameko.messaging import Publisher, ConsumeProvider, consume
-from nameko.service import ServiceContext, WorkerContext
+from nameko.messaging import (
+    Publisher, ConsumeProvider, consume, HeaderEncoder, HeaderDecoder)
+from nameko.service import (
+    ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)
 
@@ -13,10 +16,14 @@ foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 CONSUME_TIMEOUT = 1
 
 
+class CustomWorkerContext(WorkerContextBase):
+    data_keys = NAMEKO_DATA_KEYS + ('customheader',)
+
+
 def test_consume_creates_provider():
     class Spam(object):
         @consume(queue=foobar_queue)
-        def foobar():
+        def foobar(self):
             pass
 
     providers = list(get_decorator_providers(Spam))
@@ -34,8 +41,8 @@ def test_consume_provider():
     consume_provider = ConsumeProvider(queue=foobar_queue,
                                        requeue_on_error=False)
     queue_consumer = Mock()
-    container = Mock()
-    message = Mock()
+    container = Mock(worker_ctx_cls=WorkerContext)
+    message = Mock(headers={})
     srv_ctx = ServiceContext(None, None, container)
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
@@ -106,7 +113,8 @@ def test_publish_to_exchange():
         msg = "msg"
         publisher.call_setup(worker_ctx)
         service.publish(msg)
-        producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
+        producer.publish.assert_called_once_with(msg, headers={},
+                                                 exchange=foobar_ex)
 
 
 def test_publish_to_queue():
@@ -114,7 +122,9 @@ def test_publish_to_queue():
     connection = Mock()
     service = Mock()
     srv_ctx = Mock()
-    worker_ctx = WorkerContext(srv_ctx, service, None)
+
+    ctx_data = {'language': 'en'}
+    worker_ctx = WorkerContext(srv_ctx, service, None, data=ctx_data)
 
     publisher = Publisher(queue=foobar_queue)
     publisher.name = "publish"
@@ -132,9 +142,81 @@ def test_publish_to_queue():
 
         # test publish
         msg = "msg"
+        headers = {'nameko.language': 'en'}
         publisher.call_setup(worker_ctx)
         service.publish(msg)
-        producer.publish.assert_called_once_with(msg, exchange=foobar_ex)
+        producer.publish.assert_called_once_with(msg, headers=headers,
+                                                 exchange=foobar_ex)
+
+
+def test_publish_custom_headers():
+    producer = Mock()
+    connection = Mock()
+    service = Mock()
+    srv_ctx = Mock()
+
+    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
+    worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
+
+    publisher = Publisher(queue=foobar_queue)
+    publisher.name = "publish"
+
+    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
+            patch.object(publisher, 'get_connection') as get_connection, \
+            patch.object(publisher, 'get_producer') as get_producer:
+
+        get_connection.return_value = as_context_manager(connection)
+        get_producer.return_value = as_context_manager(producer)
+
+        # test declarations
+        publisher.start(srv_ctx)
+        maybe_declare.assert_called_once_with(foobar_queue, connection)
+
+        # test publish
+        msg = "msg"
+        headers = {'nameko.language': 'en',
+                   'nameko.customheader': 'customvalue'}
+        publisher.call_setup(worker_ctx)
+        service.publish(msg)
+        producer.publish.assert_called_once_with(msg, headers=headers,
+                                                 exchange=foobar_ex)
+
+
+def test_header_encoder():
+
+    context_data = {
+        'foo': 'FOO',
+        'bar': 'BAR',
+        'baz': 'BAZ'
+    }
+
+    encoder = HeaderEncoder()
+    with patch.object(encoder, 'header_prefix', new="testprefix"):
+
+        worker_ctx = Mock(data_keys=("foo", "bar", "xxx"), data=context_data)
+
+        res = encoder.get_message_headers(worker_ctx)
+        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR'}
+
+
+def test_header_decoder():
+
+    headers = {
+        'testprefix.foo': 'FOO',
+        'testprefix.bar': 'BAR',
+        'testprefix.baz': 'BAZ',
+        'bogusprefix.foo': 'XXX'
+    }
+
+    decoder = HeaderDecoder()
+    with patch.object(decoder, 'header_prefix', new="testprefix"):
+
+        worker_ctx_cls = Mock(data_keys=("foo", "bar"))
+        message = Mock(headers=headers)
+
+        res = decoder.unpack_message_headers(worker_ctx_cls, message)
+        assert res == {'foo': 'FOO', 'bar': 'BAR'}
+
 
 # TODO: we need to define the expected behavior for errors raised by
 # DeoratorDependencies and add tests to ensure the behavior, e.g. socket errors
@@ -150,7 +232,8 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     service = Mock()
     srv_ctx = ServiceContext(None, None, None, config=rabbit_config)
-    worker_ctx = WorkerContext(srv_ctx, service, None)
+    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
+    worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
 
     publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
     publisher.name = "publish"
@@ -173,12 +256,18 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['msg'] == [msg['payload'] for msg in messages]
 
+    # test message headers
+    assert messages[0]['properties']['headers'] == {
+        'nameko.language': 'en',
+        'nameko.customheader': 'customvalue'
+    }
+
 
 def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
 
-    mock_container = Mock()
+    mock_container = Mock(worker_ctx_cls=CustomWorkerContext)
     srv_ctx = ServiceContext(None, None, mock_container, config=rabbit_config)
 
     consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
@@ -197,17 +286,23 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message consumed from queue
-    worker_ctx = WorkerContext(srv_ctx, None, None)
-
+    worker_ctx = mock_container.worker_ctx_cls(srv_ctx, None, None)
     mock_container.spawn_worker.return_value = worker_ctx
 
-    rabbit_manager.publish(vhost, foobar_ex.name, '', 'msg')
+    headers = {'nameko.language': 'en', 'nameko.customheader': 'customvalue'}
+    rabbit_manager.publish(
+        vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
+    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     with wait_for_call(CONSUME_TIMEOUT, mock_container.spawn_worker) as method:
         method.assert_called_once_with(consumer, ('msg',), {},
+                                       context_data=ctx_data,
                                        handle_result=ANY_PARTIAL)
         handle_result = method.call_args[1]['handle_result']
 
+    # ack message
     handle_result(worker_ctx, 'result')
+
     # stop will hang if the consumer hasn't acked or requeued messages
-    consumer.stop(srv_ctx)
+    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
+        consumer.stop(srv_ctx)

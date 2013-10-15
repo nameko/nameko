@@ -142,9 +142,13 @@ def reset_mock_proxy(request):
 
 @pytest.fixture
 def container_factory(request, reset_rabbit):
-    def make_container(service_cls, config):
+
+    def make_container(service_cls, config, worker_ctx_cls=None):
         from nameko.service import ServiceContainer
-        container = ServiceContainer(service_cls, config)
+        if worker_ctx_cls is None:
+            from nameko.service import WorkerContext
+            worker_ctx_cls = WorkerContext
+        container = ServiceContainer(service_cls, worker_ctx_cls, config)
         all_containers.append(container)
         return container
 
