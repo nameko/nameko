@@ -96,6 +96,7 @@ class ServiceContainer(object):
 
         self._dependencies = None
         self._worker_pool = GreenPool(size=self.ctx.max_workers)
+        self._active_workers = []
         self._died = Event()
 
     # TODO: why is this a lazy property?
@@ -149,6 +150,11 @@ class ServiceContainer(object):
 
         with eventlet.Timeout(KILL_TIMEOUT):
             self.dependencies.all.kill(self.ctx, exc)
+
+        _log.info('killing remaining workers (%s)', len(self._active_workers))
+        for gt in self._active_workers:
+            gt.kill(exc)
+
         self._died.send_exception(exc)
 
     def spawn_worker(self, provider, args, kwargs,
@@ -161,10 +167,13 @@ class ServiceContainer(object):
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
+        self._active_workers.append(gt)
         gt.link(self._handle_worker_exited)
+
         return worker_ctx
 
     def _handle_worker_exited(self, gt):
+        self._active_workers.remove(gt)
         try:
             gt.wait()
         except greenlet.GreenletExit:
