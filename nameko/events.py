@@ -110,7 +110,7 @@ class Event(object):
         self.data = data
 
 
-class EventDispatcher(Publisher, HeaderEncoder):
+class EventDispatcher(Publisher):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,
