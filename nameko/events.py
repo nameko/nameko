@@ -26,8 +26,7 @@ import uuid
 
 from kombu import Exchange, Queue
 
-from nameko.messaging import (
-    Publisher, PERSISTENT, ConsumeProvider, HeaderEncoder)
+from nameko.messaging import Publisher, PERSISTENT, ConsumeProvider
 from nameko.dependencies import dependency_decorator
 
 
