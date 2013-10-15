@@ -9,7 +9,8 @@ from kombu.pools import producers
 from kombu.common import itermessages, maybe_declare
 
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
-from nameko.messaging import get_queue_consumer, AMQP_URI_CONFIG_KEY
+from nameko.messaging import (
+    get_queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
     dependency_decorator, AttributeDependency, DecoratorDependency)
 
@@ -118,7 +119,7 @@ class RpcConsumer(object):
         qc.ack_message(message)
 
 
-class RpcProvider(DecoratorDependency):
+class RpcProvider(DecoratorDependency, HeaderDecoder):
     _consumer_cls = RpcConsumer
 
     def get_consumer(self, srv_ctx):
@@ -142,8 +143,12 @@ class RpcProvider(DecoratorDependency):
         args = body['args']
         kwargs = body['kwargs']
 
+        worker_ctx_cls = srv_ctx.container.worker_ctx_cls
+        context_data = self.unpack_message_headers(worker_ctx_cls, message)
+
         handle_result = partial(self.handle_result, message)
         srv_ctx.container.spawn_worker(self, args, kwargs,
+                                       context_data=context_data,
                                        handle_result=handle_result)
 
     def handle_result(self, message, worker_ctx, result, exc):
@@ -189,24 +194,26 @@ class Responder(object):
 
 
 class Service(AttributeDependency):
+
     def __init__(self, service_name):
         self.service_name = service_name
 
     def acquire_injection(self, worker_ctx):
-        return ServiceProxy(self.service_name, worker_ctx)
+        return ServiceProxy(worker_ctx, self.service_name)
 
 
 class ServiceProxy(object):
-    def __init__(self, service_name, worker_ctx):
+    def __init__(self, worker_ctx, service_name):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
 
     def __getattr__(self, name):
-        return MethodProxy(self.service_name, name, self.worker_ctx)
+        return MethodProxy(self.worker_ctx, self.service_name, name)
 
 
-class MethodProxy(object):
-    def __init__(self, service_name, method_name, worker_ctx):
+class MethodProxy(HeaderEncoder):
+
+    def __init__(self, worker_ctx, service_name, method_name):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
@@ -237,12 +244,15 @@ class MethodProxy(object):
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
 
+                headers = self.get_message_headers(worker_ctx)
+
                 # TODO: should use correlation-id property and check after
                 # receiving a response
                 producer.publish(msg,
                                  exchange=exchange,
                                  routing_key=routing_key,
-                                 reply_to=reply_queue.name)
+                                 reply_to=reply_queue.name,
+                                 headers=headers)
 
             resp_messages = itermessages(
                 conn, conn.channel(), reply_queue)

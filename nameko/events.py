@@ -26,9 +26,7 @@ import uuid
 
 from kombu import Exchange, Queue
 
-from nameko.messaging import (
-    Publisher, PERSISTENT,
-    ConsumeProvider)
+from nameko.messaging import Publisher, PERSISTENT, ConsumeProvider
 from nameko.dependencies import dependency_decorator
 
 
@@ -156,8 +154,10 @@ class EventDispatcher(Publisher):
             routing_key = evt.type
 
             with self.get_producer(worker_ctx.srv_ctx) as producer:
-                producer.publish(
-                    msg, exchange=exchange, routing_key=routing_key)
+
+                headers = self.get_message_headers(worker_ctx)
+                producer.publish(msg, exchange=exchange, headers=headers,
+                                 routing_key=routing_key)
 
         return dispatch
 
