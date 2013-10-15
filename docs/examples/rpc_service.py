@@ -1,3 +1,11 @@
+# Nameko relies on eventlet
+# You should monkey patch the standard library as early as possible to avoid
+# importing anything before the patch is applied.
+# See http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library
+import eventlet
+eventlet.monkey_patch()
+
+
 from nameko.rpc import rpc
 from nameko.service import ServiceRunner
 
@@ -12,9 +20,6 @@ class AdderService(object):
 def main():
     import logging
     logging.basicConfig(level=logging.DEBUG)
-
-    import eventlet
-    eventlet.monkey_patch()
 
     config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/'}
     runner = ServiceRunner(config)

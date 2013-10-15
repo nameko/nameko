@@ -1,4 +1,5 @@
 from nameko.service import ServiceRunner
+from nameko.testing.service import MockWorkerContext
 
 
 class TestService1(object):
@@ -13,9 +14,10 @@ def test_runner_lifecycle():
     events = []
 
     class Container(object):
-        def __init__(self, service_cls, config):
+        def __init__(self, service_cls, worker_ctx_cls, config):
             self.service_name = service_cls.__name__
             self.service_cls = service_cls
+            self.worker_ctx_cls = worker_ctx_cls
 
         def start(self):
             events.append(('start', self.service_cls.name, self.service_cls))

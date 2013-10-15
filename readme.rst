@@ -127,7 +127,13 @@ Messaging Example
 
 Underlying the RPC and Events features shown above is the lower-level
 "messaging" codebase. You can use the messaging features to publish to and
-consume from AMQP directly. 
+consume from AMQP directly.
+
+.. note::
+
+   The messaging API is provided for low-level interaction with AMQP,
+   usually when messages originate outside nameko. In the majority of cases
+   it's preferable to use the events API.
 
 .. code:: python
 

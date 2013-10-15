@@ -1,3 +1,13 @@
+# Nameko relies on eventlet
+# You should monkey patch the standard library as early as possible to avoid
+# importing anything before the patch is applied.
+# See http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library
+import eventlet
+eventlet.monkey_patch()
+
+import logging
+logger = logging.getLogger(__name__)
+
 from nameko.service import ServiceRunner
 from nameko.events import Event, EventDispatcher, event_handler
 from nameko.timer import timer
@@ -11,7 +21,7 @@ class HelloWorld(object):
 
     @event_handler('friendlyservice', 'hello')
     def hello(self, name):
-        print "Hello, {}!".format(name)
+        logger.info("Hello, {}!".format(name))
 
 
 class FriendlyService(object):
@@ -25,11 +35,8 @@ class FriendlyService(object):
 
 
 def main():
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
 
-    import eventlet
-    eventlet.monkey_patch()
+    logging.basicConfig(level=logging.DEBUG)
 
     config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/'}
     runner = ServiceRunner(config)

@@ -1,3 +1,13 @@
+# Nameko relies on eventlet
+# You should monkey patch the standard library as early as possible to avoid
+# importing anything before the patch is applied.
+# See http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library
+import eventlet
+eventlet.monkey_patch()
+
+import os
+import tempfile
+
 from kombu import Exchange, Queue
 
 from nameko.dependencies import AttributeDependency
@@ -10,7 +20,9 @@ demo_queue = Queue('demo_queue', exchange=demo_ex, durable=False, auto_delete=Tr
 
 class LogFile(AttributeDependency):
 
-    def __init__(self, path):
+    def __init__(self, path=None):
+        if path is None:
+            path = os.path.join(tempfile.mkdtemp(), 'nameko.log')
         self.path = path
 
     def start(self, srv_ctx):
@@ -28,9 +40,9 @@ class LogFile(AttributeDependency):
         self.file_handle.flush()
 
 
-class ListenerService(object):
+class MessagingConsumer(object):
 
-    log = LogFile('/tmp/nameko')
+    log = LogFile()
 
     @consume(demo_queue)
     def process(self, payload):
@@ -41,12 +53,9 @@ def main():
     import logging
     logging.basicConfig(level=logging.DEBUG)
 
-    import eventlet
-    eventlet.monkey_patch()
-
     config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/'}
     runner = ServiceRunner(config)
-    runner.add_service(ListenerService)
+    runner.add_service(MessagingConsumer)
     runner.start()
 
     try:

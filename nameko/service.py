@@ -161,17 +161,17 @@ class ServiceContainer(object):
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
-        gt.link(self._handle_consumer_exited)
+        gt.link(self._handle_worker_exited)
         return worker_ctx
 
-    def _handle_consumer_exited(self, gt):
+    def _handle_worker_exited(self, gt):
         try:
             gt.wait()
         except greenlet.GreenletExit:
-            _log.info('%s consumer killed', self.service_name, exc_info=True)
+            _log.info('%s worker killed', self.service_name, exc_info=True)
             # self.should_stop = True
         except Exception as exc:
-            _log.error('%s consumer exited with error', self.service_name,
+            _log.error('%s worker exited with error', self.service_name,
                        exc_info=True)
             self.kill(exc)
 
@@ -243,13 +243,13 @@ class ServiceRunner(object):
         self.config = config
         self.container_cls = container_cls
 
-    def add_service(self, cls):
+    def add_service(self, cls, worker_ctx_cls=WorkerContext):
         """ Adds a service class to the runner.
         There can only be one service class for a given service name.
         Service classes must be registered before calling start()
         """
         service_name = get_service_name(cls)
-        self.service_map[service_name] = cls
+        self.service_map[service_name] = (cls, worker_ctx_cls)
 
     def start(self):
         """ Starts all the registered services.
@@ -259,11 +259,12 @@ class ServiceRunner(object):
         All containers will be started concurently and the method will block
         until all have completed their startup routine.
         """
+        config = self.config
         service_map = self.service_map
         _log.info('starting services: %s', service_map.keys())
 
-        for service_name, service_cls in service_map.items():
-            container = self.container_cls(service_cls, self.config)
+        for _, (service_cls, worker_ctx_cls) in service_map.items():
+            container = self.container_cls(service_cls, worker_ctx_cls, config)
             self.containers.append(container)
 
         SpawningProxy(self.containers).start()

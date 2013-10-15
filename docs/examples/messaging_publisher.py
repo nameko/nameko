@@ -1,3 +1,10 @@
+# Nameko relies on eventlet
+# You should monkey patch the standard library as early as possible to avoid
+# importing anything before the patch is applied.
+# See http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library
+import eventlet
+eventlet.monkey_patch()
+
 import uuid
 
 from kombu import Exchange
@@ -10,7 +17,7 @@ from nameko.timer import timer
 demo_ex = Exchange('demo_ex', durable=False, auto_delete=True)
 
 
-class MessagingClient(object):
+class MessagingPublisher(object):
 
     publish = Publisher(exchange=demo_ex)
 
@@ -24,12 +31,9 @@ def main():
     import logging
     logging.basicConfig(level=logging.DEBUG)
 
-    import eventlet
-    eventlet.monkey_patch()
-
     config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/'}
     runner = ServiceRunner(config)
-    runner.add_service(MessagingClient)
+    runner.add_service(MessagingPublisher)
     runner.start()
 
     try:
