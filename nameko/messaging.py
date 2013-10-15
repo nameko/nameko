@@ -23,10 +23,39 @@ _log = getLogger(__name__)
 
 # delivery_mode
 PERSISTENT = 2
+HEADER_PREFIX = "nameko"
 AMQP_URI_CONFIG_KEY = 'AMQP_URI'
 
 
-class Publisher(AttributeDependency):
+class HeaderEncoder(object):
+
+    header_prefix = HEADER_PREFIX
+
+    def get_message_headers(self, worker_ctx):
+        headers = {}
+        for key in worker_ctx.data_keys:
+            if key in worker_ctx.data:
+                name = "{}.{}".format(self.header_prefix, key)
+                headers[name] = worker_ctx.data[key]
+        return headers
+
+
+class HeaderDecoder(object):
+
+    header_prefix = HEADER_PREFIX
+
+    def unpack_message_headers(self, worker_ctx_cls, message):
+        data_keys = worker_ctx_cls.data_keys
+
+        data = {}
+        for key in data_keys:
+            name = "{}.{}".format(self.header_prefix, key)
+            if name in message.headers:
+                data[key] = message.headers[name]
+        return data
+
+
+class Publisher(AttributeDependency, HeaderEncoder):
     """
     Provides a message publisher method via dependency injection.
 
@@ -80,7 +109,9 @@ class Publisher(AttributeDependency):
             with self.get_producer(worker_ctx.srv_ctx) as producer:
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
-                producer.publish(msg, exchange=exchange, **kwargs)
+                headers = self.get_message_headers(worker_ctx)
+                producer.publish(msg, exchange=exchange, headers=headers,
+                                 **kwargs)
 
         return publish
 
@@ -127,7 +158,7 @@ def get_queue_consumer(srv_ctx):
     return queue_consumers[srv_ctx]
 
 
-class ConsumeProvider(DecoratorDependency):
+class ConsumeProvider(DecoratorDependency, HeaderDecoder):
 
     def __init__(self, queue, requeue_on_error):
         self.queue = queue
@@ -153,8 +184,12 @@ class ConsumeProvider(DecoratorDependency):
         args = (body,)
         kwargs = {}
 
+        worker_ctx_cls = srv_ctx.container.worker_ctx_cls
+        context_data = self.unpack_message_headers(worker_ctx_cls, message)
+
         srv_ctx.container.spawn_worker(
             self, args, kwargs,
+            context_data=context_data,
             handle_result=partial(self.handle_result, message))
 
     def handle_result(self, message, worker_ctx, result=None, exc=None):

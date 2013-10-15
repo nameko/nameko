@@ -6,18 +6,43 @@ import eventlet
 from kombu import Connection
 from mock import patch
 
+from nameko.dependencies import AttributeDependency
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc
+
 from nameko.messaging import AMQP_URI_CONFIG_KEY
+from nameko.rpc import rpc, Service, get_rpc_consumer, RpcConsumer
+from nameko.service import WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS
 
 
 class ExampleError(Exception):
     pass
 
 
+hello = object()
+translations = {
+    'en': {hello: 'hello'},
+    'fr': {hello: 'bonjour'},
+}
+
+
+class Translator(AttributeDependency):
+
+    def acquire_injection(self, worker_ctx):
+        def translate(value):
+            lang = worker_ctx.data['language']
+            return translations[lang][value]
+        return translate
+
+
+class CustomWorkerContext(WorkerContextBase):
+    data_keys = NAMEKO_DATA_KEYS + ('custom_header',)
+
+
 class ExampleService(object):
     name = 'exampleservice'
+
+    translate = Translator()
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -36,6 +61,10 @@ class ExampleService(object):
     @rpc
     def echo(self, *args, **kwargs):
         return args, kwargs
+
+    @rpc
+    def say_hello(self):
+        return self.translate(hello)
 
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
@@ -69,6 +98,19 @@ class FailingConnection(Connection):
             self.failure_count += 1
             raise self.exc_type()
         return super(FailingConnection, self).connect(*args, **kwargs)
+
+
+@pytest.fixture
+def service_proxy_factory(request):
+
+    def make_proxy(container, service_name, worker_ctx=None):
+        if worker_ctx is None:
+            worker_ctx_cls = container.worker_ctx_cls
+            worker_ctx = worker_ctx_cls(container.ctx, None, None, data={})
+        service_proxy = Service(service_name)
+        proxy = service_proxy.acquire_injection(worker_ctx)
+        return proxy
+    return make_proxy
 
 
 # test rpc proxy ...
@@ -108,6 +150,96 @@ def test_rpc_args_kwargs(container_factory, rabbit_config,
     assert proxy.echo("a", "b") == [["a", "b"], {}]
     assert proxy.echo(foo="bar") == [[], {'foo': 'bar'}]
     assert proxy.echo("arg", kwarg="kwarg") == [["arg"], {'kwarg': 'kwarg'}]
+
+
+def test_rpc_context_data(container_factory, rabbit_config,
+                          service_proxy_factory):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    context_data = {
+        'language': 'en',
+        'auth_token': '123456789'
+    }
+
+    worker_ctx = WorkerContext(container.ctx, None, None,
+                               data=context_data.copy())
+    en_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+
+    context_data['language'] = 'fr'
+
+    worker_ctx = WorkerContext(container.ctx, None, None,
+                               data=context_data.copy())
+    fr_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+
+    assert en_proxy.say_hello() == "hello"
+    assert fr_proxy.say_hello() == "bonjour"
+
+
+def test_rpc_headers(container_factory, rabbit_config,
+                     service_proxy_factory):
+
+    container = container_factory(ExampleService, rabbit_config)
+
+    context_data = {
+        'language': 'en',
+        'bogus_header': '123456789'
+    }
+
+    headers = {}
+    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
+    handle_message = rpc_consumer.handle_message
+
+    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+        def side_effect(body, message):
+            headers.update(message.headers)  # extract message headers
+            return handle_message(body, message)
+
+        patched_handler.side_effect = side_effect
+        container.start()
+
+    worker_ctx = WorkerContext(container.ctx, None, None,
+                               data=context_data.copy())
+    proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+
+    assert proxy.say_hello() == "hello"
+    assert headers == {'nameko.language': 'en'}  # bogus_header dropped
+
+
+def test_rpc_custom_headers(container_factory, rabbit_config,
+                            service_proxy_factory):
+
+    container = container_factory(ExampleService, rabbit_config)
+
+    context_data = {
+        'language': 'en',
+        'bogus_header': '123456789',
+        'custom_header': 'specialvalue',
+    }
+
+    headers = {}
+    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
+    handle_message = rpc_consumer.handle_message
+
+    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+        def side_effect(body, message):
+            headers.update(message.headers)  # extract message headers
+            return handle_message(body, message)
+
+        patched_handler.side_effect = side_effect
+        container.start()
+
+    worker_ctx = CustomWorkerContext(container.ctx, None, None,
+                                     data=context_data.copy())
+    proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+
+    assert proxy.say_hello() == "hello"
+    # bogus_header dropped, custom_header present
+    assert headers == {
+        'nameko.language': 'en',
+        'nameko.custom_header': 'specialvalue'
+    }
 
 
 def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager,
