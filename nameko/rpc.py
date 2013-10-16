@@ -78,6 +78,10 @@ class RpcConsumer(object):
         qc = get_queue_consumer(self._srv_ctx)
         qc.stop()
 
+    def kill(self, exc=None):
+        qc = get_queue_consumer(self._srv_ctx)
+        qc.kill(exc)
+
     def register_provider(self, rpc_provider):
         service_name = self._srv_ctx.name
         key = '{}.{}'.format(service_name, rpc_provider.name)
@@ -110,6 +114,9 @@ class RpcConsumer(object):
     def handle_result(self, message, srv_ctx, result, exc):
         error = None
         if exc is not None:
+            # TODO: this is helpful for debug, but shouldn't be used in
+            # production (since it exposes the callee's internals).
+            # Replace this when we can correlate exceptions properly.
             error = RemoteErrorWrapper(exc)
 
         responder = Responder(message)
@@ -138,6 +145,11 @@ class RpcProvider(DecoratorDependency, HeaderDecoder):
         rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.unregister_provider(self)
         rpc_consumer.stop()
+
+    def kill(self, srv_ctx, exc=None):
+        rpc_consumer = self.get_consumer(srv_ctx)
+        rpc_consumer.unregister_provider(self)
+        rpc_consumer.kill(exc)
 
     def handle_message(self, srv_ctx, body, message):
         args = body['args']
