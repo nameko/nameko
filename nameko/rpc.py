@@ -24,9 +24,10 @@ def rpc():
 
 RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
-RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
+RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}'
 
 rpc_consumers = WeakKeyDictionary()
+rpc_reply_listeners = WeakKeyDictionary()
 
 
 def get_rpc_consumer(srv_ctx, consumer_cls):
@@ -205,52 +206,98 @@ class Responder(object):
                     routing_key=reply_to, correlation_id=correlation_id)
 
 
-class Service(AttributeDependency):
+class ReplyListener(object):
+    def __init__(self, srv_ctx):
+        self.srv_ctx = srv_ctx
+        self.reply_events = {}
 
-    def __init__(self, service_name):
-        self.service_name = service_name
-        self.response_queues = {}
+    def prepare_queue(self):
+        srv_ctx = self.srv_ctx
 
-    def acquire_injection(self, worker_ctx):
-        return ServiceProxy(worker_ctx, self)
-
-    def start(self, srv_ctx):
-        self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
-            srv_ctx.name, uuid.uuid4())  #srv_ctx.uuid)
+        srv_id = uuid.uuid4()  # TODO: give srv_ctx a uuid?
+        self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(srv_id)
 
         exchange = get_rpc_exchange(srv_ctx)
         self.reply_queue = Queue(
             self.reply_queue_name, exchange=exchange, exclusive=True)
 
+    def start_consuming(self):
+        srv_ctx = self.srv_ctx
         qc = get_queue_consumer(srv_ctx)
         qc.add_consumer(self.reply_queue, self._handle_message)
         qc.start()
 
+    def stop(self):
+        srv_ctx = self.srv_ctx
+        qc = get_queue_consumer(srv_ctx)
+        qc.stop()
+
+    def kill(self, exc=None):
+        srv_ctx = self.srv_ctx
+        qc = get_queue_consumer(srv_ctx)
+        qc.kill(exc)
+
     def _handle_message(self, resp_body, message_info):
         correlation_id = message_info.properties.get('correlation_id')
-        client_event = self.response_queues.pop(correlation_id, None)
+        client_event = self.reply_events.pop(correlation_id, None)
         if client_event is not None:
             client_event.send(resp_body)
 
 
+def get_rpc_reply_listener(srv_ctx):
+    if srv_ctx not in rpc_reply_listeners:
+        rpc_reply_listener = ReplyListener(srv_ctx)
+        rpc_reply_listeners[srv_ctx] = rpc_reply_listener
+
+    return rpc_reply_listeners[srv_ctx]
+
+
+class Service(AttributeDependency):
+
+    def __init__(self, service_name):
+        self.service_name = service_name
+
+    def start(self, srv_ctx):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.prepare_queue()
+
+    def on_container_started(self, srv_ctx):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.start_consuming()
+
+    def stop(self, srv_ctx):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.stop()
+
+    def kill(self, srv_ctx, exc=None):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.kill(exc)
+
+    def acquire_injection(self, worker_ctx):
+        srv_ctx = worker_ctx.srv_ctx
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        return ServiceProxy(worker_ctx, self.service_name, rpc_reply_listener)
+
+
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, rpc_proxy):
+    def __init__(self, worker_ctx, service_name, rpc_listener):
         self.worker_ctx = worker_ctx
-        self.rpc_proxy = rpc_proxy
+        self.service_name = service_name
+        self.rpc_listener = rpc_listener
 
     def __getattr__(self, name):
         return MethodProxy(
-            self.worker_ctx, self.rpc_proxy, name)
+            self.worker_ctx, self.service_name, name, self.rpc_listener)
 
 
 class MethodProxy(HeaderEncoder):
 
-    def __init__(self, worker_ctx, rpc_proxy, method_name):
+    def __init__(self, worker_ctx, service_name, method_name, rpc_listener):
         self.worker_ctx = worker_ctx
-        self.service_name = rpc_proxy.service_name
+        self.service_name = service_name
         self.method_name = method_name
-        self.response_queues = rpc_proxy.response_queues
-        self.reply_queue_name = rpc_proxy.reply_queue_name
+        self.reply_events = rpc_listener.reply_events
+        self.reply_queue_name = rpc_listener.reply_queue_name
 
     def __call__(self, *args, **kwargs):
         _log.debug('invoking %s', self)
@@ -276,7 +323,7 @@ class MethodProxy(HeaderEncoder):
                 correlation_id = str(uuid.uuid4())
 
                 reply_event = Event()
-                self.response_queues[correlation_id] = reply_event
+                self.reply_events[correlation_id] = reply_event
 
                 producer.publish(msg,
                                  exchange=exchange,
