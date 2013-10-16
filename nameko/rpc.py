@@ -4,9 +4,9 @@ from logging import getLogger
 import uuid
 from weakref import WeakKeyDictionary
 
+from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
-from kombu.common import itermessages, maybe_declare
 
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import (
@@ -209,26 +209,48 @@ class Service(AttributeDependency):
 
     def __init__(self, service_name):
         self.service_name = service_name
+        self.response_queues = {}
 
     def acquire_injection(self, worker_ctx):
-        return ServiceProxy(worker_ctx, self.service_name)
+        return ServiceProxy(worker_ctx, self)
+
+    def start(self, srv_ctx):
+        self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
+            srv_ctx.name, uuid.uuid4())  #srv_ctx.uuid)
+
+        exchange = get_rpc_exchange(srv_ctx)
+        self.reply_queue = Queue(
+            self.reply_queue_name, exchange=exchange, exclusive=True)
+
+        qc = get_queue_consumer(srv_ctx)
+        qc.add_consumer(self.reply_queue, self._handle_message)
+        qc.start()
+
+    def _handle_message(self, resp_body, message_info):
+        correlation_id = message_info.properties.get('correlation_id')
+        client_event = self.response_queues.pop(correlation_id, None)
+        if client_event is not None:
+            client_event.send(resp_body)
 
 
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name):
+    def __init__(self, worker_ctx, rpc_proxy):
         self.worker_ctx = worker_ctx
-        self.service_name = service_name
+        self.rpc_proxy = rpc_proxy
 
     def __getattr__(self, name):
-        return MethodProxy(self.worker_ctx, self.service_name, name)
+        return MethodProxy(
+            self.worker_ctx, self.rpc_proxy, name)
 
 
 class MethodProxy(HeaderEncoder):
 
-    def __init__(self, worker_ctx, service_name, method_name):
+    def __init__(self, worker_ctx, rpc_proxy, method_name):
         self.worker_ctx = worker_ctx
-        self.service_name = service_name
+        self.service_name = rpc_proxy.service_name
         self.method_name = method_name
+        self.response_queues = rpc_proxy.response_queues
+        self.reply_queue_name = rpc_proxy.reply_queue_name
 
     def __call__(self, *args, **kwargs):
         _log.debug('invoking %s', self)
@@ -244,32 +266,27 @@ class MethodProxy(HeaderEncoder):
         # TODO: should connection sharing be done during call_setup in the
         #       dependency provider?
         with conn as conn:
-            reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
-                routing_key, uuid.uuid4())
-
             exchange = get_rpc_exchange(srv_ctx)
-            reply_queue = Queue(
-                reply_queue_name, exchange=exchange, exclusive=True)
-            maybe_declare(reply_queue, conn)
 
             with producers[conn].acquire(block=True) as producer:
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
 
                 headers = self.get_message_headers(worker_ctx)
+                correlation_id = str(uuid.uuid4())
 
-                # TODO: should use correlation-id property and check after
-                # receiving a response
+                reply_event = Event()
+                self.response_queues[correlation_id] = reply_event
+
                 producer.publish(msg,
                                  exchange=exchange,
                                  routing_key=routing_key,
-                                 reply_to=reply_queue.name,
-                                 headers=headers)
+                                 reply_to=self.reply_queue_name,
+                                 headers=headers,
+                                 correlation_id=correlation_id,
+                                )
 
-            resp_messages = itermessages(
-                conn, conn.channel(), reply_queue)
-
-            resp_body, _ = next(resp_messages)
+            resp_body = reply_event.wait()
 
             error = resp_body.get('error')
             if error:
