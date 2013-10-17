@@ -46,6 +46,14 @@ def get_rpc_exchange(srv_ctx):
     return exchange
 
 
+def get_rpc_reply_listener(srv_ctx):
+    if srv_ctx not in rpc_reply_listeners:
+        rpc_reply_listener = ReplyListener(srv_ctx)
+        rpc_reply_listeners[srv_ctx] = rpc_reply_listener
+
+    return rpc_reply_listeners[srv_ctx]
+
+
 class RpcConsumer(object):
 
     def __init__(self, srv_ctx):
@@ -248,14 +256,6 @@ class ReplyListener(object):
             client_event.send(body)
         else:
             _log.debug("Unknown correlation id: %s", correlation_id)
-
-
-def get_rpc_reply_listener(srv_ctx):
-    if srv_ctx not in rpc_reply_listeners:
-        rpc_reply_listener = ReplyListener(srv_ctx)
-        rpc_reply_listeners[srv_ctx] = rpc_reply_listener
-
-    return rpc_reply_listeners[srv_ctx]
 
 
 class Service(AttributeDependency):
