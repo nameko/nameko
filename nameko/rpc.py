@@ -237,11 +237,17 @@ class ReplyListener(object):
         qc = get_queue_consumer(srv_ctx)
         qc.kill(exc)
 
-    def _handle_message(self, resp_body, message_info):
-        correlation_id = message_info.properties.get('correlation_id')
+    def _handle_message(self, body, message):
+        srv_ctx = self.srv_ctx
+        qc = get_queue_consumer(srv_ctx)
+        qc.ack_message(message)
+
+        correlation_id = message.properties.get('correlation_id')
         client_event = self.reply_events.pop(correlation_id, None)
         if client_event is not None:
-            client_event.send(resp_body)
+            client_event.send(body)
+        else:
+            _log.debug("Unknown correlation id: %s", correlation_id)
 
 
 def get_rpc_reply_listener(srv_ctx):
