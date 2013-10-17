@@ -24,7 +24,7 @@ def rpc():
 
 RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
-RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}'
+RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
 rpc_consumers = WeakKeyDictionary()
 rpc_reply_listeners = WeakKeyDictionary()
@@ -216,42 +216,49 @@ class Responder(object):
 
 class ReplyListener(object):
     def __init__(self, srv_ctx):
-        self.srv_ctx = srv_ctx
-        self.reply_events = {}
+        self._srv_ctx = srv_ctx
+        self._reply_events = {}
 
     def prepare_queue(self):
-        srv_ctx = self.srv_ctx
+        srv_ctx = self._srv_ctx
 
-        srv_id = uuid.uuid4()  # TODO: give srv_ctx a uuid?
-        self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(srv_id)
+        service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
+        service_name = srv_ctx.name
+        self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
+            service_name, service_uuid)
 
         exchange = get_rpc_exchange(srv_ctx)
         self.reply_queue = Queue(
             self.reply_queue_name, exchange=exchange, exclusive=True)
 
     def start_consuming(self):
-        srv_ctx = self.srv_ctx
+        srv_ctx = self._srv_ctx
         qc = get_queue_consumer(srv_ctx)
         qc.add_consumer(self.reply_queue, self._handle_message)
         qc.start()
 
     def stop(self):
-        srv_ctx = self.srv_ctx
+        srv_ctx = self._srv_ctx
         qc = get_queue_consumer(srv_ctx)
         qc.stop()
 
     def kill(self, exc=None):
-        srv_ctx = self.srv_ctx
+        srv_ctx = self._srv_ctx
         qc = get_queue_consumer(srv_ctx)
         qc.kill(exc)
 
+    def get_reply_event(self, correlation_id):
+        reply_event = Event()
+        self._reply_events[correlation_id] = reply_event
+        return reply_event
+
     def _handle_message(self, body, message):
-        srv_ctx = self.srv_ctx
+        srv_ctx = self._srv_ctx
         qc = get_queue_consumer(srv_ctx)
         qc.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
-        client_event = self.reply_events.pop(correlation_id, None)
+        client_event = self._reply_events.pop(correlation_id, None)
         if client_event is not None:
             client_event.send(body)
         else:
@@ -286,24 +293,23 @@ class Service(AttributeDependency):
 
 
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name, rpc_listener):
+    def __init__(self, worker_ctx, service_name, reply_listener):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
-        self.rpc_listener = rpc_listener
+        self.reply_listener = reply_listener
 
     def __getattr__(self, name):
         return MethodProxy(
-            self.worker_ctx, self.service_name, name, self.rpc_listener)
+            self.worker_ctx, self.service_name, name, self.reply_listener)
 
 
 class MethodProxy(HeaderEncoder):
 
-    def __init__(self, worker_ctx, service_name, method_name, rpc_listener):
+    def __init__(self, worker_ctx, service_name, method_name, reply_listener):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
-        self.reply_events = rpc_listener.reply_events
-        self.reply_queue_name = rpc_listener.reply_queue_name
+        self.reply_listener = reply_listener
 
     def __call__(self, *args, **kwargs):
         _log.debug('invoking %s', self)
@@ -328,13 +334,14 @@ class MethodProxy(HeaderEncoder):
                 headers = self.get_message_headers(worker_ctx)
                 correlation_id = str(uuid.uuid4())
 
-                reply_event = Event()
-                self.reply_events[correlation_id] = reply_event
+                reply_listener = self.reply_listener
+                reply_queue_name = reply_listener.reply_queue_name
+                reply_event = reply_listener.get_reply_event(correlation_id)
 
                 producer.publish(msg,
                                  exchange=exchange,
                                  routing_key=routing_key,
-                                 reply_to=self.reply_queue_name,
+                                 reply_to=reply_queue_name,
                                  headers=headers,
                                  correlation_id=correlation_id,
                                 )
