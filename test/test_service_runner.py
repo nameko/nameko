@@ -1,4 +1,4 @@
-from mock import patch
+import pytest
 
 from nameko.service import ServiceRunner
 
@@ -38,32 +38,56 @@ def test_runner_lifecycle():
     runner.add_service(TestService1)
     runner.add_service(TestService2)
 
-    with patch.object(runner, "_monitor_containers") as monitor:
-        runner.start()
+    runner.start()
 
-        assert sorted(events) == [
-            ('start', 'foobar_1', TestService1),
-            ('start', 'foobar_2', TestService2),
-        ]
-        assert monitor.called
+    assert sorted(events) == [
+        ('start', 'foobar_1', TestService1),
+        ('start', 'foobar_2', TestService2),
+    ]
 
-        events = []
-        runner.stop()
-        assert sorted(events) == [
-            ('stop', 'foobar_1', TestService1),
-            ('stop', 'foobar_2', TestService2),
-        ]
+    events = []
+    runner.stop()
+    assert sorted(events) == [
+        ('stop', 'foobar_1', TestService1),
+        ('stop', 'foobar_2', TestService2),
+    ]
 
-        events = []
-        runner.kill()
-        assert sorted(events) == [
-            ('kill', 'foobar_1', TestService1),
-            ('kill', 'foobar_2', TestService2),
-        ]
+    events = []
+    runner.kill()
+    assert sorted(events) == [
+        ('kill', 'foobar_1', TestService1),
+        ('kill', 'foobar_2', TestService2),
+    ]
 
-        events = []
+    events = []
+    runner.wait()
+    assert sorted(events) == [
+        ('wait', 'foobar_1', TestService1),
+        ('wait', 'foobar_2', TestService2),
+    ]
+
+
+def test_runner_waits_raises_error():
+    class Container(object):
+        def __init__(self, service_cls, worker_ctx_cls, config):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def kill(self):
+            pass
+
+        def wait(self):
+            raise Exception('error in container')
+
+    runner = ServiceRunner(config={}, container_cls=Container)
+    runner.add_service(TestService1)
+    runner.start()
+
+    with pytest.raises(Exception) as exc_info:
         runner.wait()
-        assert sorted(events) == [
-            ('wait', 'foobar_1', TestService1),
-            ('wait', 'foobar_2', TestService2),
-        ]
+    assert exc_info.value.args == ('error in container',)

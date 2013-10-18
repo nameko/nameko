@@ -252,30 +252,6 @@ class ServiceRunner(object):
         self.config = config
         self.container_cls = container_cls
 
-    def _monitor_containers(self):
-        """ Wait for running containers to exit.
-        """
-        def monitor(container):
-            exc = None
-            try:
-                container.wait()
-            except Exception as e:
-                exc = e
-            self.on_container_exited(exc)
-
-        for container in self.containers:
-            eventlet.spawn(monitor, container)
-
-    def on_container_exited(self, exc=None):
-        """ Called when a hosted container exits. ``exc`` will be provided
-        if an error occured.
-
-        Subclasses should implement this method to handle container deaths.
-        For example, it may be desirable to try to restart the dead container.
-        Or the runnner could stop or kill the remaining containers and sys.exit
-        for a process manager to handle.
-        """
-
     def add_service(self, cls, worker_ctx_cls=WorkerContext):
         """ Adds a service class to the runner.
         There can only be one service class for a given service name.
@@ -301,7 +277,6 @@ class ServiceRunner(object):
             self.containers.append(container)
 
         SpawningProxy(self.containers).start()
-        self._monitor_containers()
 
         _log.info('services started: %s', service_map.keys())
 
