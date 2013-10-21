@@ -1,6 +1,7 @@
 from itertools import count
 import pytest
 import socket
+import uuid
 
 import eventlet
 from kombu import Connection
@@ -108,8 +109,14 @@ def service_proxy_factory(request):
             worker_ctx_cls = container.worker_ctx_cls
             worker_ctx = worker_ctx_cls(container.ctx, None, None, data={})
         service_proxy = Service(service_name)
+
+        # manually add proxy as a dependency to get lifecycle management
+        service_proxy.name = uuid.uuid4().hex
+        container.dependencies.add(service_proxy)
+
         proxy = service_proxy.acquire_injection(worker_ctx)
         return proxy
+
     return make_proxy
 
 
@@ -142,9 +149,8 @@ def test_rpc_args_kwargs(container_factory, rabbit_config,
                          service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
     proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
 
     assert proxy.echo() == [[], {}]
     assert proxy.echo("a", "b") == [["a", "b"], {}]
@@ -156,7 +162,6 @@ def test_rpc_context_data(container_factory, rabbit_config,
                           service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
 
     context_data = {
         'language': 'en',
@@ -172,6 +177,8 @@ def test_rpc_context_data(container_factory, rabbit_config,
     worker_ctx = WorkerContext(container.ctx, None, None,
                                data=context_data.copy())
     fr_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+
+    container.start()
 
     assert en_proxy.say_hello() == "hello"
     assert fr_proxy.say_hello() == "bonjour"
@@ -197,11 +204,11 @@ def test_rpc_headers(container_factory, rabbit_config,
             return handle_message(body, message)
 
         patched_handler.side_effect = side_effect
-        container.start()
 
-    worker_ctx = WorkerContext(container.ctx, None, None,
-                               data=context_data.copy())
-    proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+        worker_ctx = WorkerContext(container.ctx, None, None,
+                                   data=context_data.copy())
+        proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+        container.start()
 
     assert proxy.say_hello() == "hello"
     assert headers == {'nameko.language': 'en'}  # bogus_header dropped
@@ -228,11 +235,11 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
             return handle_message(body, message)
 
         patched_handler.side_effect = side_effect
-        container.start()
 
-    worker_ctx = CustomWorkerContext(container.ctx, None, None,
-                                     data=context_data.copy())
-    proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+        worker_ctx = CustomWorkerContext(container.ctx, None, None,
+                                         data=context_data.copy())
+        proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+        container.start()
 
     assert proxy.say_hello() == "hello"
     # bogus_header dropped, custom_header present
@@ -246,9 +253,8 @@ def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager,
                              service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
     proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
 
     assert proxy.task_a() == "result_a"
     assert proxy.task_b() == "result_b"
@@ -258,9 +264,8 @@ def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager,
                             service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
     proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
 
     with pytest.raises(RemoteError) as exc_info:
         proxy.task_c()
@@ -271,9 +276,8 @@ def test_rpc_broken_method(container_factory, rabbit_config,
                            rabbit_manager, service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
     proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
 
     with pytest.raises(RemoteError) as exc_info:
         proxy.broken()
@@ -284,9 +288,9 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
                                     rabbit_manager, service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
+    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    proxy = service_proxy_factory(container, "exampleservice")
     uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri, max_failure_count=2)
 
@@ -301,9 +305,9 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
                                         rabbit_manager, service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
+    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    proxy = service_proxy_factory(container, "exampleservice")
     uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri)
 
