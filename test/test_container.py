@@ -1,6 +1,6 @@
+from mock import patch, call
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
-
 import pytest
 
 from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
@@ -92,6 +92,11 @@ class Service(object):
     def egg(self):
         raise egg_error
 
+    @foobar
+    def wait(self):
+        while True:
+            sleep()
+
 
 @pytest.fixture
 def container():
@@ -106,7 +111,7 @@ def container():
 
 
 def test_collects_dependencies(container):
-    assert len(container.dependencies) == 3
+    assert len(container.dependencies) == 4
     assert container.dependencies == (
         CallCollectingDecoratorDependency.instances |
         CallCollectingAttributeDependency.instances)
@@ -160,7 +165,7 @@ def test_worker_life_cycle(container):
     egg_worker_ctx = container.spawn_worker(egg_dep, [], {})
     container._worker_pool.waitall()
 
-    #TODO: test handle_result callback for spawn
+    # TODO: test handle_result callback for spawn
 
     assert spam_dep.calls == [
         ('setup', ham_worker_ctx),
@@ -272,3 +277,88 @@ def test_container_doesnt_exhaust_max_workers(container):
         # the second worker should now run and complete
         assert spam_called.wait() == 'eggs'
         assert gt.dead
+
+
+def test_stop_already_stopped(container):
+
+    assert not container._died.ready()
+    container.stop()
+    assert container._died.ready()
+
+    with patch('nameko.service._log') as logger:
+        container.stop()
+        assert logger.debug.call_args == call("already stopped %s", container)
+
+
+def test_kill_already_stopped(container):
+
+    assert not container._died.ready()
+    container.stop()
+    assert container._died.ready()
+
+    with patch('nameko.service._log') as logger:
+        container.kill(Exception("kill"))
+        assert logger.debug.call_args == call("already stopped %s", container)
+
+
+def test_kill_misbehaving_dependency(container):
+    """ Break a dependency by making its ``kill`` method hang. The container
+    should still exit.
+    """
+    dep = next(iter(container.dependencies))
+
+    def sleep_forever(*args):
+        while True:
+            sleep()
+
+    class Killed(Exception):
+        pass
+    exc = Killed("kill")
+
+    with patch.object(dep, 'kill', sleep_forever):
+        with patch('nameko.service.KILL_TIMEOUT', 0.1):  # reduce kill timeout
+            container.kill(exc)
+
+    with Timeout(1):
+        with pytest.raises(Killed):
+            container._died.wait()
+
+
+def test_kill_container_with_active_workers(container):
+    """ Start a worker that's not managed by dependencies. Ensure it is killed
+    when the container is.
+    """
+    dep = next(iter(container.dependencies))
+    container.spawn_worker(dep, ['sleep'], {})
+
+    assert len(container._active_workers) == 1
+    worker_gt = container._active_workers[0]
+
+    class Killed(Exception):
+        pass
+    exc = Killed("kill")
+
+    container.kill(exc)
+
+    with Timeout(1):
+        with pytest.raises(Killed):
+            container._died.wait()
+        with pytest.raises(Killed):
+            worker_gt.wait()
+
+
+def test_handle_killed_worker(container):
+
+    dep = next(iter(container.dependencies))
+    container.spawn_worker(dep, ['sleep'], {})
+
+    assert len(container._active_workers) == 1
+    worker_gt = container._active_workers[0]
+
+    with patch('nameko.service._log') as logger:
+        worker_gt.kill()
+        assert logger.warning.call_args == call("%s worker killed",
+                                                container.service_name,
+                                                exc_info=True)
+
+    assert not container._died.ready()  # container continues running

@@ -148,8 +148,11 @@ class ServiceContainer(object):
 
         _log.info('killing container due to "%s"', exc)
 
-        with eventlet.Timeout(KILL_TIMEOUT):
-            self.dependencies.all.kill(self.ctx, exc)
+        try:
+            with eventlet.Timeout(KILL_TIMEOUT):
+                self.dependencies.all.kill(self.ctx, exc)
+        except eventlet.Timeout:
+            pass
 
         _log.info('killing remaining workers (%s)', len(self._active_workers))
         for gt in self._active_workers:
@@ -177,8 +180,7 @@ class ServiceContainer(object):
         try:
             gt.wait()
         except greenlet.GreenletExit:
-            _log.info('%s worker killed', self.service_name, exc_info=True)
-            # self.should_stop = True
+            _log.warning('%s worker killed', self.service_name, exc_info=True)
         except Exception as exc:
             _log.error('%s worker exited with error', self.service_name,
                        exc_info=True)
