@@ -1,7 +1,6 @@
 from itertools import count
 import pytest
 import socket
-import uuid
 
 import eventlet
 from kombu import Connection
@@ -12,7 +11,7 @@ from nameko.events import event_handler
 from nameko.exceptions import RemoteError
 
 from nameko.messaging import AMQP_URI_CONFIG_KEY
-from nameko.rpc import rpc, Service, get_rpc_consumer, RpcConsumer
+from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer
 from nameko.service import WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS
 
 
@@ -99,25 +98,6 @@ class FailingConnection(Connection):
             self.failure_count += 1
             raise self.exc_type()
         return super(FailingConnection, self).connect(*args, **kwargs)
-
-
-@pytest.fixture
-def service_proxy_factory(request):
-
-    def make_proxy(container, service_name, worker_ctx=None):
-        if worker_ctx is None:
-            worker_ctx_cls = container.worker_ctx_cls
-            worker_ctx = worker_ctx_cls(container.ctx, None, None, data={})
-        service_proxy = Service(service_name)
-
-        # manually add proxy as a dependency to get lifecycle management
-        service_proxy.name = uuid.uuid4().hex
-        container.dependencies.add(service_proxy)
-
-        proxy = service_proxy.acquire_injection(worker_ctx)
-        return proxy
-
-    return make_proxy
 
 
 # test rpc proxy ...
