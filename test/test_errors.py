@@ -38,9 +38,8 @@ def test_error_in_worker(container_factory, rabbit_config,
                          service_proxy_factory, log_worker_exception):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
     proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
 
     with pytest.raises(RemoteError) as exc_info:
         proxy.broken()
@@ -53,9 +52,8 @@ def test_handle_result_error(container_factory, rabbit_config,
                              service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
     proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
 
     rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
@@ -76,9 +74,8 @@ def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
                                           service_proxy_factory, method_name):
 
     container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
     proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
 
     dependency = next(iter(container.dependencies.attributes))
     with patch.object(dependency, method_name) as method:
@@ -98,10 +95,21 @@ def test_runner_catches_container_errors(container_factory, rabbit_config,
 
     runner = ServiceRunner(rabbit_config)
     runner.add_service(ExampleService)
-    runner.start()
+
+    import mock
+    from nameko.utils import SpawningProxy
+
+    # we can't actually start the container until we've had a chance to
+    # attach service_proxy, but we can't access the containers until we
+    # call runner.start
+    with mock.patch('nameko.service.SpawningProxy'):
+        runner.start()
 
     container = runner.containers[0]
     proxy = service_proxy_factory(container, "exampleservice")
+
+    # actually start the containers (previously bypassed with mock)
+    SpawningProxy(runner.containers).start()
 
     rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:

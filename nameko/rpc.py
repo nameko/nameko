@@ -4,9 +4,9 @@ from logging import getLogger
 import uuid
 from weakref import WeakKeyDictionary
 
+from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
-from kombu.common import itermessages, maybe_declare
 
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import (
@@ -27,6 +27,7 @@ RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
 rpc_consumers = WeakKeyDictionary()
+rpc_reply_listeners = WeakKeyDictionary()
 
 
 def get_rpc_consumer(srv_ctx, consumer_cls):
@@ -43,6 +44,14 @@ def get_rpc_exchange(srv_ctx):
     exchange_name = srv_ctx.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
     exchange = Exchange(exchange_name, durable=True, type="topic")
     return exchange
+
+
+def get_rpc_reply_listener(srv_ctx):
+    if srv_ctx not in rpc_reply_listeners:
+        rpc_reply_listener = ReplyListener(srv_ctx)
+        rpc_reply_listeners[srv_ctx] = rpc_reply_listener
+
+    return rpc_reply_listeners[srv_ctx]
 
 
 class RpcConsumer(object):
@@ -205,30 +214,104 @@ class Responder(object):
                     routing_key=reply_to, correlation_id=correlation_id)
 
 
+class ReplyListener(object):
+    def __init__(self, srv_ctx):
+        self._srv_ctx = srv_ctx
+        self._reply_events = {}
+
+    def prepare_queue(self):
+        srv_ctx = self._srv_ctx
+
+        service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
+        service_name = srv_ctx.name
+        self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
+            service_name, service_uuid)
+
+        exchange = get_rpc_exchange(srv_ctx)
+        self.reply_queue = Queue(
+            self.reply_queue_name, exchange=exchange, exclusive=True)
+
+        qc = get_queue_consumer(srv_ctx)
+        qc.add_consumer(self.reply_queue, self._handle_message)
+
+    def start_consuming(self):
+        srv_ctx = self._srv_ctx
+        qc = get_queue_consumer(srv_ctx)
+        qc.start()
+
+    def stop(self):
+        srv_ctx = self._srv_ctx
+        qc = get_queue_consumer(srv_ctx)
+        qc.stop()
+
+    def kill(self, exc=None):
+        srv_ctx = self._srv_ctx
+        qc = get_queue_consumer(srv_ctx)
+        qc.kill(exc)
+
+    def get_reply_event(self, correlation_id):
+        reply_event = Event()
+        self._reply_events[correlation_id] = reply_event
+        return reply_event
+
+    def _handle_message(self, body, message):
+        srv_ctx = self._srv_ctx
+        qc = get_queue_consumer(srv_ctx)
+        qc.ack_message(message)
+
+        correlation_id = message.properties.get('correlation_id')
+        client_event = self._reply_events.pop(correlation_id, None)
+        if client_event is not None:
+            client_event.send(body)
+        else:
+            _log.debug("Unknown correlation id: %s", correlation_id)
+
+
 class Service(AttributeDependency):
 
     def __init__(self, service_name):
         self.service_name = service_name
 
+    def start(self, srv_ctx):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.prepare_queue()
+
+    def on_container_started(self, srv_ctx):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.start_consuming()
+
+    def stop(self, srv_ctx):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.stop()
+
+    def kill(self, srv_ctx, exc=None):
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener.kill(exc)
+
     def acquire_injection(self, worker_ctx):
-        return ServiceProxy(worker_ctx, self.service_name)
+        srv_ctx = worker_ctx.srv_ctx
+        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        return ServiceProxy(worker_ctx, self.service_name, rpc_reply_listener)
 
 
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name):
+    def __init__(self, worker_ctx, service_name, reply_listener):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
+        self.reply_listener = reply_listener
 
     def __getattr__(self, name):
-        return MethodProxy(self.worker_ctx, self.service_name, name)
+        return MethodProxy(
+            self.worker_ctx, self.service_name, name, self.reply_listener)
 
 
 class MethodProxy(HeaderEncoder):
 
-    def __init__(self, worker_ctx, service_name, method_name):
+    def __init__(self, worker_ctx, service_name, method_name, reply_listener):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
+        self.reply_listener = reply_listener
 
     def __call__(self, *args, **kwargs):
         _log.debug('invoking %s', self)
@@ -244,32 +327,29 @@ class MethodProxy(HeaderEncoder):
         # TODO: should connection sharing be done during call_setup in the
         #       dependency provider?
         with conn as conn:
-            reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
-                routing_key, uuid.uuid4())
-
             exchange = get_rpc_exchange(srv_ctx)
-            reply_queue = Queue(
-                reply_queue_name, exchange=exchange, exclusive=True)
-            maybe_declare(reply_queue, conn)
 
             with producers[conn].acquire(block=True) as producer:
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
 
                 headers = self.get_message_headers(worker_ctx)
+                correlation_id = str(uuid.uuid4())
 
-                # TODO: should use correlation-id property and check after
-                # receiving a response
-                producer.publish(msg,
-                                 exchange=exchange,
-                                 routing_key=routing_key,
-                                 reply_to=reply_queue.name,
-                                 headers=headers)
+                reply_listener = self.reply_listener
+                reply_queue_name = reply_listener.reply_queue_name
+                reply_event = reply_listener.get_reply_event(correlation_id)
 
-            resp_messages = itermessages(
-                conn, conn.channel(), reply_queue)
+                producer.publish(
+                    msg,
+                    exchange=exchange,
+                    routing_key=routing_key,
+                    reply_to=reply_queue_name,
+                    headers=headers,
+                    correlation_id=correlation_id,
+                )
 
-            resp_body, _ = next(resp_messages)
+            resp_body = reply_event.wait()
 
             error = resp_body.get('error')
             if error:

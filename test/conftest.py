@@ -1,6 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
 import sys
+import uuid
 
 from functools import partial
 import logging
@@ -80,7 +81,7 @@ def rabbit_config(request):
     return conf
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def rabbit_manager(request):
     config = request.config
 
@@ -166,11 +167,19 @@ def container_factory(request, reset_rabbit):
 
 @pytest.fixture
 def service_proxy_factory(request):
-    def make_proxy(container, service_name):
-        from nameko.rpc import Service
-        from nameko.testing.service import MockWorkerContext
-        worker_ctx = MockWorkerContext(srv_ctx=container.ctx)
+    from nameko.rpc import Service
+
+    def make_proxy(container, service_name, worker_ctx=None):
+        if worker_ctx is None:
+            worker_ctx_cls = container.worker_ctx_cls
+            worker_ctx = worker_ctx_cls(container.ctx, None, None, data={})
         service_proxy = Service(service_name)
+
+        # manually add proxy as a dependency to get lifecycle management
+        service_proxy.name = uuid.uuid4().hex
+        container.dependencies.add(service_proxy)
+
         proxy = service_proxy.acquire_injection(worker_ctx)
         return proxy
+
     return make_proxy
