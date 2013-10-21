@@ -11,7 +11,7 @@ from nameko.events import event_handler
 from nameko.exceptions import RemoteError
 
 from nameko.messaging import AMQP_URI_CONFIG_KEY
-from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer
+from nameko.rpc import rpc, Service, get_rpc_consumer, RpcConsumer
 from nameko.service import WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS
 
 
@@ -43,6 +43,7 @@ class ExampleService(object):
     name = 'exampleservice'
 
     translate = Translator()
+    rpc_proxy = Service('exampleservice')
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -108,10 +109,13 @@ def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    # we should have a queue for RPC and a queue for events
+    # we should have 3 queues:
+    #   * RPC requests
+    #   * RPC replies
+    #   * events
     vhost = rabbit_config['vhost']
     queues = rabbit_manager.get_queues(vhost)
-    assert len(queues) == 2
+    assert len(queues) == 3
 
     # each one should have one consumer
     rpc_queue = rabbit_manager.get_queue(vhost, "rpc-exampleservice")
@@ -120,9 +124,19 @@ def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
         vhost, "evt-srcservice-eventtype--exampleservice.async_task")
     assert len(evt_queue['consumer_details']) == 1
 
-    # and both share a single connection
-    connections = rabbit_manager.get_connections()
-    assert len(connections) == 1
+    queue_names = [queue['name'] for queue in queues]
+    reply_queue_names = [name for name in queue_names if 'rpc.reply' in name]
+    assert len(reply_queue_names) == 1
+    reply_queue_name = reply_queue_names[0]
+    reply_queue = rabbit_manager.get_queue(vhost, reply_queue_name)
+    assert len(reply_queue['consumer_details']) == 1
+
+    # and share a single connection
+    consumer_connection_names = set(
+        queue['consumer_details'][0]['channel_details']['connection_name']
+        for queue in [rpc_queue, evt_queue, reply_queue]
+    )
+    assert len(consumer_connection_names) == 1
 
 
 def test_rpc_args_kwargs(container_factory, rabbit_config,
