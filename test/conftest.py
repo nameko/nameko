@@ -81,7 +81,7 @@ def rabbit_config(request):
     return conf
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def rabbit_manager(request):
     config = request.config
 
