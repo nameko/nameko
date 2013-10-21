@@ -152,7 +152,7 @@ class ServiceContainer(object):
             with eventlet.Timeout(KILL_TIMEOUT):
                 self.dependencies.all.kill(self.ctx, exc)
         except eventlet.Timeout:
-            pass
+            _log.warning('timeout waiting for dependencies.kill %s', self)
 
         _log.info('killing remaining workers (%s)', len(self._active_workers))
         for gt in self._active_workers:

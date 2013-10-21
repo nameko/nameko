@@ -301,7 +301,13 @@ def test_kill_already_stopped(container):
         assert logger.debug.call_args == call("already stopped %s", container)
 
 
-def test_kill_misbehaving_dependency(container):
+@pytest.yield_fixture
+def logger():
+    with patch('nameko.service._log') as patched:
+        yield patched
+
+
+def test_kill_misbehaving_dependency(container, logger):
     """ Break a dependency by making its ``kill`` method hang. The container
     should still exit.
     """
@@ -316,8 +322,11 @@ def test_kill_misbehaving_dependency(container):
     exc = Killed("kill")
 
     with patch.object(dep, 'kill', sleep_forever):
-        with patch('nameko.service.KILL_TIMEOUT', 0.1):  # reduce kill timeout
+        with patch('nameko.service.KILL_TIMEOUT', 0):  # reduce kill timeout
             container.kill(exc)
+            assert logger.warning.called
+            assert logger.warning.call_args == call(
+                "timeout waiting for dependencies.kill %s", container)
 
     with Timeout(1):
         with pytest.raises(Killed):
@@ -347,7 +356,7 @@ def test_kill_container_with_active_workers(container):
             worker_gt.wait()
 
 
-def test_handle_killed_worker(container):
+def test_handle_killed_worker(container, logger):
 
     dep = next(iter(container.dependencies))
     container.spawn_worker(dep, ['sleep'], {})
@@ -355,10 +364,9 @@ def test_handle_killed_worker(container):
     assert len(container._active_workers) == 1
     worker_gt = container._active_workers[0]
 
-    with patch('nameko.service._log') as logger:
-        worker_gt.kill()
-        assert logger.warning.call_args == call("%s worker killed",
-                                                container.service_name,
-                                                exc_info=True)
+    worker_gt.kill()
+    assert logger.warning.call_args == call("%s worker killed",
+                                            container.service_name,
+                                            exc_info=True)
 
     assert not container._died.ready()  # container continues running
