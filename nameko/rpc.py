@@ -231,10 +231,12 @@ class ReplyListener(object):
         self.reply_queue = Queue(
             self.reply_queue_name, exchange=exchange, exclusive=True)
 
+        qc = get_queue_consumer(srv_ctx)
+        qc.add_consumer(self.reply_queue, self._handle_message)
+
     def start_consuming(self):
         srv_ctx = self._srv_ctx
         qc = get_queue_consumer(srv_ctx)
-        qc.add_consumer(self.reply_queue, self._handle_message)
         qc.start()
 
     def stop(self):
