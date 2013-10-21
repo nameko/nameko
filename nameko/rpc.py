@@ -340,13 +340,14 @@ class MethodProxy(HeaderEncoder):
                 reply_queue_name = reply_listener.reply_queue_name
                 reply_event = reply_listener.get_reply_event(correlation_id)
 
-                producer.publish(msg,
-                                 exchange=exchange,
-                                 routing_key=routing_key,
-                                 reply_to=reply_queue_name,
-                                 headers=headers,
-                                 correlation_id=correlation_id,
-                                )
+                producer.publish(
+                    msg,
+                    exchange=exchange,
+                    routing_key=routing_key,
+                    reply_to=reply_queue_name,
+                    headers=headers,
+                    correlation_id=correlation_id,
+                )
 
             resp_body = reply_event.wait()
 
