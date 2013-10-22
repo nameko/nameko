@@ -1,294 +1,312 @@
 from __future__ import absolute_import
-from itertools import count
+
+from abc import ABCMeta, abstractproperty
 from logging import getLogger
-import socket
 
 import eventlet
-from eventlet.pools import Pool
-from eventlet.greenpool import GreenPool
 from eventlet.event import Event
-from kombu.mixins import ConsumerMixin
+from eventlet.greenpool import GreenPool
+import greenlet
 
-from nameko import entities
-from nameko.common import UIDGEN
+from nameko.dependencies import get_dependencies, DependencySet
+from nameko.exceptions import RemoteError
 from nameko.logging import log_time
-from nameko.messaging import get_consumers
-from nameko.dependencies import inject_dependencies
-from nameko.sending import process_rpc_message
-from nameko.timer import get_timers
-
+from nameko.utils import SpawningProxy
 
 _log = getLogger(__name__)
 
 
-class Service(ConsumerMixin):
-    def __init__(
-            self, controllercls, connection_factory, exchange, topic,
-            pool=None, poolsize=1000):
-        self.nodeid = UIDGEN()
+MAX_WOKERS_KEY = 'max_workers'
+KILL_TIMEOUT = 3  # seconds
 
-        self.max_workers = poolsize
-        if pool is None:
-            self.procpool = GreenPool(size=poolsize)
+NAMEKO_DATA_KEYS = (
+    'language',
+    'user_id',
+    'auth_token',
+)
+
+
+def get_service_name(service_cls):
+    return getattr(service_cls, "name", service_cls.__name__.lower())
+
+
+def log_worker_exception(worker_ctx, exc):
+    if isinstance(exc, RemoteError):
+        exc = "RemoteError"
+    _log.error('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
+
+
+class ServiceContext(object):
+    """ Context for a ServiceContainer
+    """
+    def __init__(self, name, service_class, container, config=None):
+        self.name = name
+        self.service_class = service_class
+        self.container = container
+        self.config = config
+
+        if config is not None:
+            self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
         else:
-            self.procpool = pool
+            self.max_workers = 10
 
-        self.controller = controllercls()
-        self.service = self.controller
-        self.topic = topic
-        self.greenlet = None
-        self.consume_ready = Event()
 
-        node_topic = "{}.{}".format(self.topic, self.nodeid)
-        self.nova_queues = [
-            entities.get_topic_queue(exchange, topic),
-            entities.get_topic_queue(exchange, node_topic),
-            entities.get_fanout_queue(topic), ]
+class WorkerContextBase(object):
+    """ Abstract base class for a WorkerContext
+    """
+    __metaclass__ = ABCMeta
 
-        self._channel = None
-        self._consumers = None
+    def __init__(self, srv_ctx, service, method_name, args=None, kwargs=None,
+                 data=None):
+        self.srv_ctx = srv_ctx
+        self.config = srv_ctx.config
+        self.service = service
+        self.method_name = method_name
+        self.args = args if args is not None else ()
+        self.kwargs = kwargs if kwargs is not None else {}
+        self.data = data if data is not None else {}
 
-        self.connection = connection_factory()
-        self.connection_factory = connection_factory
+    @abstractproperty
+    def data_keys(self):
+        """ Return a tuple of keys describing data kept on this WorkerContext.
+        """
 
-        inject_dependencies(self.controller, self)
+    def __str__(self):
+        cls_name = type(self).__name__
+        return '<{} {}.{} at 0x{:x}>'.format(
+            cls_name, self.srv_ctx.name, self.method_name, id(self))
 
-        self._connection_pool = Pool(
-            max_size=self.procpool.size,
-            create=connection_factory
-        )
 
-        self.workers = set()
-        self._pending_ack_messages = []
-        self._pending_requeue_messages = []
-        self._do_cancel_consumers = False
-        self._consumers_cancelled = Event()
+class WorkerContext(WorkerContextBase):
+    """ Default WorkerContext implementation
+    """
+    data_keys = NAMEKO_DATA_KEYS
 
-        self._timers = list(get_timers(self.controller))
+
+class ServiceContainer(object):
+
+    def __init__(self, service_cls, worker_ctx_cls, config):
+        self.service_cls = service_cls
+        self.worker_ctx_cls = worker_ctx_cls
+        self.config = config
+        self.service_name = get_service_name(service_cls)
+
+        self.ctx = ServiceContext(
+            self.service_name, service_cls, self, self.config)
+
+        self._dependencies = None
+        self._worker_pool = GreenPool(size=self.ctx.max_workers)
+        self._active_workers = []
+        self._died = Event()
+
+    # TODO: why is this a lazy property?
+    @property
+    def dependencies(self):
+        if self._dependencies is None:
+            self._dependencies = DependencySet()
+            # process dependencies: save their name onto themselves
+            # TODO: move the name setting into the dependency creation
+            for name, dep in get_dependencies(self.service_cls):
+                dep.name = name
+                self._dependencies.add(dep)
+        return self._dependencies
 
     def start(self):
-        self.start_timers()
-        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
-        if self.greenlet is not None and not self.greenlet.dead:
-            raise RuntimeError()
-        self.greenlet = eventlet.spawn(self.run)
+        _log.debug('starting %s', self)
 
-    def start_timers(self):
-        for timer in self._timers:
-            timer.start()
+        with log_time(_log.debug, 'started %s in %0.3f sec', self):
+            self.dependencies.all.prepare(self.ctx)
+            self.dependencies.all.start(self.ctx)
 
-    def get_consumers(self, Consumer, channel):
-        nova_consumer = Consumer(
-            self.nova_queues, callbacks=[self.on_nova_message, ])
+    def stop(self):
+        if self._died.ready():
+            _log.debug('already stopped %s', self)
+            return
 
-        consume_consumers = get_consumers(
-            Consumer, self, self.on_consume_message)
+        _log.debug('stopping %s', self)
 
-        consumers = [nova_consumer] + list(consume_consumers)
+        with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
 
-        prefetch_count = self.procpool.size
-        for consumer in consumers:
-            consumer.qos(prefetch_count=prefetch_count)
+            dependencies = self.dependencies
 
-        return consumers
+            # entrypoint deps have to be stopped before injection deps
+            # to ensure that running workers can successfully complete
+            dependencies.entrypoints.all.stop(self.ctx)
 
-    def on_consume_ready(self, connection, channel, consumers, **kwargs):
-        self._consumers = consumers
-        self._channel = channel
-        self.consume_ready.send(None)
+            # there might still be some running workers, which we have to
+            # wait for to complete before we can stop injection dependencies
+            self._worker_pool.waitall()
+            dependencies.injections.all.stop(self.ctx)
 
-    def on_consume_end(self, connection, channel):
-        self.consume_ready.reset()
+            self._died.send(None)
 
-    def on_nova_message(self, body, message):
-        _log.debug('spawning RPC worker (%d free)', self.procpool.free())
+    def kill(self, exc):
+        if self._died.ready():
+            _log.debug('already stopped %s', self)
+            return
 
-        gt = self.procpool.spawn(self.handle_rpc_message, body)
+        _log.info('killing container due to "%s"', exc)
 
-        gt.link(self.handle_rpc_message_processed, message)
-        self.workers.add(gt)
+        try:
+            with eventlet.Timeout(KILL_TIMEOUT):
+                self.dependencies.all.kill(self.ctx, exc)
+        except eventlet.Timeout:
+            _log.warning('timeout waiting for dependencies.kill %s', self)
 
-    def on_consume_message(self, consumer_method_config, body, message):
-        _log.debug('spawning consume worker (%d free)', self.procpool.free())
+        _log.info('killing remaining workers (%s)', len(self._active_workers))
+        for gt in self._active_workers:
+            gt.kill(exc)
 
-        gt = self.procpool.spawn(
-            self.handle_consume_message, consumer_method_config, body, message)
+        self._died.send_exception(exc)
 
-        gt.link(self.handle_consume_message_processed)
-        self.workers.add(gt)
+    def spawn_worker(self, provider, args, kwargs,
+                     context_data=None, handle_result=None):
 
-    def handle_rpc_message(self, body):
-        # item is patched on for python with ``with``, pylint can't find it
-        # pylint: disable=E1102
-        with self._connection_pool.item() as connection:
-            process_rpc_message(connection, self.controller, body)
+        service = self.service_cls()
+        worker_ctx = self.worker_ctx_cls(
+            self.ctx, service, provider.name, args, kwargs, data=context_data)
 
-    def handle_rpc_message_processed(self, gt, message):
-        self.workers.discard(gt)
-        self._pending_ack_messages.append(message)
+        _log.debug('spawning %s', worker_ctx)
+        gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
+                                     handle_result)
+        self._active_workers.append(gt)
+        gt.link(self._handle_worker_exited)
 
-    def handle_consume_message(self, consumer_method_config, body, message):
-        with log_time(_log.debug, 'processed consume message in %0.3fsec'):
-            consumer_method, consumer_config = consumer_method_config
+        return worker_ctx
 
+    def _handle_worker_exited(self, gt):
+        self._active_workers.remove(gt)
+        try:
+            gt.wait()
+        except greenlet.GreenletExit:
+            _log.warning('%s worker killed', self.service_name, exc_info=True)
+        except Exception as exc:
+            _log.error('%s worker exited with error', self.service_name,
+                       exc_info=True)
+            self.kill(exc)
+
+    def _run_worker(self, worker_ctx, handle_result):
+        _log.debug('setting up %s', worker_ctx)
+
+        with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
+
+            self.dependencies.injections.all.inject(worker_ctx)
+            self.dependencies.all.worker_setup(worker_ctx)
+
+            result = exc = None
             try:
-                consumer_method(body)
+                _log.debug('calling handler for %s', worker_ctx)
+
+                method = getattr(worker_ctx.service, worker_ctx.method_name)
+
+                with log_time(_log.debug, 'ran handler for %s in %0.3fsec',
+                              worker_ctx):
+                    result = method(*worker_ctx.args, **worker_ctx.kwargs)
             except Exception as e:
-                if consumer_config.requeue_on_error:
-                    _log.exception(
-                        'failed to consume message, requeueing message: '
-                        '%s(): %s', consumer_method, e)
-                    self._pending_requeue_messages.append(message)
-                else:
-                    _log.exception(
-                        'failed to consume message, ignoring message: '
-                        '%s(): %s', consumer_method, e)
-                    self._pending_ack_messages.append(message)
-            else:
-                self._pending_ack_messages.append(message)
+                log_worker_exception(worker_ctx, e)
+                exc = e
 
-    def handle_consume_message_processed(self, gt):
-        self.workers.discard(gt)
+            if handle_result is not None:
+                _log.debug('handling result for %s', worker_ctx)
 
-    def on_iteration(self):
-        self.process_consumer_cancellation()
-        # we need to make sure we process any pending messages before shutdown
-        self.process_pending_message_acks()
-        self.process_shutdown()
+                with log_time(_log.debug, 'handled result for %s in %0.3fsec',
+                              worker_ctx):
+                    handle_result(worker_ctx, result, exc)
 
-    def process_consumer_cancellation(self):
-        if self._do_cancel_consumers:
-            self._do_cancel_consumers = False
-            if self._consumers:
-                _log.debug('cancelling consumers')
-                for consumer in self._consumers:
-                    consumer.cancel()
-            self._consumers_cancelled.send(True)
+            with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
+                          worker_ctx):
+                _log.debug('signalling result for %s', worker_ctx)
+                self.dependencies.injections.all.worker_result(
+                    worker_ctx, result, exc)
 
-    def process_pending_message_acks(self):
-        messages = self._pending_ack_messages
-        if messages:
-            _log.debug('ack() %d processed messages', len(messages))
-            while messages:
-                msg = messages.pop()
-                msg.ack()
-                eventlet.sleep()
+                _log.debug('tearing down %s', worker_ctx)
+                self.dependencies.all.worker_teardown(worker_ctx)
+                self.dependencies.injections.all.release(worker_ctx)
 
-        messages = self._pending_requeue_messages
-        if messages:
-            _log.debug('requeue() %d processed messages', len(messages))
-            while messages:
-                msg = messages.pop()
-                msg.requeue()
-                eventlet.sleep()
+    def wait(self):
+        return self._died.wait()
 
-    def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted from kombu so we are able to break the loop immediately
-            after a shutdown is triggered rather than waiting for the timeout.
+    def __str__(self):
+        return '<ServiceContainer {} at 0x{:x}>'.format(
+            self.ctx.name, id(self))
+
+
+class ServiceRunner(object):
+    """ Allows the user to serve a number of services concurrently.
+    The caller can register a number of service classes with a name and
+    then use the start method to serve them and the stop and kill methods
+    to stop them. The wait method will block until all services have stopped.
+
+    Example:
+
+        runner = ServiceRunner(config)
+        runner.add_service('foobar', Foobar)
+        runner.add_service('spam', Spam)
+
+        add_sig_term_handler(runner.kill)
+
+        runner.start()
+
+        runner.wait()
+    """
+    def __init__(self, config, container_cls=ServiceContainer):
+        self.service_map = {}
+        self.containers = []
+        self.config = config
+        self.container_cls = container_cls
+
+    def add_service(self, cls, worker_ctx_cls=WorkerContext):
+        """ Adds a service class to the runner.
+        There can only be one service class for a given service name.
+        Service classes must be registered before calling start()
         """
-        elapsed = 0
-        with self.Consumer() as (connection, channel, consumers):
-            with self.extra_context(connection, channel):
-                self.on_consume_ready(connection, channel, consumers, **kwargs)
-                for i in limit and xrange(limit) or count():
-                    # moved from after the following `should_stop` condition to
-                    # avoid waiting on a drain_events timeout before breaking
-                    # the loop.
-                    self.on_iteration()
-                    if self.should_stop:
-                        break
+        service_name = get_service_name(cls)
+        self.service_map[service_name] = (cls, worker_ctx_cls)
 
-                    try:
-                        connection.drain_events(timeout=safety_interval)
-                    except socket.timeout:
-                        elapsed += safety_interval
-                        # Excluding the following clause from coverage,
-                        # as timeout never appears to be set - This method
-                        # is a lift from kombu so will leave in place for now.
-                        if timeout and elapsed >= timeout:  # pragma: no cover
-                            raise socket.timeout()
-                    except socket.error:
-                        if not self.should_stop:
-                            raise
-                    else:
-                        yield
-                        elapsed = 0
+    def start(self):
+        """ Starts all the registered services.
 
-    def process_shutdown(self):
-        consumers_cancelled = self._consumers_cancelled.ready()
+        A new container will be created for each service using the container
+        class provided in the __init__ method.
+        All containers will be started concurently and the method will block
+        until all have completed their startup routine.
+        """
+        config = self.config
+        service_map = self.service_map
+        _log.info('starting services: %s', service_map.keys())
 
-        no_active_timers = (len(self._timers) == 0)
+        for _, (service_cls, worker_ctx_cls) in service_map.items():
+            container = self.container_cls(service_cls, worker_ctx_cls, config)
+            self.containers.append(container)
 
-        no_active_workers = (self.procpool.running() < 1)
+        SpawningProxy(self.containers).start()
 
-        no_pending_message_acks = not (
-            self._pending_ack_messages or
-            self._pending_requeue_messages
-        )
+        _log.info('services started: %s', service_map.keys())
 
-        ready_to_stop = (
-            consumers_cancelled and
-            no_active_timers and
-            no_active_workers and
-            no_pending_message_acks
-        )
+    def stop(self):
+        """ Stops all running containers concurrently.
+        The method will block until all containers have stopped.
+        """
+        service_map = self.service_map
+        _log.info('stopping services: %s', service_map.keys())
 
-        if ready_to_stop:
-            _log.debug('notifying service to stop')
-            self.should_stop = True
+        SpawningProxy(self.containers).stop()
 
-    def cancel_consumers(self):
-        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
-        if self.greenlet is not None and not self.greenlet.dead:
-            # since consumers were started in a separate thread,
-            # we will just notify the thread to avoid getting
-            # "Second simultaneous read" errors
-            _log.debug('notifying consumers to be cancelled')
-            self._do_cancel_consumers = True
-            self._consumers_cancelled.wait()
-        else:
-            _log.debug('consumer thread already dead')
+        _log.info('services stopped: %s', service_map.keys())
 
-    def cancel_timers(self):
-        if self._timers:
-            _log.debug('stopping %d timers', len(self._timers))
-            while self._timers:
-                self._timers.pop().stop()
+    def kill(self):
+        """ Kill all running containers concurrently.
+        The method will block until all containers have stopped.
+        """
 
-    def kill_workers(self):
-        _log.debug('force killing %d workers', len(self.workers))
-        while self.workers:
-            self.workers.pop().kill()
+        service_map = self.service_map
+        _log.info('killing services: %s', service_map.keys())
 
-    def wait_for_workers(self):
-        pool = self.procpool
-        _log.debug('waiting for %d workers to complete', pool.running())
-        pool.waitall()
+        SpawningProxy(self.containers).kill()
 
-    def shut_down(self):
-        # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
-        if self.greenlet is not None and not self.greenlet.dead:
-            _log.debug('stopping service')
-            self.greenlet.wait()
+        _log.info('services killed: %s ', service_map.keys())
 
-        # TODO: when is this ever not None?
-        if self._channel is not None:
-            _log.debug('closing channel')
-            self._channel.close()
-
-    def kill(self, force=False):
-        _log.debug('killing service')
-
-        self.cancel_consumers()
-
-        self.cancel_timers()
-
-        if force:
-            self.kill_workers()
-        else:
-            self.wait_for_workers()
-
-        self.shut_down()
-
-    def link(self, *args, **kwargs):
-        return self.greenlet.link(*args, **kwargs)
+    def wait(self):
+        """ Waits for all running containers to stop.
+        """
+        SpawningProxy(self.containers).wait()

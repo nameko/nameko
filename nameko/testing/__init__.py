@@ -1,31 +1,35 @@
+from contextlib import contextmanager
 
-from nameko import context
-from nameko import sending
+from mock import patch, Mock
 
 
-class TestProxy(object):
-    def __init__(self, get_connection, timeout=1, service=None, method=None):
-        self.get_connection = get_connection
-        self.timeout = timeout
-        self.service = service
-        self.method = method
+@contextmanager
+def patch_injection_provider(provider):
+    """ Patches an `InjectionProvider` provider's acquire_injection
+    such that it returns a `Mock` as the injection object.
+    The injection object will be yielded by the contextmanager.
 
-    def __getattr__(self, key):
-        service = self.service
+    example:
 
-        if service is None:
-            service = key
-            method = None
-        else:
-            method = key
+        class MyService(object):
+            dispatch=EventDispatcher()
 
-        return self.__class__(
-            self.get_connection, self.timeout, service, method)
+            @rpc
+            def foo(self):
+                self.dispatch(MyEvent())
 
-    def __call__(self, **kwargs):
-        ctx = context.get_admin_context()
-        with self.get_connection() as conn:
-            return sending.send_rpc(
-                conn, ctx, 'testrpc',
-                self.service, self.method, args=kwargs,
-                timeout=self.timeout)
+
+        def test_service_dispatches_event():
+
+            test_srv = TestProxy(MyService)
+
+            with patch_attr_dependency(MyService.dispatch) as dispatch:
+                test_srv.foo()
+                dispatch.assert_called_once_with(Any)
+
+    """
+    injection = Mock()
+
+    with patch.object(provider, 'acquire_injection') as acquire:
+        acquire.return_value = injection
+        yield injection

@@ -1,71 +1,94 @@
 import eventlet
-from nameko.timer import timer, get_timers, get_timer, Timer
+from eventlet import Timeout
+
+from mock import Mock
+
+from nameko.timer import Timer, TimerProvider
+from nameko.service import ServiceContext
+from nameko.testing.utils import wait_for_call
 
 
-class FooError(Exception):
-    pass
+def test_provider():
+    tmrprov = TimerProvider(interval=0, config_key=None)
+    tmrprov.name = 'foobar'
+    container = Mock()
+    srv_ctx = ServiceContext('foo', None, container)
+    tmrprov.prepare(srv_ctx)
+
+    timer = tmrprov.timers_by_ctx[srv_ctx]
+    assert timer.interval == 0
+
+    tmrprov.start(srv_ctx)
+
+    with wait_for_call(1, container.spawn_worker) as spawn_worker:
+        spawn_worker.assert_called_once_with(tmrprov, (), {})
+
+    with Timeout(1):
+        tmrprov.stop(srv_ctx)
+
+    assert timer.gt.dead
 
 
-class Foobar(object):
-    def __init__(self, raise_at_call=0):
-        self.timer_calls = 0
-        self.raise_at_call = raise_at_call
+def test_provider_uses_config_for_interval():
+    tmrprov = TimerProvider(interval=None, config_key='spam-conf')
+    tmrprov.name = 'foobar'
+    container = Mock()
+    srv_ctx = ServiceContext('foo', None, container, {'spam-conf': 10})
+    tmrprov.prepare(srv_ctx)
 
-    @timer(interval=0)
-    def foobar(self):
-        self.timer_calls += 1
-        if self.timer_calls == self.raise_at_call:
-            raise FooError('error in call: %d' % self.timer_calls)
-
-
-def test_get_timers():
-    foo = Foobar()
-    timers = list(get_timers(foo))
-
-    assert len(timers) == 1
-    tmr = timers[0]
-
-    assert isinstance(tmr, Timer)
-    assert tmr.interval == 0
-    assert tmr.func == foo.foobar
+    timer = tmrprov.timers_by_ctx[srv_ctx]
+    assert timer.interval == 10
 
 
-def test_set_interval():
-    foo = Foobar()
-    get_timer(foo.foobar).interval = 5
-    tmr = get_timer(foo.foobar)
-    assert tmr.interval == 5
+def test_provider_interval_as_config_fallback():
+    tmrprov = TimerProvider(interval=1, config_key='spam-conf')
+    tmrprov.name = 'foobar'
+    container = Mock()
+    srv_ctx = ServiceContext('foo', None, container, {})
+    tmrprov.prepare(srv_ctx)
+
+    timer = tmrprov.timers_by_ctx[srv_ctx]
+    assert timer.interval == 1
 
 
 def test_stop_running_timer():
-    foo = Foobar()
-    tmr = get_timer(foo.foobar)
-    tmr.start()
+    handler = Mock()
+
+    timer = Timer(0, handler)
+    timer.start()
 
     with eventlet.Timeout(0.5):
-        while foo.timer_calls < 5:
+        while handler.call_count < 5:
             eventlet.sleep()
+        count = handler.call_count
 
-    count = foo.timer_calls
-    tmr.stop()
-    assert foo.timer_calls == count
+        timer.stop()
+        eventlet.sleep()
+
+    assert handler.call_count == count
+    assert timer.gt.dead
 
 
 def test_stop_timer_immediatly():
-    foo = Foobar()
-    tmr = get_timer(foo.foobar)
-    tmr.interval = 5
-    tmr.start()
-    tmr.stop()
-    assert foo.timer_calls == 0
+    handler = Mock()
+    timer = Timer(5, handler)
+    timer.start()
+    eventlet.sleep(0.1)
+    timer.stop()
+    assert handler.call_count == 1
+    assert timer.gt.dead
 
 
 def test_exception_in_timer_method_ignored():
-    foo = Foobar(2)
-    tmr = get_timer(foo.foobar)
-    tmr.start()
+    handler = Mock()
+    handler.side_effect = Exception('foo')
+
+    timer = Timer(0, handler)
+    timer.start()
+
     with eventlet.Timeout(0.5):
-        while foo.timer_calls < 5:
+        while handler.call_count < 5:
             eventlet.sleep()
 
-    assert foo.timer_calls >= 5
+    assert handler.call_count >= 5
+    timer.stop()
