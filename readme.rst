@@ -177,7 +177,7 @@ Writing Dependency Providers
 ============================
 
 It's easy to write your own dependencies. Choose to extend either
-``AttributeDependency`` or ``DecoratorDependency``, and implement the
+``InjectionProvider`` or ``EntrypointProvider``, and implement the
 appropriate interface methods.
 
 Here's an example dependency that writes to a log file, making use of nameko's
@@ -185,7 +185,7 @@ lifecycle management to open, close and flush the file at apppropriate points.
 
 .. code:: python
 
-   class LogFile(AttributeDependency):
+   class LogFile(InjectionProvider):
       
       # called at dependency creation time (i.e. service definition)
       def __init__(self, path):

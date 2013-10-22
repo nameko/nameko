@@ -2,7 +2,7 @@ import eventlet
 from kombu import Exchange, Queue
 from mock import patch, Mock
 
-from nameko.dependencies import get_decorator_providers
+from nameko.dependencies import get_entrypoint_providers
 from nameko.messaging import (
     Publisher, ConsumeProvider, consume, HeaderEncoder, HeaderDecoder)
 from nameko.service import (
@@ -26,7 +26,7 @@ def test_consume_creates_provider():
         def foobar(self):
             pass
 
-    providers = list(get_decorator_providers(Spam))
+    providers = list(get_entrypoint_providers(Spam))
     assert len(providers) == 1
 
     name, provider = providers[0]

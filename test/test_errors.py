@@ -98,7 +98,7 @@ def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
     proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    dependency = next(iter(container.dependencies.attributes))
+    dependency = next(iter(container.dependencies.injections))
     with patch.object(dependency, method_name) as method:
         err = "error in {}".format(method_name)
         method.side_effect = Exception(err)

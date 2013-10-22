@@ -7,12 +7,12 @@ import eventlet
 from eventlet import Timeout
 from eventlet.event import Event
 
-from nameko.dependencies import dependency_decorator, DecoratorDependency
+from nameko.dependencies import entrypoint, EntrypointProvider
 
 _log = getLogger(__name__)
 
 
-@dependency_decorator
+@entrypoint
 def timer(interval=None, config_key=None):
     '''
     Decorates a method as a timer, which will be called every `interval` sec.
@@ -32,7 +32,7 @@ def timer(interval=None, config_key=None):
     return TimerProvider(interval, config_key)
 
 
-class TimerProvider(DecoratorDependency):
+class TimerProvider(EntrypointProvider):
     def __init__(self, interval, config_key):
         # The map is only used to support using the same class in multiple
         # concurrently running containers.

@@ -10,7 +10,7 @@ import tempfile
 
 from kombu import Exchange, Queue
 
-from nameko.dependencies import AttributeDependency
+from nameko.dependencies import InjectionProvider
 from nameko.messaging import consume
 from nameko.service import ServiceRunner
 
@@ -18,7 +18,7 @@ demo_ex = Exchange('demo_ex', durable=False, auto_delete=True)
 demo_queue = Queue('demo_queue', exchange=demo_ex, durable=False, auto_delete=True)
 
 
-class LogFile(AttributeDependency):
+class LogFile(InjectionProvider):
 
     def __init__(self, path=None):
         if path is None:

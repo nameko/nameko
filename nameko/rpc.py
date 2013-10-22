@@ -12,13 +12,13 @@ from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import (
     get_queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
-    dependency_decorator, AttributeDependency, DecoratorDependency)
+    entrypoint, InjectionProvider, EntrypointProvider)
 
 
 _log = getLogger(__name__)
 
 
-@dependency_decorator
+@entrypoint
 def rpc():
     return RpcProvider()
 
@@ -135,7 +135,7 @@ class RpcConsumer(object):
         qc.ack_message(message)
 
 
-class RpcProvider(DecoratorDependency, HeaderDecoder):
+class RpcProvider(EntrypointProvider, HeaderDecoder):
     _consumer_cls = RpcConsumer
 
     def get_consumer(self, srv_ctx):
@@ -267,7 +267,7 @@ class ReplyListener(object):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-class Service(AttributeDependency):
+class Service(InjectionProvider):
 
     def __init__(self, service_name):
         self.service_name = service_name

@@ -7,7 +7,7 @@ import eventlet
 from kombu import Connection
 from mock import patch, Mock, call
 
-from nameko.dependencies import AttributeDependency
+from nameko.dependencies import InjectionProvider
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError, MethodNotFound
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
@@ -28,7 +28,7 @@ translations = {
 }
 
 
-class Translator(AttributeDependency):
+class Translator(InjectionProvider):
 
     def acquire_injection(self, worker_ctx):
         def translate(value):

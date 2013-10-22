@@ -1,18 +1,18 @@
 from mock import Mock
 
-from nameko.dependencies import AttributeDependency
-from nameko.testing import patch_attr_dependency
+from nameko.dependencies import InjectionProvider
+from nameko.testing import patch_injection_provider
 from nameko.testing.utils import AnyInstanceOf
 
 
 def test_patch_attr_dependency():
 
-    class TestProvider(AttributeDependency):
+    class TestProvider(InjectionProvider):
         def acquire_injection(self, worker_ctx):
             return 'before patch injection'
 
     attr = TestProvider()
-    patch_attr = patch_attr_dependency(attr)
+    patch_attr = patch_injection_provider(attr)
 
     # make sure patching does not happen until used as a contextmanager
     assert attr.acquire_injection(None) == 'before patch injection'

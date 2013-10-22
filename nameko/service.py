@@ -129,14 +129,14 @@ class ServiceContainer(object):
 
             dependencies = self.dependencies
 
-            # decorator deps have to be stopped before attribute deps
+            # entrypoint deps have to be stopped before injection deps
             # to ensure that running workers can successfully complete
-            dependencies.decorators.all.stop(self.ctx)
+            dependencies.entrypoints.all.stop(self.ctx)
 
             # there might still be some running workers, which we have to
-            # wait for to complete before we can stop attribute dependencies
+            # wait for to complete before we can stop injection dependencies
             self._worker_pool.waitall()
-            dependencies.attributes.all.stop(self.ctx)
+            dependencies.injections.all.stop(self.ctx)
 
             dependencies.all.on_container_stopped(self.ctx)
             self._died.send(None)
@@ -216,7 +216,7 @@ class ServiceContainer(object):
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):
                 _log.debug('signalling result for %s', worker_ctx)
-                self.dependencies.attributes.all.call_result(
+                self.dependencies.injections.all.call_result(
                     worker_ctx, result, exc)
 
                 _log.debug('tearing down %s', worker_ctx)
