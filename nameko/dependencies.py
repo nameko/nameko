@@ -173,13 +173,13 @@ def register_provider(fn, provider):
     providers.add(provider)
 
 
-def entrypoint_decorator(decorator):
+def entrypoint(decorator_func):
     """ Transform a function into a decorator that can be used to declare
     entrypoints.
 
     e.g::
 
-        @entrypoint_decorator
+        @entrypoint
         def http(bind_port=80):
             return HttpEntrypoint(bind_port)
 
@@ -190,10 +190,10 @@ def entrypoint_decorator(decorator):
                 pass
 
     """
-    @wraps(decorator)
+    @wraps(decorator_func)
     def wrapper(*args, **kwargs):
         def registering_decorator(fn):
-            provider = decorator(*args, **kwargs)
+            provider = decorator_func(*args, **kwargs)
             register_provider(fn, provider)
             return fn
 
@@ -201,7 +201,7 @@ def entrypoint_decorator(decorator):
         # i.e. it does not return a dacorator
         if len(args) == 1 and isinstance(args[0], types.FunctionType):
             fn = args[0]
-            register_provider(fn, decorator())
+            register_provider(fn, decorator_func())
             return fn
         else:
             return registering_decorator
