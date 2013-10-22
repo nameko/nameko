@@ -29,9 +29,9 @@ class CallCollectorMixin(object):
         self._log_call(('start', srv_ctx))
         super(CallCollectorMixin, self).prepare(srv_ctx)
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         self._log_call(('started', srv_ctx))
-        super(CallCollectorMixin, self).on_container_started(srv_ctx)
+        super(CallCollectorMixin, self).start(srv_ctx)
 
     def stop(self, srv_ctx):
         self._log_call(('stop', srv_ctx))

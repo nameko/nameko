@@ -546,7 +546,7 @@ def test_dispatch_to_rabbit_xxx(reset_rabbit, rabbit_manager, rabbit_config):
     dispatcher.name = "dispatch"
 
     dispatcher.prepare(srv_ctx)
-    dispatcher.on_container_started(srv_ctx)
+    dispatcher.start(srv_ctx)
 
     # we should have an exchange but no queues
     exchanges = rabbit_manager.get_exchanges(vhost)

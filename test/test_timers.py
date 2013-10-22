@@ -18,7 +18,7 @@ def test_provider():
     timer = tmrprov.timers_by_ctx[srv_ctx]
     assert timer.interval == 0
 
-    tmrprov.on_container_started(srv_ctx)
+    tmrprov.start(srv_ctx)
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         spawn_worker.assert_called_once_with(tmrprov, (), {})

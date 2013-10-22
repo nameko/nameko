@@ -31,7 +31,7 @@ class DependencyProvider(object):
             - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         """ Called when the service container has successfully started.
 
         This is only called after all other DependencyProviders have

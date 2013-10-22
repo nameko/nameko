@@ -146,7 +146,7 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         rpc_consumer.register_provider(self)
         rpc_consumer.prepare_queue()
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.start()
 
@@ -276,7 +276,7 @@ class Service(InjectionProvider):
         rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
         rpc_reply_listener.prepare_queue()
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
         rpc_reply_listener.start_consuming()
 

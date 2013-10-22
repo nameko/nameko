@@ -53,7 +53,7 @@ def test_consume_provider():
         queue_consumer.add_consumer.assert_called_once_with(
             foobar_queue, ANY_PARTIAL)
 
-        consume_provider.on_container_started(srv_ctx)
+        consume_provider.start(srv_ctx)
         queue_consumer.start.assert_called_once_with()
 
         consume_provider.stop(srv_ctx)
@@ -240,7 +240,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     # test queue, exchange and binding created in rabbit
     publisher.prepare(srv_ctx)
-    publisher.on_container_started(srv_ctx)
+    publisher.start(srv_ctx)
 
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
@@ -275,7 +275,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     # test queue, exchange and binding created in rabbit
     consumer.prepare(srv_ctx)
-    consumer.on_container_started(srv_ctx)
+    consumer.start(srv_ctx)
 
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)

@@ -168,7 +168,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         qc = get_queue_consumer(srv_ctx)
         qc.add_consumer(self.queue, partial(self.handle_message, srv_ctx))
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         qc = get_queue_consumer(srv_ctx)
         qc.start()
 
