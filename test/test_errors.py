@@ -1,13 +1,13 @@
 # start a runner with a service that errors. does it hang? or stop?
 # how do we get an individual servicecontainer to blow up?
 import eventlet
-from mock import patch
+from mock import patch, call, ANY
 import pytest
 
 
 from nameko.exceptions import RemoteError
 from nameko.events import EventDispatcher
-from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer
+from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer, Service
 from nameko.service import ServiceRunner
 
 
@@ -18,10 +18,15 @@ class ExampleError(Exception):
 class ExampleService(object):
 
     dispatch = EventDispatcher()
+    rpcproxy = Service('exampleservice')
 
     @rpc
     def task(self):
         return "task_result"
+
+    @rpc
+    def proxy(self):
+        self.rpcproxy.broken()
 
     @rpc
     def broken(self):
@@ -29,13 +34,13 @@ class ExampleService(object):
 
 
 @pytest.yield_fixture
-def log_worker_exception():
-    with patch('nameko.service.log_worker_exception') as log_worker_exception:
-        yield log_worker_exception
+def logger():
+    with patch('nameko.service._log') as logger:
+        yield logger
 
 
 def test_error_in_worker(container_factory, rabbit_config,
-                         service_proxy_factory, log_worker_exception):
+                         service_proxy_factory, logger):
 
     container = container_factory(ExampleService, rabbit_config)
     proxy = service_proxy_factory(container, "exampleservice")
@@ -44,7 +49,23 @@ def test_error_in_worker(container_factory, rabbit_config,
     with pytest.raises(RemoteError) as exc_info:
         proxy.broken()
     assert exc_info.value.exc_type == "ExampleError"
-    assert log_worker_exception.called
+    assert logger.error.call_args == call('error handling worker %s: %s', ANY,
+                                          ANY, exc_info=True)
+    assert not container._died.ready()
+
+
+def test_error_in_remote_worker(container_factory, rabbit_config,
+                                service_proxy_factory, logger):
+
+    container = container_factory(ExampleService, rabbit_config)
+    proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
+
+    with pytest.raises(RemoteError) as exc_info:
+        proxy.proxy()
+    assert exc_info.value.exc_type == "RemoteError"
+    assert logger.error.call_args == call('error handling worker %s: %s', ANY,
+                                          "RemoteError", exc_info=True)
     assert not container._died.ready()
 
 

@@ -1,18 +1,20 @@
 from itertools import count
 import pytest
 import socket
+import uuid
 
 import eventlet
 from kombu import Connection
-from mock import patch
+from mock import patch, Mock, call
 
 from nameko.dependencies import AttributeDependency
 from nameko.events import event_handler
-from nameko.exceptions import RemoteError
-
-from nameko.messaging import AMQP_URI_CONFIG_KEY
-from nameko.rpc import rpc, Service, get_rpc_consumer, RpcConsumer
-from nameko.service import WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS
+from nameko.exceptions import RemoteError, MethodNotFound
+from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
+from nameko.rpc import (
+    rpc, Service, get_rpc_consumer, RpcConsumer, RpcProvider, ReplyListener)
+from nameko.service import (
+    ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 
 
 class ExampleError(Exception):
@@ -101,7 +103,112 @@ class FailingConnection(Connection):
         return super(FailingConnection, self).connect(*args, **kwargs)
 
 
-# test rpc proxy ...
+@pytest.yield_fixture
+def get_queue_consumer():
+    with patch('nameko.rpc.get_queue_consumer') as patched:
+        yield patched
+
+
+@pytest.yield_fixture
+def get_rpc_exchange():
+    with patch('nameko.rpc.get_rpc_exchange') as patched:
+        yield patched
+
+
+def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
+
+    provider = RpcProvider()
+    provider.name = "rpcmethod"
+
+    srv_ctx = Mock(spec=ServiceContext)
+    srv_ctx.name = "exampleservice"
+
+    exchange = Mock()
+    get_rpc_exchange.return_value = exchange
+
+    queue_consumer = Mock(spec=QueueConsumer)
+    get_queue_consumer.return_value = queue_consumer
+
+    consumer = RpcConsumer(srv_ctx)
+    consumer.prepare_queue()
+
+    queue = consumer._queue
+    assert queue.name == "rpc-exampleservice"
+    assert queue.routing_key == "exampleservice.*"
+    assert queue.exchange == exchange
+    assert queue.durable
+
+    get_queue_consumer.assert_called_once_with(srv_ctx)
+    queue_consumer.add_consumer.assert_called_once_with(
+        consumer._queue, consumer.handle_message)
+
+    consumer.register_provider(provider)
+    assert consumer._providers == {'exampleservice.rpcmethod': provider}
+
+    routing_key = "exampleservice.rpcmethod"
+    assert consumer.get_provider_for_method(routing_key) == provider
+
+    routing_key = "exampleservice.invalidmethod"
+    with pytest.raises(MethodNotFound):
+        consumer.get_provider_for_method(routing_key)
+
+    consumer.unregister_provider(provider)
+    assert consumer._providers == {}
+    consumer.unregister_provider(provider)  # should not raise
+
+
+def test_reply_listener(get_queue_consumer, get_rpc_exchange):
+
+    srv_ctx = Mock(spec=ServiceContext)
+    srv_ctx.name = "exampleservice"
+
+    exchange = Mock()
+    get_rpc_exchange.return_value = exchange
+
+    queue_consumer = Mock(spec=QueueConsumer)
+    get_queue_consumer.return_value = queue_consumer
+
+    reply_listener = ReplyListener(srv_ctx)
+
+    forced_uuid = uuid.uuid4().hex
+
+    with patch('nameko.rpc.uuid') as patched_uuid:
+        patched_uuid.uuid4.return_value = forced_uuid
+
+        reply_listener.prepare_queue()
+
+        queue = reply_listener.reply_queue
+        assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
+        assert queue.exchange == exchange
+        assert queue.exclusive
+
+    get_queue_consumer.assert_called_once_with(srv_ctx)
+    queue_consumer.add_consumer.assert_called_once_with(
+        reply_listener.reply_queue, reply_listener._handle_message)
+
+    correlation_id = 1
+    reply_event = reply_listener.get_reply_event(correlation_id)
+
+    assert reply_listener._reply_events == {1: reply_event}
+
+    message = Mock()
+    message.properties.get.return_value = correlation_id
+    reply_listener._handle_message("msg", message)
+
+    queue_consumer.ack_message.assert_called_once_with(message)
+    assert reply_event.ready()
+    assert reply_event.wait() == "msg"
+
+    assert reply_listener._reply_events == {}
+
+    with patch('nameko.rpc._log') as log:
+        reply_listener._handle_message("msg", message)
+        assert log.debug.call_args == call(
+            'Unknown correlation id: %s', correlation_id)
+
+#==============================================================================
+# INTEGRATION TESTS
+#==============================================================================
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,

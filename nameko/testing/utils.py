@@ -1,7 +1,6 @@
 import eventlet
 from contextlib import contextmanager
 
-from mock import PropertyMock
 from functools import partial
 
 
@@ -26,14 +25,6 @@ def as_context_manager(obj):
     yield obj
 
 
-def as_mock_property(obj):
-    """ Return a PropertyMock that returns ``obj`` as its value.
-    """
-    mock = PropertyMock()
-    mock.return_value = obj
-    return mock
-
-
 class AnyInstanceOf(object):
 
     def __init__(self, cls):
@@ -43,10 +34,14 @@ class AnyInstanceOf(object):
         return isinstance(other, self.cls)
 
     def __ne__(self, other):
-        return not isinstance(other, self.cls)
+        try:
+            return not isinstance(other, self.cls)
+        except TypeError:
+            return True
 
     def __repr__(self):
-        return '<AnyInstanceOf-{}>'.format(self.cls)
+        obj = getattr(self.cls, '__name__', self.cls)
+        return '<AnyInstanceOf-{}>'.format(obj)
 
 
 ANY_PARTIAL = AnyInstanceOf(partial)
