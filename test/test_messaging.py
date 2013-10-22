@@ -49,11 +49,11 @@ def test_consume_provider():
         get_queue_consumer.return_value = queue_consumer
 
         # test lifecycle
-        consume_provider.start(srv_ctx)
+        consume_provider.prepare(srv_ctx)
         queue_consumer.add_consumer.assert_called_once_with(
             foobar_queue, ANY_PARTIAL)
 
-        consume_provider.on_container_started(srv_ctx)
+        consume_provider.start(srv_ctx)
         queue_consumer.start.assert_called_once_with()
 
         consume_provider.stop(srv_ctx)
@@ -106,12 +106,12 @@ def test_publish_to_exchange():
         get_producer.return_value = as_context_manager(producer)
 
         # test declarations
-        publisher.start(srv_ctx)
+        publisher.prepare(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_ex, connection)
 
         # test publish
         msg = "msg"
-        publisher.call_setup(worker_ctx)
+        publisher.inject(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers={},
                                                  exchange=foobar_ex)
@@ -137,13 +137,13 @@ def test_publish_to_queue():
         get_producer.return_value = as_context_manager(producer)
 
         # test declarations
-        publisher.start(srv_ctx)
+        publisher.prepare(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_queue, connection)
 
         # test publish
         msg = "msg"
         headers = {'nameko.language': 'en'}
-        publisher.call_setup(worker_ctx)
+        publisher.inject(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
@@ -169,14 +169,14 @@ def test_publish_custom_headers():
         get_producer.return_value = as_context_manager(producer)
 
         # test declarations
-        publisher.start(srv_ctx)
+        publisher.prepare(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_queue, connection)
 
         # test publish
         msg = "msg"
         headers = {'nameko.language': 'en',
                    'nameko.customheader': 'customvalue'}
-        publisher.call_setup(worker_ctx)
+        publisher.inject(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
@@ -239,8 +239,8 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     publisher.name = "publish"
 
     # test queue, exchange and binding created in rabbit
+    publisher.prepare(srv_ctx)
     publisher.start(srv_ctx)
-    publisher.on_container_started(srv_ctx)
 
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
@@ -251,7 +251,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message published to queue
-    publisher.call_setup(worker_ctx)
+    publisher.inject(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['msg'] == [msg['payload'] for msg in messages]
@@ -274,8 +274,8 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     consumer.name = "injection_name"
 
     # test queue, exchange and binding created in rabbit
+    consumer.prepare(srv_ctx)
     consumer.start(srv_ctx)
-    consumer.on_container_started(srv_ctx)
 
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)

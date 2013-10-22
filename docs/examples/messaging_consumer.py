@@ -25,7 +25,7 @@ class LogFile(InjectionProvider):
             path = os.path.join(tempfile.mkdtemp(), 'nameko.log')
         self.path = path
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         self.file_handle = open(self.path, 'w')
 
     def stop(self, srv_ctx):

@@ -13,12 +13,12 @@ def test_provider():
     tmrprov.name = 'foobar'
     container = Mock()
     srv_ctx = ServiceContext('foo', None, container)
-    tmrprov.start(srv_ctx)
+    tmrprov.prepare(srv_ctx)
 
     timer = tmrprov.timers_by_ctx[srv_ctx]
     assert timer.interval == 0
 
-    tmrprov.on_container_started(srv_ctx)
+    tmrprov.start(srv_ctx)
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         spawn_worker.assert_called_once_with(tmrprov, (), {})
@@ -34,7 +34,7 @@ def test_provider_uses_config_for_interval():
     tmrprov.name = 'foobar'
     container = Mock()
     srv_ctx = ServiceContext('foo', None, container, {'spam-conf': 10})
-    tmrprov.start(srv_ctx)
+    tmrprov.prepare(srv_ctx)
 
     timer = tmrprov.timers_by_ctx[srv_ctx]
     assert timer.interval == 10
@@ -45,7 +45,7 @@ def test_provider_interval_as_config_fallback():
     tmrprov.name = 'foobar'
     container = Mock()
     srv_ctx = ServiceContext('foo', None, container, {})
-    tmrprov.start(srv_ctx)
+    tmrprov.prepare(srv_ctx)
 
     timer = tmrprov.timers_by_ctx[srv_ctx]
     assert timer.interval == 1

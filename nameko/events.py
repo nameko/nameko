@@ -139,10 +139,10 @@ class EventDispatcher(Publisher):
             self.dispatch_spam(evt)
 
     """
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         # TODO: should we actually put this into the srv_ctx?
         self.exchange = get_event_exchange(srv_ctx.name)
-        super(EventDispatcher, self).start(srv_ctx)
+        super(EventDispatcher, self).prepare(srv_ctx)
 
     def acquire_injection(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
@@ -234,7 +234,7 @@ class EventHandler(ConsumeProvider):
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         _log.debug('starting handler for %s', srv_ctx)
 
         # handler_type determines queue name
@@ -261,4 +261,4 @@ class EventHandler(ConsumeProvider):
             queue_name, exchange=exchange, routing_key=self.event_type,
             durable=True, auto_delete=auto_delete)
 
-        super(EventHandler, self).start(srv_ctx)
+        super(EventHandler, self).prepare(srv_ctx)

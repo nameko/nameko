@@ -31,6 +31,6 @@ class ORMSession(InjectionProvider):
         self.sessions[worker_ctx] = session
         return session
 
-    def release_injection(self, worker_ctx):
+    def worker_teardown(self, worker_ctx):
         session = self.sessions.pop(worker_ctx)
         session.close()

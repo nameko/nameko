@@ -22,7 +22,7 @@ class DependencyProvider(object):
 
     name = None
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         """ Called when the service container starts.
 
         DependencyProviders should do any required initialisation here.
@@ -31,7 +31,7 @@ class DependencyProvider(object):
             - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         """ Called when the service container has successfully started.
 
         This is only called after all other DependencyProviders have
@@ -51,18 +51,19 @@ class DependencyProvider(object):
             - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def on_container_stopped(self, srv_ctx):
-        """ Called when the service container stops.
+    def kill(self, srv_ctx, exc=None):
+        """ Called to stop this dependency without grace. The exception
+        causing the kill may be provided.
 
-        If the DependencyProvider has not gracefully shut down, probably
-        raise an error here.
-
-        Args:
-            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
+        DependencyProviders should urgently shut down here. This method must
+        return within ``nameko.service.KILL_TIMEOUT`` seconds, otherwise it
+        may be forcibly stopped.
         """
 
-    def call_setup(self, worker_ctx):
-        """ Called before a service worker executes a task.
+    def worker_setup(self, worker_ctx):
+        """ Called before a service worker executes a task. This method is
+        called for all DependencyProviders, not just the one that triggered
+        the worker spawn.
 
         DependencyProviders should do any pre-processing here, raising
         exceptions in the event of failure.
@@ -73,25 +74,18 @@ class DependencyProvider(object):
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_teardown(self, worker_ctx):
-        """ Called after a service worker has executed a task.
+    def worker_teardown(self, worker_ctx):
+        """ Called after a service worker has executed a task. This method is
+        called for all DependencyProviders, not just the one that triggered
+        the worker spawn.
 
         DependencyProviders should do any post-processing here, raising
         exceptions in the event of failure.
 
-        Example: a database session provider may close the session
+        Example: a database session provider may commit the session
 
         Args:
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
-        """
-
-    def kill(self, srv_ctx, exc=None):
-        """ Called to stop this dependency without grace. The exception
-        causing the kill may be provided.
-
-        DependencyProviders should urgently shut down here. This method must
-        return within ``nameko.service.KILL_TIMEOUT`` seconds, otherwise it
-        may be forcibly stopped.
         """
 
 
@@ -108,36 +102,27 @@ class InjectionProvider(DependencyProvider):
         into the worker instance of the service by the container.
         """
 
-    def release_injection(self, worker_ctx):
-        """ A subclass may use this method to handle any cleanup of
-        the injection.
+    def worker_result(self, worker_ctx, result=None, exc=None):
+        """ Called with the result of a service worker execution.
 
-        By default the injection will be deleted from the worker instance
-        during the call_teardown.
+        InjectionProvider that need to process the result should do it here.
+        This method is called for all InjectionProviders on completion of any
+        worker.
+
+        Example: a database session provider may flush the transaction
+
+        Args:
+            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_setup(self, worker_ctx):
+    def inject(self, worker_ctx):
         injection = self.acquire_injection(worker_ctx)
 
         injection_name = self.name
         service = worker_ctx.service
         setattr(service, injection_name, injection)
 
-    def call_result(self, worker_ctx, result=None, exc=None):
-        """ Called with the result of a service worker execution.
-
-        DependencyProviders that need to process the result should do it here.
-        Note that all DependencyProviders defining this method will be called,
-        not just those that initiated the worker.
-
-        Example: a database session provider may commit the transaction
-
-        Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
-        """
-
-    def call_teardown(self, worker_ctx):
-        self.release_injection(worker_ctx)
+    def release(self, worker_ctx):
 
         service = worker_ctx.service
         injection_name = self.name
@@ -152,7 +137,7 @@ class DependencySet(SpawningSet):
         this set.
         """
         return SpawningSet([item for item in self
-                            if is_injection_provider(item)])
+                           if is_injection_provider(item)])
 
     @property
     def entrypoints(self):

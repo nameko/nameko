@@ -40,7 +40,7 @@ class TimerProvider(EntrypointProvider):
         self.interval = interval
         self.config_key = config_key
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         def timer_handler():
             args = tuple()
             kwargs = {}
@@ -53,7 +53,7 @@ class TimerProvider(EntrypointProvider):
 
         self.timers_by_ctx[srv_ctx] = Timer(interval, timer_handler)
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         timer = self.timers_by_ctx[srv_ctx]
         _log.debug('started %s', self)
         timer.start()

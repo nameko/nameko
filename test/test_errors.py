@@ -78,7 +78,7 @@ def test_handle_result_error(container_factory, rabbit_config,
 
     rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
-        err = "error in call_result"
+        err = "error in worker_result"
         handle_result.side_effect = Exception(err)
 
         eventlet.spawn(proxy.task)
@@ -90,7 +90,7 @@ def test_handle_result_error(container_factory, rabbit_config,
 
 
 @pytest.mark.parametrize("method_name",
-                         ["call_setup", "call_result", "call_teardown"])
+                         ["worker_setup", "worker_result", "worker_teardown"])
 def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
                                           service_proxy_factory, method_name):
 
