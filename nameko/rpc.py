@@ -12,13 +12,13 @@ from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import (
     get_queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
-    entrypoint_decorator, InjectionProvider, EntrypointProvider)
+    entrypoint, InjectionProvider, EntrypointProvider)
 
 
 _log = getLogger(__name__)
 
 
-@entrypoint_decorator
+@entrypoint
 def rpc():
     return RpcProvider()
 

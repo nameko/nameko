@@ -17,7 +17,7 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
-    InjectionProvider, EntrypointProvider, entrypoint_decorator)
+    InjectionProvider, EntrypointProvider, entrypoint)
 
 _log = getLogger(__name__)
 
@@ -116,7 +116,7 @@ class Publisher(InjectionProvider, HeaderEncoder):
         return publish
 
 
-@entrypoint_decorator
+@entrypoint
 def consume(queue, requeue_on_error=False):
     '''
     Decorates a method as a message consumer.

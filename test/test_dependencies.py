@@ -1,5 +1,5 @@
 from nameko.dependencies import (
-    entrypoint_decorator, get_entrypoint_providers, EntrypointProvider)
+    entrypoint, get_entrypoint_providers, EntrypointProvider)
 
 
 class FooProvider(EntrypointProvider):
@@ -12,13 +12,13 @@ class CheeseProvider(EntrypointProvider):
     pass
 
 
-@entrypoint_decorator
+@entrypoint
 def foobar(*args, **kwargs):
     """foobar-doc"""
     return FooProvider(args, kwargs)
 
 
-@entrypoint_decorator
+@entrypoint
 def cheese():
     return CheeseProvider()
 

@@ -6,7 +6,7 @@ import pytest
 from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
 
 from nameko.dependencies import(
-    InjectionProvider, EntrypointProvider, entrypoint_decorator)
+    InjectionProvider, EntrypointProvider, entrypoint)
 
 
 class CallCollectorMixin(object):
@@ -71,7 +71,7 @@ class CallCollectingInjectionProvider(
         super(CallCollectorMixin, self).call_result(worker_ctx, result, exc)
 
 
-@entrypoint_decorator
+@entrypoint
 def foobar():
     dec = CallCollectingEntrypointProvider()
     return dec

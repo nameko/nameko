@@ -7,12 +7,12 @@ import eventlet
 from eventlet import Timeout
 from eventlet.event import Event
 
-from nameko.dependencies import entrypoint_decorator, EntrypointProvider
+from nameko.dependencies import entrypoint, EntrypointProvider
 
 _log = getLogger(__name__)
 
 
-@entrypoint_decorator
+@entrypoint
 def timer(interval=None, config_key=None):
     '''
     Decorates a method as a timer, which will be called every `interval` sec.
