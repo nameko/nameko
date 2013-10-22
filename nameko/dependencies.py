@@ -82,20 +82,7 @@ class DependencyProvider(object):
         DependencyProviders should do any post-processing here, raising
         exceptions in the event of failure.
 
-        Example: a database session provider may flush the session
-
-        Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
-        """
-
-    def worker_result(self, worker_ctx, result=None, exc=None):
-        """ Called with the result of a service worker execution.
-
-        DependencyProviders that need to process the result should do it here.
-        This method is called for all DependencyProviders, not just the one
-        that triggered the worker spawn.
-
-        Example: a database session provider may commit the transaction
+        Example: a database session provider may commit the session
 
         Args:
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
@@ -115,23 +102,27 @@ class InjectionProvider(DependencyProvider):
         into the worker instance of the service by the container.
         """
 
-    def release_injection(self, worker_ctx):
-        """ A subclass may use this method to handle any cleanup of
-        the injection.
+    def worker_result(self, worker_ctx, result=None, exc=None):
+        """ Called with the result of a service worker execution.
 
-        By default the injection will be deleted from the worker instance
-        during the worker_teardown.
+        InjectionProvider that need to process the result should do it here.
+        This method is called for all InjectionProviders on completion of any
+        worker.
+
+        Example: a database session provider may flush the transaction
+
+        Args:
+            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def worker_setup(self, worker_ctx):
+    def inject(self, worker_ctx):
         injection = self.acquire_injection(worker_ctx)
 
         injection_name = self.name
         service = worker_ctx.service
         setattr(service, injection_name, injection)
 
-    def worker_teardown(self, worker_ctx):
-        self.release_injection(worker_ctx)
+    def release(self, worker_ctx):
 
         service = worker_ctx.service
         injection_name = self.name
@@ -146,7 +137,7 @@ class DependencySet(SpawningSet):
         this set.
         """
         return SpawningSet([item for item in self
-                            if is_injection_provider(item)])
+                           if is_injection_provider(item)])
 
     @property
     def entrypoints(self):

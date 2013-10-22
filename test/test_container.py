@@ -41,6 +41,10 @@ class CallCollectorMixin(object):
         self._log_call(('setup', worker_ctx))
         super(CallCollectorMixin, self).worker_setup(worker_ctx)
 
+    def worker_result(self, worker_ctx, result=None, exc=None):
+        self._log_call(('result', worker_ctx, (result, exc)))
+        super(CallCollectorMixin, self).worker_result(worker_ctx, result, exc)
+
     def worker_teardown(self, worker_ctx):
         self._log_call(('teardown', worker_ctx))
         super(CallCollectorMixin, self).worker_teardown(worker_ctx)
@@ -58,13 +62,6 @@ class CallCollectingInjectionProvider(
     def acquire_injection(self, worker_ctx):
         self._log_call(('acquire', worker_ctx))
         return 'spam-attr'
-
-    def release_injection(self, worker_ctx):
-        self._log_call(('release', worker_ctx))
-
-    def worker_result(self, worker_ctx, result=None, exc=None):
-        self._log_call(('result', worker_ctx, (result, exc)))
-        super(CallCollectorMixin, self).worker_result(worker_ctx, result, exc)
 
 
 @entrypoint
@@ -163,16 +160,14 @@ def test_worker_life_cycle(container):
     # TODO: test handle_result callback for spawn
 
     assert spam_dep.calls == [
-        ('setup', ham_worker_ctx),
         ('acquire', ham_worker_ctx),
+        ('setup', ham_worker_ctx),
         ('result', ham_worker_ctx, ('ham', None)),
         ('teardown', ham_worker_ctx),
-        ('release', ham_worker_ctx),
-        ('setup', egg_worker_ctx),
         ('acquire', egg_worker_ctx),
+        ('setup', egg_worker_ctx),
         ('result', egg_worker_ctx, (None, egg_error)),
         ('teardown', egg_worker_ctx),
-        ('release', egg_worker_ctx),
     ]
 
     assert ham_dep.calls == [
