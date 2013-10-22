@@ -20,7 +20,7 @@ _log = getLogger(__name__)
 
 @entrypoint
 def rpc():
-    return RpcProvider()
+    return (RpcProvider,)
 
 RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'

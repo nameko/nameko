@@ -73,13 +73,12 @@ class CallCollectingInjectionProvider(
 
 @entrypoint
 def foobar():
-    dec = CallCollectingEntrypointProvider()
-    return dec
+    return (CallCollectingEntrypointProvider,)
 
 
 @injection
 def call_collector():
-    return (CallCollectingInjectionProvider, )
+    return (CallCollectingInjectionProvider,)
 
 
 egg_error = Exception('broken')

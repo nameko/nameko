@@ -45,8 +45,8 @@ def test_event_handler_decorator():
     """
     decorator = event_handler("servicename", "eventtype")
     handler = decorator(lambda: None)
-    provider = list(getattr(handler, ENTRYPOINT_PROVIDERS_ATTR))[0]
-    assert isinstance(provider, EventHandler)
+    descr = list(getattr(handler, ENTRYPOINT_PROVIDERS_ATTR))[0]
+    assert descr.dep_cls is EventHandler
 
 
 def test_event_dispatcher():

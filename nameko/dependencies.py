@@ -2,7 +2,7 @@
 Provides classes and method to deal with dependency injection.
 """
 from abc import ABCMeta, abstractmethod
-from functools import wraps
+from functools import wraps, partial
 import inspect
 from itertools import chain
 import types
@@ -163,14 +163,14 @@ class DependencySet(SpawningSet):
                             if is_entrypoint_provider(item)])
 
 
-def register_provider(fn, provider):
-    providers = getattr(fn, ENTRYPOINT_PROVIDERS_ATTR, None)
+def register_descriptor(fn, provider):
+    descriptors = getattr(fn, ENTRYPOINT_PROVIDERS_ATTR, None)
 
-    if providers is None:
-        providers = set()
-        setattr(fn, ENTRYPOINT_PROVIDERS_ATTR, providers)
+    if descriptors is None:
+        descriptors = set()
+        setattr(fn, ENTRYPOINT_PROVIDERS_ATTR, descriptors)
 
-    providers.add(provider)
+    descriptors.add(provider)
 
 
 class DependencyDescriptor(object):
@@ -192,26 +192,30 @@ def entrypoint(decorator_func):
         class Service(object):
 
             @http
-            def foobar():
+            def foobar()
                 pass
 
     """
+    def registering_decorator(fn, args, kwargs):
+        tpe_init_args = decorator_func(*args, **kwargs)
+        descriptor = DependencyDescriptor(tpe_init_args[0], tpe_init_args[1:])
+        register_descriptor(fn, descriptor)
+        return fn
+
     @wraps(decorator_func)
     def wrapper(*args, **kwargs):
-
-        def registering_decorator(fn):
-            provider = decorator_func(*args, **kwargs)
-            register_provider(fn, provider)
-            return fn
-
-        # if the decorator does not use args itself,
-        # i.e. it does not return a dacorator
         if len(args) == 1 and isinstance(args[0], types.FunctionType):
-            fn = args[0]
-            register_provider(fn, decorator_func())
-            return fn
+            # entrypoint_decorator is used like
+            # @foobar
+            # def spam():
+            #     pass
+            return registering_decorator(args[0], tuple(), {})
         else:
-            return registering_decorator
+            # entrypoint_decorator is used like
+            # @foobar('shrub', ...)
+            # def spam():
+            #     pass
+            return partial(registering_decorator, args=args, kwargs=kwargs)
 
     return wrapper
 
@@ -243,9 +247,9 @@ def get_injection_providers(obj):
 
 def get_entrypoint_providers(obj):
     for name, attr in inspect.getmembers(obj, inspect.ismethod):
-        providers = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
-        for provider in providers:
-            yield name, provider
+        descriptors = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
+        for descr in descriptors:
+            yield name, descr.dep_cls(*descr.args)
 
 
 def get_dependencies(obj):

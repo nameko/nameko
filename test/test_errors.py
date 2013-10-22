@@ -7,7 +7,7 @@ import pytest
 
 from nameko.exceptions import RemoteError
 from nameko.events import EventDispatcher
-from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer, rpc_proxy
+from nameko.rpc import rpc, rpc_proxy, get_rpc_consumer, RpcConsumer
 from nameko.service import ServiceRunner
 
 

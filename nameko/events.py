@@ -222,8 +222,9 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             "Broadcast event handlers cannot be configured with reliable "
             "delivery.")
 
-    return EventHandler(service_name, event_type, handler_type,
-                        reliable_delivery, requeue_on_error)
+    return (EventHandler,
+            service_name, event_type, handler_type,
+            reliable_delivery, requeue_on_error)
 
 
 class EventHandler(ConsumeProvider):

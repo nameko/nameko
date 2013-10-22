@@ -141,7 +141,7 @@ def consume(queue, requeue_on_error=False):
     Args:
         queue: The queue to consume from.
     '''
-    return ConsumeProvider(queue, requeue_on_error)
+    return (ConsumeProvider, queue, requeue_on_error)
 
 
 queue_consumers = WeakKeyDictionary()

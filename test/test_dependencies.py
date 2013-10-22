@@ -15,12 +15,12 @@ class CheeseProvider(EntrypointProvider):
 @entrypoint
 def foobar(*args, **kwargs):
     """foobar-doc"""
-    return FooProvider(args, kwargs)
+    return (FooProvider, args, kwargs)
 
 
 @entrypoint
 def cheese():
-    return CheeseProvider()
+    return (CheeseProvider,)
 
 
 def test_dependency_decorator():
