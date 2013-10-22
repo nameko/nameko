@@ -141,12 +141,12 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
     def get_consumer(self, srv_ctx):
         return get_rpc_consumer(srv_ctx, self._consumer_cls)
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.register_provider(self)
         rpc_consumer.prepare_queue()
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.start()
 
@@ -272,11 +272,11 @@ class RpcProxyProvider(InjectionProvider):
     def __init__(self, service_name):
         self.service_name = service_name
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
         rpc_reply_listener.prepare_queue()
 
-    def on_container_started(self, srv_ctx):
+    def start(self, srv_ctx):
         rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
         rpc_reply_listener.start_consuming()
 
@@ -329,7 +329,7 @@ class MethodProxy(HeaderEncoder):
         conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
-        # TODO: should connection sharing be done during call_setup in the
+        # TODO: should connection sharing be done during worker_setup in the
         #       dependency provider?
         with conn as conn:
             exchange = get_rpc_exchange(srv_ctx)

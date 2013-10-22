@@ -192,7 +192,7 @@ lifecycle management to open, close and flush the file at apppropriate points.
          self.path = path
    
       # called when the service container starts
-      def start(self, srv_ctx):
+      def prepare(self, srv_ctx):
          self.file_handle = open(self.path, 'w')
    
       # called when the service container stops

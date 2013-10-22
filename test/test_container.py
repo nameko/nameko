@@ -25,29 +25,29 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
+    def prepare(self, srv_ctx):
+        self._log_call(('prepare', srv_ctx))
+        super(CallCollectorMixin, self).prepare(srv_ctx)
+
     def start(self, srv_ctx):
         self._log_call(('start', srv_ctx))
         super(CallCollectorMixin, self).start(srv_ctx)
-
-    def on_container_started(self, srv_ctx):
-        self._log_call(('started', srv_ctx))
-        super(CallCollectorMixin, self).on_container_started(srv_ctx)
 
     def stop(self, srv_ctx):
         self._log_call(('stop', srv_ctx))
         super(CallCollectorMixin, self).stop(srv_ctx)
 
-    def on_container_stopped(self, srv_ctx):
-        self._log_call(('stopped', srv_ctx))
-        super(CallCollectorMixin, self).on_container_stopped(srv_ctx)
-
-    def call_setup(self, worker_ctx):
+    def worker_setup(self, worker_ctx):
         self._log_call(('setup', worker_ctx))
-        super(CallCollectorMixin, self).call_setup(worker_ctx)
+        super(CallCollectorMixin, self).worker_setup(worker_ctx)
 
-    def call_teardown(self, worker_ctx):
+    def worker_result(self, worker_ctx, result=None, exc=None):
+        self._log_call(('result', worker_ctx, (result, exc)))
+        super(CallCollectorMixin, self).worker_result(worker_ctx, result, exc)
+
+    def worker_teardown(self, worker_ctx):
         self._log_call(('teardown', worker_ctx))
-        super(CallCollectorMixin, self).call_teardown(worker_ctx)
+        super(CallCollectorMixin, self).worker_teardown(worker_ctx)
 
 
 class CallCollectingEntrypointProvider(
@@ -62,13 +62,6 @@ class CallCollectingInjectionProvider(
     def acquire_injection(self, worker_ctx):
         self._log_call(('acquire', worker_ctx))
         return 'spam-attr'
-
-    def release_injection(self, worker_ctx):
-        self._log_call(('release', worker_ctx))
-
-    def call_result(self, worker_ctx, result=None, exc=None):
-        self._log_call(('result', worker_ctx, (result, exc)))
-        super(CallCollectorMixin, self).call_result(worker_ctx, result, exc)
 
 
 @entrypoint
@@ -132,8 +125,8 @@ def test_starts_dependencies(container):
 
     for dep in container.dependencies:
         assert dep.calls == [
-            ('start', srv_ctx),
-            ('started', srv_ctx)
+            ('prepare', srv_ctx),
+            ('start', srv_ctx)
         ]
 
 
@@ -143,8 +136,7 @@ def test_stops_dependencies(container):
     container.stop()
     for dep in container.dependencies:
         assert dep.calls == [
-            ('stop', srv_ctx),
-            ('stopped', srv_ctx)
+            ('stop', srv_ctx)
         ]
 
 
@@ -173,16 +165,14 @@ def test_worker_life_cycle(container):
     # TODO: test handle_result callback for spawn
 
     assert spam_dep.calls == [
-        ('setup', ham_worker_ctx),
         ('acquire', ham_worker_ctx),
+        ('setup', ham_worker_ctx),
         ('result', ham_worker_ctx, ('ham', None)),
         ('teardown', ham_worker_ctx),
-        ('release', ham_worker_ctx),
-        ('setup', egg_worker_ctx),
         ('acquire', egg_worker_ctx),
+        ('setup', egg_worker_ctx),
         ('result', egg_worker_ctx, (None, egg_error)),
         ('teardown', egg_worker_ctx),
-        ('release', egg_worker_ctx),
     ]
 
     assert ham_dep.calls == [
@@ -198,45 +188,6 @@ def test_worker_life_cycle(container):
         ('setup', egg_worker_ctx),
         ('teardown', egg_worker_ctx),
     ]
-
-
-def test_stop_waits_for_running_workers_before_signalling_container_stopped():
-    spam_called = Event()
-    container_stopped = Event()
-
-    class StopDep(InjectionProvider):
-        def acquire_injection(self, worker_ctx):
-            return 'stop'
-
-        def on_container_stopped(self, srv_ctx):
-            # we should not see any running workers at this stage
-            container_stopped.send(container._worker_pool.running())
-
-    @injection
-    def stop_dep():
-        return (StopDep,)
-
-    class Service(object):
-        name = 'wait-for-worker'
-
-        stop = stop_dep()
-
-        @foobar
-        def spam(self, a):
-            spam_called.send(a)
-            sleep(0.01)
-
-    container = ServiceContainer(service_cls=Service,
-                                 worker_ctx_cls=WorkerContext,
-                                 config=None)
-
-    dep = next(iter(container.dependencies.entrypoints))
-    container.spawn_worker(dep, ['ham'], {})
-
-    with Timeout(1):
-        spam_called.wait()
-        spawn(container.stop)
-        assert container_stopped.wait() == 0
 
 
 def test_wait_waits_for_container_stopped(container):

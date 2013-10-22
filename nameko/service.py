@@ -115,8 +115,8 @@ class ServiceContainer(object):
         _log.debug('starting %s', self)
 
         with log_time(_log.debug, 'started %s in %0.3f sec', self):
+            self.dependencies.all.prepare(self.ctx)
             self.dependencies.all.start(self.ctx)
-            self.dependencies.all.on_container_started(self.ctx)
 
     def stop(self):
         if self._died.ready():
@@ -138,7 +138,6 @@ class ServiceContainer(object):
             self._worker_pool.waitall()
             dependencies.injections.all.stop(self.ctx)
 
-            dependencies.all.on_container_stopped(self.ctx)
             self._died.send(None)
 
     def kill(self, exc):
@@ -191,7 +190,8 @@ class ServiceContainer(object):
 
         with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
-            self.dependencies.all.call_setup(worker_ctx)
+            self.dependencies.injections.all.inject(worker_ctx)
+            self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc = None
             try:
@@ -216,11 +216,12 @@ class ServiceContainer(object):
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):
                 _log.debug('signalling result for %s', worker_ctx)
-                self.dependencies.injections.all.call_result(
+                self.dependencies.injections.all.worker_result(
                     worker_ctx, result, exc)
 
                 _log.debug('tearing down %s', worker_ctx)
-                self.dependencies.all.call_teardown(worker_ctx)
+                self.dependencies.all.worker_teardown(worker_ctx)
+                self.dependencies.injections.all.release(worker_ctx)
 
     def wait(self):
         return self._died.wait()
