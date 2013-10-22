@@ -31,7 +31,7 @@ def test_db():
     worker_ctx = WorkerContext(srv_ctx, service, 'shrub')
 
     # we pretend to be a service container and initiate some lifecycle handling
-    FooService.foo_session.call_setup(worker_ctx)
+    FooService.foo_session.worker_setup(worker_ctx)
 
     session = service.foo_session
     assert isinstance(session, Session)
@@ -39,7 +39,7 @@ def test_db():
     session.add(FooModel())
     assert session.new
 
-    FooService.foo_session.call_teardown(worker_ctx)
+    FooService.foo_session.worker_teardown(worker_ctx)
     # if we had not closed the session we would still have new objects
     assert not session.new
 

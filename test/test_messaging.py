@@ -111,7 +111,7 @@ def test_publish_to_exchange():
 
         # test publish
         msg = "msg"
-        publisher.call_setup(worker_ctx)
+        publisher.worker_setup(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers={},
                                                  exchange=foobar_ex)
@@ -143,7 +143,7 @@ def test_publish_to_queue():
         # test publish
         msg = "msg"
         headers = {'nameko.language': 'en'}
-        publisher.call_setup(worker_ctx)
+        publisher.worker_setup(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
@@ -176,7 +176,7 @@ def test_publish_custom_headers():
         msg = "msg"
         headers = {'nameko.language': 'en',
                    'nameko.customheader': 'customvalue'}
-        publisher.call_setup(worker_ctx)
+        publisher.worker_setup(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
@@ -251,7 +251,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message published to queue
-    publisher.call_setup(worker_ctx)
+    publisher.worker_setup(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['msg'] == [msg['payload'] for msg in messages]

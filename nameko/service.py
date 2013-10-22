@@ -190,7 +190,7 @@ class ServiceContainer(object):
 
         with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
-            self.dependencies.all.call_setup(worker_ctx)
+            self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc = None
             try:
@@ -215,11 +215,11 @@ class ServiceContainer(object):
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):
                 _log.debug('signalling result for %s', worker_ctx)
-                self.dependencies.injections.all.call_result(
+                self.dependencies.injections.all.worker_result(
                     worker_ctx, result, exc)
 
                 _log.debug('tearing down %s', worker_ctx)
-                self.dependencies.all.call_teardown(worker_ctx)
+                self.dependencies.all.worker_teardown(worker_ctx)
 
     def wait(self):
         return self._died.wait()

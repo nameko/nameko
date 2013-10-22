@@ -68,7 +68,7 @@ def test_event_dispatcher():
         prepare.assert_called_once_with(srv_ctx)
 
     evt = Mock(type="eventtype", data="msg")
-    event_dispatcher.call_setup(worker_ctx)
+    event_dispatcher.worker_setup(worker_ctx)
 
     with patch.object(event_dispatcher, 'get_producer') as get_producer:
         get_producer.return_value = as_context_manager(producer)
@@ -559,7 +559,7 @@ def test_dispatch_to_rabbit_xxx(reset_rabbit, rabbit_manager, rabbit_config):
     rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
                                   rt_key=ExampleEvent.type)
 
-    dispatcher.call_setup(worker_ctx)
+    dispatcher.worker_setup(worker_ctx)
     service.dispatch(ExampleEvent("msg"))
 
     # test event receieved on manually added queue

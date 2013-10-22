@@ -51,8 +51,19 @@ class DependencyProvider(object):
             - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def call_setup(self, worker_ctx):
-        """ Called before a service worker executes a task.
+    def kill(self, srv_ctx, exc=None):
+        """ Called to stop this dependency without grace. The exception
+        causing the kill may be provided.
+
+        DependencyProviders should urgently shut down here. This method must
+        return within ``nameko.service.KILL_TIMEOUT`` seconds, otherwise it
+        may be forcibly stopped.
+        """
+
+    def worker_setup(self, worker_ctx):
+        """ Called before a service worker executes a task. This method is
+        called for all DependencyProviders, not just the one that triggered
+        the worker spawn.
 
         DependencyProviders should do any pre-processing here, raising
         exceptions in the event of failure.
@@ -63,25 +74,31 @@ class DependencyProvider(object):
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def call_teardown(self, worker_ctx):
-        """ Called after a service worker has executed a task.
+    def worker_teardown(self, worker_ctx):
+        """ Called after a service worker has executed a task. This method is
+        called for all DependencyProviders, not just the one that triggered
+        the worker spawn.
 
         DependencyProviders should do any post-processing here, raising
         exceptions in the event of failure.
 
-        Example: a database session provider may close the session
+        Example: a database session provider may flush the session
 
         Args:
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
-    def kill(self, srv_ctx, exc=None):
-        """ Called to stop this dependency without grace. The exception
-        causing the kill may be provided.
+    def worker_result(self, worker_ctx, result=None, exc=None):
+        """ Called with the result of a service worker execution.
 
-        DependencyProviders should urgently shut down here. This method must
-        return within ``nameko.service.KILL_TIMEOUT`` seconds, otherwise it
-        may be forcibly stopped.
+        DependencyProviders that need to process the result should do it here.
+        This method is called for all DependencyProviders, not just the one
+        that triggered the worker spawn.
+
+        Example: a database session provider may commit the transaction
+
+        Args:
+            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
 
@@ -103,30 +120,17 @@ class InjectionProvider(DependencyProvider):
         the injection.
 
         By default the injection will be deleted from the worker instance
-        during the call_teardown.
+        during the worker_teardown.
         """
 
-    def call_setup(self, worker_ctx):
+    def worker_setup(self, worker_ctx):
         injection = self.acquire_injection(worker_ctx)
 
         injection_name = self.name
         service = worker_ctx.service
         setattr(service, injection_name, injection)
 
-    def call_result(self, worker_ctx, result=None, exc=None):
-        """ Called with the result of a service worker execution.
-
-        DependencyProviders that need to process the result should do it here.
-        Note that all DependencyProviders defining this method will be called,
-        not just those that initiated the worker.
-
-        Example: a database session provider may commit the transaction
-
-        Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
-        """
-
-    def call_teardown(self, worker_ctx):
+    def worker_teardown(self, worker_ctx):
         self.release_injection(worker_ctx)
 
         service = worker_ctx.service

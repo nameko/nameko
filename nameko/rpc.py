@@ -324,7 +324,7 @@ class MethodProxy(HeaderEncoder):
         conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
-        # TODO: should connection sharing be done during call_setup in the
+        # TODO: should connection sharing be done during worker_setup in the
         #       dependency provider?
         with conn as conn:
             exchange = get_rpc_exchange(srv_ctx)

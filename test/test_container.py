@@ -37,13 +37,13 @@ class CallCollectorMixin(object):
         self._log_call(('stop', srv_ctx))
         super(CallCollectorMixin, self).stop(srv_ctx)
 
-    def call_setup(self, worker_ctx):
+    def worker_setup(self, worker_ctx):
         self._log_call(('setup', worker_ctx))
-        super(CallCollectorMixin, self).call_setup(worker_ctx)
+        super(CallCollectorMixin, self).worker_setup(worker_ctx)
 
-    def call_teardown(self, worker_ctx):
+    def worker_teardown(self, worker_ctx):
         self._log_call(('teardown', worker_ctx))
-        super(CallCollectorMixin, self).call_teardown(worker_ctx)
+        super(CallCollectorMixin, self).worker_teardown(worker_ctx)
 
 
 class CallCollectingEntrypointProvider(
@@ -62,9 +62,9 @@ class CallCollectingInjectionProvider(
     def release_injection(self, worker_ctx):
         self._log_call(('release', worker_ctx))
 
-    def call_result(self, worker_ctx, result=None, exc=None):
+    def worker_result(self, worker_ctx, result=None, exc=None):
         self._log_call(('result', worker_ctx, (result, exc)))
-        super(CallCollectorMixin, self).call_result(worker_ctx, result, exc)
+        super(CallCollectorMixin, self).worker_result(worker_ctx, result, exc)
 
 
 @entrypoint
