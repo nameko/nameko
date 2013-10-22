@@ -49,7 +49,7 @@ def test_consume_provider():
         get_queue_consumer.return_value = queue_consumer
 
         # test lifecycle
-        consume_provider.start(srv_ctx)
+        consume_provider.prepare(srv_ctx)
         queue_consumer.add_consumer.assert_called_once_with(
             foobar_queue, ANY_PARTIAL)
 
@@ -106,7 +106,7 @@ def test_publish_to_exchange():
         get_producer.return_value = as_context_manager(producer)
 
         # test declarations
-        publisher.start(srv_ctx)
+        publisher.prepare(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_ex, connection)
 
         # test publish
@@ -137,7 +137,7 @@ def test_publish_to_queue():
         get_producer.return_value = as_context_manager(producer)
 
         # test declarations
-        publisher.start(srv_ctx)
+        publisher.prepare(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_queue, connection)
 
         # test publish
@@ -169,7 +169,7 @@ def test_publish_custom_headers():
         get_producer.return_value = as_context_manager(producer)
 
         # test declarations
-        publisher.start(srv_ctx)
+        publisher.prepare(srv_ctx)
         maybe_declare.assert_called_once_with(foobar_queue, connection)
 
         # test publish
@@ -239,7 +239,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     publisher.name = "publish"
 
     # test queue, exchange and binding created in rabbit
-    publisher.start(srv_ctx)
+    publisher.prepare(srv_ctx)
     publisher.on_container_started(srv_ctx)
 
     exchanges = rabbit_manager.get_exchanges(vhost)
@@ -274,7 +274,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     consumer.name = "injection_name"
 
     # test queue, exchange and binding created in rabbit
-    consumer.start(srv_ctx)
+    consumer.prepare(srv_ctx)
     consumer.on_container_started(srv_ctx)
 
     exchanges = rabbit_manager.get_exchanges(vhost)

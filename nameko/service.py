@@ -115,7 +115,7 @@ class ServiceContainer(object):
         _log.debug('starting %s', self)
 
         with log_time(_log.debug, 'started %s in %0.3f sec', self):
-            self.dependencies.all.start(self.ctx)
+            self.dependencies.all.prepare(self.ctx)
             self.dependencies.all.on_container_started(self.ctx)
 
     def stop(self):

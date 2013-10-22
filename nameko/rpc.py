@@ -141,7 +141,7 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
     def get_consumer(self, srv_ctx):
         return get_rpc_consumer(srv_ctx, self._consumer_cls)
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         rpc_consumer = self.get_consumer(srv_ctx)
         rpc_consumer.register_provider(self)
         rpc_consumer.prepare_queue()
@@ -272,7 +272,7 @@ class Service(InjectionProvider):
     def __init__(self, service_name):
         self.service_name = service_name
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
         rpc_reply_listener.prepare_queue()
 

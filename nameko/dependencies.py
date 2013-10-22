@@ -22,7 +22,7 @@ class DependencyProvider(object):
 
     name = None
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         """ Called when the service container starts.
 
         DependencyProviders should do any required initialisation here.

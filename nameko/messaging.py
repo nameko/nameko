@@ -88,7 +88,7 @@ class Publisher(InjectionProvider, HeaderEncoder):
         conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
         return producers[conn].acquire(block=True)
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         exchange = self.exchange
         queue = self.queue
 
@@ -164,7 +164,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         qc = get_queue_consumer(srv_ctx)
         qc.add_consumer(self.queue, partial(self.handle_message, srv_ctx))
 

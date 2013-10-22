@@ -25,9 +25,9 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         self._log_call(('start', srv_ctx))
-        super(CallCollectorMixin, self).start(srv_ctx)
+        super(CallCollectorMixin, self).prepare(srv_ctx)
 
     def on_container_started(self, srv_ctx):
         self._log_call(('started', srv_ctx))

@@ -40,7 +40,7 @@ class TimerProvider(EntrypointProvider):
         self.interval = interval
         self.config_key = config_key
 
-    def start(self, srv_ctx):
+    def prepare(self, srv_ctx):
         def timer_handler():
             args = tuple()
             kwargs = {}
