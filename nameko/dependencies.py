@@ -173,6 +173,12 @@ def register_provider(fn, provider):
     providers.add(provider)
 
 
+class DependencyDescriptor(object):
+    def __init__(self, dep_cls, init_args=None, init_kwargs=None):
+        self.dep_cls = dep_cls
+        self.args = init_args
+
+
 def entrypoint(decorator_func):
     """ Transform a function into a decorator that can be used to declare
     entrypoints.
@@ -192,6 +198,7 @@ def entrypoint(decorator_func):
     """
     @wraps(decorator_func)
     def wrapper(*args, **kwargs):
+
         def registering_decorator(fn):
             provider = decorator_func(*args, **kwargs)
             register_provider(fn, provider)
@@ -209,6 +216,18 @@ def entrypoint(decorator_func):
     return wrapper
 
 
+def injection(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        tpe_init_args = fn(*args, **kwargs)
+        return DependencyDescriptor(tpe_init_args[0], tpe_init_args[1:])
+    return wrapped
+
+
+def is_dependency_descriptor(obj):
+    return isinstance(obj, DependencyDescriptor)
+
+
 def is_injection_provider(obj):
     return isinstance(obj, InjectionProvider)
 
@@ -218,7 +237,8 @@ def is_entrypoint_provider(obj):
 
 
 def get_injection_providers(obj):
-    return inspect.getmembers(obj, is_injection_provider)
+    for name, descr in inspect.getmembers(obj, is_dependency_descriptor):
+        yield name, descr.dep_cls(*descr.args)
 
 
 def get_entrypoint_providers(obj):

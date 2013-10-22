@@ -6,7 +6,7 @@ import pytest
 from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
 
 from nameko.dependencies import(
-    InjectionProvider, EntrypointProvider, entrypoint)
+    InjectionProvider, EntrypointProvider, entrypoint, injection)
 
 
 class CallCollectorMixin(object):
@@ -76,13 +76,19 @@ def foobar():
     dec = CallCollectingEntrypointProvider()
     return dec
 
+
+@injection
+def call_collector():
+    return (CallCollectingInjectionProvider, )
+
+
 egg_error = Exception('broken')
 
 
 class Service(object):
     name = 'test-service'
 
-    spam = CallCollectingInjectionProvider()
+    spam = call_collector()
 
     @foobar
     def ham(self):
@@ -207,10 +213,14 @@ def test_stop_waits_for_running_workers_before_signalling_container_stopped():
             # we should not see any running workers at this stage
             container_stopped.send(container._worker_pool.running())
 
+    @injection
+    def stop_dep():
+        return (StopDep,)
+
     class Service(object):
         name = 'wait-for-worker'
 
-        stop = StopDep()
+        stop = stop_dep()
 
         @foobar
         def spam(self, a):

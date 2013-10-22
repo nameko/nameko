@@ -4,9 +4,9 @@ from mock import Mock
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-from nameko.contrib.sqlalchemy import ORMSession, ORM_DB_URIS_KEY
-from nameko.events import event_handler, EventDispatcher, Event
-from nameko.rpc import rpc, Service
+from nameko.contrib.sqlalchemy import orm_session, ORM_DB_URIS_KEY
+from nameko.events import event_handler, event_dispatcher, Event
+from nameko.rpc import rpc, rpc_proxy
 from nameko.timer import timer
 from nameko.testing.utils import wait_for_call
 
@@ -26,9 +26,9 @@ class SpamEvent(Event):
 class FooService(object):
     name = 'foo-service'
 
-    foo_session = ORMSession(DeclBase)
-    dispatch_event = EventDispatcher()
-    foo_service = Service('foo-service')
+    foo_session = orm_session(DeclBase)
+    dispatch_event = event_dispatcher()
+    foo_service = rpc_proxy('foo-service')
 
     @timer(interval=1)
     def handle_timer(self):

@@ -7,7 +7,7 @@ import pytest
 
 from nameko.exceptions import RemoteError
 from nameko.events import EventDispatcher
-from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer, Service
+from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer, rpc_proxy
 from nameko.service import ServiceRunner
 
 
@@ -18,7 +18,7 @@ class ExampleError(Exception):
 class ExampleService(object):
 
     dispatch = EventDispatcher()
-    rpcproxy = Service('exampleservice')
+    rpcproxy = rpc_proxy('exampleservice')
 
     @rpc
     def task(self):

@@ -7,12 +7,12 @@ import eventlet
 from kombu import Connection
 from mock import patch, Mock, call
 
-from nameko.dependencies import InjectionProvider
+from nameko.dependencies import InjectionProvider, injection
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError, MethodNotFound
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
-    rpc, Service, get_rpc_consumer, RpcConsumer, RpcProvider, ReplyListener)
+    rpc, rpc_proxy, get_rpc_consumer, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.service import (
     ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 
@@ -37,6 +37,11 @@ class Translator(InjectionProvider):
         return translate
 
 
+@injection
+def translator():
+    return (Translator,)
+
+
 class CustomWorkerContext(WorkerContextBase):
     data_keys = NAMEKO_DATA_KEYS + ('custom_header',)
 
@@ -44,8 +49,8 @@ class CustomWorkerContext(WorkerContextBase):
 class ExampleService(object):
     name = 'exampleservice'
 
-    translate = Translator()
-    rpc_proxy = Service('exampleservice')
+    translate = translator()
+    rpc_proxy = rpc_proxy('exampleservice')
 
     @rpc
     def task_a(self, *args, **kwargs):

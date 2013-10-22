@@ -27,7 +27,7 @@ import uuid
 from kombu import Exchange, Queue
 
 from nameko.messaging import Publisher, PERSISTENT, ConsumeProvider
-from nameko.dependencies import entrypoint
+from nameko.dependencies import entrypoint, injection
 
 
 SERVICE_POOL = "service_pool"
@@ -160,6 +160,11 @@ class EventDispatcher(Publisher):
                                  routing_key=routing_key)
 
         return dispatch
+
+
+@injection
+def event_dispatcher():
+    return (EventDispatcher,)
 
 
 @entrypoint

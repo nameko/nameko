@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from nameko.dependencies import InjectionProvider
+from nameko.dependencies import InjectionProvider, injection
 
 ORM_DB_URIS_KEY = 'ORM_DB_URIS'
 
@@ -34,3 +34,8 @@ class ORMSession(InjectionProvider):
     def release_injection(self, worker_ctx):
         session = self.sessions.pop(worker_ctx)
         session.close()
+
+
+@injection
+def orm_session(declarative_base):
+    return (ORMSession, declarative_base)
