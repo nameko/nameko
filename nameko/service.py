@@ -138,7 +138,6 @@ class ServiceContainer(object):
             self._worker_pool.waitall()
             dependencies.injections.all.stop(self.ctx)
 
-            dependencies.all.on_container_stopped(self.ctx)
             self._died.send(None)
 
     def kill(self, exc):

@@ -51,16 +51,6 @@ class DependencyProvider(object):
             - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def on_container_stopped(self, srv_ctx):
-        """ Called when the service container stops.
-
-        If the DependencyProvider has not gracefully shut down, probably
-        raise an error here.
-
-        Args:
-            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
-        """
-
     def call_setup(self, worker_ctx):
         """ Called before a service worker executes a task.
 
