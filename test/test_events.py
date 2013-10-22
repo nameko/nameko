@@ -8,7 +8,7 @@ from nameko.events import (
     EventDispatcher, Event, EventTypeTooLong, EventTypeMissing,
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
-from nameko.dependencies import DECORATOR_PROVIDERS_ATTR
+from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
 from nameko.service import ServiceContext, WorkerContext
 from nameko.testing.utils import ANY_PARTIAL, as_context_manager
 
@@ -45,7 +45,7 @@ def test_event_handler_decorator():
     """
     decorator = event_handler("servicename", "eventtype")
     handler = decorator(lambda: None)
-    provider = list(getattr(handler, DECORATOR_PROVIDERS_ATTR))[0]
+    provider = list(getattr(handler, ENTRYPOINT_PROVIDERS_ATTR))[0]
     assert isinstance(provider, EventHandler)
 
 

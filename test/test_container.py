@@ -6,7 +6,7 @@ import pytest
 from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
 
 from nameko.dependencies import(
-    AttributeDependency, DecoratorDependency, dependency_decorator)
+    InjectionProvider, EntrypointProvider, entrypoint_decorator)
 
 
 class CallCollectorMixin(object):
@@ -50,13 +50,13 @@ class CallCollectorMixin(object):
         super(CallCollectorMixin, self).call_teardown(worker_ctx)
 
 
-class CallCollectingDecoratorDependency(
-        CallCollectorMixin, DecoratorDependency):
+class CallCollectingEntrypointProvider(
+        CallCollectorMixin, EntrypointProvider):
     instances = set()
 
 
-class CallCollectingAttributeDependency(
-        CallCollectorMixin, AttributeDependency):
+class CallCollectingInjectionProvider(
+        CallCollectorMixin, InjectionProvider):
     instances = set()
 
     def acquire_injection(self, worker_ctx):
@@ -71,9 +71,9 @@ class CallCollectingAttributeDependency(
         super(CallCollectorMixin, self).call_result(worker_ctx, result, exc)
 
 
-@dependency_decorator
+@entrypoint_decorator
 def foobar():
-    dec = CallCollectingDecoratorDependency()
+    dec = CallCollectingEntrypointProvider()
     return dec
 
 egg_error = Exception('broken')
@@ -82,7 +82,7 @@ egg_error = Exception('broken')
 class Service(object):
     name = 'test-service'
 
-    spam = CallCollectingAttributeDependency()
+    spam = CallCollectingInjectionProvider()
 
     @foobar
     def ham(self):
@@ -113,8 +113,8 @@ def container():
 def test_collects_dependencies(container):
     assert len(container.dependencies) == 4
     assert container.dependencies == (
-        CallCollectingDecoratorDependency.instances |
-        CallCollectingAttributeDependency.instances)
+        CallCollectingEntrypointProvider.instances |
+        CallCollectingInjectionProvider.instances)
 
 
 def test_starts_dependencies(container):
@@ -147,9 +147,9 @@ def test_stops_decdeps_before_attrdeps(container):
     container.stop()
 
     dependencies = container.dependencies
-    spam_dep = next(iter(dependencies.attributes))
+    spam_dep = next(iter(dependencies.injections))
 
-    for dec_dep in dependencies.decorators:
+    for dec_dep in dependencies.entrypoints:
         assert dec_dep.call_ids[0] < spam_dep.call_ids[0]
 
 
@@ -199,7 +199,7 @@ def test_stop_waits_for_running_workers_before_signalling_container_stopped():
     spam_called = Event()
     container_stopped = Event()
 
-    class StopDep(AttributeDependency):
+    class StopDep(InjectionProvider):
         def acquire_injection(self, worker_ctx):
             return 'stop'
 
@@ -221,7 +221,7 @@ def test_stop_waits_for_running_workers_before_signalling_container_stopped():
                                  worker_ctx_cls=WorkerContext,
                                  config=None)
 
-    dep = next(iter(container.dependencies.decorators))
+    dep = next(iter(container.dependencies.entrypoints))
     container.spawn_worker(dep, ['ham'], {})
 
     with Timeout(1):

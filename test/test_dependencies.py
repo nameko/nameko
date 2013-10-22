@@ -1,24 +1,24 @@
 from nameko.dependencies import (
-    dependency_decorator, get_decorator_providers, DecoratorDependency)
+    entrypoint_decorator, get_entrypoint_providers, EntrypointProvider)
 
 
-class FooProvider(DecoratorDependency):
+class FooProvider(EntrypointProvider):
     def __init__(self, args, kwargs):
         self.args = args
         self.kwargs = kwargs
 
 
-class CheeseProvider(DecoratorDependency):
+class CheeseProvider(EntrypointProvider):
     pass
 
 
-@dependency_decorator
+@entrypoint_decorator
 def foobar(*args, **kwargs):
     """foobar-doc"""
     return FooProvider(args, kwargs)
 
 
-@dependency_decorator
+@entrypoint_decorator
 def cheese():
     return CheeseProvider()
 
@@ -50,7 +50,7 @@ def test_get_decorator_providers():
 
     foo = Foobar()
 
-    providers = list(get_decorator_providers(foo))
+    providers = list(get_entrypoint_providers(foo))
     assert len(providers) == 2
 
     name, provider = providers.pop()

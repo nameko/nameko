@@ -11,7 +11,7 @@ import types
 from nameko.utils import SpawningSet
 
 
-DECORATOR_PROVIDERS_ATTR = 'nameko_providers'
+ENTRYPOINT_PROVIDERS_ATTR = 'nameko_providers'
 
 
 class NotInitializedError(Exception):
@@ -95,11 +95,11 @@ class DependencyProvider(object):
         """
 
 
-class DecoratorDependency(DependencyProvider):
+class EntrypointProvider(DependencyProvider):
     pass
 
 
-class AttributeDependency(DependencyProvider):
+class InjectionProvider(DependencyProvider):
     __metaclass__ = ABCMeta
 
     @abstractmethod
@@ -147,45 +147,61 @@ class AttributeDependency(DependencyProvider):
 class DependencySet(SpawningSet):
 
     @property
-    def attributes(self):
-        """ A ``SpawningSet`` of just the ``AttributeDependency`` instances in
+    def injections(self):
+        """ A ``SpawningSet`` of just the ``InjectionProvider`` instances in
         this set.
         """
         return SpawningSet([item for item in self
-                            if is_attribute_dependency(item)])
+                            if is_injection_provider(item)])
 
     @property
-    def decorators(self):
-        """ A ``SpawningSet`` of just the ``DecoratorDependency`` instances in
+    def entrypoints(self):
+        """ A ``SpawningSet`` of just the ``EntrypointProvider`` instances in
         this set.
         """
         return SpawningSet([item for item in self
-                            if is_decorator_dependency(item)])
+                            if is_entrypoint_provider(item)])
 
 
 def register_provider(fn, provider):
-    providers = getattr(fn, DECORATOR_PROVIDERS_ATTR, None)
+    providers = getattr(fn, ENTRYPOINT_PROVIDERS_ATTR, None)
 
     if providers is None:
         providers = set()
-        setattr(fn, DECORATOR_PROVIDERS_ATTR, providers)
+        setattr(fn, ENTRYPOINT_PROVIDERS_ATTR, providers)
 
     providers.add(provider)
 
 
-def dependency_decorator(provider_decorator):
-    @wraps(provider_decorator)
+def entrypoint_decorator(decorator):
+    """ Transform a function into a decorator that can be used to declare
+    entrypoints.
+
+    e.g::
+
+        @entrypoint_decorator
+        def http(bind_port=80):
+            return HttpEntrypoint(bind_port)
+
+        class Service(object):
+
+            @http
+            def foobar():
+                pass
+
+    """
+    @wraps(decorator)
     def wrapper(*args, **kwargs):
         def registering_decorator(fn):
-            provider = provider_decorator(*args, **kwargs)
+            provider = decorator(*args, **kwargs)
             register_provider(fn, provider)
             return fn
 
-        # if the providor_docorator does not use args itself,
+        # if the decorator does not use args itself,
         # i.e. it does not return a dacorator
         if len(args) == 1 and isinstance(args[0], types.FunctionType):
             fn = args[0]
-            register_provider(fn, provider_decorator())
+            register_provider(fn, decorator())
             return fn
         else:
             return registering_decorator
@@ -193,24 +209,24 @@ def dependency_decorator(provider_decorator):
     return wrapper
 
 
-def is_attribute_dependency(obj):
-    return isinstance(obj, AttributeDependency)
+def is_injection_provider(obj):
+    return isinstance(obj, InjectionProvider)
 
 
-def is_decorator_dependency(obj):
-    return isinstance(obj, DecoratorDependency)
+def is_entrypoint_provider(obj):
+    return isinstance(obj, EntrypointProvider)
 
 
-def get_attribute_providers(obj):
-    return inspect.getmembers(obj, is_attribute_dependency)
+def get_injection_providers(obj):
+    return inspect.getmembers(obj, is_injection_provider)
 
 
-def get_decorator_providers(obj):
+def get_entrypoint_providers(obj):
     for name, attr in inspect.getmembers(obj, inspect.ismethod):
-        providers = getattr(attr, DECORATOR_PROVIDERS_ATTR, [])
+        providers = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
         for provider in providers:
             yield name, provider
 
 
 def get_dependencies(obj):
-    return chain(get_attribute_providers(obj), get_decorator_providers(obj))
+    return chain(get_injection_providers(obj), get_entrypoint_providers(obj))

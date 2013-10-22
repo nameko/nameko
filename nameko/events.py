@@ -27,7 +27,7 @@ import uuid
 from kombu import Exchange, Queue
 
 from nameko.messaging import Publisher, PERSISTENT, ConsumeProvider
-from nameko.dependencies import dependency_decorator
+from nameko.dependencies import entrypoint_decorator
 
 
 SERVICE_POOL = "service_pool"
@@ -162,7 +162,7 @@ class EventDispatcher(Publisher):
         return dispatch
 
 
-@dependency_decorator
+@entrypoint_decorator
 def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                   reliable_delivery=True, requeue_on_error=False):
     """
