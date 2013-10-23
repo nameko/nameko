@@ -1,10 +1,9 @@
-from mock import Mock
 from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import Session
 
 from nameko.contrib.sqlalchemy import orm_session, ORM_DB_URIS_KEY
-from nameko.service import ServiceContext, WorkerContext
+from nameko.service import  WorkerContext
 
 
 DeclBase = declarative_base(name='spam_base')
