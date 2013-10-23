@@ -1,5 +1,9 @@
+from mock import Mock
+
 from nameko.dependencies import (
-    entrypoint, get_entrypoint_providers, EntrypointProvider)
+    entrypoint, EntrypointProvider, get_entrypoint_providers,
+    injection, InjectionProvider, get_injection_providers)
+from nameko.service import ServiceContainer, WorkerContext
 
 
 class FooProvider(EntrypointProvider):
@@ -8,19 +12,33 @@ class FooProvider(EntrypointProvider):
         self.kwargs = kwargs
 
 
-class CheeseProvider(EntrypointProvider):
-    pass
-
-
 @entrypoint
 def foobar(*args, **kwargs):
     """foobar-doc"""
     return (FooProvider, args, kwargs)
 
 
-@entrypoint
-def cheese():
-    return (CheeseProvider,)
+class BarProvider(InjectionProvider):
+    def __init__(self, args, kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+    def acquire_injection(self):
+        return lambda *args, **kwargs: "bar"
+
+
+@injection
+def barfoo(*args, **kwargs):
+    return (BarProvider, args, kwargs)
+
+
+class ExampleService(object):
+
+    injected = barfoo("arg", kwarg="kwarg")
+
+    @foobar("arg", kwarg="kwarg")
+    def echo(self, value):
+        return value
 
 
 def test_dependency_decorator():
@@ -37,30 +55,36 @@ def test_dependency_decorator():
     assert decorated_foo is foo
 
 
-def test_get_decorator_providers():
+def test_get_entrypoint_providers():
 
-    class Foobar(object):
-        @foobar('spam', oof="rab")
-        def shrub(self, arg):
-            return arg
+    config = Mock()
+    container = ServiceContainer(ExampleService, WorkerContext, config)
 
-        @cheese
-        def ni(self, arg):
-            return arg
+    providers = list(get_entrypoint_providers(container))
+    assert len(providers) == 1
+    provider = providers[0]
 
-    foo = Foobar()
-
-    providers = list(get_entrypoint_providers(foo))
-    assert len(providers) == 2
-
-    name, provider = providers.pop()
-    assert name == "shrub"
+    assert provider.name == "echo"
     assert isinstance(provider, FooProvider)
-    assert provider.args == ("spam",)
-    assert provider.kwargs == {"oof": "rab"}
-    assert foo.shrub(1) == 1
+    assert provider.args == ("arg",)
+    assert provider.kwargs == {"kwarg": "kwarg"}
 
-    name, provider = providers.pop()
-    assert name == "ni"
-    assert isinstance(provider, CheeseProvider)
-    assert foo.ni(2) == 2
+
+def test_get_injection_providers():
+
+    config = Mock()
+    container = ServiceContainer(ExampleService, WorkerContext, config)
+
+    providers = list(get_injection_providers(container))
+    assert len(providers) == 1
+    provider = providers[0]
+
+    assert provider.name == "injected"
+    assert isinstance(provider, BarProvider)
+    assert provider.args == ("arg",)
+    assert provider.kwargs == {"kwarg": "kwarg"}
+
+
+def test_entrypoint_decorator_does_not_mutate_service():
+    service = ExampleService()
+    assert service.echo(1) == 1

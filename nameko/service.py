@@ -94,22 +94,13 @@ class ServiceContainer(object):
         self.ctx = ServiceContext(
             self.service_name, service_cls, self, self.config)
 
-        self._dependencies = None
+        self.dependencies = DependencySet()
+        for dep in get_dependencies(self):
+            self.dependencies.add(dep)
+
         self._worker_pool = GreenPool(size=self.ctx.max_workers)
         self._active_workers = []
         self._died = Event()
-
-    # TODO: why is this a lazy property?
-    @property
-    def dependencies(self):
-        if self._dependencies is None:
-            self._dependencies = DependencySet()
-            # process dependencies: save their name onto themselves
-            # TODO: move the name setting into the dependency creation
-            for name, dep in get_dependencies(self.service_cls):
-                dep.name = name
-                self._dependencies.add(dep)
-        return self._dependencies
 
     def start(self):
         _log.debug('starting %s', self)

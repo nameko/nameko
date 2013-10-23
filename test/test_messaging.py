@@ -2,9 +2,8 @@ import eventlet
 from kombu import Exchange, Queue
 from mock import patch, Mock
 
-from nameko.dependencies import get_entrypoint_providers
 from nameko.messaging import (
-    PublishProvider, ConsumeProvider, consume, HeaderEncoder, HeaderDecoder)
+    PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
 from nameko.service import (
     ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 from nameko.testing.utils import (
@@ -18,22 +17,6 @@ CONSUME_TIMEOUT = 1
 
 class CustomWorkerContext(WorkerContextBase):
     data_keys = NAMEKO_DATA_KEYS + ('customheader',)
-
-
-def test_consume_creates_provider():
-    class Spam(object):
-        @consume(queue=foobar_queue)
-        def foobar(self):
-            pass
-
-    providers = list(get_entrypoint_providers(Spam))
-    assert len(providers) == 1
-
-    name, provider = providers[0]
-    assert name == 'foobar'
-    assert isinstance(provider, ConsumeProvider)
-    assert provider.queue == foobar_queue
-    assert provider.requeue_on_error is False
 
 
 def test_consume_provider():

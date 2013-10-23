@@ -20,7 +20,19 @@ class NotInitializedError(Exception):
 
 class DependencyProvider(object):
 
-    name = None
+    def bind(self, name, container):
+        """ Bind this DependencyProvider instance to ``container`` using the
+        given ``name`` to identify the resource on the hosted service.
+
+        Called during ServiceContainer initialisation. The DependencyProvider
+        instance is created and then bound to the ServiceContainer instance
+        controlling its lifecyle.
+        """
+        self.name = name
+        self.container = container
+
+        # temp
+        self.srv_ctx = container.ctx
 
     def prepare(self, srv_ctx):
         """ Called when the service container starts.
@@ -163,6 +175,11 @@ class DependencyDescriptor(object):
         self.dep_cls = dep_cls
         self.args = init_args
 
+    def bind_dependency(self, name, container):
+        instance = self.dep_cls(*self.args)
+        instance.bind(name, container)
+        return instance
+
 
 def entrypoint(decorator_func):
     """ Transform a function into a decorator that can be used to declare
@@ -227,17 +244,21 @@ def is_entrypoint_provider(obj):
     return isinstance(obj, EntrypointProvider)
 
 
-def get_injection_providers(obj):
-    for name, descr in inspect.getmembers(obj, is_dependency_descriptor):
-        yield name, descr.dep_cls(*descr.args)
+def get_injection_providers(container):
+    service_cls = container.service_cls
+    for name, descr in inspect.getmembers(service_cls,
+                                          is_dependency_descriptor):
+        yield descr.bind_dependency(name, container)
 
 
-def get_entrypoint_providers(obj):
-    for name, attr in inspect.getmembers(obj, inspect.ismethod):
+def get_entrypoint_providers(container):
+    service_cls = container.service_cls
+    for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
         descriptors = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
         for descr in descriptors:
-            yield name, descr.dep_cls(*descr.args)
+            yield descr.bind_dependency(name, container)
 
 
-def get_dependencies(obj):
-    return chain(get_injection_providers(obj), get_entrypoint_providers(obj))
+def get_dependencies(container):
+    return chain(get_injection_providers(container),
+                 get_entrypoint_providers(container))

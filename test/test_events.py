@@ -9,7 +9,7 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
 from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
-from nameko.service import ServiceContext, WorkerContext
+from nameko.service import ServiceContext, WorkerContext, ServiceContainer
 from nameko.testing.utils import ANY_PARTIAL, as_context_manager
 
 
@@ -99,13 +99,17 @@ def handler_factory(request):
 def test_event_handler(handler_factory):
 
     queue_consumer = Mock()
+    service_container = Mock(spec=ServiceContainer)
     srv_ctx = ServiceContext('destservice', None, None)
+
+    service_container.ctx = srv_ctx
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
 
         # test default configuration
         event_handler = handler_factory()
+        event_handler.bind("foobar", service_container)
         event_handler.prepare(srv_ctx)
         assert event_handler.queue.durable is True
         assert event_handler.queue.routing_key == "eventtype"
@@ -115,7 +119,7 @@ def test_event_handler(handler_factory):
 
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
-        event_handler.name = 'foobar'
+        event_handler.bind("foobar", service_container)
         event_handler.prepare(srv_ctx)
 
         assert (event_handler.queue.name ==
@@ -123,16 +127,19 @@ def test_event_handler(handler_factory):
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
+        event_handler.bind("foobar", service_container)
         event_handler.prepare(srv_ctx)
         assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
         # test singleton handler
         event_handler = handler_factory(handler_type=SINGLETON)
+        event_handler.bind("foobar", service_container)
         event_handler.prepare(srv_ctx)
         assert event_handler.queue.name == "evt-srcservice-eventtype"
 
         # test reliable delivery
         event_handler = handler_factory(reliable_delivery=True)
+        event_handler.bind("foobar", service_container)
         event_handler.prepare(srv_ctx)
         assert event_handler.queue.auto_delete is False
 
