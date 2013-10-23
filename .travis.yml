@@ -4,7 +4,8 @@ python:
 
 install:
   - python setup.py -q install
-  - pip install -r test_requirements.txt
+  - pip install -r test_requirements.txt  # pip incorrectly upgrades coverage 3.5 on first pass (pytest-cov requires >=3.4)
+  - pip install -r test_requirements.txt  # install test_requirements again to downgrade it
 
 services:
     - rabbitmq
