@@ -14,7 +14,7 @@ class ORMSession(InjectionProvider):
         self.sessions = {}
 
     def acquire_injection(self, worker_ctx):
-        service_name = worker_ctx.srv_ctx.name
+        service_name = self.srv_ctx.name
         decl_base_name = self.declarative_base.__name__
         uri_key = '{}:{}'.format(service_name, decl_base_name)
 

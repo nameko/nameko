@@ -51,21 +51,23 @@ def test_event_handler_decorator():
 
 def test_event_dispatcher():
 
-    event_dispatcher = EventDispatcher()
-    event_dispatcher.name = "dispatch"
-
     producer = Mock()
     service = Mock()
 
     srv_ctx = ServiceContext('srcservice', None, None)
     worker_ctx = WorkerContext(srv_ctx, service, "dispatch")
+    service_container = Mock(spec=ServiceContainer)
+    service_container.ctx = srv_ctx
+
+    event_dispatcher = EventDispatcher()
+    event_dispatcher.bind("dispatch", service_container)
 
     with patch('nameko.messaging.PublishProvider.prepare') as prepare:
 
         # test start method
-        event_dispatcher.prepare(srv_ctx)
+        event_dispatcher.prepare()
         assert event_dispatcher.exchange.name == "srcservice.events"
-        prepare.assert_called_once_with(srv_ctx)
+        prepare.assert_called_once_with()
 
     evt = Mock(type="eventtype", data="msg")
     event_dispatcher.inject(worker_ctx)
@@ -99,9 +101,9 @@ def handler_factory(request):
 def test_event_handler(handler_factory):
 
     queue_consumer = Mock()
-    service_container = Mock(spec=ServiceContainer)
-    srv_ctx = ServiceContext('destservice', None, None)
 
+    srv_ctx = ServiceContext('destservice', None, None)
+    service_container = Mock(spec=ServiceContainer)
     service_container.ctx = srv_ctx
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
@@ -110,7 +112,7 @@ def test_event_handler(handler_factory):
         # test default configuration
         event_handler = handler_factory()
         event_handler.bind("foobar", service_container)
-        event_handler.prepare(srv_ctx)
+        event_handler.prepare()
         assert event_handler.queue.durable is True
         assert event_handler.queue.routing_key == "eventtype"
         assert event_handler.queue.exchange.name == "srcservice.events"
@@ -120,27 +122,26 @@ def test_event_handler(handler_factory):
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
         event_handler.bind("foobar", service_container)
-        event_handler.prepare(srv_ctx)
-
+        event_handler.prepare()
         assert (event_handler.queue.name ==
                 "evt-srcservice-eventtype--destservice.foobar")
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
         event_handler.bind("foobar", service_container)
-        event_handler.prepare(srv_ctx)
+        event_handler.prepare()
         assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
         # test singleton handler
         event_handler = handler_factory(handler_type=SINGLETON)
         event_handler.bind("foobar", service_container)
-        event_handler.prepare(srv_ctx)
+        event_handler.prepare()
         assert event_handler.queue.name == "evt-srcservice-eventtype"
 
         # test reliable delivery
         event_handler = handler_factory(reliable_delivery=True)
         event_handler.bind("foobar", service_container)
-        event_handler.prepare(srv_ctx)
+        event_handler.prepare()
         assert event_handler.queue.auto_delete is False
 
 
@@ -548,12 +549,13 @@ def test_dispatch_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     service = Mock()
     srv_ctx = ServiceContext("srcservice", None, None, config=rabbit_config)
     worker_ctx = WorkerContext(srv_ctx, service, None)
+    service_container = Mock(spec=ServiceContainer)
+    service_container.ctx = srv_ctx
 
     dispatcher = EventDispatcher()
-    dispatcher.name = "dispatch"
-
-    dispatcher.prepare(srv_ctx)
-    dispatcher.start(srv_ctx)
+    dispatcher.bind("dispatch", service_container)
+    dispatcher.prepare()
+    dispatcher.start()
 
     # we should have an exchange but no queues
     exchanges = rabbit_manager.get_exchanges(vhost)

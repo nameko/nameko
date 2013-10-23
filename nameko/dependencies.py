@@ -34,36 +34,27 @@ class DependencyProvider(object):
         # temp
         self.srv_ctx = container.ctx
 
-    def prepare(self, srv_ctx):
+    def prepare(self):
         """ Called when the service container starts.
 
         DependencyProviders should do any required initialisation here.
-
-        Args:
-            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def start(self, srv_ctx):
+    def start(self):
         """ Called when the service container has successfully started.
 
         This is only called after all other DependencyProviders have
         successfully initialised. If the DependencyProvider listens to
         external events, they may now start acting upon them.
-
-        Args:
-            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def stop(self, srv_ctx):
+    def stop(self):
         """ Called when the service container begins to shut down.
 
         DependencyProviders should do any graceful shutdown here.
-
-        Args:
-            - srv_ctx: see ``nameko.service.ServiceContainer.ctx``
         """
 
-    def kill(self, srv_ctx, exc=None):
+    def kill(self, exc=None):
         """ Called to stop this dependency without grace. The exception
         causing the kill may be provided.
 

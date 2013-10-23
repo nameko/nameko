@@ -106,8 +106,8 @@ class ServiceContainer(object):
         _log.debug('starting %s', self)
 
         with log_time(_log.debug, 'started %s in %0.3f sec', self):
-            self.dependencies.all.prepare(self.ctx)
-            self.dependencies.all.start(self.ctx)
+            self.dependencies.all.prepare()
+            self.dependencies.all.start()
 
     def stop(self):
         if self._died.ready():
@@ -122,12 +122,12 @@ class ServiceContainer(object):
 
             # entrypoint deps have to be stopped before injection deps
             # to ensure that running workers can successfully complete
-            dependencies.entrypoints.all.stop(self.ctx)
+            dependencies.entrypoints.all.stop()
 
             # there might still be some running workers, which we have to
             # wait for to complete before we can stop injection dependencies
             self._worker_pool.waitall()
-            dependencies.injections.all.stop(self.ctx)
+            dependencies.injections.all.stop()
 
             self._died.send(None)
 
@@ -140,7 +140,7 @@ class ServiceContainer(object):
 
         try:
             with eventlet.Timeout(KILL_TIMEOUT):
-                self.dependencies.all.kill(self.ctx, exc)
+                self.dependencies.all.kill(exc)
         except eventlet.Timeout:
             _log.warning('timeout waiting for dependencies.kill %s', self)
 

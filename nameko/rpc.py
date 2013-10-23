@@ -113,12 +113,11 @@ class RpcConsumer(object):
 
     def handle_message(self, body, message):
         routing_key = message.delivery_info['routing_key']
-        srv_ctx = self._srv_ctx
         try:
             provider = self.get_provider_for_method(routing_key)
-            provider.handle_message(srv_ctx, body, message)
+            provider.handle_message(body, message)
         except MethodNotFound as exc:
-            self.handle_result(message, srv_ctx, None, exc)
+            self.handle_result(message, self._srv_ctx, None, exc)
 
     def handle_result(self, message, srv_ctx, result, exc):
         error = None
@@ -138,43 +137,43 @@ class RpcConsumer(object):
 class RpcProvider(EntrypointProvider, HeaderDecoder):
     _consumer_cls = RpcConsumer
 
-    def get_consumer(self, srv_ctx):
-        return get_rpc_consumer(srv_ctx, self._consumer_cls)
+    def get_consumer(self):
+        return get_rpc_consumer(self.srv_ctx, self._consumer_cls)
 
-    def prepare(self, srv_ctx):
-        rpc_consumer = self.get_consumer(srv_ctx)
+    def prepare(self):
+        rpc_consumer = self.get_consumer()
         rpc_consumer.register_provider(self)
         rpc_consumer.prepare_queue()
 
-    def start(self, srv_ctx):
-        rpc_consumer = self.get_consumer(srv_ctx)
+    def start(self):
+        rpc_consumer = self.get_consumer()
         rpc_consumer.start()
 
-    def stop(self, srv_ctx):
-        rpc_consumer = self.get_consumer(srv_ctx)
+    def stop(self):
+        rpc_consumer = self.get_consumer()
         rpc_consumer.unregister_provider(self)
         rpc_consumer.stop()
 
-    def kill(self, srv_ctx, exc=None):
-        rpc_consumer = self.get_consumer(srv_ctx)
+    def kill(self, exc=None):
+        rpc_consumer = self.get_consumer()
         rpc_consumer.unregister_provider(self)
         rpc_consumer.kill(exc)
 
-    def handle_message(self, srv_ctx, body, message):
+    def handle_message(self, body, message):
         args = body['args']
         kwargs = body['kwargs']
 
-        worker_ctx_cls = srv_ctx.container.worker_ctx_cls
+        worker_ctx_cls = self.container.worker_ctx_cls
         context_data = self.unpack_message_headers(worker_ctx_cls, message)
 
         handle_result = partial(self.handle_result, message)
-        srv_ctx.container.spawn_worker(self, args, kwargs,
-                                       context_data=context_data,
-                                       handle_result=handle_result)
+        self.container.spawn_worker(self, args, kwargs,
+                                    context_data=context_data,
+                                    handle_result=handle_result)
 
     def handle_result(self, message, worker_ctx, result, exc):
-        srv_ctx = worker_ctx.srv_ctx
-        rpc_consumer = self.get_consumer(srv_ctx)
+        srv_ctx = self.srv_ctx
+        rpc_consumer = self.get_consumer()
         rpc_consumer.handle_result(message, srv_ctx, result, exc)
 
 
@@ -272,25 +271,24 @@ class RpcProxyProvider(InjectionProvider):
     def __init__(self, service_name):
         self.service_name = service_name
 
-    def prepare(self, srv_ctx):
-        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+    def prepare(self):
+        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
         rpc_reply_listener.prepare_queue()
 
-    def start(self, srv_ctx):
-        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+    def start(self):
+        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
         rpc_reply_listener.start_consuming()
 
-    def stop(self, srv_ctx):
-        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+    def stop(self):
+        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
         rpc_reply_listener.stop()
 
-    def kill(self, srv_ctx, exc=None):
-        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+    def kill(self, exc=None):
+        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
         rpc_reply_listener.kill(exc)
 
     def acquire_injection(self, worker_ctx):
-        srv_ctx = worker_ctx.srv_ctx
-        rpc_reply_listener = get_rpc_reply_listener(srv_ctx)
+        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
         return ServiceProxy(worker_ctx, self.service_name, rpc_reply_listener)
 
 

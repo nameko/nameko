@@ -176,7 +176,7 @@ def service_proxy_factory(request):
         service_proxy = RpcProxyProvider(service_name)
 
         # manually add proxy as a dependency to get lifecycle management
-        service_proxy.name = uuid.uuid4().hex
+        service_proxy.bind(uuid.uuid4().hex, container)
         container.dependencies.add(service_proxy)
 
         proxy = service_proxy.acquire_injection(worker_ctx)

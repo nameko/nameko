@@ -25,17 +25,17 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
-    def prepare(self, srv_ctx):
-        self._log_call(('prepare', srv_ctx))
-        super(CallCollectorMixin, self).prepare(srv_ctx)
+    def prepare(self):
+        self._log_call(('prepare', self.srv_ctx))
+        super(CallCollectorMixin, self).prepare()
 
-    def start(self, srv_ctx):
-        self._log_call(('start', srv_ctx))
-        super(CallCollectorMixin, self).start(srv_ctx)
+    def start(self):
+        self._log_call(('start', self.srv_ctx))
+        super(CallCollectorMixin, self).start()
 
-    def stop(self, srv_ctx):
-        self._log_call(('stop', srv_ctx))
-        super(CallCollectorMixin, self).stop(srv_ctx)
+    def stop(self):
+        self._log_call(('stop', self.srv_ctx))
+        super(CallCollectorMixin, self).stop()
 
     def worker_setup(self, worker_ctx):
         self._log_call(('setup', worker_ctx))
