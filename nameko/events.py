@@ -26,7 +26,7 @@ import uuid
 
 from kombu import Exchange, Queue
 
-from nameko.messaging import Publisher, PERSISTENT, ConsumeProvider
+from nameko.messaging import PublishProvider, PERSISTENT, ConsumeProvider
 from nameko.dependencies import entrypoint, injection
 
 
@@ -109,7 +109,7 @@ class Event(object):
         self.data = data
 
 
-class EventDispatcher(Publisher):
+class EventDispatcher(PublishProvider):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,

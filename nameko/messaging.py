@@ -17,7 +17,7 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
-    InjectionProvider, EntrypointProvider, entrypoint)
+    InjectionProvider, EntrypointProvider, entrypoint, injection)
 
 _log = getLogger(__name__)
 
@@ -55,7 +55,7 @@ class HeaderDecoder(object):
         return data
 
 
-class Publisher(InjectionProvider, HeaderEncoder):
+class PublishProvider(InjectionProvider, HeaderEncoder):
     """
     Provides a message publisher method via dependency injection.
 
@@ -114,6 +114,11 @@ class Publisher(InjectionProvider, HeaderEncoder):
                                  **kwargs)
 
         return publish
+
+
+@injection
+def publisher(exchange=None, queue=None):
+    return (PublishProvider, exchange, queue)
 
 
 @entrypoint

@@ -4,7 +4,7 @@ from mock import patch, Mock
 
 from nameko.dependencies import get_entrypoint_providers
 from nameko.messaging import (
-    Publisher, ConsumeProvider, consume, HeaderEncoder, HeaderDecoder)
+    PublishProvider, ConsumeProvider, consume, HeaderEncoder, HeaderDecoder)
 from nameko.service import (
     ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 from nameko.testing.utils import (
@@ -95,7 +95,7 @@ def test_publish_to_exchange():
     srv_ctx = Mock()
     worker_ctx = WorkerContext(srv_ctx, service, None)
 
-    publisher = Publisher(exchange=foobar_ex)
+    publisher = PublishProvider(exchange=foobar_ex)
     publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
@@ -126,7 +126,7 @@ def test_publish_to_queue():
     ctx_data = {'language': 'en'}
     worker_ctx = WorkerContext(srv_ctx, service, None, data=ctx_data)
 
-    publisher = Publisher(queue=foobar_queue)
+    publisher = PublishProvider(queue=foobar_queue)
     publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
@@ -158,7 +158,7 @@ def test_publish_custom_headers():
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
 
-    publisher = Publisher(queue=foobar_queue)
+    publisher = PublishProvider(queue=foobar_queue)
     publisher.name = "publish"
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
@@ -235,7 +235,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
 
-    publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
+    publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
     publisher.name = "publish"
 
     # test queue, exchange and binding created in rabbit

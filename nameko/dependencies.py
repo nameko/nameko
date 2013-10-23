@@ -177,13 +177,14 @@ def entrypoint(decorator_func):
         class Service(object):
 
             @http
-            def foobar()
+            def foobar():
                 pass
 
     """
     def registering_decorator(fn, args, kwargs):
-        tpe_init_args = decorator_func(*args, **kwargs)
-        descriptor = DependencyDescriptor(tpe_init_args[0], tpe_init_args[1:])
+        decorator_res = decorator_func(*args, **kwargs)
+        dep_cls, dep_args = decorator_res[0], decorator_res[1:]
+        descriptor = DependencyDescriptor(dep_cls, dep_args)
         register_descriptor(fn, descriptor)
         return fn
 
@@ -208,8 +209,9 @@ def entrypoint(decorator_func):
 def injection(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
-        tpe_init_args = fn(*args, **kwargs)
-        return DependencyDescriptor(tpe_init_args[0], tpe_init_args[1:])
+        decorator_res = fn(*args, **kwargs)
+        dep_cls, dep_args = decorator_res[0], decorator_res[1:]
+        return DependencyDescriptor(dep_cls, dep_args)
     return wrapped
 
 

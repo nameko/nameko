@@ -60,7 +60,7 @@ def test_event_dispatcher():
     srv_ctx = ServiceContext('srcservice', None, None)
     worker_ctx = WorkerContext(srv_ctx, service, "dispatch")
 
-    with patch('nameko.messaging.Publisher.prepare') as prepare:
+    with patch('nameko.messaging.PublishProvider.prepare') as prepare:
 
         # test start method
         event_dispatcher.prepare(srv_ctx)
