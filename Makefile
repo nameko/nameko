@@ -20,6 +20,10 @@ flake8:
 pylint:
 	pylint nameko -E
 
-test: pytest pylint flake8
+test: pytest pylint flake8 coverage_check
 
 full-test: requirements test
+
+coverage_check:
+	coverage report | grep "TOTAL.*100%" > /dev/null
+
