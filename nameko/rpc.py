@@ -12,7 +12,8 @@ from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import (
     get_queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
-    entrypoint, injection, InjectionProvider, EntrypointProvider)
+    entrypoint, injection, InjectionProvider, EntrypointProvider,
+    DependencyFactory)
 
 
 _log = getLogger(__name__)
@@ -20,7 +21,7 @@ _log = getLogger(__name__)
 
 @entrypoint
 def rpc():
-    return (RpcProvider,)
+    return DependencyFactory(RpcProvider)
 
 RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
@@ -291,7 +292,7 @@ class RpcProxyProvider(InjectionProvider):
 
 @injection
 def rpc_proxy(service_name):
-    return (RpcProxyProvider, service_name)
+    return DependencyFactory(RpcProxyProvider, (service_name,))
 
 
 class ServiceProxy(object):

@@ -27,7 +27,7 @@ import uuid
 from kombu import Exchange, Queue
 
 from nameko.messaging import PublishProvider, PERSISTENT, ConsumeProvider
-from nameko.dependencies import entrypoint, injection
+from nameko.dependencies import entrypoint, injection, DependencyFactory
 
 
 SERVICE_POOL = "service_pool"
@@ -164,7 +164,7 @@ class EventDispatcher(PublishProvider):
 
 @injection
 def event_dispatcher():
-    return (EventDispatcher,)
+    return DependencyFactory(EventDispatcher,)
 
 
 @entrypoint
@@ -222,9 +222,9 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             "Broadcast event handlers cannot be configured with reliable "
             "delivery.")
 
-    return (EventHandler,
-            service_name, event_type, handler_type,
-            reliable_delivery, requeue_on_error)
+    return DependencyFactory(EventHandler, (service_name, event_type,
+                                            handler_type, reliable_delivery,
+                                            requeue_on_error))
 
 
 class EventHandler(ConsumeProvider):

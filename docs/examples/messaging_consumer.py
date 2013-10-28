@@ -10,12 +10,13 @@ import tempfile
 
 from kombu import Exchange, Queue
 
-from nameko.dependencies import InjectionProvider, injection
+from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.messaging import consume
 from nameko.service import ServiceRunner
 
 demo_ex = Exchange('demo_ex', durable=False, auto_delete=True)
-demo_queue = Queue('demo_queue', exchange=demo_ex, durable=False, auto_delete=True)
+demo_queue = Queue('demo_queue', exchange=demo_ex, durable=False,
+                   auto_delete=True)
 
 
 class InvalidPath(Exception):
@@ -56,7 +57,7 @@ def file_logger(path=None):
         if not os.access(check_path, os.W_OK):
             raise InvalidPath("File or dir not writable: {}".format(path))
 
-    return (LogFile, path)
+    return DependencyFactory(LogFile, (path,))
 
 
 class MessagingConsumer(object):

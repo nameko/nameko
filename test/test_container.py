@@ -6,7 +6,8 @@ import pytest
 from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
 
 from nameko.dependencies import(
-    InjectionProvider, EntrypointProvider, entrypoint, injection)
+    InjectionProvider, EntrypointProvider, entrypoint, injection,
+    DependencyFactory)
 
 
 class CallCollectorMixin(object):
@@ -66,12 +67,12 @@ class CallCollectingInjectionProvider(
 
 @entrypoint
 def foobar():
-    return (CallCollectingEntrypointProvider,)
+    return DependencyFactory(CallCollectingEntrypointProvider,)
 
 
 @injection
 def call_collector():
-    return (CallCollectingInjectionProvider,)
+    return DependencyFactory(CallCollectingInjectionProvider,)
 
 
 egg_error = Exception('broken')

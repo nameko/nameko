@@ -1,13 +1,15 @@
 from mock import Mock
+import pytest
 
 from nameko.dependencies import (
     entrypoint, EntrypointProvider, get_entrypoint_providers,
-    injection, InjectionProvider, get_injection_providers)
+    injection, InjectionProvider, get_injection_providers,
+    DependencyFactory, ProgrammingError)
 from nameko.service import ServiceContainer, WorkerContext
 
 
 class FooProvider(EntrypointProvider):
-    def __init__(self, args, kwargs):
+    def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
 
@@ -15,11 +17,11 @@ class FooProvider(EntrypointProvider):
 @entrypoint
 def foobar(*args, **kwargs):
     """foobar-doc"""
-    return (FooProvider, args, kwargs)
+    return DependencyFactory(FooProvider, args, kwargs)
 
 
 class BarProvider(InjectionProvider):
-    def __init__(self, args, kwargs):
+    def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
 
@@ -29,7 +31,7 @@ class BarProvider(InjectionProvider):
 
 @injection
 def barfoo(*args, **kwargs):
-    return (BarProvider, args, kwargs)
+    return DependencyFactory(BarProvider, args, kwargs)
 
 
 class ExampleService(object):
@@ -88,3 +90,21 @@ def test_get_injection_providers():
 def test_entrypoint_decorator_does_not_mutate_service():
     service = ExampleService()
     assert service.echo(1) == 1
+
+
+def test_decorated_functions_must_return_dependency_factories():
+
+    with pytest.raises(ProgrammingError):
+        @injection
+        def foo():
+            pass
+        foo()
+
+    with pytest.raises(ProgrammingError):
+        @entrypoint
+        def bar():
+            pass
+
+        @bar
+        def baz():
+            pass

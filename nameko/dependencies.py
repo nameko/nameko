@@ -6,15 +6,19 @@ from functools import wraps, partial
 import inspect
 from itertools import chain
 import types
-
+from weakref import WeakSet
 
 from nameko.utils import SpawningSet
 
 
-ENTRYPOINT_PROVIDERS_ATTR = 'nameko_providers'
+ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
 
 
 class NotInitializedError(Exception):
+    pass
+
+
+class ProgrammingError(Exception):
     pass
 
 
@@ -148,7 +152,14 @@ class DependencySet(SpawningSet):
                             if is_entrypoint_provider(item)])
 
 
-def register_descriptor(fn, provider):
+registered_injections = WeakSet()
+
+
+def register_injection(fn, factory):
+    registered_injections.add(factory)
+
+
+def register_entrypoint(fn, provider):
     descriptors = getattr(fn, ENTRYPOINT_PROVIDERS_ATTR, None)
 
     if descriptors is None:
@@ -158,26 +169,34 @@ def register_descriptor(fn, provider):
     descriptors.add(provider)
 
 
-class DependencyDescriptor(object):
+class DependencyFactory(object):
     def __init__(self, dep_cls, init_args=None, init_kwargs=None):
         self.dep_cls = dep_cls
-        self.args = init_args
+        self.args = init_args if init_args is not None else tuple()
+        self.kwargs = init_kwargs if init_kwargs is not None else dict()
 
-    def bind_dependency(self, name, container):
-        instance = self.dep_cls(*self.args)
+    def bind_instance(self, name, container):
+        """ Instaniate an instance of ``dep_cls`` and bind it to ``container``.
+
+        See `:meth:~DependencyProvider.bind`.
+        """
+        instance = self.dep_cls(*self.args, **self.kwargs)
         instance.bind(name, container)
         return instance
 
 
 def entrypoint(decorator_func):
-    """ Transform a function into a decorator that can be used to declare
+    """ Transform a callable into a decorator that can be used to declare
     entrypoints.
+
+    The callable must return a DependencyFactory that creates the
+    EntrypointProvider instance.
 
     e.g::
 
         @entrypoint
         def http(bind_port=80):
-            return HttpEntrypoint(bind_port)
+            return DependencyFactory(HttpEntrypoint, (bind_port,))
 
         class Service(object):
 
@@ -187,10 +206,11 @@ def entrypoint(decorator_func):
 
     """
     def registering_decorator(fn, args, kwargs):
-        decorator_res = decorator_func(*args, **kwargs)
-        dep_cls, dep_args = decorator_res[0], decorator_res[1:]
-        descriptor = DependencyDescriptor(dep_cls, dep_args)
-        register_descriptor(fn, descriptor)
+        factory = decorator_func(*args, **kwargs)
+        if not isinstance(factory, DependencyFactory):
+            raise ProgrammingError('Arguments to `entrypoint` must return '
+                                   'DependencyFactory instances')
+        register_entrypoint(fn, factory)
         return fn
 
     @wraps(decorator_func)
@@ -212,16 +232,31 @@ def entrypoint(decorator_func):
 
 
 def injection(fn):
+    """ Transform a callable into a function that can be used to create
+    injections.
+
+    The callable must return a DependencyFactory that creates the
+    InjectionProvider instance.
+
+    e.g::
+
+        @injection
+        def database(*args, **kwargs):
+            return DependencyFactory(DatabaseProvider, args, kwargs)
+
+        class Service(object):
+
+            db = database()
+    """
     @wraps(fn)
     def wrapped(*args, **kwargs):
-        decorator_res = fn(*args, **kwargs)
-        dep_cls, dep_args = decorator_res[0], decorator_res[1:]
-        return DependencyDescriptor(dep_cls, dep_args)
+        factory = fn(*args, **kwargs)
+        if not isinstance(factory, DependencyFactory):
+            raise ProgrammingError('Arguments to `injection` must return '
+                                   'DependencyFactory instances')
+        register_injection(fn, factory)
+        return factory
     return wrapped
-
-
-def is_dependency_descriptor(obj):
-    return isinstance(obj, DependencyDescriptor)
 
 
 def is_injection_provider(obj):
@@ -234,17 +269,18 @@ def is_entrypoint_provider(obj):
 
 def get_injection_providers(container):
     service_cls = container.service_cls
-    for name, descr in inspect.getmembers(service_cls,
-                                          is_dependency_descriptor):
-        yield descr.bind_dependency(name, container)
+    for name, attr in inspect.getmembers(service_cls):
+        if attr in registered_injections:
+            factory = attr
+            yield factory.bind_instance(name, container)
 
 
 def get_entrypoint_providers(container):
     service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
-        descriptors = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
-        for descr in descriptors:
-            yield descr.bind_dependency(name, container)
+        factories = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
+        for factory in factories:
+            yield factory.bind_instance(name, container)
 
 
 def get_dependencies(container):

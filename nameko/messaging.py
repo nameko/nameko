@@ -17,7 +17,8 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
-    InjectionProvider, EntrypointProvider, entrypoint, injection)
+    InjectionProvider, EntrypointProvider, entrypoint, injection,
+    DependencyFactory)
 
 _log = getLogger(__name__)
 
@@ -118,7 +119,7 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
 
 @injection
 def publisher(exchange=None, queue=None):
-    return (PublishProvider, exchange, queue)
+    return DependencyFactory(PublishProvider, (exchange, queue,))
 
 
 @entrypoint
@@ -146,7 +147,7 @@ def consume(queue, requeue_on_error=False):
     Args:
         queue: The queue to consume from.
     '''
-    return (ConsumeProvider, queue, requeue_on_error)
+    return DependencyFactory(ConsumeProvider, (queue, requeue_on_error,))
 
 
 queue_consumers = WeakKeyDictionary()
