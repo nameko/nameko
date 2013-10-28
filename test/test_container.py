@@ -25,17 +25,17 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
-    def prepare(self, srv_ctx):
-        self._log_call(('prepare', srv_ctx))
-        super(CallCollectorMixin, self).prepare(srv_ctx)
+    def prepare(self):
+        self._log_call(('prepare'))
+        super(CallCollectorMixin, self).prepare()
 
-    def start(self, srv_ctx):
-        self._log_call(('start', srv_ctx))
-        super(CallCollectorMixin, self).start(srv_ctx)
+    def start(self):
+        self._log_call(('start'))
+        super(CallCollectorMixin, self).start()
 
-    def stop(self, srv_ctx):
-        self._log_call(('stop', srv_ctx))
-        super(CallCollectorMixin, self).stop(srv_ctx)
+    def stop(self):
+        self._log_call(('stop'))
+        super(CallCollectorMixin, self).stop()
 
     def worker_setup(self, worker_ctx):
         self._log_call(('setup', worker_ctx))
@@ -100,7 +100,7 @@ class Service(object):
 def container():
     container = ServiceContainer(service_cls=Service,
                                  worker_ctx_cls=WorkerContext,
-                                 config=None)
+                                 config={})
     for dep in container.dependencies:
         dep._reset_calls()
 
@@ -116,7 +116,6 @@ def test_collects_dependencies(container):
 
 
 def test_starts_dependencies(container):
-    srv_ctx = container.ctx
 
     for dep in container.dependencies:
         assert dep.calls == []
@@ -125,18 +124,17 @@ def test_starts_dependencies(container):
 
     for dep in container.dependencies:
         assert dep.calls == [
-            ('prepare', srv_ctx),
-            ('start', srv_ctx)
+            ('prepare'),
+            ('start')
         ]
 
 
 def test_stops_dependencies(container):
-    srv_ctx = container.ctx
 
     container.stop()
     for dep in container.dependencies:
         assert dep.calls == [
-            ('stop', srv_ctx)
+            ('stop')
         ]
 
 
