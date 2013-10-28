@@ -36,30 +36,15 @@ def log_worker_exception(worker_ctx, exc):
     _log.error('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
 
 
-class ServiceContext(object):
-    """ Context for a ServiceContainer
-    """
-    def __init__(self, name, service_class, container, config=None):
-        self.name = name
-        self.service_class = service_class
-        self.container = container
-        self.config = config
-
-        if config is not None:
-            self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
-        else:
-            self.max_workers = 10
-
-
 class WorkerContextBase(object):
     """ Abstract base class for a WorkerContext
     """
     __metaclass__ = ABCMeta
 
-    def __init__(self, srv_ctx, service, method_name, args=None, kwargs=None,
+    def __init__(self, container, service, method_name, args=None, kwargs=None,
                  data=None):
-        self.srv_ctx = srv_ctx
-        self.config = srv_ctx.config
+        self.container = container
+        self.config = container.config  # TODO: remove?
         self.service = service
         self.method_name = method_name
         self.args = args if args is not None else ()
@@ -73,8 +58,9 @@ class WorkerContextBase(object):
 
     def __str__(self):
         cls_name = type(self).__name__
+        service_name = self.container.service_name
         return '<{} {}.{} at 0x{:x}>'.format(
-            cls_name, self.srv_ctx.name, self.method_name, id(self))
+            cls_name, service_name, self.method_name, id(self))
 
 
 class WorkerContext(WorkerContextBase):
@@ -88,17 +74,17 @@ class ServiceContainer(object):
     def __init__(self, service_cls, worker_ctx_cls, config):
         self.service_cls = service_cls
         self.worker_ctx_cls = worker_ctx_cls
-        self.config = config
+
         self.service_name = get_service_name(service_cls)
 
-        self.ctx = ServiceContext(
-            self.service_name, service_cls, self, self.config)
+        self.config = config
+        self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
 
         self.dependencies = DependencySet()
         for dep in get_dependencies(self):
             self.dependencies.add(dep)
 
-        self._worker_pool = GreenPool(size=self.ctx.max_workers)
+        self._worker_pool = GreenPool(size=self.max_workers)
         self._active_workers = []
         self._died = Event()
 
@@ -155,7 +141,7 @@ class ServiceContainer(object):
 
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
-            self.ctx, service, provider.name, args, kwargs, data=context_data)
+            self, service, provider.name, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
@@ -219,7 +205,7 @@ class ServiceContainer(object):
 
     def __str__(self):
         return '<ServiceContainer {} at 0x{:x}>'.format(
-            self.ctx.name, id(self))
+            self.service_name, id(self))
 
 
 class ServiceRunner(object):

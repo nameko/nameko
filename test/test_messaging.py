@@ -5,8 +5,7 @@ from mock import patch, Mock
 from nameko.messaging import (
     PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
 from nameko.service import (
-    ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS,
-    ServiceContainer)
+    WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS, ServiceContainer)
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)
 
@@ -22,21 +21,22 @@ class CustomWorkerContext(WorkerContextBase):
 
 def test_consume_provider():
 
-    message = Mock(headers={})
-    queue_consumer = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.worker_ctx_cls = WorkerContext
+    container.service_name = "service"
+    container.config = Mock()
 
-    srv_ctx = ServiceContext('service', None, None)
-    worker_ctx = WorkerContext(srv_ctx, None, None)
-    service_container = Mock(spec=ServiceContainer)
-    service_container.worker_ctx_cls = WorkerContext
-    service_container.ctx = srv_ctx
+    worker_ctx = WorkerContext(container, None, None)
 
-    spawn_worker = service_container.spawn_worker
+    spawn_worker = container.spawn_worker
     spawn_worker.return_value = worker_ctx
 
     consume_provider = ConsumeProvider(queue=foobar_queue,
                                        requeue_on_error=False)
-    consume_provider.bind("name", service_container)
+    consume_provider.bind("name", container)
+
+    message = Mock(headers={})
+    queue_consumer = Mock()
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
@@ -78,17 +78,19 @@ def test_consume_provider():
 
 
 def test_publish_to_exchange():
-    producer = Mock()
-    connection = Mock()
-    service = Mock()
 
-    srv_ctx = ServiceContext('srcservice', None, None)
-    worker_ctx = WorkerContext(srv_ctx, service, "publish")
-    service_container = Mock(spec=ServiceContainer)
-    service_container.ctx = srv_ctx
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "srcservice"
+    container.config = Mock()
+
+    service = Mock()
+    worker_ctx = WorkerContext(container, service, "publish")
 
     publisher = PublishProvider(exchange=foobar_ex)
-    publisher.bind("publish", service_container)
+    publisher.bind("publish", container)
+
+    producer = Mock()
+    connection = Mock()
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
             patch.object(publisher, 'get_connection') as get_connection, \
@@ -110,19 +112,19 @@ def test_publish_to_exchange():
 
 
 def test_publish_to_queue():
-    producer = Mock()
-    connection = Mock()
-    service = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "srcservice"
+    container.config = Mock()
 
     ctx_data = {'language': 'en'}
-
-    srv_ctx = ServiceContext('srcservice', None, None)
-    worker_ctx = WorkerContext(srv_ctx, service, "publish", data=ctx_data)
-    service_container = Mock(spec=ServiceContainer)
-    service_container.ctx = srv_ctx
+    service = Mock()
+    worker_ctx = WorkerContext(container, service, "publish", data=ctx_data)
 
     publisher = PublishProvider(queue=foobar_queue)
-    publisher.bind("publish", service_container)
+    publisher.bind("publish", container)
+
+    producer = Mock()
+    connection = Mock()
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
             patch.object(publisher, 'get_connection') as get_connection, \
@@ -145,19 +147,20 @@ def test_publish_to_queue():
 
 
 def test_publish_custom_headers():
-    producer = Mock()
-    connection = Mock()
-    service = Mock()
+
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "srcservice"
+    container.config = Mock()
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
-
-    srv_ctx = ServiceContext('srcservice', None, None)
-    worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
-    service_container = Mock(spec=ServiceContainer)
-    service_container.ctx = srv_ctx
+    service = Mock()
+    worker_ctx = CustomWorkerContext(container, service, None, data=ctx_data)
 
     publisher = PublishProvider(queue=foobar_queue)
-    publisher.bind("publish", service_container)
+    publisher.bind("publish", container)
+
+    producer = Mock()
+    connection = Mock()
 
     with patch('nameko.messaging.maybe_declare') as maybe_declare, \
             patch.object(publisher, 'get_connection') as get_connection, \
@@ -228,17 +231,17 @@ def test_header_decoder():
 def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
-    service = Mock()
+
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = rabbit_config
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
-
-    srv_ctx = ServiceContext(None, None, None, config=rabbit_config)
-    worker_ctx = CustomWorkerContext(srv_ctx, service, None, data=ctx_data)
-    service_container = Mock(spec=ServiceContainer)
-    service_container.ctx = srv_ctx
+    service = Mock()
+    worker_ctx = CustomWorkerContext(container, service, None, data=ctx_data)
 
     publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
-    publisher.bind("publish", service_container)
+    publisher.bind("publish", container)
 
     # test queue, exchange and binding created in rabbit
     publisher.prepare()
@@ -269,15 +272,16 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
 
-    service_container = Mock(spec=ServiceContainer)
-    srv_ctx = ServiceContext(None, None, service_container,
-                             config=rabbit_config)
-    worker_ctx = CustomWorkerContext(srv_ctx, None, None)
-    service_container.worker_ctx_cls = CustomWorkerContext
-    service_container.ctx = srv_ctx
+    container = Mock(spec=ServiceContainer)
+    container.worker_ctx_cls = CustomWorkerContext
+    container.service_name = "service"
+    container.config = rabbit_config
+    container.max_workers = 10
+
+    worker_ctx = CustomWorkerContext(container, None, None)
 
     consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
-    consumer.bind("injection_name", service_container)
+    consumer.bind("injection_name", container)
 
     # test queue, exchange and binding created in rabbit
     consumer.prepare()
@@ -292,15 +296,14 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message consumed from queue
-    service_container.spawn_worker.return_value = worker_ctx
+    container.spawn_worker.return_value = worker_ctx
 
     headers = {'nameko.language': 'en', 'nameko.customheader': 'customvalue'}
     rabbit_manager.publish(
         vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
-    with wait_for_call(CONSUME_TIMEOUT,
-                       service_container.spawn_worker) as method:
+    with wait_for_call(CONSUME_TIMEOUT, container.spawn_worker) as method:
         method.assert_called_once_with(consumer, ('msg',), {},
                                        context_data=ctx_data,
                                        handle_result=ANY_PARTIAL)

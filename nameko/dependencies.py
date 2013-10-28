@@ -31,9 +31,6 @@ class DependencyProvider(object):
         self.name = name
         self.container = container
 
-        # temp
-        self.srv_ctx = container.ctx
-
     def prepare(self):
         """ Called when the service container starts.
 

@@ -79,20 +79,20 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
         self.exchange = exchange
         self.queue = queue
 
-    def get_connection(self, srv_ctx):
+    def get_connection(self):
         # TODO: should this live outside of the class or be a class method?
-        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
         return connections[conn].acquire(block=True)
 
-    def get_producer(self, srv_ctx):
-        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
+    def get_producer(self):
+        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
         return producers[conn].acquire(block=True)
 
     def prepare(self):
         exchange = self.exchange
         queue = self.queue
 
-        with self.get_connection(self.srv_ctx) as conn:
+        with self.get_connection() as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
             elif exchange is not None:
@@ -106,7 +106,7 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
             if exchange is None and queue is not None:
                 exchange = queue.exchange
 
-            with self.get_producer(self.srv_ctx) as producer:
+            with self.get_producer() as producer:
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
                 headers = self.get_message_headers(worker_ctx)
@@ -152,15 +152,16 @@ def consume(queue, requeue_on_error=False):
 queue_consumers = WeakKeyDictionary()
 
 
-def get_queue_consumer(srv_ctx):
-    """ Get or create a QueueConsumer instance for the given ``srv_ctx``
+def get_queue_consumer(container):
+    """ Get or create a QueueConsumer instance for the given ServiceContainer
+    instance.
     """
-    if srv_ctx not in queue_consumers:
+    if container not in queue_consumers:
         queue_consumer = QueueConsumer(
-            srv_ctx.config[AMQP_URI_CONFIG_KEY], srv_ctx.max_workers)
-        queue_consumers[srv_ctx] = queue_consumer
+            container.config[AMQP_URI_CONFIG_KEY], container.max_workers)
+        queue_consumers[container] = queue_consumer
 
-    return queue_consumers[srv_ctx]
+    return queue_consumers[container]
 
 
 class ConsumeProvider(EntrypointProvider, HeaderDecoder):
@@ -170,23 +171,19 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         self.requeue_on_error = requeue_on_error
 
     def prepare(self):
-        srv_ctx = self.srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self.container)
         qc.add_consumer(self.queue, partial(self.handle_message))
 
     def start(self):
-        srv_ctx = self.srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self.container)
         qc.start()
 
     def stop(self):
-        srv_ctx = self.srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self.container)
         qc.stop()
 
     def kill(self, exc=None):
-        srv_ctx = self.srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self.container)
         qc.kill(exc)
 
     def handle_message(self, body, message):
@@ -206,8 +203,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
 
     def handle_message_processed(self, message, result=None, exc=None):
 
-        srv_ctx = self.srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self.container)
 
         if exc is not None and self.requeue_on_error:
             qc.requeue_message(message)

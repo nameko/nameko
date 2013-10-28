@@ -36,7 +36,7 @@ class TimerProvider(EntrypointProvider):
     def __init__(self, interval, config_key):
         # The map is only used to support using the same class in multiple
         # concurrently running containers.
-        self.timers_by_ctx = WeakKeyDictionary()
+        self.timers_by_container = WeakKeyDictionary()
         self.interval = interval
         self.config_key = config_key
 
@@ -46,22 +46,23 @@ class TimerProvider(EntrypointProvider):
             kwargs = {}
             self.container.spawn_worker(self, args, kwargs)
 
-        srv_ctx = self.srv_ctx
+        config = self.container.config
 
         if self.config_key:
-            interval = srv_ctx.config.get(self.config_key, self.interval)
+            interval = config.get(self.config_key, self.interval)
         else:
             interval = self.interval
 
-        self.timers_by_ctx[srv_ctx] = Timer(interval, timer_handler)
+        self.timers_by_container[self.container] = Timer(interval,
+                                                         timer_handler)
 
     def start(self):
-        timer = self.timers_by_ctx[self.srv_ctx]
+        timer = self.timers_by_container[self.container]
         _log.debug('started %s', self)
         timer.start()
 
     def stop(self):
-        self.timers_by_ctx[self.srv_ctx].stop()
+        self.timers_by_container[self.container].stop()
 
     def __str__(self):
         return '<TimerProvider {} with {}s interval at at 0x{:x}>'.format(

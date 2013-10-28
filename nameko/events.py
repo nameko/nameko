@@ -140,8 +140,8 @@ class EventDispatcher(PublishProvider):
 
     """
     def prepare(self):
-        # TODO: should we actually put this into the srv_ctx?
-        self.exchange = get_event_exchange(self.srv_ctx.name)
+        service_name = self.container.service_name
+        self.exchange = get_event_exchange(service_name)
         super(EventDispatcher, self).prepare()
 
     def acquire_injection(self, worker_ctx):
@@ -153,7 +153,7 @@ class EventDispatcher(PublishProvider):
             msg = evt.data
             routing_key = evt.type
 
-            with self.get_producer(self.srv_ctx) as producer:
+            with self.get_producer() as producer:
 
                 headers = self.get_message_headers(worker_ctx)
                 producer.publish(msg, exchange=exchange, headers=headers,
@@ -241,14 +241,14 @@ class EventHandler(ConsumeProvider):
             queue=None, requeue_on_error=requeue_on_error)
 
     def prepare(self):
-        srv_ctx = self.srv_ctx
-        _log.debug('starting handler for %s', srv_ctx)
+        _log.debug('starting handler for %s', self.container)
 
         # handler_type determines queue name
+        service_name = self.container.service_name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
                                                    self.event_type,
-                                                   srv_ctx.name,
+                                                   service_name,
                                                    self.name)
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
@@ -256,7 +256,7 @@ class EventHandler(ConsumeProvider):
         elif self.handler_type is BROADCAST:
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
                                                       self.event_type,
-                                                      srv_ctx.name,
+                                                      service_name,
                                                       self.name,
                                                       uuid.uuid4().hex)
 

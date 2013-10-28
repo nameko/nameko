@@ -9,7 +9,7 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
 from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
-from nameko.service import ServiceContext, WorkerContext, ServiceContainer
+from nameko.service import WorkerContext, ServiceContainer
 from nameko.testing.utils import ANY_PARTIAL, as_context_manager
 
 
@@ -51,16 +51,15 @@ def test_event_handler_decorator():
 
 def test_event_dispatcher():
 
-    producer = Mock()
-    service = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "srcservice"
+    container.config = Mock()
 
-    srv_ctx = ServiceContext('srcservice', None, None)
-    worker_ctx = WorkerContext(srv_ctx, service, "dispatch")
-    service_container = Mock(spec=ServiceContainer)
-    service_container.ctx = srv_ctx
+    service = Mock()
+    worker_ctx = WorkerContext(container, service, "dispatch")
 
     event_dispatcher = EventDispatcher()
-    event_dispatcher.bind("dispatch", service_container)
+    event_dispatcher.bind("dispatch", container)
 
     with patch('nameko.messaging.PublishProvider.prepare') as prepare:
 
@@ -71,6 +70,8 @@ def test_event_dispatcher():
 
     evt = Mock(type="eventtype", data="msg")
     event_dispatcher.inject(worker_ctx)
+
+    producer = Mock()
 
     with patch.object(event_dispatcher, 'get_producer') as get_producer:
         get_producer.return_value = as_context_manager(producer)
@@ -100,18 +101,17 @@ def handler_factory(request):
 
 def test_event_handler(handler_factory):
 
-    queue_consumer = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "destservice"
 
-    srv_ctx = ServiceContext('destservice', None, None)
-    service_container = Mock(spec=ServiceContainer)
-    service_container.ctx = srv_ctx
+    queue_consumer = Mock()
 
     with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
         get_queue_consumer.return_value = queue_consumer
 
         # test default configuration
         event_handler = handler_factory()
-        event_handler.bind("foobar", service_container)
+        event_handler.bind("foobar", container)
         event_handler.prepare()
         assert event_handler.queue.durable is True
         assert event_handler.queue.routing_key == "eventtype"
@@ -121,26 +121,26 @@ def test_event_handler(handler_factory):
 
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)
-        event_handler.bind("foobar", service_container)
+        event_handler.bind("foobar", container)
         event_handler.prepare()
         assert (event_handler.queue.name ==
                 "evt-srcservice-eventtype--destservice.foobar")
 
         # test broadcast handler
         event_handler = handler_factory(handler_type=BROADCAST)
-        event_handler.bind("foobar", service_container)
+        event_handler.bind("foobar", container)
         event_handler.prepare()
         assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
         # test singleton handler
         event_handler = handler_factory(handler_type=SINGLETON)
-        event_handler.bind("foobar", service_container)
+        event_handler.bind("foobar", container)
         event_handler.prepare()
         assert event_handler.queue.name == "evt-srcservice-eventtype"
 
         # test reliable delivery
         event_handler = handler_factory(reliable_delivery=True)
-        event_handler.bind("foobar", service_container)
+        event_handler.bind("foobar", container)
         event_handler.prepare()
         assert event_handler.queue.auto_delete is False
 
@@ -546,14 +546,16 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 def test_dispatch_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
+
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "srcservice"
+    container.config = rabbit_config
+
     service = Mock()
-    srv_ctx = ServiceContext("srcservice", None, None, config=rabbit_config)
-    worker_ctx = WorkerContext(srv_ctx, service, None)
-    service_container = Mock(spec=ServiceContainer)
-    service_container.ctx = srv_ctx
+    worker_ctx = WorkerContext(container, service, None)
 
     dispatcher = EventDispatcher()
-    dispatcher.bind("dispatch", service_container)
+    dispatcher.bind("dispatch", container)
     dispatcher.prepare()
     dispatcher.start()
 

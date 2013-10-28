@@ -14,7 +14,7 @@ from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, get_rpc_consumer, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.service import (
-    ServiceContext, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
+    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 
 
 class ExampleError(Exception):
@@ -125,8 +125,8 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     provider = RpcProvider()
     provider.name = "rpcmethod"
 
-    srv_ctx = Mock(spec=ServiceContext)
-    srv_ctx.name = "exampleservice"
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "exampleservice"
 
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
@@ -134,7 +134,7 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     queue_consumer = Mock(spec=QueueConsumer)
     get_queue_consumer.return_value = queue_consumer
 
-    consumer = RpcConsumer(srv_ctx)
+    consumer = RpcConsumer(container)
     consumer.prepare_queue()
 
     queue = consumer._queue
@@ -143,7 +143,7 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     assert queue.exchange == exchange
     assert queue.durable
 
-    get_queue_consumer.assert_called_once_with(srv_ctx)
+    get_queue_consumer.assert_called_once_with(container)
     queue_consumer.add_consumer.assert_called_once_with(
         consumer._queue, consumer.handle_message)
 
@@ -164,8 +164,8 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
 
 def test_reply_listener(get_queue_consumer, get_rpc_exchange):
 
-    srv_ctx = Mock(spec=ServiceContext)
-    srv_ctx.name = "exampleservice"
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "exampleservice"
 
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
@@ -173,7 +173,7 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
     queue_consumer = Mock(spec=QueueConsumer)
     get_queue_consumer.return_value = queue_consumer
 
-    reply_listener = ReplyListener(srv_ctx)
+    reply_listener = ReplyListener(container)
 
     forced_uuid = uuid.uuid4().hex
 
@@ -187,7 +187,7 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
         assert queue.exchange == exchange
         assert queue.exclusive
 
-    get_queue_consumer.assert_called_once_with(srv_ctx)
+    get_queue_consumer.assert_called_once_with(container)
     queue_consumer.add_consumer.assert_called_once_with(
         reply_listener.reply_queue, reply_listener._handle_message)
 
@@ -274,13 +274,13 @@ def test_rpc_context_data(container_factory, rabbit_config,
         'auth_token': '123456789'
     }
 
-    worker_ctx = WorkerContext(container.ctx, None, None,
+    worker_ctx = WorkerContext(container, None, None,
                                data=context_data.copy())
     en_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
 
     context_data['language'] = 'fr'
 
-    worker_ctx = WorkerContext(container.ctx, None, None,
+    worker_ctx = WorkerContext(container, None, None,
                                data=context_data.copy())
     fr_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
 
@@ -301,7 +301,7 @@ def test_rpc_headers(container_factory, rabbit_config,
     }
 
     headers = {}
-    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
+    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(rpc_consumer, 'handle_message') as patched_handler:
@@ -311,7 +311,7 @@ def test_rpc_headers(container_factory, rabbit_config,
 
         patched_handler.side_effect = side_effect
 
-        worker_ctx = WorkerContext(container.ctx, None, None,
+        worker_ctx = WorkerContext(container, None, None,
                                    data=context_data.copy())
         proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
         container.start()
@@ -332,7 +332,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
     }
 
     headers = {}
-    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
+    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(rpc_consumer, 'handle_message') as patched_handler:
@@ -342,7 +342,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
 
         patched_handler.side_effect = side_effect
 
-        worker_ctx = CustomWorkerContext(container.ctx, None, None,
+        worker_ctx = CustomWorkerContext(container, None, None,
                                          data=context_data.copy())
         proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
         container.start()
@@ -397,7 +397,7 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
     proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
+    uri = container.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri, max_failure_count=2)
 
     with patch("kombu.connection.ConnectionPool.new") as new_connection:
@@ -414,7 +414,7 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
     proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    uri = container.ctx.config[AMQP_URI_CONFIG_KEY]
+    uri = container.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri)
 
     with patch("kombu.connection.ConnectionPool.new") as new_connection:

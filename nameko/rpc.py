@@ -30,45 +30,46 @@ rpc_consumers = WeakKeyDictionary()
 rpc_reply_listeners = WeakKeyDictionary()
 
 
-def get_rpc_consumer(srv_ctx, consumer_cls):
-    """ Get or create an RpcConsumer instance for the given ``srv_ctx``
+def get_rpc_consumer(container, consumer_cls):
+    """ Get or create an RpcConsumer instance for the given ServiceContainer
+    instance.
     """
-    if srv_ctx not in rpc_consumers:
-        rpc_consumer = consumer_cls(srv_ctx)
-        rpc_consumers[srv_ctx] = rpc_consumer
+    if container not in rpc_consumers:
+        rpc_consumer = consumer_cls(container)
+        rpc_consumers[container] = rpc_consumer
 
-    return rpc_consumers[srv_ctx]
+    return rpc_consumers[container]
 
 
-def get_rpc_exchange(srv_ctx):
-    exchange_name = srv_ctx.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
+def get_rpc_exchange(container):
+    exchange_name = container.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
     exchange = Exchange(exchange_name, durable=True, type="topic")
     return exchange
 
 
-def get_rpc_reply_listener(srv_ctx):
-    if srv_ctx not in rpc_reply_listeners:
-        rpc_reply_listener = ReplyListener(srv_ctx)
-        rpc_reply_listeners[srv_ctx] = rpc_reply_listener
+def get_rpc_reply_listener(container):
+    if container not in rpc_reply_listeners:
+        rpc_reply_listener = ReplyListener(container)
+        rpc_reply_listeners[container] = rpc_reply_listener
 
-    return rpc_reply_listeners[srv_ctx]
+    return rpc_reply_listeners[container]
 
 
 class RpcConsumer(object):
 
-    def __init__(self, srv_ctx):
+    def __init__(self, container):
         self._queue = None
         self._providers = {}
-        self._srv_ctx = srv_ctx
+        self._container = container
 
     def prepare_queue(self):
         if self._queue is None:
 
-            srv_ctx = self._srv_ctx
-            service_name = srv_ctx.name
+            container = self._container
+            service_name = container.service_name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
-            exchange = get_rpc_exchange(srv_ctx)
+            exchange = get_rpc_exchange(container)
 
             self._queue = Queue(
                 queue_name,
@@ -76,28 +77,28 @@ class RpcConsumer(object):
                 routing_key=routing_key,
                 durable=True)
 
-            qc = get_queue_consumer(srv_ctx)
+            qc = get_queue_consumer(container)
             qc.add_consumer(self._queue, self.handle_message)
 
     def start(self):
-        qc = get_queue_consumer(self._srv_ctx)
+        qc = get_queue_consumer(self._container)
         qc.start()
 
     def stop(self):
-        qc = get_queue_consumer(self._srv_ctx)
+        qc = get_queue_consumer(self._container)
         qc.stop()
 
     def kill(self, exc=None):
-        qc = get_queue_consumer(self._srv_ctx)
+        qc = get_queue_consumer(self._container)
         qc.kill(exc)
 
     def register_provider(self, rpc_provider):
-        service_name = self._srv_ctx.name
+        service_name = self._container.service_name
         key = '{}.{}'.format(service_name, rpc_provider.name)
         self._providers[key] = rpc_provider
 
     def unregister_provider(self, rpc_provider):
-        service_name = self._srv_ctx.name
+        service_name = self._container.service_name
         key = '{}.{}'.format(service_name, rpc_provider.name)
         try:
             del self._providers[key]
@@ -117,9 +118,9 @@ class RpcConsumer(object):
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
         except MethodNotFound as exc:
-            self.handle_result(message, self._srv_ctx, None, exc)
+            self.handle_result(message, self._container, None, exc)
 
-    def handle_result(self, message, srv_ctx, result, exc):
+    def handle_result(self, message, container, result, exc):
         error = None
         if exc is not None:
             # TODO: this is helpful for debug, but shouldn't be used in
@@ -128,9 +129,9 @@ class RpcConsumer(object):
             error = RemoteErrorWrapper(exc)
 
         responder = Responder(message)
-        responder.send_response(srv_ctx, result, error)
+        responder.send_response(container, result, error)
 
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(container)
         qc.ack_message(message)
 
 
@@ -138,7 +139,7 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
     _consumer_cls = RpcConsumer
 
     def get_consumer(self):
-        return get_rpc_consumer(self.srv_ctx, self._consumer_cls)
+        return get_rpc_consumer(self.container, self._consumer_cls)
 
     def prepare(self):
         rpc_consumer = self.get_consumer()
@@ -172,9 +173,8 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
                                     handle_result=handle_result)
 
     def handle_result(self, message, worker_ctx, result, exc):
-        srv_ctx = self.srv_ctx
         rpc_consumer = self.get_consumer()
-        rpc_consumer.handle_result(message, srv_ctx, result, exc)
+        rpc_consumer.handle_result(message, self.container, result, exc)
 
 
 class Responder(object):
@@ -186,10 +186,10 @@ class Responder(object):
             retry_policy = {'max_retries': 3}
         self.retry_policy = retry_policy
 
-    def connection_factory(self, srv_ctx):
-        return Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
+    def connection_factory(self, container):
+        return Connection(container.config[AMQP_URI_CONFIG_KEY])
 
-    def send_response(self, srv_ctx, result, error_wrapper):
+    def send_response(self, container, result, error_wrapper):
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
@@ -198,7 +198,7 @@ class Responder(object):
         if error_wrapper is not None:
             error = error_wrapper.serialize()
 
-        with self.connection_factory(srv_ctx) as conn:
+        with self.connection_factory(container) as conn:
 
             with producers[conn].acquire(block=True) as producer:
 
@@ -214,38 +214,36 @@ class Responder(object):
 
 
 class ReplyListener(object):
-    def __init__(self, srv_ctx):
-        self._srv_ctx = srv_ctx
+    def __init__(self, container):
+        self._container = container
         self._reply_events = {}
 
     def prepare_queue(self):
-        srv_ctx = self._srv_ctx
 
         service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
-        service_name = srv_ctx.name
+        container = self._container
+
+        service_name = container.service_name
         self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
             service_name, service_uuid)
 
-        exchange = get_rpc_exchange(srv_ctx)
+        exchange = get_rpc_exchange(container)
         self.reply_queue = Queue(
             self.reply_queue_name, exchange=exchange, exclusive=True)
 
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(container)
         qc.add_consumer(self.reply_queue, self._handle_message)
 
     def start_consuming(self):
-        srv_ctx = self._srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self._container)
         qc.start()
 
     def stop(self):
-        srv_ctx = self._srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self._container)
         qc.stop()
 
     def kill(self, exc=None):
-        srv_ctx = self._srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self._container)
         qc.kill(exc)
 
     def get_reply_event(self, correlation_id):
@@ -254,8 +252,7 @@ class ReplyListener(object):
         return reply_event
 
     def _handle_message(self, body, message):
-        srv_ctx = self._srv_ctx
-        qc = get_queue_consumer(srv_ctx)
+        qc = get_queue_consumer(self._container)
         qc.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
@@ -272,23 +269,23 @@ class RpcProxyProvider(InjectionProvider):
         self.service_name = service_name
 
     def prepare(self):
-        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
+        rpc_reply_listener = get_rpc_reply_listener(self.container)
         rpc_reply_listener.prepare_queue()
 
     def start(self):
-        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
+        rpc_reply_listener = get_rpc_reply_listener(self.container)
         rpc_reply_listener.start_consuming()
 
     def stop(self):
-        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
+        rpc_reply_listener = get_rpc_reply_listener(self.container)
         rpc_reply_listener.stop()
 
     def kill(self, exc=None):
-        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
+        rpc_reply_listener = get_rpc_reply_listener(self.container)
         rpc_reply_listener.kill(exc)
 
     def acquire_injection(self, worker_ctx):
-        rpc_reply_listener = get_rpc_reply_listener(self.srv_ctx)
+        rpc_reply_listener = get_rpc_reply_listener(self.container)
         return ServiceProxy(worker_ctx, self.service_name, rpc_reply_listener)
 
 
@@ -320,17 +317,17 @@ class MethodProxy(HeaderEncoder):
         _log.debug('invoking %s', self)
 
         worker_ctx = self.worker_ctx
-        srv_ctx = worker_ctx.srv_ctx
+        container = worker_ctx.container
 
         msg = {'args': args, 'kwargs': kwargs}
 
-        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         # TODO: should connection sharing be done during worker_setup in the
         #       dependency provider?
         with conn as conn:
-            exchange = get_rpc_exchange(srv_ctx)
+            exchange = get_rpc_exchange(container)
 
             with producers[conn].acquire(block=True) as producer:
                 # TODO: should we enable auto-retry,

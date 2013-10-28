@@ -32,7 +32,7 @@ def test_db(container_factory):
 
     # fake instance creation and provider injection
     service = FooService()
-    worker_ctx = WorkerContext(container.ctx, service, None)
+    worker_ctx = WorkerContext(container, service, None)
     provider.inject(worker_ctx)
 
     assert isinstance(service.session, Session)
