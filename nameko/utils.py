@@ -19,7 +19,6 @@ class SpawningProxy(object):
 
                 def call(item):
                     return getattr(item, name)(*args, **kwargs)
-
                 list(pool.imap(call, self._items))
 
         return spawning_method

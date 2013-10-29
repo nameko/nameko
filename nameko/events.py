@@ -26,8 +26,8 @@ import uuid
 
 from kombu import Exchange, Queue
 
-from nameko.messaging import Publisher, PERSISTENT, ConsumeProvider
-from nameko.dependencies import entrypoint
+from nameko.messaging import PublishProvider, PERSISTENT, ConsumeProvider
+from nameko.dependencies import entrypoint, injection, DependencyFactory
 
 
 SERVICE_POOL = "service_pool"
@@ -109,7 +109,7 @@ class Event(object):
         self.data = data
 
 
-class EventDispatcher(Publisher):
+class EventDispatcher(PublishProvider):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,
@@ -139,10 +139,10 @@ class EventDispatcher(Publisher):
             self.dispatch_spam(evt)
 
     """
-    def prepare(self, srv_ctx):
-        # TODO: should we actually put this into the srv_ctx?
-        self.exchange = get_event_exchange(srv_ctx.name)
-        super(EventDispatcher, self).prepare(srv_ctx)
+    def prepare(self):
+        service_name = self.container.service_name
+        self.exchange = get_event_exchange(service_name)
+        super(EventDispatcher, self).prepare()
 
     def acquire_injection(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
@@ -153,13 +153,18 @@ class EventDispatcher(Publisher):
             msg = evt.data
             routing_key = evt.type
 
-            with self.get_producer(worker_ctx.srv_ctx) as producer:
+            with self.get_producer() as producer:
 
                 headers = self.get_message_headers(worker_ctx)
                 producer.publish(msg, exchange=exchange, headers=headers,
                                  routing_key=routing_key)
 
         return dispatch
+
+
+@injection
+def event_dispatcher():
+    return DependencyFactory(EventDispatcher)
 
 
 @entrypoint
@@ -217,8 +222,8 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             "Broadcast event handlers cannot be configured with reliable "
             "delivery.")
 
-    return EventHandler(service_name, event_type, handler_type,
-                        reliable_delivery, requeue_on_error)
+    return DependencyFactory(EventHandler, service_name, event_type,
+                             handler_type, reliable_delivery, requeue_on_error)
 
 
 class EventHandler(ConsumeProvider):
@@ -234,14 +239,15 @@ class EventHandler(ConsumeProvider):
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)
 
-    def prepare(self, srv_ctx):
-        _log.debug('starting handler for %s', srv_ctx)
+    def prepare(self):
+        _log.debug('starting handler for %s', self.container)
 
         # handler_type determines queue name
+        service_name = self.container.service_name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
                                                    self.event_type,
-                                                   srv_ctx.name,
+                                                   service_name,
                                                    self.name)
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
@@ -249,7 +255,7 @@ class EventHandler(ConsumeProvider):
         elif self.handler_type is BROADCAST:
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
                                                       self.event_type,
-                                                      srv_ctx.name,
+                                                      service_name,
                                                       self.name,
                                                       uuid.uuid4().hex)
 
@@ -261,4 +267,4 @@ class EventHandler(ConsumeProvider):
             queue_name, exchange=exchange, routing_key=self.event_type,
             durable=True, auto_delete=auto_delete)
 
-        super(EventHandler, self).prepare(srv_ctx)
+        super(EventHandler, self).prepare()

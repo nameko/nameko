@@ -6,8 +6,8 @@ import pytest
 
 
 from nameko.exceptions import RemoteError
-from nameko.events import EventDispatcher
-from nameko.rpc import rpc, get_rpc_consumer, RpcConsumer, Service
+from nameko.events import event_dispatcher
+from nameko.rpc import rpc, rpc_proxy, get_rpc_consumer, RpcConsumer
 from nameko.service import ServiceRunner
 
 
@@ -17,8 +17,8 @@ class ExampleError(Exception):
 
 class ExampleService(object):
 
-    dispatch = EventDispatcher()
-    rpcproxy = Service('exampleservice')
+    dispatch = event_dispatcher()
+    rpcproxy = rpc_proxy('exampleservice')
 
     @rpc
     def task(self):
@@ -76,7 +76,7 @@ def test_handle_result_error(container_factory, rabbit_config,
     proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
+    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
         err = "error in worker_result"
         handle_result.side_effect = Exception(err)
@@ -132,7 +132,7 @@ def test_runner_catches_container_errors(container_factory, rabbit_config,
     # actually start the containers (previously bypassed with mock)
     SpawningProxy(runner.containers).start()
 
-    rpc_consumer = get_rpc_consumer(container.ctx, RpcConsumer)
+    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
         exception = Exception("error")
         handle_result.side_effect = exception

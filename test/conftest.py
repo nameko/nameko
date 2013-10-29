@@ -167,16 +167,16 @@ def container_factory(request, reset_rabbit):
 
 @pytest.fixture
 def service_proxy_factory(request):
-    from nameko.rpc import Service
+    from nameko.rpc import RpcProxyProvider
 
     def make_proxy(container, service_name, worker_ctx=None):
         if worker_ctx is None:
             worker_ctx_cls = container.worker_ctx_cls
-            worker_ctx = worker_ctx_cls(container.ctx, None, None, data={})
-        service_proxy = Service(service_name)
+            worker_ctx = worker_ctx_cls(container, None, None, data={})
+        service_proxy = RpcProxyProvider(service_name)
 
         # manually add proxy as a dependency to get lifecycle management
-        service_proxy.name = uuid.uuid4().hex
+        service_proxy.bind(uuid.uuid4().hex, container)
         container.dependencies.add(service_proxy)
 
         proxy = service_proxy.acquire_injection(worker_ctx)

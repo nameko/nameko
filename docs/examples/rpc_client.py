@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 import random
 
-from nameko.rpc import Service
+from nameko.rpc import rpc_proxy
 from nameko.service import ServiceRunner
 from nameko.timer import timer
 
 
 class RpcClient(object):
 
-    adder = Service('adderservice')
+    adder = rpc_proxy('adderservice')
 
     @timer(interval=2)
     def add(self):

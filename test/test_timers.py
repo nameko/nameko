@@ -4,50 +4,59 @@ from eventlet import Timeout
 from mock import Mock
 
 from nameko.timer import Timer, TimerProvider
-from nameko.service import ServiceContext
+from nameko.service import ServiceContainer
 from nameko.testing.utils import wait_for_call
 
 
 def test_provider():
-    tmrprov = TimerProvider(interval=0, config_key=None)
-    tmrprov.name = 'foobar'
-    container = Mock()
-    srv_ctx = ServiceContext('foo', None, container)
-    tmrprov.prepare(srv_ctx)
 
-    timer = tmrprov.timers_by_ctx[srv_ctx]
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = Mock()
+
+    tmrprov = TimerProvider(interval=0, config_key=None)
+    tmrprov.bind('foobar', container)
+    tmrprov.prepare()
+
+    timer = tmrprov.timers_by_container[container]
     assert timer.interval == 0
 
-    tmrprov.start(srv_ctx)
+    tmrprov.start()
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         spawn_worker.assert_called_once_with(tmrprov, (), {})
 
     with Timeout(1):
-        tmrprov.stop(srv_ctx)
+        tmrprov.stop()
 
     assert timer.gt.dead
 
 
 def test_provider_uses_config_for_interval():
-    tmrprov = TimerProvider(interval=None, config_key='spam-conf')
-    tmrprov.name = 'foobar'
-    container = Mock()
-    srv_ctx = ServiceContext('foo', None, container, {'spam-conf': 10})
-    tmrprov.prepare(srv_ctx)
 
-    timer = tmrprov.timers_by_ctx[srv_ctx]
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = {'spam-conf': 10}
+
+    tmrprov = TimerProvider(interval=None, config_key='spam-conf')
+    tmrprov.bind('foobar', container)
+    tmrprov.prepare()
+
+    timer = tmrprov.timers_by_container[container]
     assert timer.interval == 10
 
 
 def test_provider_interval_as_config_fallback():
-    tmrprov = TimerProvider(interval=1, config_key='spam-conf')
-    tmrprov.name = 'foobar'
-    container = Mock()
-    srv_ctx = ServiceContext('foo', None, container, {})
-    tmrprov.prepare(srv_ctx)
 
-    timer = tmrprov.timers_by_ctx[srv_ctx]
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = {}
+
+    tmrprov = TimerProvider(interval=1, config_key='spam-conf')
+    tmrprov.bind('foobar', container)
+    tmrprov.prepare()
+
+    timer = tmrprov.timers_by_container[container]
     assert timer.interval == 1
 
 

@@ -17,7 +17,8 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
-    InjectionProvider, EntrypointProvider, entrypoint)
+    InjectionProvider, EntrypointProvider, entrypoint, injection,
+    DependencyFactory)
 
 _log = getLogger(__name__)
 
@@ -55,7 +56,7 @@ class HeaderDecoder(object):
         return data
 
 
-class Publisher(InjectionProvider, HeaderEncoder):
+class PublishProvider(InjectionProvider, HeaderEncoder):
     """
     Provides a message publisher method via dependency injection.
 
@@ -79,20 +80,20 @@ class Publisher(InjectionProvider, HeaderEncoder):
         self.exchange = exchange
         self.queue = queue
 
-    def get_connection(self, srv_ctx):
+    def get_connection(self):
         # TODO: should this live outside of the class or be a class method?
-        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
         return connections[conn].acquire(block=True)
 
-    def get_producer(self, srv_ctx):
-        conn = Connection(srv_ctx.config[AMQP_URI_CONFIG_KEY])
+    def get_producer(self):
+        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
         return producers[conn].acquire(block=True)
 
-    def prepare(self, srv_ctx):
+    def prepare(self):
         exchange = self.exchange
         queue = self.queue
 
-        with self.get_connection(srv_ctx) as conn:
+        with self.get_connection() as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
             elif exchange is not None:
@@ -106,7 +107,7 @@ class Publisher(InjectionProvider, HeaderEncoder):
             if exchange is None and queue is not None:
                 exchange = queue.exchange
 
-            with self.get_producer(worker_ctx.srv_ctx) as producer:
+            with self.get_producer() as producer:
                 # TODO: should we enable auto-retry,
                 #      should that be an option in __init__?
                 headers = self.get_message_headers(worker_ctx)
@@ -114,6 +115,11 @@ class Publisher(InjectionProvider, HeaderEncoder):
                                  **kwargs)
 
         return publish
+
+
+@injection
+def publisher(exchange=None, queue=None):
+    return DependencyFactory(PublishProvider, exchange, queue)
 
 
 @entrypoint
@@ -141,21 +147,22 @@ def consume(queue, requeue_on_error=False):
     Args:
         queue: The queue to consume from.
     '''
-    return ConsumeProvider(queue, requeue_on_error)
+    return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
 
 
 queue_consumers = WeakKeyDictionary()
 
 
-def get_queue_consumer(srv_ctx):
-    """ Get or create a QueueConsumer instance for the given ``srv_ctx``
+def get_queue_consumer(container):
+    """ Get or create a QueueConsumer instance for the given ServiceContainer
+    instance.
     """
-    if srv_ctx not in queue_consumers:
+    if container not in queue_consumers:
         queue_consumer = QueueConsumer(
-            srv_ctx.config[AMQP_URI_CONFIG_KEY], srv_ctx.max_workers)
-        queue_consumers[srv_ctx] = queue_consumer
+            container.config[AMQP_URI_CONFIG_KEY], container.max_workers)
+        queue_consumers[container] = queue_consumer
 
-    return queue_consumers[srv_ctx]
+    return queue_consumers[container]
 
 
 class ConsumeProvider(EntrypointProvider, HeaderDecoder):
@@ -164,41 +171,40 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def prepare(self, srv_ctx):
-        qc = get_queue_consumer(srv_ctx)
-        qc.add_consumer(self.queue, partial(self.handle_message, srv_ctx))
+    def prepare(self):
+        qc = get_queue_consumer(self.container)
+        qc.add_consumer(self.queue, partial(self.handle_message))
 
-    def start(self, srv_ctx):
-        qc = get_queue_consumer(srv_ctx)
+    def start(self):
+        qc = get_queue_consumer(self.container)
         qc.start()
 
-    def stop(self, srv_ctx):
-        qc = get_queue_consumer(srv_ctx)
+    def stop(self):
+        qc = get_queue_consumer(self.container)
         qc.stop()
 
-    def kill(self, srv_ctx, exc=None):
-        qc = get_queue_consumer(srv_ctx)
+    def kill(self, exc=None):
+        qc = get_queue_consumer(self.container)
         qc.kill(exc)
 
-    def handle_message(self, srv_ctx, body, message):
+    def handle_message(self, body, message):
         args = (body,)
         kwargs = {}
 
-        worker_ctx_cls = srv_ctx.container.worker_ctx_cls
+        worker_ctx_cls = self.container.worker_ctx_cls
         context_data = self.unpack_message_headers(worker_ctx_cls, message)
 
-        srv_ctx.container.spawn_worker(
+        self.container.spawn_worker(
             self, args, kwargs,
             context_data=context_data,
             handle_result=partial(self.handle_result, message))
 
     def handle_result(self, message, worker_ctx, result=None, exc=None):
-        srv_ctx = worker_ctx.srv_ctx
-        self.handle_message_processed(srv_ctx, message, result, exc)
+        self.handle_message_processed(message, result, exc)
 
-    def handle_message_processed(
-            self, srv_ctx, message, result=None, exc=None):
-        qc = get_queue_consumer(srv_ctx)
+    def handle_message_processed(self, message, result=None, exc=None):
+
+        qc = get_queue_consumer(self.container)
 
         if exc is not None and self.requeue_on_error:
             qc.requeue_message(message)
