@@ -18,7 +18,7 @@ class NotInitializedError(Exception):
     pass
 
 
-class ProgrammingError(Exception):
+class DependencyTypeError(TypeError):
     pass
 
 
@@ -170,12 +170,12 @@ def register_entrypoint(fn, provider):
 
 
 class DependencyFactory(object):
-    def __init__(self, dep_cls, init_args=None, init_kwargs=None):
+    def __init__(self, dep_cls, *init_args, **init_kwargs):
         self.dep_cls = dep_cls
-        self.args = init_args if init_args is not None else tuple()
-        self.kwargs = init_kwargs if init_kwargs is not None else dict()
+        self.args = init_args
+        self.kwargs = init_kwargs
 
-    def bind_instance(self, name, container):
+    def create_and_bind_instance(self, name, container):
         """ Instaniate an instance of ``dep_cls`` and bind it to ``container``.
 
         See `:meth:~DependencyProvider.bind`.
@@ -196,7 +196,7 @@ def entrypoint(decorator_func):
 
         @entrypoint
         def http(bind_port=80):
-            return DependencyFactory(HttpEntrypoint, (bind_port,))
+            return DependencyFactory(HttpEntrypoint, bind_port)
 
         class Service(object):
 
@@ -208,21 +208,21 @@ def entrypoint(decorator_func):
     def registering_decorator(fn, args, kwargs):
         factory = decorator_func(*args, **kwargs)
         if not isinstance(factory, DependencyFactory):
-            raise ProgrammingError('Arguments to `entrypoint` must return '
-                                   'DependencyFactory instances')
+            raise DependencyTypeError('Arguments to `entrypoint` must return '
+                                      'DependencyFactory instances')
         register_entrypoint(fn, factory)
         return fn
 
     @wraps(decorator_func)
     def wrapper(*args, **kwargs):
         if len(args) == 1 and isinstance(args[0], types.FunctionType):
-            # entrypoint_decorator is used like
+            # usage without arguments to the decorator:
             # @foobar
             # def spam():
             #     pass
             return registering_decorator(args[0], tuple(), {})
         else:
-            # entrypoint_decorator is used like
+            # usage with arguments to the decorator:
             # @foobar('shrub', ...)
             # def spam():
             #     pass
@@ -242,7 +242,7 @@ def injection(fn):
 
         @injection
         def database(*args, **kwargs):
-            return DependencyFactory(DatabaseProvider, args, kwargs)
+            return DependencyFactory(DatabaseProvider, *args, **kwargs)
 
         class Service(object):
 
@@ -252,8 +252,8 @@ def injection(fn):
     def wrapped(*args, **kwargs):
         factory = fn(*args, **kwargs)
         if not isinstance(factory, DependencyFactory):
-            raise ProgrammingError('Arguments to `injection` must return '
-                                   'DependencyFactory instances')
+            raise DependencyTypeError('Arguments to `injection` must return '
+                                      'DependencyFactory instances')
         register_injection(fn, factory)
         return factory
     return wrapped
@@ -272,7 +272,7 @@ def get_injection_providers(container):
     for name, attr in inspect.getmembers(service_cls):
         if attr in registered_injections:
             factory = attr
-            yield factory.bind_instance(name, container)
+            yield factory.create_and_bind_instance(name, container)
 
 
 def get_entrypoint_providers(container):
@@ -280,7 +280,7 @@ def get_entrypoint_providers(container):
     for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
         factories = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
         for factory in factories:
-            yield factory.bind_instance(name, container)
+            yield factory.create_and_bind_instance(name, container)
 
 
 def get_dependencies(container):

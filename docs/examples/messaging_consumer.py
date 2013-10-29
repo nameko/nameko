@@ -57,7 +57,7 @@ def file_logger(path=None):
         if not os.access(check_path, os.W_OK):
             raise InvalidPath("File or dir not writable: {}".format(path))
 
-    return DependencyFactory(LogFile, (path,))
+    return DependencyFactory(LogFile, path)
 
 
 class MessagingConsumer(object):

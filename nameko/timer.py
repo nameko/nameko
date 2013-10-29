@@ -30,7 +30,7 @@ def timer(interval=None, config_key=None):
         def handle_timer(self):
             self.shrub(body)
     '''
-    return DependencyFactory(TimerProvider, (interval, config_key))
+    return DependencyFactory(TimerProvider, interval, config_key)
 
 
 class TimerProvider(EntrypointProvider):

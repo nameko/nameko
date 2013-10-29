@@ -8,7 +8,7 @@ from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 ORM_DB_URIS_KEY = 'ORM_DB_URIS'
 
 
-class ORMSession(InjectionProvider):
+class OrmSession(InjectionProvider):
     def __init__(self, declarative_base):
         self.declarative_base = declarative_base
         self.sessions = {}
@@ -38,4 +38,4 @@ class ORMSession(InjectionProvider):
 
 @injection
 def orm_session(declarative_base):
-    return DependencyFactory(ORMSession, (declarative_base,))
+    return DependencyFactory(OrmSession, declarative_base)

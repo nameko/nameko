@@ -292,7 +292,7 @@ class RpcProxyProvider(InjectionProvider):
 
 @injection
 def rpc_proxy(service_name):
-    return DependencyFactory(RpcProxyProvider, (service_name,))
+    return DependencyFactory(RpcProxyProvider, service_name)
 
 
 class ServiceProxy(object):

@@ -4,7 +4,7 @@ import pytest
 from nameko.dependencies import (
     entrypoint, EntrypointProvider, get_entrypoint_providers,
     injection, InjectionProvider, get_injection_providers,
-    DependencyFactory, ProgrammingError)
+    DependencyFactory, DependencyTypeError)
 from nameko.service import ServiceContainer, WorkerContext
 
 
@@ -17,7 +17,7 @@ class FooProvider(EntrypointProvider):
 @entrypoint
 def foobar(*args, **kwargs):
     """foobar-doc"""
-    return DependencyFactory(FooProvider, args, kwargs)
+    return DependencyFactory(FooProvider, *args, **kwargs)
 
 
 class BarProvider(InjectionProvider):
@@ -31,7 +31,7 @@ class BarProvider(InjectionProvider):
 
 @injection
 def barfoo(*args, **kwargs):
-    return DependencyFactory(BarProvider, args, kwargs)
+    return DependencyFactory(BarProvider, *args, **kwargs)
 
 
 class ExampleService(object):
@@ -94,13 +94,13 @@ def test_entrypoint_decorator_does_not_mutate_service():
 
 def test_decorated_functions_must_return_dependency_factories():
 
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(DependencyTypeError):
         @injection
         def foo():
             pass
         foo()
 
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(DependencyTypeError):
         @entrypoint
         def bar():
             pass
