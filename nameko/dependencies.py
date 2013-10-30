@@ -6,7 +6,7 @@ from functools import wraps, partial
 import inspect
 from itertools import chain
 import types
-from weakref import WeakSet
+from weakref import WeakSet, WeakKeyDictionary
 
 from nameko.utils import SpawningSet
 
@@ -152,10 +152,15 @@ class DependencySet(SpawningSet):
                             if is_entrypoint_provider(item)])
 
 
+registered_dependencies = WeakSet()
 registered_injections = WeakSet()
 
 
-def register_injection(fn, factory):
+def register_dependency(factory):
+    registered_dependencies.add(factory)
+
+
+def register_injection(factory):
     registered_injections.add(factory)
 
 
@@ -169,18 +174,40 @@ def register_entrypoint(fn, provider):
     descriptors.add(provider)
 
 
+shared_dependencies = WeakKeyDictionary()
+
+
 class DependencyFactory(object):
+
+    shared = False
+
     def __init__(self, dep_cls, *init_args, **init_kwargs):
         self.dep_cls = dep_cls
         self.args = init_args
         self.kwargs = init_kwargs
+
+    # TODO: doesn't stop "equal" copies being addded to a set
+    # //--> use __hash__
+    def __eq__(self, other):
+        if not isinstance(other, DependencyFactory):
+            return False
+        return all([
+            self.dep_cls is other.dep_cls,
+            self.args == other.args,
+            self.kwargs == other.kwargs
+        ])
 
     def create_and_bind_instance(self, name, container):
         """ Instaniate an instance of ``dep_cls`` and bind it to ``container``.
 
         See `:meth:~DependencyProvider.bind`.
         """
-        instance = self.dep_cls(*self.args, **self.kwargs)
+        if self.shared:
+            instance = shared_dependencies.get(self)
+            if instance is None:
+                instance = self.dep_cls(*self.args, **self.kwargs)
+        else:
+            instance = self.dep_cls(*self.args, **self.kwargs)
         instance.bind(name, container)
         return instance
 
@@ -254,7 +281,22 @@ def injection(fn):
         if not isinstance(factory, DependencyFactory):
             raise DependencyTypeError('Arguments to `injection` must return '
                                       'DependencyFactory instances')
-        register_injection(fn, factory)
+        register_injection(factory)
+        return factory
+    return wrapped
+
+
+def dependency(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        shared = kwargs.pop('shared', False)
+        factory = fn(*args, **kwargs)
+
+        if not isinstance(factory, DependencyFactory):
+            raise DependencyTypeError('Arguments to `dependency` must return '
+                                      'DependencyFactory instances')
+        factory.shared = shared
+        register_dependency(factory)
         return factory
     return wrapped
 
@@ -267,22 +309,46 @@ def is_entrypoint_provider(obj):
     return isinstance(obj, EntrypointProvider)
 
 
-def get_injection_providers(container):
+def get_dependency_providers(container, provider):
+
+    def get_dependencies(obj):
+        import collections
+        for name, attr in inspect.getmembers(obj, lambda x: isinstance(x, collections.Hashable)):
+            if attr in registered_dependencies:
+                factory = attr
+                provider = factory.create_and_bind_instance(name, container)
+                for prov in get_dependencies(provider):
+                    yield prov
+                yield provider
+
+    for dep in get_dependencies(provider):
+        yield dep
+
+
+def get_injection_providers(container, include_dependencies=False):
     service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls):
         if attr in registered_injections:
             factory = attr
-            yield factory.create_and_bind_instance(name, container)
+            provider = factory.create_and_bind_instance(name, container)
+            yield provider
+            if include_dependencies:
+                for dependency in get_dependency_providers(container, provider):
+                    yield dependency
 
 
-def get_entrypoint_providers(container):
+def get_entrypoint_providers(container, include_dependencies=False):
     service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
         factories = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
         for factory in factories:
-            yield factory.create_and_bind_instance(name, container)
+            provider = factory.create_and_bind_instance(name, container)
+            yield provider
+            if include_dependencies:
+                for dependency in get_dependency_providers(container, provider):
+                    yield dependency
 
 
 def get_dependencies(container):
-    return chain(get_injection_providers(container),
-                 get_entrypoint_providers(container))
+    return chain(get_injection_providers(container, include_dependencies=True),
+                 get_entrypoint_providers(container, include_dependencies=True))

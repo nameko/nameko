@@ -4,8 +4,10 @@ import pytest
 from nameko.dependencies import (
     entrypoint, EntrypointProvider, get_entrypoint_providers,
     injection, InjectionProvider, get_injection_providers,
-    DependencyFactory, DependencyTypeError)
+    DependencyFactory, DependencyTypeError, get_dependency_providers)
+from nameko.messaging import QueueConsumer
 from nameko.service import ServiceContainer, WorkerContext
+from nameko.rpc import ReplyListener
 
 
 class FooProvider(EntrypointProvider):
@@ -85,6 +87,25 @@ def test_get_injection_providers():
     assert isinstance(provider, BarProvider)
     assert provider.args == ("arg",)
     assert provider.kwargs == {"kwarg": "kwarg"}
+
+
+def test_get_dependency_providers():
+
+    from nameko.rpc import rpc_proxy
+
+    class RpcService(object):
+        rpc = rpc_proxy('foo')
+
+    config = {'AMQP_URI': 'placeholder'}
+    container = ServiceContainer(RpcService, WorkerContext, config)
+
+    rpc_proxy = list(get_injection_providers(container))[0]
+    dependencies = list(get_dependency_providers(container, rpc_proxy))
+
+    assert len(dependencies) == 2
+    assert dependencies[0].container == dependencies[1].container == container
+    assert set([type(dep) for dep in dependencies]) == set([QueueConsumer,
+                                                           ReplyListener])
 
 
 def test_entrypoint_decorator_does_not_mutate_service():

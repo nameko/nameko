@@ -18,7 +18,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
-    DependencyFactory)
+    DependencyFactory, DependencyProvider, dependency)
 
 _log = getLogger(__name__)
 
@@ -216,11 +216,13 @@ class QueueConsumerStopped(Exception):
     pass
 
 
-class QueueConsumer(ConsumerMixin):
-    def __init__(self, amqp_uri, prefetch_count):
+class QueueConsumer(DependencyProvider, ConsumerMixin):
+    def __init__(self):
         self._connection = None
+        """
         self._amqp_uri = amqp_uri
         self._prefetch_count = prefetch_count
+        """
         self._registry = []
 
         self._pending_messages = set()
@@ -235,6 +237,14 @@ class QueueConsumer(ConsumerMixin):
         self._stopping = False
 
         self._consumers_ready = Event()
+
+    @property
+    def _amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def _max_workers(self):
+        return self.container.max_workers
 
     def start(self):
         if not self._starting:
@@ -410,3 +420,8 @@ class QueueConsumer(ConsumerMixin):
                     else:
                         yield
                         elapsed = 0
+
+
+@dependency
+def queue_consumer():
+    return DependencyFactory(QueueConsumer)
