@@ -246,7 +246,7 @@ class QueueConsumer(ConsumerMixin):
             _log.debug('already starting %s', self)
 
         try:
-            _log.debug('waiting for consumer read %s', self)
+            _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()
         except QueueConsumerStopped:
             _log.debug('consumer was stopped before it started %s', self)
