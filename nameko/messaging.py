@@ -172,8 +172,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         self.requeue_on_error = requeue_on_error
 
     def bind(self, name, container):
-        qc = get_queue_consumer(container)
-        self._qconsumer = qc
+        self._qconsumer = get_queue_consumer(container)
         super(ConsumeProvider, self).bind(name, container)
 
     def prepare(self):

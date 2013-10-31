@@ -127,25 +127,23 @@ class RpcConsumer(SharedDependency):
 class RpcProvider(EntrypointProvider, HeaderDecoder):
     _consumer_cls = RpcConsumer
 
-    def get_consumer(self):
-        return get_rpc_consumer(self.container, self._consumer_cls)
+    def bind(self, name, container):
+        self._rpc_consumer = get_rpc_consumer(container, self._consumer_cls)
+        super(RpcProvider, self).bind(name, container)
 
     def prepare(self):
-        rpc_consumer = self.get_consumer()
+        rpc_consumer = self._rpc_consumer
         rpc_consumer.register_provider(self)
         rpc_consumer.prepare()
 
     def start(self):
-        rpc_consumer = self.get_consumer()
-        rpc_consumer.start()
+        self._rpc_consumer.start()
 
     def stop(self):
-        rpc_consumer = self.get_consumer()
-        rpc_consumer.unregister_provider(self)
+        self._rpc_consumer.unregister_provider(self)
 
     def kill(self, exc=None):
-        rpc_consumer = self.get_consumer()
-        rpc_consumer.kill(exc)
+        self._rpc_consumer.kill(exc)
 
     def handle_message(self, body, message):
         args = body['args']
@@ -160,8 +158,7 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
                                     handle_result=handle_result)
 
     def handle_result(self, message, worker_ctx, result, exc):
-        rpc_consumer = self.get_consumer()
-        rpc_consumer.handle_result(message, self.container, result, exc)
+        self._rpc_consumer.handle_result(message, self.container, result, exc)
 
 
 class Responder(object):
