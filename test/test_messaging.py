@@ -33,13 +33,14 @@ def test_consume_provider():
 
     consume_provider = ConsumeProvider(queue=foobar_queue,
                                        requeue_on_error=False)
-    consume_provider.bind("name", container)
-
-    message = Mock(headers={})
     queue_consumer = Mock()
 
-    with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
-        get_queue_consumer.return_value = queue_consumer
+    with patch('nameko.messaging.get_queue_consumer',
+               return_value=queue_consumer):
+
+        consume_provider.bind("name", container)
+
+        message = Mock(headers={})
 
         # test lifecycle
         consume_provider.prepare()

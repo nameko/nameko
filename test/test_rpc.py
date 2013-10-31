@@ -135,7 +135,7 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     get_queue_consumer.return_value = queue_consumer
 
     consumer = RpcConsumer(container)
-    consumer.prepare_queue()
+    consumer.prepare()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
@@ -147,7 +147,7 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     queue_consumer.register_provider.assert_called_once_with(consumer)
 
     consumer.register_provider(provider)
-    assert consumer._providers == {'exampleservice.rpcmethod': provider}
+    assert consumer._providers == set([provider])
 
     routing_key = "exampleservice.rpcmethod"
     assert consumer.get_provider_for_method(routing_key) == provider
@@ -157,8 +157,7 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
         consumer.get_provider_for_method(routing_key)
 
     consumer.unregister_provider(provider)
-    assert consumer._providers == {}
-    consumer.unregister_provider(provider)  # should not raise
+    assert consumer._providers == set()
 
 
 def test_reply_listener(get_queue_consumer, get_rpc_exchange):
@@ -179,7 +178,7 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
     with patch('nameko.rpc.uuid') as patched_uuid:
         patched_uuid.uuid4.return_value = forced_uuid
 
-        reply_listener.prepare_queue()
+        reply_listener.prepare()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
