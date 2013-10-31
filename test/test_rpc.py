@@ -137,15 +137,14 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     consumer = RpcConsumer(container)
     consumer.prepare_queue()
 
-    queue = consumer._queue
+    queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
     assert queue.routing_key == "exampleservice.*"
     assert queue.exchange == exchange
     assert queue.durable
 
     get_queue_consumer.assert_called_once_with(container)
-    queue_consumer.add_consumer.assert_called_once_with(
-        consumer._queue, consumer.handle_message)
+    queue_consumer.register_provider.assert_called_once_with(consumer)
 
     consumer.register_provider(provider)
     assert consumer._providers == {'exampleservice.rpcmethod': provider}
@@ -182,14 +181,13 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
 
         reply_listener.prepare_queue()
 
-        queue = reply_listener.reply_queue
+        queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
         assert queue.exchange == exchange
         assert queue.exclusive
 
     get_queue_consumer.assert_called_once_with(container)
-    queue_consumer.add_consumer.assert_called_once_with(
-        reply_listener.reply_queue, reply_listener._handle_message)
+    queue_consumer.register_provider.assert_called_once_with(reply_listener)
 
     correlation_id = 1
     reply_event = reply_listener.get_reply_event(correlation_id)
@@ -198,7 +196,7 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
 
     message = Mock()
     message.properties.get.return_value = correlation_id
-    reply_listener._handle_message("msg", message)
+    reply_listener.handle_message("msg", message)
 
     queue_consumer.ack_message.assert_called_once_with(message)
     assert reply_event.ready()
@@ -207,7 +205,7 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
     assert reply_listener._reply_events == {}
 
     with patch('nameko.rpc._log') as log:
-        reply_listener._handle_message("msg", message)
+        reply_listener.handle_message("msg", message)
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
 

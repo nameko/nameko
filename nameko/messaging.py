@@ -18,7 +18,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
-    DependencyFactory)
+    DependencyFactory, SharedDependency)
 
 _log = getLogger(__name__)
 
@@ -173,7 +173,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
 
     def prepare(self):
         qc = get_queue_consumer(self.container)
-        qc.add_consumer(self.queue, partial(self.handle_message))
+        qc.register_provider(self)
 
     def start(self):
         qc = get_queue_consumer(self.container)
@@ -181,7 +181,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
 
     def stop(self):
         qc = get_queue_consumer(self.container)
-        qc.stop()
+        qc.unregister_provider(self)
 
     def kill(self, exc=None):
         qc = get_queue_consumer(self.container)
@@ -216,23 +216,23 @@ class QueueConsumerStopped(Exception):
     pass
 
 
-class QueueConsumer(ConsumerMixin):
+class QueueConsumer(SharedDependency, ConsumerMixin):
     def __init__(self, amqp_uri, prefetch_count):
+        super(QueueConsumer, self).__init__()
+
         self._connection = None
         self._amqp_uri = amqp_uri
         self._prefetch_count = prefetch_count
-        self._registry = []
+
+        self._consumers = {}
 
         self._pending_messages = set()
         self._pending_ack_messages = []
         self._pending_requeue_messages = []
-
-        self._cancel_consumers = False
-        self._consumers_stopped = False
+        self._pending_remove_providers = {}
 
         self._gt = None
         self._starting = False
-        self._stopping = False
 
         self._consumers_ready = Event()
 
@@ -242,8 +242,6 @@ class QueueConsumer(ConsumerMixin):
 
             _log.debug('starting %s', self)
             self._gt = eventlet.spawn(self.run)
-        else:
-            _log.debug('already starting %s', self)
 
         try:
             _log.debug('waiting for consumer ready %s', self)
@@ -253,30 +251,20 @@ class QueueConsumer(ConsumerMixin):
         else:
             _log.debug('started %s', self)
 
-    def stop(self):
-        if not self._stopping:
-            self._stopping = True
+    def last_provider_unregistered(self):
+        if not self._consumers_ready.ready():
+            _log.debug('stopping while consumer is starting %s', self)
 
-            if not self._consumers_ready.ready():
-                _log.debug('stopping while consumer is starting %s', self)
+            stop_exc = QueueConsumerStopped()
 
-                stop_exc = QueueConsumerStopped()
-
-                # stopping before we have started successfully by brutally
-                # killing the consumer thread as we don't have a way to hook
-                # into the pre-consumption startup process
-                self.kill(stop_exc)
-                # we also want to let the start method know that we died.
-                # it is waiting for the consumer to be ready
-                # so we send the same exceptions
-                self._consumers_ready.send_exception(stop_exc)
-
-            else:
-                _log.debug('stopping %s', self)
-
-                self._cancel_consumers = True
-        else:
-            _log.debug('already stopping %s', self)
+            # stopping before we have started successfully by brutally
+            # killing the consumer thread as we don't have a way to hook
+            # into the pre-consumption startup process
+            self.kill(stop_exc)
+            # we also want to let the start method know that we died.
+            # it is waiting for the consumer to be ready
+            # so we send the same exceptions
+            self._consumers_ready.send_exception(stop_exc)
 
         try:
             _log.debug('waiting for consumer death %s', self)
@@ -284,6 +272,7 @@ class QueueConsumer(ConsumerMixin):
         except QueueConsumerStopped:
             pass
 
+        super(QueueConsumer, self).last_provider_unregistered()
         _log.debug('stopped %s', self)
 
     def kill(self, exc):
@@ -292,9 +281,22 @@ class QueueConsumer(ConsumerMixin):
             self._gt.kill(exc)
             _log.debug('killed %s', self)
 
-    def add_consumer(self, queue, on_message):
-        _log.debug("adding consumer for %s, on_message: %s", queue, on_message)
-        self._registry.append((queue, on_message))
+    def unregister_provider(self, provider):
+        if not self._consumers_ready.ready():
+            # we cannot handle the situation where we are starting up and
+            # want to remove a consumer at the same time
+            # TODO: With the upcomming error handling mechanism, this needs
+            # TODO: to be thought through again.
+            self.last_provider_unregistered()
+            return
+
+        removed_event = Event()
+        # we can only cancel a consumer from within the consumer thread
+        self._pending_remove_providers[provider] = removed_event
+        # so we will just register the consumer to be cancleed
+        removed_event.wait()
+
+        super(QueueConsumer, self).unregister_provider(provider)
 
     def ack_message(self, message):
         _log.debug("stashing message-ack: %s", message)
@@ -312,15 +314,15 @@ class QueueConsumer(ConsumerMixin):
         handle_message(body, message)
 
     def _cancel_consumers_if_requested(self):
-        if self._cancel_consumers:
-            if self._consumers:
-                self._cancel_consumers = False
-                _log.debug('cancelling consumers')
+        provider_remove_events = self._pending_remove_providers.items()
+        self._pending_remove_providers = {}
 
-                for consumer in self._consumers:
-                    consumer.cancel()
+        for provider, removed_event in provider_remove_events:
+            consumer = self._consumers.pop(provider)
 
-            self._consumers_stopped = True
+            _log.debug('cancelling consumer [%s]: %s', provider, consumer)
+            consumer.cancel()
+            removed_event.send()
 
     def _process_pending_message_acks(self):
         messages = self._pending_ack_messages
@@ -351,23 +353,28 @@ class QueueConsumer(ConsumerMixin):
         """ kombu callback to set up consumers """
         _log.debug('settting up consumers')
 
-        consumers = []
-        for queue, handle_message in self._registry:
-            callback = partial(self._on_message, handle_message)
-            consumer = Consumer(queues=[queue], callbacks=[callback])
-            consumer.qos(prefetch_count=self._prefetch_count)
-            consumers.append(consumer)
+        for provider in self._providers:
+            # TODO: use two callbacks instead of self._on_message
+            callback = partial(self._on_message, provider.handle_message)
 
-        self._consumers = consumers
-        return consumers
+            consumer = Consumer(queues=[provider.queue], callbacks=[callback])
+            consumer.qos(prefetch_count=self._prefetch_count)
+
+            self._consumers[provider] = consumer
+
+        return self._consumers.values()
 
     def on_iteration(self):
         """ kombu callback for each drain_events loop iteration."""
+
         self._cancel_consumers_if_requested()
 
         self._process_pending_message_acks()
 
-        if self._consumers_stopped and not self._pending_messages:
+        num_consumers = len(self._consumers)
+        num_pending_messages = len(self._pending_messages)
+
+        if num_consumers + num_pending_messages == 0:
             _log.debug('requesting stop after iteration')
             self.should_stop = True
 

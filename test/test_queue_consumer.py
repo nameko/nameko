@@ -9,6 +9,22 @@ from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
 
 TIMEOUT = 5
 
+exchange = Exchange('spam')
+ham_queue = Queue('ham', exchange=exchange, auto_delete=False)
+
+
+class MessageHandler(object):
+    queue = ham_queue
+
+    def __init__(self):
+        self.handle_message_called = Event()
+
+    def handle_message(self, body, message):
+        self.handle_message_called.send(message)
+
+    def wait(self):
+        return self.handle_message_called.wait()
+
 
 def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
@@ -16,31 +32,25 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
     qconsumer = QueueConsumer(amqp_uri, 3)
 
-    exchange = Exchange('spam')
-    queue = Queue('ham', exchange=exchange)
+    handler = MessageHandler()
 
-    on_message_called = Event()
-
-    def on_message(body, message):
-        on_message_called.send(message)
-
-    qconsumer.add_consumer(queue, on_message)
+    qconsumer.register_provider(handler)
 
     qconsumer.start()
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub')
 
-    message = on_message_called.wait()
+    message = handler.wait()
 
-    gt = eventlet.spawn(qconsumer.stop)
-    eventlet.sleep(0)
+    gt = eventlet.spawn(qconsumer.unregister_provider, handler)
 
+    # wait for the handler to be removed
     with eventlet.Timeout(TIMEOUT):
-        while not qconsumer._consumers_stopped:
+        while len(qconsumer._consumers):
             eventlet.sleep()
 
-    # stop has to wait for all messages to be acked before shutting down
+    # remove_consumer has towait for all messages to be acked
     assert not gt.dead
 
     # the consumer should have stopped and not accept any new messages
@@ -68,10 +78,6 @@ def test_reentrant_start_stops(reset_rabbit, rabbit_config):
     qconsumer.start()
     assert gt is qconsumer._gt
 
-    # we should be able to call stop multiple times without errors
-    qconsumer.stop()
-    qconsumer.stop()
-
 
 def test_stop_while_starting():
     started = Event()
@@ -87,6 +93,9 @@ def test_stop_while_starting():
 
     qconsumer = BrokenConnConsumer(amqp_uri=None, prefetch_count=3)
 
+    handler = MessageHandler()
+    qconsumer.register_provider(handler)
+
     with eventlet.Timeout(TIMEOUT):
         with patch.object(Connection, 'connect') as connect:
             # patch connection to raise an error
@@ -98,7 +107,7 @@ def test_stop_while_starting():
             started.wait()
 
     with eventlet.Timeout(TIMEOUT):
-        qconsumer.stop()
+        qconsumer.unregister_provider(handler)
 
     with eventlet.Timeout(TIMEOUT):
         # we expect the qconsumer.start thread to finish
@@ -116,23 +125,30 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     qconsumer1 = QueueConsumer(amqp_uri, 1)
     qconsumer2 = QueueConsumer(amqp_uri, 1)
 
-    exchange = Exchange('spam')
-    queue = Queue('spam', exchange=exchange)
-
     consumer_continue = Event()
 
-    def handler1(body, message):
-        consumer_continue.wait()
-        qconsumer1.ack_message(message)
+    class Handler1(object):
+        queue = ham_queue
+
+        def handle_message(self, body, message):
+            consumer_continue.wait()
+            qconsumer1.ack_message(message)
 
     messages = []
 
-    def handler2(body, message):
-        messages.append(body)
-        qconsumer2.ack_message(message)
+    class Handler2(object):
+        queue = ham_queue
 
-    qconsumer1.add_consumer(queue, handler1)
-    qconsumer2.add_consumer(queue, handler2)
+        def handle_message(self, body, message):
+            messages.append(body)
+            qconsumer2.ack_message(message)
+
+    handler1 = Handler1()
+    handler2 = Handler2()
+
+    qconsumer1.register_provider(handler1)
+    qconsumer2.register_provider(handler2)
+
     qconsumer1.start()
     qconsumer2.start()
 
@@ -156,5 +172,5 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
 
     assert messages == ['eggs', 'bacon']
 
-    qconsumer1.stop()
-    qconsumer2.stop()
+    qconsumer1.unregister_provider(handler1)
+    qconsumer2.unregister_provider(handler2)

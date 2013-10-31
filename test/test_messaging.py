@@ -43,14 +43,15 @@ def test_consume_provider():
 
         # test lifecycle
         consume_provider.prepare()
-        queue_consumer.add_consumer.assert_called_once_with(
-            foobar_queue, ANY_PARTIAL)
+        queue_consumer.register_provider.assert_called_once_with(
+            consume_provider)
 
         consume_provider.start()
         queue_consumer.start.assert_called_once_with()
 
         consume_provider.stop()
-        queue_consumer.stop.assert_called_once_with()
+        queue_consumer.unregister_provider.assert_called_once_with(
+            consume_provider)
 
         # test handling successful call
         queue_consumer.reset_mock()
