@@ -10,7 +10,7 @@ from nameko.events import (
     SERVICE_POOL, EventHandler)
 from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
 from nameko.service import WorkerContext, ServiceContainer
-from nameko.testing.utils import ANY_PARTIAL, as_context_manager
+from nameko.testing.utils import as_context_manager
 
 
 EVENTS_TIMEOUT = 5
@@ -116,8 +116,7 @@ def test_event_handler(handler_factory):
         assert event_handler.queue.durable is True
         assert event_handler.queue.routing_key == "eventtype"
         assert event_handler.queue.exchange.name == "srcservice.events"
-        queue_consumer.add_consumer.assert_called_once_with(
-            event_handler.queue, ANY_PARTIAL)
+        queue_consumer.register_provider.assert_called_once_with(event_handler)
 
         # test service pool handler
         event_handler = handler_factory(handler_type=SERVICE_POOL)

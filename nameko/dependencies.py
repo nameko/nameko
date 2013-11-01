@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 """
 Provides classes and method to deal with dependency injection.
 """
@@ -8,8 +9,11 @@ from itertools import chain
 import types
 from weakref import WeakSet
 
+from eventlet.event import Event
 from nameko.utils import SpawningSet
 
+from logging import getLogger
+_log = getLogger(__name__)
 
 ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
 
@@ -131,6 +135,30 @@ class InjectionProvider(DependencyProvider):
         service = worker_ctx.service
         injection_name = self.name
         delattr(service, injection_name)
+
+
+class SharedDependency(object):
+    def __init__(self):
+        self._providers = set()
+        self._empty = Event()
+
+    def register_provider(self, provider):
+        _log.debug('registering provider %s for %s', provider, self)
+        self._providers.add(provider)
+
+    def unregister_provider(self, provider):
+        _log.debug('unregistering provider %s for %s', provider, self)
+
+        providers = self._providers
+
+        providers.remove(provider)
+
+        if len(providers) == 0:
+            self.last_provider_unregistered()
+
+    def last_provider_unregistered(self):
+        _log.debug('last provider unregistered for %s', self)
+        self._empty.send()
 
 
 class DependencySet(SpawningSet):
