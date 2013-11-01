@@ -225,6 +225,7 @@ class ReplyListener(SharedDependency):
 
     def last_provider_unregistered(self):
         self._qconsumer.unregister_provider(self)
+        super(ReplyListener, self).last_provider_unregistered()
 
     def kill(self, exc=None):
         self._qconsumer.kill(exc)
