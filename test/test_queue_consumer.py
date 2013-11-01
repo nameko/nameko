@@ -50,7 +50,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
         while len(qconsumer._consumers):
             eventlet.sleep()
 
-    # remove_consumer has towait for all messages to be acked
+    # remove_consumer has to wait for all messages to be acked
     assert not gt.dead
 
     # the consumer should have stopped and not accept any new messages
