@@ -30,24 +30,24 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
     amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
-    qconsumer = QueueConsumer(amqp_uri, 3)
+    queue_consumer = QueueConsumer(amqp_uri, 3)
 
     handler = MessageHandler()
 
-    qconsumer.register_provider(handler)
+    queue_consumer.register_provider(handler)
 
-    qconsumer.start()
+    queue_consumer.start()
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub')
 
     message = handler.wait()
 
-    gt = eventlet.spawn(qconsumer.unregister_provider, handler)
+    gt = eventlet.spawn(queue_consumer.unregister_provider, handler)
 
     # wait for the handler to be removed
     with eventlet.Timeout(TIMEOUT):
-        while len(qconsumer._consumers):
+        while len(queue_consumer._consumers):
             eventlet.sleep()
 
     # remove_consumer has to wait for all messages to be acked
@@ -57,7 +57,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
     rabbit_manager.publish(vhost, 'spam', '', 'ni')
 
     # this should cause the consumer to finish shutting down
-    qconsumer.ack_message(message)
+    queue_consumer.ack_message(message)
     with eventlet.Timeout(TIMEOUT):
         gt.wait()
 
@@ -69,14 +69,14 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 def test_reentrant_start_stops(reset_rabbit, rabbit_config):
     amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
-    qconsumer = QueueConsumer(amqp_uri, 3)
+    queue_consumer = QueueConsumer(amqp_uri, 3)
 
-    qconsumer.start()
-    gt = qconsumer._gt
+    queue_consumer.start()
+    gt = queue_consumer._gt
 
     # nothing should happen as the consumer has already been started
-    qconsumer.start()
-    assert gt is qconsumer._gt
+    queue_consumer.start()
+    assert gt is queue_consumer._gt
 
 
 def test_stop_while_starting():
@@ -91,39 +91,39 @@ def test_stop_while_starting():
             started.reset()
             return super(BrokenConnConsumer, self).consume(*args, **kwargs)
 
-    qconsumer = BrokenConnConsumer(amqp_uri=None, prefetch_count=3)
+    queue_consumer = BrokenConnConsumer(amqp_uri=None, prefetch_count=3)
 
     handler = MessageHandler()
-    qconsumer.register_provider(handler)
+    queue_consumer.register_provider(handler)
 
     with eventlet.Timeout(TIMEOUT):
         with patch.object(Connection, 'connect') as connect:
             # patch connection to raise an error
             connect.side_effect = TimeoutError('test')
             # try to start the queue consumer
-            gt = eventlet.spawn(qconsumer.start)
+            gt = eventlet.spawn(queue_consumer.start)
             # wait for the queue consumer to begin starting and
             # then immediately stop it
             started.wait()
 
     with eventlet.Timeout(TIMEOUT):
-        qconsumer.unregister_provider(handler)
+        queue_consumer.unregister_provider(handler)
 
     with eventlet.Timeout(TIMEOUT):
-        # we expect the qconsumer.start thread to finish
-        # almost immediately adn when it does the qconsumer thread
+        # we expect the queue_consumer.start thread to finish
+        # almost immediately adn when it does the queue_consumer thread
         # should be dead too
         while not gt.dead:
             eventlet.sleep()
 
-        assert qconsumer._gt.dead
+        assert queue_consumer._gt.dead
 
 
 def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
 
-    qconsumer1 = QueueConsumer(amqp_uri, 1)
-    qconsumer2 = QueueConsumer(amqp_uri, 1)
+    queue_consumer1 = QueueConsumer(amqp_uri, 1)
+    queue_consumer2 = QueueConsumer(amqp_uri, 1)
 
     consumer_continue = Event()
 
@@ -132,7 +132,7 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
 
         def handle_message(self, body, message):
             consumer_continue.wait()
-            qconsumer1.ack_message(message)
+            queue_consumer1.ack_message(message)
 
     messages = []
 
@@ -141,16 +141,16 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
 
         def handle_message(self, body, message):
             messages.append(body)
-            qconsumer2.ack_message(message)
+            queue_consumer2.ack_message(message)
 
     handler1 = Handler1()
     handler2 = Handler2()
 
-    qconsumer1.register_provider(handler1)
-    qconsumer2.register_provider(handler2)
+    queue_consumer1.register_provider(handler1)
+    queue_consumer2.register_provider(handler2)
 
-    qconsumer1.start()
-    qconsumer2.start()
+    queue_consumer1.start()
+    queue_consumer2.start()
 
     vhost = rabbit_config['vhost']
     # the first consumer only has a prefetch_count of 1 and will only
@@ -172,5 +172,5 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
 
     assert messages == ['eggs', 'bacon']
 
-    qconsumer1.unregister_provider(handler1)
-    qconsumer2.unregister_provider(handler2)
+    queue_consumer1.unregister_provider(handler1)
+    queue_consumer2.unregister_provider(handler2)

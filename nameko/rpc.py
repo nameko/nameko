@@ -62,7 +62,7 @@ class RpcConsumer(SharedDependency):
         super(RpcConsumer, self).__init__()
         self.queue = None
         self._container = container
-        self._qconsumer = get_queue_consumer(container)
+        self._queue_consumer = get_queue_consumer(container)
 
     def prepare(self):
         if self.queue is None:
@@ -79,16 +79,16 @@ class RpcConsumer(SharedDependency):
                 routing_key=routing_key,
                 durable=True)
 
-            self._qconsumer.register_provider(self)
+            self._queue_consumer.register_provider(self)
 
     def start(self):
-        self._qconsumer.start()
+        self._queue_consumer.start()
 
     def kill(self, exc=None):
-        self._qconsumer.kill(exc)
+        self._queue_consumer.kill(exc)
 
     def last_provider_unregistered(self):
-        self._qconsumer.unregister_provider(self)
+        self._queue_consumer.unregister_provider(self)
         super(RpcConsumer, self).last_provider_unregistered()
 
     def get_provider_for_method(self, routing_key):
@@ -121,7 +121,7 @@ class RpcConsumer(SharedDependency):
         responder = Responder(message)
         responder.send_response(container, result, error)
 
-        self._qconsumer.ack_message(message)
+        self._queue_consumer.ack_message(message)
 
 
 class RpcProvider(EntrypointProvider, HeaderDecoder):
@@ -203,7 +203,7 @@ class ReplyListener(SharedDependency):
 
         self._container = container
         self._reply_events = {}
-        self._qconsumer = get_queue_consumer(container)
+        self._queue_consumer = get_queue_consumer(container)
 
     def prepare(self):
 
@@ -218,17 +218,17 @@ class ReplyListener(SharedDependency):
         self.queue = Queue(
             self.reply_queue_name, exchange=exchange, exclusive=True)
 
-        self._qconsumer.register_provider(self)
+        self._queue_consumer.register_provider(self)
 
     def start(self):
-        self._qconsumer.start()
+        self._queue_consumer.start()
 
     def last_provider_unregistered(self):
-        self._qconsumer.unregister_provider(self)
+        self._queue_consumer.unregister_provider(self)
         super(ReplyListener, self).last_provider_unregistered()
 
     def kill(self, exc=None):
-        self._qconsumer.kill(exc)
+        self._queue_consumer.kill(exc)
 
     def get_reply_event(self, correlation_id):
         reply_event = Event()
@@ -236,7 +236,7 @@ class ReplyListener(SharedDependency):
         return reply_event
 
     def handle_message(self, body, message):
-        self._qconsumer.ack_message(message)
+        self._queue_consumer.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
         client_event = self._reply_events.pop(correlation_id, None)

@@ -172,20 +172,20 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         self.requeue_on_error = requeue_on_error
 
     def bind(self, name, container):
-        self._qconsumer = get_queue_consumer(container)
+        self._queue_consumer = get_queue_consumer(container)
         super(ConsumeProvider, self).bind(name, container)
 
     def prepare(self):
-        self._qconsumer.register_provider(self)
+        self._queue_consumer.register_provider(self)
 
     def start(self):
-        self._qconsumer.start()
+        self._queue_consumer.start()
 
     def stop(self):
-        self._qconsumer.unregister_provider(self)
+        self._queue_consumer.unregister_provider(self)
 
     def kill(self, exc=None):
-        self._qconsumer.kill(exc)
+        self._queue_consumer.kill(exc)
 
     def handle_message(self, body, message):
         args = (body,)
