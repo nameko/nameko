@@ -33,15 +33,19 @@ def timer(interval=None, config_key=None):
 
 class TimerProvider(EntrypointProvider):
     def __init__(self, interval, config_key):
-        self.interval = interval
+        self._default_interval = interval
         self.config_key = config_key
         self.should_stop = Event()
         self.gt = None
 
     def prepare(self):
+        interval = self._default_interval
+
         if self.config_key:
             config = self.container.config
-            self.interval = config.get(self.config_key, self.interval)
+            interval = config.get(self.config_key, interval)
+
+        self.interval = interval
 
     def start(self):
         _log.debug('sarting %s', self)
