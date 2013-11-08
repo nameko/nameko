@@ -85,7 +85,7 @@ class ServiceContainer(object):
             self.dependencies.add(dep)
 
         self._worker_pool = GreenPool(size=self.max_workers)
-        self._active_workers = []
+        self._active_threads = set()
         self._died = Event()
 
     def start(self):
@@ -130,9 +130,9 @@ class ServiceContainer(object):
         except eventlet.Timeout:
             _log.warning('timeout waiting for dependencies.kill %s', self)
 
-        _log.info('killing remaining workers (%s)', len(self._active_workers))
-        for gt in self._active_workers:
-            gt.kill(exc)
+        _log.info('killing active threads (%s)', len(self._active_threads))
+        for gt in list(self._active_threads):
+            gt.kill()
 
         self._died.send_exception(exc)
 
@@ -146,21 +146,18 @@ class ServiceContainer(object):
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
-        self._active_workers.append(gt)
-        gt.link(self._handle_worker_exited)
-
+        self._active_threads.add(gt)
+        gt.link(self._handle_thread_exited)
         return worker_ctx
 
-    def _handle_worker_exited(self, gt):
-        self._active_workers.remove(gt)
-        try:
-            gt.wait()
-        except greenlet.GreenletExit:
-            _log.warning('%s worker killed', self.service_name, exc_info=True)
-        except Exception as exc:
-            _log.error('%s worker exited with error', self.service_name,
-                       exc_info=True)
-            self.kill(exc)
+    def wait(self):
+        return self._died.wait()
+
+    def spawn_yyy(self, run_method):
+        gt = eventlet.spawn(run_method)
+        self._active_threads.add(gt)
+        gt.link(self._handle_thread_exited)
+        return gt
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
@@ -200,8 +197,20 @@ class ServiceContainer(object):
                 self.dependencies.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
 
-    def wait(self):
-        return self._died.wait()
+    def _handle_thread_exited(self, gt):
+        self._active_threads.remove(gt)
+
+        try:
+            gt.wait()
+
+        except greenlet.GreenletExit:
+            _log.warning('%s thread killed by container', self)
+
+        except Exception as exc:
+            _log.error('%s thread exited with error', self,
+                       exc_info=True)
+
+            self.kill(exc)
 
     def __str__(self):
         return '<ServiceContainer {} at 0x{:x}>'.format(

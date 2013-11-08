@@ -1,9 +1,7 @@
 from __future__ import absolute_import
 from logging import getLogger
 import time
-from weakref import WeakKeyDictionary
 
-import eventlet
 from eventlet import Timeout
 from eventlet.event import Event
 
@@ -35,62 +33,22 @@ def timer(interval=None, config_key=None):
 
 class TimerProvider(EntrypointProvider):
     def __init__(self, interval, config_key):
-        # The map is only used to support using the same class in multiple
-        # concurrently running containers.
-        self.timers_by_container = WeakKeyDictionary()
         self.interval = interval
         self.config_key = config_key
+        self.should_stop = Event()
+        self.gt = None
 
     def prepare(self):
-        def timer_handler():
-            args = tuple()
-            kwargs = {}
-            self.container.spawn_worker(self, args, kwargs)
-
-        config = self.container.config
-
         if self.config_key:
-            interval = config.get(self.config_key, self.interval)
-        else:
-            interval = self.interval
-
-        self.timers_by_container[self.container] = Timer(interval,
-                                                         timer_handler)
+            config = self.container.config
+            self.interval = config.get(self.config_key, self.interval)
 
     def start(self):
-        timer = self.timers_by_container[self.container]
-        _log.debug('started %s', self)
-        timer.start()
+        _log.debug('sarting %s', self)
+        self.gt = self.container.spawn_yyy(self._run)
 
     def stop(self):
-        self.timers_by_container[self.container].stop()
-
-    def __str__(self):
-        return '<TimerProvider {} with {}s interval at at 0x{:x}>'.format(
-            self.name, self.interval, id(self))
-
-
-class Timer(object):
-    ''' A timer object, which will call a given method repeatedly at a given
-    interval.
-    '''
-    def __init__(self, interval, handler):
-        self.interval = interval
-        self.gt = None
-        self.should_stop = Event()
-        self.handler = handler
-
-    def start(self):
-        ''' Starts the timer in a separate green thread.
-
-        Once started it may be stopped using its `stop()` method.
-        '''
-        self.gt = eventlet.spawn(self._run)
-
-    def stop(self):
-        ''' Gracefully stops the timer, waiting for it's timer_method
-        to complete if it is running.
-        '''
+        _log.debug('stopping %s', self)
         self.should_stop.send(True)
         self.gt.wait()
 
@@ -102,12 +60,11 @@ class Timer(object):
         '''
         while not self.should_stop.ready():
             start = time.time()
-            try:
-                self.handler()
-            except Exception as e:
-                _log.exception('error in timer handler: %s', e)
 
-            sleep_time = max(self.interval - (time.time() - start), 0)
+            self.handle_timer_tick()
+
+            elapsed_time = (time.time() - start)
+            sleep_time = max(self.interval - elapsed_time, 0)
             self._sleep_or_stop(sleep_time)
 
     def _sleep_or_stop(self, sleep_time):
@@ -120,3 +77,12 @@ class Timer(object):
         except Timeout:
             # we use the timeout as a cancellable sleep
             pass
+
+    def handle_timer_tick(self):
+        args = tuple()
+        kwargs = {}
+        self.container.spawn_worker(self, args, kwargs)
+
+    def __str__(self):
+        return '<TimerProvider {} with {}s interval at at 0x{:x}>'.format(
+            self.name, self.interval, id(self))
