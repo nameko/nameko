@@ -332,12 +332,12 @@ def test_handle_killed_worker(container, logger):
     assert not container._died.ready()  # container continues running
 
 
-def test_spawned_yyy_kills_container(container):
+def test_spawned_thread_kills_container(container):
     def raise_error():
         raise Exception('foobar')
 
     container.start()
-    container.spawn_yyy(raise_error)
+    container.spawn_managed_thread(raise_error)
 
     with pytest.raises(Exception) as exc_info:
         container.wait()
@@ -345,7 +345,7 @@ def test_spawned_yyy_kills_container(container):
     assert exc_info.value.args == ('foobar',)
 
 
-def test_spawned_yyy_causes_container_to_kill_other_spawned_yyy(container):
+def test_spawned_thread_causes_container_to_kill_other_thread(container):
     error_raised = Event()
 
     def raise_error():
@@ -360,7 +360,7 @@ def test_spawned_yyy_causes_container_to_kill_other_spawned_yyy(container):
 
     container.start()
 
-    container.spawn_yyy(do_wait)
-    container.spawn_yyy(raise_error)
+    container.spawn_managed_thread(do_wait)
+    container.spawn_managed_thread(raise_error)
 
     error_raised.wait()

@@ -12,7 +12,7 @@ def test_provider():
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
     container.config = Mock()
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     timer = TimerProvider(interval=0, config_key=None)
     timer.bind('foobar', container)
@@ -38,7 +38,7 @@ def test_provider_uses_config_for_interval():
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
     container.config = {'spam-conf': 10}
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     timer = TimerProvider(interval=None, config_key='spam-conf')
     timer.bind('foobar', container)
@@ -78,7 +78,7 @@ def test_stop_timer_immediatly():
 def test_kill_stops_timer():
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     timer = TimerProvider(interval=0, config_key=None)
     timer.bind('foobar', container)

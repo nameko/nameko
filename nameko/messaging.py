@@ -240,8 +240,7 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self._container.spawn_yyy(self.run)
-            print self._gt
+            self._gt = self._container.spawn_managed_thread(self.run)
         try:
             _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()

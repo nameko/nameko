@@ -233,7 +233,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
     container.config = rabbit_config
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
@@ -276,7 +276,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     container.service_name = "service"
     container.config = rabbit_config
     container.max_workers = 10
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     worker_ctx = CustomWorkerContext(container, None, None)
 

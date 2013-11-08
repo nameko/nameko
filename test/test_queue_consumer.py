@@ -32,7 +32,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 3
-    container.spawn_yyy.side_effect = eventlet.spawn
+    container.spawn_managed_thread.side_effect = eventlet.spawn
 
     queue_consumer = QueueConsumer(container)
 
@@ -43,7 +43,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
     queue_consumer.start()
 
     # making sure the QueueConsumer uses the container to spawn threads
-    container.spawn_yyy.assert_called_once_with(ANY)
+    container.spawn_managed_thread.assert_called_once_with(ANY)
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub')
@@ -77,7 +77,7 @@ def test_reentrant_start_stops(reset_rabbit, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 3
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     queue_consumer = QueueConsumer(container)
 
@@ -95,7 +95,7 @@ def test_stop_while_starting():
     container = Mock()
     container.config = {AMQP_URI_CONFIG_KEY: None}
     container.max_workers = 3
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     class BrokenConnConsumer(QueueConsumer):
         def consume(self, *args, **kwargs):
@@ -138,7 +138,7 @@ def test_error_stops_consumer_thread():
     container = Mock()
     container.config = {AMQP_URI_CONFIG_KEY: None}
     container.max_workers = 3
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     queue_consumer = QueueConsumer(container)
 
@@ -160,7 +160,7 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 1
-    container.spawn_yyy = eventlet.spawn
+    container.spawn_managed_thread = eventlet.spawn
 
     queue_consumer1 = QueueConsumer(container)
     queue_consumer2 = QueueConsumer(container)
