@@ -52,6 +52,10 @@ class TimerProvider(EntrypointProvider):
         self.should_stop.send(True)
         self.gt.wait()
 
+    def kill(self, exc):
+        _log.debug('killing %s', self)
+        self.gt.kill()
+
     def _run(self):
         ''' Runs the interval loop.
 

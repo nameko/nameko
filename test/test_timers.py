@@ -73,3 +73,22 @@ def test_stop_timer_immediatly():
 
     assert container.spawn_worker.call_count == 0
     assert timer.gt.dead
+
+
+def test_kill_stops_timer():
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.spawn_yyy = eventlet.spawn
+
+    timer = TimerProvider(interval=0, config_key=None)
+    timer.bind('foobar', container)
+    timer.prepare()
+    timer.start()
+
+    with wait_for_call(1, container.spawn_worker):
+        timer.kill(Exception('time'))
+
+    # unless the timer is dead, the following nap would cause a timer
+    # to trigger
+    eventlet.sleep(0.1)
+    assert container.spawn_worker.call_count == 1
