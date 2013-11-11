@@ -1,6 +1,7 @@
 from mock import patch, call
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
+import greenlet
 import pytest
 
 from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
@@ -107,6 +108,12 @@ def container():
 
     CallCollectorMixin.call_counter = 0
     return container
+
+
+@pytest.yield_fixture
+def logger():
+    with patch('nameko.service._log') as patched:
+        yield patched
 
 
 def test_collects_dependencies(container):
@@ -260,12 +267,6 @@ def test_kill_already_stopped(container):
         assert logger.debug.call_args == call("already stopped %s", container)
 
 
-@pytest.yield_fixture
-def logger():
-    with patch('nameko.service._log') as patched:
-        yield patched
-
-
 def test_kill_misbehaving_dependency(container, logger):
     """ Break a dependency by making its ``kill`` method hang. The container
     should still exit.
@@ -299,8 +300,8 @@ def test_kill_container_with_active_workers(container):
     dep = next(iter(container.dependencies))
     container.spawn_worker(dep, ['sleep'], {})
 
-    assert len(container._active_workers) == 1
-    worker_gt = container._active_workers[0]
+    assert len(container._active_threads) == 1
+    (worker_gt,) = container._active_threads
 
     class Killed(Exception):
         pass
@@ -311,7 +312,8 @@ def test_kill_container_with_active_workers(container):
     with Timeout(1):
         with pytest.raises(Killed):
             container._died.wait()
-        with pytest.raises(Killed):
+
+        with pytest.raises(greenlet.GreenletExit):
             worker_gt.wait()
 
 
@@ -320,12 +322,46 @@ def test_handle_killed_worker(container, logger):
     dep = next(iter(container.dependencies))
     container.spawn_worker(dep, ['sleep'], {})
 
-    assert len(container._active_workers) == 1
-    worker_gt = container._active_workers[0]
+    assert len(container._active_threads) == 1
+    (worker_gt,) = container._active_threads
 
     worker_gt.kill()
-    assert logger.warning.call_args == call("%s worker killed",
-                                            container.service_name,
-                                            exc_info=True)
+    assert logger.warning.call_args == call("%s thread killed by container",
+                                            container)
 
     assert not container._died.ready()  # container continues running
+
+
+def test_spawned_thread_kills_container(container):
+    def raise_error():
+        raise Exception('foobar')
+
+    container.start()
+    container.spawn_managed_thread(raise_error)
+
+    with pytest.raises(Exception) as exc_info:
+        container.wait()
+
+    assert exc_info.value.args == ('foobar',)
+
+
+def test_spawned_thread_causes_container_to_kill_other_thread(container):
+    killed_by_error_raised = Event()
+
+    def raise_error():
+        raise Exception('foobar')
+
+    def wait_forever():
+        try:
+            Event().wait()
+        except:
+            killed_by_error_raised.send()
+            raise
+
+    container.start()
+
+    container.spawn_managed_thread(wait_forever)
+    container.spawn_managed_thread(raise_error)
+
+    with Timeout(1):
+        killed_by_error_raised.wait()

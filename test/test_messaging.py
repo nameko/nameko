@@ -33,24 +33,26 @@ def test_consume_provider():
 
     consume_provider = ConsumeProvider(queue=foobar_queue,
                                        requeue_on_error=False)
-    consume_provider.bind("name", container)
-
-    message = Mock(headers={})
     queue_consumer = Mock()
 
-    with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
-        get_queue_consumer.return_value = queue_consumer
+    with patch('nameko.messaging.get_queue_consumer',
+               return_value=queue_consumer):
+
+        consume_provider.bind("name", container)
+
+        message = Mock(headers={})
 
         # test lifecycle
         consume_provider.prepare()
-        queue_consumer.add_consumer.assert_called_once_with(
-            foobar_queue, ANY_PARTIAL)
+        queue_consumer.register_provider.assert_called_once_with(
+            consume_provider)
 
         consume_provider.start()
         queue_consumer.start.assert_called_once_with()
 
         consume_provider.stop()
-        queue_consumer.stop.assert_called_once_with()
+        queue_consumer.unregister_provider.assert_called_once_with(
+            consume_provider)
 
         # test handling successful call
         queue_consumer.reset_mock()
@@ -219,10 +221,6 @@ def test_header_decoder():
         assert res == {'foo': 'FOO', 'bar': 'BAR'}
 
 
-# TODO: we need to define the expected behavior for errors raised by
-# DeoratorDependencies and add tests to ensure the behavior, e.g. socket errors
-
-
 #==============================================================================
 # INTEGRATION TESTS
 #==============================================================================
@@ -235,6 +233,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
     container.config = rabbit_config
+    container.spawn_managed_thread = eventlet.spawn
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
@@ -277,6 +276,7 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     container.service_name = "service"
     container.config = rabbit_config
     container.max_workers = 10
+    container.spawn_managed_thread = eventlet.spawn
 
     worker_ctx = CustomWorkerContext(container, None, None)
 
