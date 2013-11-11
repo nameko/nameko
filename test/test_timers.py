@@ -28,7 +28,8 @@ def test_provider():
     with Timeout(1):
         timer.stop()
 
-    # the timer should have stopped and there should be no extra workers
+    # the timer should have stopped and should not have spawned any extra
+    # workers
     spawn_worker.assert_called_once_with(timer, (), {})
 
     assert timer.gt.dead

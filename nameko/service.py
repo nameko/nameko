@@ -108,6 +108,7 @@ class ServiceContainer(object):
 
         After all entrypoints have stopped the container waits for any
         active workers to complete.
+
         After all active workers have stopped the container stops all
         injections.
 
@@ -210,7 +211,7 @@ class ServiceContainer(object):
 
         If the container was stopped using ``kill(exc)``,
         ``wait()`` raises ``exc``.
-        Any unhandled excepetion raised in a managed thread or in the
+        Any unhandled exception raised in a managed thread or in the
         life-cycle management code also causes the container to be
         ``kill()``ed, which causes an exception to be raised from ``wait()``.
         """
@@ -338,6 +339,7 @@ class ServiceRunner(object):
 
         A new container will be created for each service using the container
         class provided in the __init__ method.
+
         All containers will be started concurently and the method will block
         until all have completed their startup routine.
         """
