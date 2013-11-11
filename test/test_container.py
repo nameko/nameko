@@ -346,23 +346,22 @@ def test_spawned_thread_kills_container(container):
 
 
 def test_spawned_thread_causes_container_to_kill_other_thread(container):
-    do_wait_killed_by_error_raised = Event()
+    killed_by_error_raised = Event()
 
     def raise_error():
         raise Exception('foobar')
 
-    def do_wait():
+    def wait_forever():
         try:
-            # this waits forever or the current thread gets killed
             Event().wait()
         except:
-            do_wait_killed_by_error_raised.send()
+            killed_by_error_raised.send()
             raise
 
     container.start()
 
-    container.spawn_managed_thread(do_wait)
+    container.spawn_managed_thread(wait_forever)
     container.spawn_managed_thread(raise_error)
 
     with Timeout(1):
-        do_wait_killed_by_error_raised.wait()
+        killed_by_error_raised.wait()

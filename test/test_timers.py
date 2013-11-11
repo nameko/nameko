@@ -23,13 +23,11 @@ def test_provider():
     timer.start()
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
-        spawn_worker.assert_called_once_with(timer, (), {})
+        with Timeout(1):
+            timer.stop()
 
-    with Timeout(1):
-        timer.stop()
-
-    # the timer should have stopped and should not have spawned any extra
-    # workers
+    # the timer should have stopped and should only have spawned
+    # a single worker
     spawn_worker.assert_called_once_with(timer, (), {})
 
     assert timer.gt.dead
