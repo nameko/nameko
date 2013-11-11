@@ -59,9 +59,8 @@ def get_rpc_reply_listener(container):
 class RpcConsumer(SharedDependency):
 
     def __init__(self, container):
-        super(RpcConsumer, self).__init__()
+        super(RpcConsumer, self).__init__(container)
         self.queue = None
-        self._container = container
         self._queue_consumer = get_queue_consumer(container)
 
     def prepare(self):
@@ -199,9 +198,8 @@ class Responder(object):
 
 class ReplyListener(SharedDependency):
     def __init__(self, container):
-        super(ReplyListener, self).__init__()
+        super(ReplyListener, self).__init__(container)
 
-        self._container = container
         self._reply_events = {}
         self._queue_consumer = get_queue_consumer(container)
 

@@ -2,10 +2,11 @@ import eventlet
 from eventlet.event import Event
 from kombu import Queue, Exchange, Connection
 from kombu.exceptions import TimeoutError
-from mock import patch
+from mock import patch, Mock, ANY
 
 from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
 
+import pytest
 
 TIMEOUT = 5
 
@@ -28,15 +29,21 @@ class MessageHandler(object):
 
 def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
-    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
+    container = Mock()
+    container.config = rabbit_config
+    container.max_workers = 3
+    container.spawn_managed_thread.side_effect = eventlet.spawn
 
-    queue_consumer = QueueConsumer(amqp_uri, 3)
+    queue_consumer = QueueConsumer(container)
 
     handler = MessageHandler()
 
     queue_consumer.register_provider(handler)
 
     queue_consumer.start()
+
+    # making sure the QueueConsumer uses the container to spawn threads
+    container.spawn_managed_thread.assert_called_once_with(ANY)
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub')
@@ -67,9 +74,12 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
 
 
 def test_reentrant_start_stops(reset_rabbit, rabbit_config):
-    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
+    container = Mock()
+    container.config = rabbit_config
+    container.max_workers = 3
+    container.spawn_managed_thread = eventlet.spawn
 
-    queue_consumer = QueueConsumer(amqp_uri, 3)
+    queue_consumer = QueueConsumer(container)
 
     queue_consumer.start()
     gt = queue_consumer._gt
@@ -82,6 +92,11 @@ def test_reentrant_start_stops(reset_rabbit, rabbit_config):
 def test_stop_while_starting():
     started = Event()
 
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.max_workers = 3
+    container.spawn_managed_thread = eventlet.spawn
+
     class BrokenConnConsumer(QueueConsumer):
         def consume(self, *args, **kwargs):
             started.send(None)
@@ -91,7 +106,7 @@ def test_stop_while_starting():
             started.reset()
             return super(BrokenConnConsumer, self).consume(*args, **kwargs)
 
-    queue_consumer = BrokenConnConsumer(amqp_uri=None, prefetch_count=3)
+    queue_consumer = BrokenConnConsumer(container)
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
@@ -119,11 +134,36 @@ def test_stop_while_starting():
         assert queue_consumer._gt.dead
 
 
-def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
-    amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
+def test_error_stops_consumer_thread():
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.max_workers = 3
+    container.spawn_managed_thread = eventlet.spawn
 
-    queue_consumer1 = QueueConsumer(amqp_uri, 1)
-    queue_consumer2 = QueueConsumer(amqp_uri, 1)
+    queue_consumer = QueueConsumer(container)
+
+    handler = MessageHandler()
+    queue_consumer.register_provider(handler)
+
+    with eventlet.Timeout(TIMEOUT):
+        with patch.object(Connection, 'drain_events') as drain_events:
+            drain_events.side_effect = Exception('test')
+            queue_consumer.start()
+
+    with pytest.raises(Exception) as exc_info:
+        queue_consumer._gt.wait()
+
+    assert exc_info.value.args == ('test',)
+
+
+def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
+    container = Mock()
+    container.config = rabbit_config
+    container.max_workers = 1
+    container.spawn_managed_thread = eventlet.spawn
+
+    queue_consumer1 = QueueConsumer(container)
+    queue_consumer2 = QueueConsumer(container)
 
     consumer_continue = Event()
 

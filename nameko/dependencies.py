@@ -138,7 +138,8 @@ class InjectionProvider(DependencyProvider):
 
 
 class SharedDependency(object):
-    def __init__(self):
+    def __init__(self, container):
+        self._container = container
         self._providers = set()
         self._empty = Event()
 

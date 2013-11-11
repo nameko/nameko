@@ -158,8 +158,7 @@ def get_queue_consumer(container):
     instance.
     """
     if container not in queue_consumers:
-        queue_consumer = QueueConsumer(
-            container.config[AMQP_URI_CONFIG_KEY], container.max_workers)
+        queue_consumer = QueueConsumer(container)
         queue_consumers[container] = queue_consumer
 
     return queue_consumers[container]
@@ -217,12 +216,12 @@ class QueueConsumerStopped(Exception):
 
 
 class QueueConsumer(SharedDependency, ConsumerMixin):
-    def __init__(self, amqp_uri, prefetch_count):
-        super(QueueConsumer, self).__init__()
+    def __init__(self, container):
+        super(QueueConsumer, self).__init__(container)
 
         self._connection = None
-        self._amqp_uri = amqp_uri
-        self._prefetch_count = prefetch_count
+        self._amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
+        self._prefetch_count = container.max_workers
 
         self._consumers = {}
 
@@ -241,8 +240,7 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = eventlet.spawn(self.run)
-
+            self._gt = self._container.spawn_managed_thread(self.run)
         try:
             _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()
@@ -308,10 +306,9 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
         self._pending_messages.remove(message)
         self._pending_requeue_messages.append(message)
 
-    def _on_message(self, handle_message, body, message):
+    def _on_message(self, body, message):
         _log.debug("received message: %s", message)
         self._pending_messages.add(message)
-        handle_message(body, message)
 
     def _cancel_consumers_if_requested(self):
         provider_remove_events = self._pending_remove_providers.items()
@@ -354,10 +351,9 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
         _log.debug('settting up consumers')
 
         for provider in self._providers:
-            # TODO: use two callbacks instead of self._on_message
-            callback = partial(self._on_message, provider.handle_message)
+            callbacks = [self._on_message, provider.handle_message]
 
-            consumer = Consumer(queues=[provider.queue], callbacks=[callback])
+            consumer = Consumer(queues=[provider.queue], callbacks=callbacks)
             consumer.qos(prefetch_count=self._prefetch_count)
 
             self._consumers[provider] = consumer
@@ -390,6 +386,7 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
             after a shutdown is triggered rather than waiting for the timeout.
         """
         elapsed = 0
+
         with self.Consumer() as ccc:
             connection, channel, consumers = ccc
             with self.extra_context(connection, channel):
