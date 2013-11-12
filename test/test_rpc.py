@@ -12,9 +12,10 @@ from nameko.events import event_handler
 from nameko.exceptions import RemoteError, MethodNotFound
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, get_rpc_consumer, RpcConsumer, RpcProvider, ReplyListener)
+    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.service import (
     ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
+from nameko.testing.utils import get_dependency
 
 
 class ExampleError(Exception):
@@ -99,6 +100,8 @@ class FailingConnection(Connection):
     def ensure(self, obj, fun, **kwargs):
         def wrapped(*args, **kwargs):
             return self.maybe_raise(fun, *args, **kwargs)
+        kwargs['interval_start'] = 0
+        kwargs['interval_step'] = 0
         return super(FailingConnection, self).ensure(obj, wrapped, **kwargs)
 
     def connect(self, *args, **kwargs):
@@ -109,21 +112,12 @@ class FailingConnection(Connection):
 
 
 @pytest.yield_fixture
-def get_queue_consumer():
-    with patch('nameko.rpc.get_queue_consumer') as patched:
-        yield patched
-
-
-@pytest.yield_fixture
 def get_rpc_exchange():
     with patch('nameko.rpc.get_rpc_exchange') as patched:
         yield patched
 
 
-def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
-
-    provider = RpcProvider()
-    provider.name = "rpcmethod"
+def test_rpc_consumer(get_rpc_exchange):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "exampleservice"
@@ -132,10 +126,19 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     get_rpc_exchange.return_value = exchange
 
     queue_consumer = Mock(spec=QueueConsumer)
-    get_queue_consumer.return_value = queue_consumer
+    queue_consumer.bind("queue_consumer", container)
 
-    consumer = RpcConsumer(container)
+    consumer = RpcConsumer()
+    consumer.queue_consumer = queue_consumer
+    consumer.bind("rpc_consumer", container)
+
+    provider = RpcProvider()
+    provider.rpc_consumer = consumer
+    provider.bind("rpcmethod", container)
+
+    provider.prepare()
     consumer.prepare()
+    queue_consumer.prepare()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
@@ -143,7 +146,6 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     assert queue.exchange == exchange
     assert queue.durable
 
-    get_queue_consumer.assert_called_once_with(container)
     queue_consumer.register_provider.assert_called_once_with(consumer)
 
     consumer.register_provider(provider)
@@ -160,7 +162,7 @@ def test_rpc_consumer(get_queue_consumer, get_rpc_exchange):
     assert consumer._providers == set()
 
 
-def test_reply_listener(get_queue_consumer, get_rpc_exchange):
+def test_reply_listener(get_rpc_exchange):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "exampleservice"
@@ -169,9 +171,11 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
     get_rpc_exchange.return_value = exchange
 
     queue_consumer = Mock(spec=QueueConsumer)
-    get_queue_consumer.return_value = queue_consumer
+    queue_consumer.bind("queue_consumer", container)
 
-    reply_listener = ReplyListener(container)
+    reply_listener = ReplyListener()
+    reply_listener.queue_consumer = queue_consumer
+    reply_listener.bind("reply_listener", container)
 
     forced_uuid = uuid.uuid4().hex
 
@@ -179,13 +183,13 @@ def test_reply_listener(get_queue_consumer, get_rpc_exchange):
         patched_uuid.uuid4.return_value = forced_uuid
 
         reply_listener.prepare()
+        queue_consumer.prepare()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
         assert queue.exchange == exchange
         assert queue.exclusive
 
-    get_queue_consumer.assert_called_once_with(container)
     queue_consumer.register_provider.assert_called_once_with(reply_listener)
 
     correlation_id = 1
@@ -298,7 +302,7 @@ def test_rpc_headers(container_factory, rabbit_config,
     }
 
     headers = {}
-    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
+    rpc_consumer = get_dependency(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(rpc_consumer, 'handle_message') as patched_handler:
@@ -329,7 +333,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
     }
 
     headers = {}
-    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
+    rpc_consumer = get_dependency(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(rpc_consumer, 'handle_message') as patched_handler:

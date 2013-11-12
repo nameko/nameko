@@ -17,6 +17,12 @@ _log = getLogger(__name__)
 
 ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
 
+# constants for dependency sharing
+PROCESS_SHARED = "process"
+
+# sentinel object
+process_shared = object()
+
 
 class NotInitializedError(Exception):
     pass
@@ -27,17 +33,6 @@ class DependencyTypeError(TypeError):
 
 
 class DependencyProvider(object):
-
-    def bind(self, name, container):
-        """ Bind this DependencyProvider instance to ``container`` using the
-        given ``name`` to identify the resource on the hosted service.
-
-        Called during ServiceContainer initialisation. The DependencyProvider
-        instance is created and then bound to the ServiceContainer instance
-        controlling its lifecyle.
-        """
-        self.name = name
-        self.container = container
 
     def prepare(self):
         """ Called when the service container starts.
@@ -96,6 +91,32 @@ class DependencyProvider(object):
             - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
         """
 
+    def bind(self, name, container):
+        """ Bind this DependencyProvider instance to ``container`` using the
+        given ``name`` to identify the resource on the hosted service.
+
+        Called during ServiceContainer initialisation. The DependencyProvider
+        instance is created and then bound to the ServiceContainer instance
+        controlling its lifecyle.
+        """
+        self.name = name
+        self.container = container
+
+    @property
+    def nested_dependencies(self):
+        """ Recusively yield nested dependencies of DependencyProvider.
+
+        e.g.::
+
+            rpc_provider = RpcProvider()
+            rpc_provider.nested_dependencies
+        """
+        for _, attr in inspect.getmembers(self):
+            if isinstance(attr, DependencyProvider):
+                yield attr
+                for nested_dep in attr.nested_dependencies:
+                    yield nested_dep
+
 
 class EntrypointProvider(DependencyProvider):
     pass
@@ -137,9 +158,8 @@ class InjectionProvider(DependencyProvider):
         delattr(service, injection_name)
 
 
-class SharedDependency(object):
-    def __init__(self, container):
-        self._container = container
+class SharedDependency(DependencyProvider):
+    def __init__(self):
         self._providers = set()
         self._empty = Event()
 
@@ -215,29 +235,36 @@ class DependencyFactory(object):
         self.args = init_args
         self.kwargs = init_kwargs
 
-    # TODO: doesn't stop "equal" copies being addded to a set
-    # //--> use __hash__
-    def __eq__(self, other):
-        if not isinstance(other, DependencyFactory):
-            return False
-        return all([
-            self.dep_cls is other.dep_cls,
-            self.args == other.args,
-            self.kwargs == other.kwargs
-        ])
+    @property
+    def key(self):
+        return (self.dep_cls, str(self.args), str(self.kwargs))
 
     def create_and_bind_instance(self, name, container):
         """ Instaniate an instance of ``dep_cls`` and bind it to ``container``.
 
         See `:meth:~DependencyProvider.bind`.
         """
-        if self.shared:
-            instance = shared_dependencies.get(self)
+        if issubclass(self.dep_cls, SharedDependency):
+            # TODO: support more types of sharing?
+            if self.shared == PROCESS_SHARED:
+                sharing_key = process_shared
+            else:
+                sharing_key = container
+
+            shared_dependencies.setdefault(sharing_key, {})
+            instance = shared_dependencies[sharing_key].get(self.key)
             if instance is None:
                 instance = self.dep_cls(*self.args, **self.kwargs)
+                shared_dependencies[sharing_key][self.key] = instance
         else:
             instance = self.dep_cls(*self.args, **self.kwargs)
         instance.bind(name, container)
+
+        for name, attr in inspect.getmembers(instance):
+            if isinstance(attr, DependencyFactory):
+                prov = attr.create_and_bind_instance(name, container)
+                setattr(instance, name, prov)
+
         return instance
 
 
@@ -318,9 +345,8 @@ def injection(fn):
 def dependency(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
-        shared = kwargs.pop('shared', False)
+        shared = kwargs.pop('shared', None)
         factory = fn(*args, **kwargs)
-
         if not isinstance(factory, DependencyFactory):
             raise DependencyTypeError('Arguments to `dependency` must return '
                                       'DependencyFactory instances')
@@ -338,22 +364,6 @@ def is_entrypoint_provider(obj):
     return isinstance(obj, EntrypointProvider)
 
 
-def get_dependency_providers(container, provider):
-
-    def get_dependencies(obj):
-        import collections
-        for name, attr in inspect.getmembers(obj, lambda x: isinstance(x, collections.Hashable)):
-            if attr in registered_dependencies:
-                factory = attr
-                provider = factory.create_and_bind_instance(name, container)
-                for prov in get_dependencies(provider):
-                    yield prov
-                yield provider
-
-    for dep in get_dependencies(provider):
-        yield dep
-
-
 def get_injection_providers(container, include_dependencies=False):
     service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls):
@@ -362,7 +372,7 @@ def get_injection_providers(container, include_dependencies=False):
             provider = factory.create_and_bind_instance(name, container)
             yield provider
             if include_dependencies:
-                for dependency in get_dependency_providers(container, provider):
+                for dependency in provider.nested_dependencies:
                     yield dependency
 
 
@@ -374,10 +384,11 @@ def get_entrypoint_providers(container, include_dependencies=False):
             provider = factory.create_and_bind_instance(name, container)
             yield provider
             if include_dependencies:
-                for dependency in get_dependency_providers(container, provider):
+                for dependency in provider.nested_dependencies:
                     yield dependency
 
 
 def get_dependencies(container):
-    return chain(get_injection_providers(container, include_dependencies=True),
-                 get_entrypoint_providers(container, include_dependencies=True))
+    return chain(
+        get_injection_providers(container, include_dependencies=True),
+        get_entrypoint_providers(container, include_dependencies=True))

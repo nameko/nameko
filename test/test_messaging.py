@@ -2,6 +2,7 @@ import eventlet
 from kombu import Exchange, Queue
 from mock import patch, Mock
 
+from nameko.dependencies import DependencyFactory
 from nameko.messaging import (
     PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
 from nameko.service import (
@@ -31,52 +32,47 @@ def test_consume_provider():
     spawn_worker = container.spawn_worker
     spawn_worker.return_value = worker_ctx
 
-    consume_provider = ConsumeProvider(queue=foobar_queue,
-                                       requeue_on_error=False)
     queue_consumer = Mock()
 
-    with patch('nameko.messaging.get_queue_consumer',
-               return_value=queue_consumer):
+    consume_provider = ConsumeProvider(queue=foobar_queue,
+                                       requeue_on_error=False)
+    consume_provider.queue_consumer = queue_consumer
+    consume_provider.bind("name", container)
 
-        consume_provider.bind("name", container)
+    message = Mock(headers={})
 
-        message = Mock(headers={})
+    # test lifecycle
+    consume_provider.prepare()
+    queue_consumer.register_provider.assert_called_once_with(
+        consume_provider)
 
-        # test lifecycle
-        consume_provider.prepare()
-        queue_consumer.register_provider.assert_called_once_with(
-            consume_provider)
+    consume_provider.stop()
+    queue_consumer.unregister_provider.assert_called_once_with(
+        consume_provider)
 
-        consume_provider.start()
-        queue_consumer.start.assert_called_once_with()
+    # test handling successful call
+    queue_consumer.reset_mock()
+    consume_provider.handle_message("body", message)
+    handle_result = spawn_worker.call_args[1]['handle_result']
+    handle_result(worker_ctx, 'result')
+    queue_consumer.ack_message.assert_called_once_with(message)
 
-        consume_provider.stop()
-        queue_consumer.unregister_provider.assert_called_once_with(
-            consume_provider)
+    # test handling failed call without requeue
+    queue_consumer.reset_mock()
+    consume_provider.requeue_on_error = False
+    consume_provider.handle_message("body", message)
+    handle_result = spawn_worker.call_args[1]['handle_result']
+    handle_result(worker_ctx, None, Exception('Error'))
+    queue_consumer.ack_message.assert_called_once_with(message)
 
-        # test handling successful call
-        queue_consumer.reset_mock()
-        consume_provider.handle_message("body", message)
-        handle_result = spawn_worker.call_args[1]['handle_result']
-        handle_result(worker_ctx, 'result')
-        queue_consumer.ack_message.assert_called_once_with(message)
-
-        # test handling failed call without requeue
-        queue_consumer.reset_mock()
-        consume_provider.requeue_on_error = False
-        consume_provider.handle_message("body", message)
-        handle_result = spawn_worker.call_args[1]['handle_result']
-        handle_result(worker_ctx, None, Exception('Error'))
-        queue_consumer.ack_message.assert_called_once_with(message)
-
-        # test handling failed call with requeue
-        queue_consumer.reset_mock()
-        consume_provider.requeue_on_error = True
-        consume_provider.handle_message("body", message)
-        handle_result = spawn_worker.call_args[1]['handle_result']
-        handle_result(worker_ctx, None, Exception('Error'))
-        assert not queue_consumer.ack_message.called
-        queue_consumer.requeue_message.assert_called_once_with(message)
+    # test handling failed call with requeue
+    queue_consumer.reset_mock()
+    consume_provider.requeue_on_error = True
+    consume_provider.handle_message("body", message)
+    handle_result = spawn_worker.call_args[1]['handle_result']
+    handle_result(worker_ctx, None, Exception('Error'))
+    assert not queue_consumer.ack_message.called
+    queue_consumer.requeue_message.assert_called_once_with(message)
 
 
 def test_publish_to_exchange():
@@ -280,13 +276,17 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     worker_ctx = CustomWorkerContext(container, None, None)
 
-    consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
-    consumer.bind("injection_name", container)
+    factory = DependencyFactory(ConsumeProvider, queue=foobar_queue,
+                                requeue_on_error=False)
+    consumer = factory.create_and_bind_instance("injection_name", container)
+
+    # prepare and start dependencies
+    consumer.prepare()
+    consumer.queue_consumer.prepare()
+    consumer.start()
+    consumer.queue_consumer.start()
 
     # test queue, exchange and binding created in rabbit
-    consumer.prepare()
-    consumer.start()
-
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
     bindings = rabbit_manager.get_queue_bindings(vhost, foobar_queue.name)

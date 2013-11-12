@@ -4,6 +4,23 @@ from contextlib import contextmanager
 from functools import partial
 
 
+def get_dependency(container, dependency_cls, **attrs):
+    """ Inspect ``container.dependencies`` and return the first item that is
+    an instance of ``dependency_cls``.
+
+    Optionally also require that the instance has the given ``attr==value``
+    pairs given in the kwargs.
+    """
+    for dep in container.dependencies:
+        if isinstance(dep, dependency_cls):
+            if not attrs:
+                return dep
+
+            has_attribute = lambda name, value: getattr(dep, name) == value
+            if all([has_attribute(name, val) for name, val in attrs.items()]):
+                return dep
+
+
 @contextmanager
 def wait_for_call(timeout, mock_method):
     """ Return a context manager that waits ``timeout`` seconds for

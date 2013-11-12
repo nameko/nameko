@@ -2,13 +2,11 @@ from __future__ import absolute_import
 from functools import partial
 from logging import getLogger
 import uuid
-from weakref import WeakKeyDictionary
 
 from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.dependencies import DependencyProvider
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
@@ -23,20 +21,6 @@ RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
-rpc_consumers = WeakKeyDictionary()
-rpc_reply_listeners = WeakKeyDictionary()
-
-
-def get_rpc_consumer(container, consumer_cls):
-    """ Get or create an RpcConsumer instance for the given ServiceContainer
-    instance.
-    """
-    if container not in rpc_consumers:
-        rpc_consumer = consumer_cls(container)
-        rpc_consumers[container] = rpc_consumer
-
-    return rpc_consumers[container]
-
 
 def get_rpc_exchange(container):
     exchange_name = container.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
@@ -44,26 +28,18 @@ def get_rpc_exchange(container):
     return exchange
 
 
-def get_rpc_reply_listener(container):
-    if container not in rpc_reply_listeners:
-        rpc_reply_listener = ReplyListener(container)
-        rpc_reply_listeners[container] = rpc_reply_listener
-
-    return rpc_reply_listeners[container]
-
-
 class RpcConsumer(SharedDependency):
 
     queue_consumer = queue_consumer(shared=True)
 
-    def __init__(self, container):
-        super(RpcConsumer, self).__init__(container)
+    def __init__(self):
+        super(RpcConsumer, self).__init__()
         self.queue = None
 
     def prepare(self):
         if self.queue is None:
 
-            container = self._container
+            container = self.container
             service_name = container.service_name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
@@ -82,7 +58,7 @@ class RpcConsumer(SharedDependency):
         super(RpcConsumer, self).last_provider_unregistered()
 
     def get_provider_for_method(self, routing_key):
-        service_name = self._container.service_name
+        service_name = self.container.service_name
 
         for provider in self._providers:
             key = '{}.{}'.format(service_name, provider.name)
@@ -98,7 +74,7 @@ class RpcConsumer(SharedDependency):
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
         except MethodNotFound as exc:
-            self.handle_result(message, self._container, None, exc)
+            self.handle_result(message, self.container, None, exc)
 
     def handle_result(self, message, container, result, exc):
         error = None
@@ -121,7 +97,7 @@ def rpc_consumer():
 
 class RpcProvider(EntrypointProvider, HeaderDecoder):
 
-    rpc_consumer = rpc_consumer()
+    rpc_consumer = rpc_consumer(shared=True)
 
     def prepare(self):
         self.rpc_consumer.register_provider(self)
@@ -191,6 +167,7 @@ class ReplyListener(SharedDependency):
     queue_consumer = queue_consumer(shared=True)
 
     def __init__(self):
+        super(ReplyListener, self).__init__()
         self._reply_events = {}
 
     def prepare(self):
@@ -244,11 +221,8 @@ class RpcProxyProvider(InjectionProvider):
         self.service_name = service_name
 
     def acquire_injection(self, worker_ctx):
-        """
-        rpc_reply_listener = get_rpc_reply_listener(self.container)
-        return ServiceProxy(worker_ctx, self.service_name, rpc_reply_listener)
-        """
-        return ServiceProxy(worker_ctx, self.service_name, self.rpc_reply_listener)
+        return ServiceProxy(worker_ctx, self.service_name,
+                            self.rpc_reply_listener)
 
 
 @injection

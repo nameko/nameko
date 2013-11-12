@@ -91,11 +91,13 @@ def handler_factory(request):
     Also injects ``service`` into the dependency as registering with a
     container would have.
     """
-    def make_handler(service_name="srcservice", event_type="eventtype",
-                     handler_type=SERVICE_POOL, reliable_delivery=True,
-                     requeue_on_error=False):
-        return EventHandler(service_name, event_type, handler_type,
-                            reliable_delivery, requeue_on_error)
+    def make_handler(queue_consumer, service_name="srcservice",
+                     event_type="eventtype", handler_type=SERVICE_POOL,
+                     reliable_delivery=True, requeue_on_error=False):
+        handler = EventHandler(service_name, event_type, handler_type,
+                               reliable_delivery, requeue_on_error)
+        handler.queue_consumer = queue_consumer
+        return handler
     return make_handler
 
 
@@ -106,42 +108,39 @@ def test_event_handler(handler_factory):
 
     queue_consumer = Mock()
 
-    with patch('nameko.messaging.get_queue_consumer') as get_queue_consumer:
-        get_queue_consumer.return_value = queue_consumer
+    # test default configuration
+    event_handler = handler_factory(queue_consumer)
+    event_handler.bind("foobar", container)
+    event_handler.prepare()
+    assert event_handler.queue.durable is True
+    assert event_handler.queue.routing_key == "eventtype"
+    assert event_handler.queue.exchange.name == "srcservice.events"
+    queue_consumer.register_provider.assert_called_once_with(event_handler)
 
-        # test default configuration
-        event_handler = handler_factory()
-        event_handler.bind("foobar", container)
-        event_handler.prepare()
-        assert event_handler.queue.durable is True
-        assert event_handler.queue.routing_key == "eventtype"
-        assert event_handler.queue.exchange.name == "srcservice.events"
-        queue_consumer.register_provider.assert_called_once_with(event_handler)
+    # test service pool handler
+    event_handler = handler_factory(queue_consumer, handler_type=SERVICE_POOL)
+    event_handler.bind("foobar", container)
+    event_handler.prepare()
+    assert (event_handler.queue.name ==
+            "evt-srcservice-eventtype--destservice.foobar")
 
-        # test service pool handler
-        event_handler = handler_factory(handler_type=SERVICE_POOL)
-        event_handler.bind("foobar", container)
-        event_handler.prepare()
-        assert (event_handler.queue.name ==
-                "evt-srcservice-eventtype--destservice.foobar")
+    # test broadcast handler
+    event_handler = handler_factory(queue_consumer, handler_type=BROADCAST)
+    event_handler.bind("foobar", container)
+    event_handler.prepare()
+    assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
-        # test broadcast handler
-        event_handler = handler_factory(handler_type=BROADCAST)
-        event_handler.bind("foobar", container)
-        event_handler.prepare()
-        assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
+    # test singleton handler
+    event_handler = handler_factory(queue_consumer, handler_type=SINGLETON)
+    event_handler.bind("foobar", container)
+    event_handler.prepare()
+    assert event_handler.queue.name == "evt-srcservice-eventtype"
 
-        # test singleton handler
-        event_handler = handler_factory(handler_type=SINGLETON)
-        event_handler.bind("foobar", container)
-        event_handler.prepare()
-        assert event_handler.queue.name == "evt-srcservice-eventtype"
-
-        # test reliable delivery
-        event_handler = handler_factory(reliable_delivery=True)
-        event_handler.bind("foobar", container)
-        event_handler.prepare()
-        assert event_handler.queue.auto_delete is False
+    # test reliable delivery
+    event_handler = handler_factory(queue_consumer, reliable_delivery=True)
+    event_handler.bind("foobar", container)
+    event_handler.prepare()
+    assert event_handler.queue.auto_delete is False
 
 
 #==============================================================================
