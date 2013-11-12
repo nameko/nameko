@@ -18,7 +18,7 @@ flake8:
 	flake8 nameko test
 
 pylint:
-	pylint nameko -E
+	pylint nameko -E --disable=E1101,E1123
 
 test: pytest pylint flake8 coverage_check
 
