@@ -106,10 +106,14 @@ class DependencyProvider(object):
     def nested_dependencies(self):
         """ Recusively yield nested dependencies of DependencyProvider.
 
-        e.g.::
+        For example, with an instance of `:class:~nameko.rpc.RpcProvider`
+        called ``rpc``::
 
-            rpc_provider = RpcProvider()
-            rpc_provider.nested_dependencies
+            >>> deps = list(rpc.nested_dependencies)
+            >>> deps
+            [<nameko.rpc.RpcConsumer object at 0x10d125690>,
+             <nameko.messaging.QueueConsumer object at 0x10d5b8f50>]
+            >>>
         """
         for _, attr in inspect.getmembers(self):
             if isinstance(attr, DependencyProvider):

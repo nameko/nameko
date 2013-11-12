@@ -1,3 +1,6 @@
+# See https://bugs.launchpad.net/pyflakes/+bug/1223150
+export PYFLAKES_NODOCTEST=1
+
 noop:
 	@true
 
