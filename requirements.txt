@@ -1,3 +1,4 @@
 eventlet==0.12.1
 iso8601==0.1.4
 kombu==3.0.1
+futures==2.1.4
