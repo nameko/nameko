@@ -16,10 +16,18 @@ class ParallelExecutor(_base.Executor):
         return t
 
     def __call__(self, to_wrap):
+        """
+        Provides a wrapper around the provided object that ensures any method calls on it are handled by the `submit`
+        method of this executor.
+        """
         return ParallelWrapper(self, to_wrap)
 
     def shutdown(self, wait=True):
-        # Wait for all spawned threads to have finished
+        """
+        Call to ensure all spawned threads have finished.
+
+        This method is called when automatically ParallelExecutor is used as a Context Manager
+        """
         if wait:
             for thread in self.spawned_threads:
                 thread.wait()
@@ -27,11 +35,20 @@ class ParallelExecutor(_base.Executor):
 
 class ParallelWrapper(object):
     def __init__(self, executor, to_wrap=None):
+        """
+        Create a new wrapper around an object then ensures method calls are ran by the executor.
+
+        Attribute access and function calls on the wrapped object can be performed as normal, but writing to fields is not allowed.
+
+        You can use this as a context manager: it uses the associated executor as one.
+        """
         self.executor = executor
         self.to_wrap = to_wrap
 
     def __getattr__(self, item):
-        # return something that, if a callable, will go via submit
+        """
+        Callables accessed on the wrapped object are performed by the executor calling `submit`
+        """
         wrapped_attribute = getattr(self.to_wrap, item)
         if callable(wrapped_attribute):
             def do_submit(*args, **kwargs):
