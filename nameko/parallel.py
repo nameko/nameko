@@ -20,7 +20,8 @@ class ParallelExecutor(_base.Executor):
     def submit(self, func, *args, **kwargs):
         with self._shutdown_lock:
             if self._shutdown:
-                raise RuntimeError('cannot schedule new futures after shutdown')
+                raise RuntimeError('cannot schedule new futures after '
+                                   'shutdown')
 
             def do_function_call():
                 return func(*args, **kwargs)
@@ -30,7 +31,8 @@ class ParallelExecutor(_base.Executor):
             self._spawned_threads.add(t)
             t.link(self._handle_thread_exited(f))
 
-            # Thread with this future starts immediately: you have no opportunity to cancel it
+            # Thread with this future starts immediately: you have no
+            # opportunity to cancel it
             f.set_running_or_notify_cancel()
 
             return f
@@ -42,9 +44,11 @@ class ParallelExecutor(_base.Executor):
                 try:
                     result = gt.wait()
                 except Exception as exc:
-                    _log.error('%s thread exited with error', gt, exc_info=True)
+                    _log.error('%s thread exited with error', gt,
+                               exc_info=True)
                     # We just want to flag this exception on the Future
-                    # When running in a ServiceContainer, an exception kills the container though anyway
+                    # When running in a ServiceContainer, an exception kills
+                    # the container though anyway
                     future.set_exception(exc)
                 else:
                     future.set_result(result)
@@ -52,8 +56,8 @@ class ParallelExecutor(_base.Executor):
 
     def __call__(self, to_wrap):
         """
-        Provides a wrapper around the provided object that ensures any method calls on it are handled by the `submit`
-        method of this executor.
+        Provides a wrapper around the provided object that ensures any method
+        calls on it are handled by the `submit` method of this executor.
         """
         return ParallelWrapper(self, to_wrap)
 
@@ -61,7 +65,8 @@ class ParallelExecutor(_base.Executor):
         """
         Call to ensure all spawned threads have finished.
 
-        This method is called when automatically ParallelExecutor is used as a Context Manager
+        This method is called when automatically ParallelExecutor is used as a
+        Context Manager
         """
         with self._shutdown_lock:
             self._shutdown = True
@@ -79,19 +84,23 @@ class ParallelExecutor(_base.Executor):
 class ParallelWrapper(object):
     def __init__(self, executor, to_wrap=None):
         """
-        Create a new wrapper around an object then ensures method calls are ran by the executor.
+        Create a new wrapper around an object then ensures method calls are ran
+        by the executor.
 
-        Attribute access and function calls on the wrapped object can be performed as normal, but writing to fields
+        Attribute access and function calls on the wrapped object can be
+        performed as normal, but writing to fields
         is not allowed.
 
-        You can use this as a context manager: it uses the associated executor as one.
+        You can use this as a context manager: it uses the associated executor
+        as one.
         """
         self.executor = executor
         self.to_wrap = to_wrap
 
     def __getattr__(self, item):
         """
-        Callables accessed on the wrapped object are performed by the executor calling `submit`
+        Callables accessed on the wrapped object are performed by the executor
+        calling `submit`
         """
         wrapped_attribute = getattr(self.to_wrap, item)
         if callable(wrapped_attribute):
@@ -105,8 +114,7 @@ class ParallelWrapper(object):
         return self
 
     def __exit__(self, *args, **kwargs):
-        self.executor.__exit__(*args, **kwargs)
-        return
+        return self.executor.__exit__(*args, **kwargs)
 
 
 class ParallelExecutorBusyException(Exception):
@@ -125,6 +133,7 @@ class ParalleliseProvider(InjectionProvider):
         # Find out from executor if there are threads still running
         if self.executor.has_running_threads():
             raise ParallelExecutorBusyException()
+
 
 @injection
 def parallel_executor(*args, **kwargs):

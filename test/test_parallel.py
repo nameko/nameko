@@ -1,7 +1,13 @@
+import eventlet
 from mock import Mock
-from nameko.parallel import ParallelExecutor
-from nameko.service import ManagedThreadContainer
+import pytest
+from nameko.dependencies import get_injection_providers
+from nameko.parallel import ParallelExecutor, parallel_executor, \
+    ParalleliseProvider
+from nameko.service import ManagedThreadContainer, ServiceContainer, \
+    WorkerContext
 from nameko.testing.utils import wait_for_call
+from nameko.timer import timer
 
 
 def test_parallel_executor_gives_submit():
@@ -64,3 +70,37 @@ def test_parallel_executor_wrapped_cm():
         wrapped.wrapped_call(5)
     # No waiting, the context manager handles that
     to_call.assert_called_with(5)
+
+
+def test_no_submit_after_shutdown():
+    pe = ParallelExecutor(ManagedThreadContainer())
+    to_call = Mock()
+    with pe as execution_context:
+        execution_context.submit(to_call, 1)
+    with pytest.raises(RuntimeError):
+        pe.submit(to_call, 2)
+
+
+def everlasting_call():
+    while True:
+        eventlet.sleep(1)
+
+
+class ExampleService(object):
+    injected = parallel_executor()
+
+    @timer(interval=1)
+    def handle_timer(self):
+        self.injected.submit(everlasting_call)
+
+
+def test_parallel_executor_injection():
+    config = Mock()
+    container = ServiceContainer(ExampleService, WorkerContext, config)
+
+    providers = list(get_injection_providers(container))
+    assert len(providers) == 1
+    provider = providers[0]
+
+    assert provider.name == "injected"
+    assert isinstance(provider, ParalleliseProvider)
