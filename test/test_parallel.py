@@ -94,6 +94,14 @@ def test_future_gets_exception():
         future.result()
 
 
+def test_stop_managed_container():
+    container = ManagedThreadContainer()
+    pe = ParallelExecutor(container)
+    with pe as execution_context:
+        execution_context.submit(everlasting_call)
+        container.stop()
+
+
 def everlasting_call():
     while True:
         eventlet.sleep(1)
