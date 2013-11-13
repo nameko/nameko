@@ -167,7 +167,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             _log.debug('started %s', self)
 
     def stop(self):
-        """ Stops the queue-consumer.
+        """ Stop the queue-consumer gracefully.
 
         It waits until the last provider has been unregistered
         and all pending message ack or requeue requests as well as
@@ -201,7 +201,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         _log.debug('stopped %s', self)
 
     def kill(self, exc):
-        """ Stops the queue-consumer.
+        """ Kill the queue-consumer.
 
         Unlike `stop()` any pending message ack or requeue-requests,
         requests to remove providers, etc are lost and the consume thread is
