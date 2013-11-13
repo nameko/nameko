@@ -1,11 +1,12 @@
+from greenlet import GreenletExit
 import eventlet
 from mock import Mock
 import pytest
 from nameko.dependencies import get_injection_providers
 from nameko.parallel import ParallelExecutor, parallel_executor, \
-    ParalleliseProvider
+    ParalleliseProvider, ParallelExecutorBusyException
 from nameko.service import ManagedThreadContainer, ServiceContainer, \
-    WorkerContext
+    WorkerContext, ServiceRunner
 from nameko.testing.utils import wait_for_call
 from nameko.timer import timer
 
@@ -95,7 +96,9 @@ class ExampleService(object):
 
 
 def test_parallel_executor_injection():
-    config = Mock()
+    config = {
+        'max_workers': 4
+    }
     container = ServiceContainer(ExampleService, WorkerContext, config)
 
     providers = list(get_injection_providers(container))
@@ -104,3 +107,28 @@ def test_parallel_executor_injection():
 
     assert provider.name == "injected"
     assert isinstance(provider, ParalleliseProvider)
+
+
+def test_busy_check_on_teardown():
+    config = {
+        'max_workers': 4
+    }
+    kill_called = Mock()
+    original_kill = ServiceContainer.kill
+
+    def log_kill(container, exc):
+        kill_called(type(exc))
+        original_kill(container, exc)
+
+    class MockedContainer(ServiceContainer):
+        def kill(self, exc):
+            kill_called(type(exc))
+            super(MockedContainer, self).kill(exc)
+
+    sr = ServiceRunner(config, container_cls=MockedContainer)
+    sr.add_service(ExampleService)
+    sr.start()
+    with wait_for_call(5, kill_called) as kill_called_waited:
+        kill_called_waited.assert_called_with(ParallelExecutorBusyException)
+    with pytest.raises(GreenletExit):
+        sr.stop()
