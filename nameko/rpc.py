@@ -53,9 +53,11 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
 
             self.queue_consumer.register_provider(self)
 
-    def last_provider_unregistered(self):
+    def stop(self):
+        _log.debug('waiting for providers to unregister %s', self)
+        self._empty.wait()
+        _log.debug('all providers unregistered %s', self)
         self.queue_consumer.unregister_provider(self)
-        super(RpcConsumer, self).last_provider_unregistered()
 
     def get_provider_for_method(self, routing_key):
         service_name = self.container.service_name
