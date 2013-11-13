@@ -20,8 +20,8 @@ ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
 # constants for dependency sharing
 PROCESS_SHARED = "process"
 
-# sentinel object
-process_shared = object()
+# weakref-able sentinel object
+process_shared = type('process', (), {})()
 
 
 class NotInitializedError(Exception):
@@ -106,10 +106,14 @@ class DependencyProvider(object):
     def nested_dependencies(self):
         """ Recusively yield nested dependencies of DependencyProvider.
 
-        e.g.::
+        For example, with an instance of `:class:~nameko.rpc.RpcProvider`
+        called ``rpc``::
 
-            rpc_provider = RpcProvider()
-            rpc_provider.nested_dependencies
+            >>> deps = list(rpc.nested_dependencies)
+            >>> deps
+            [<nameko.rpc.RpcConsumer object at 0x10d125690>,
+             <nameko.messaging.QueueConsumer object at 0x10d5b8f50>]
+            >>>
         """
         for _, attr in inspect.getmembers(self):
             if isinstance(attr, DependencyProvider):
@@ -166,10 +170,11 @@ class InjectionProvider(DependencyProvider):
         delattr(service, injection_name)
 
 
-class SharedDependency(DependencyProvider):
-    def __init__(self):
+class ProviderCollector(object):
+    def __init__(self, *args, **kwargs):
         self._providers = set()
         self._empty = Event()
+        super(ProviderCollector, self).__init__(*args, **kwargs)
 
     def register_provider(self, provider):
         _log.debug('registering provider %s for %s', provider, self)
@@ -177,11 +182,9 @@ class SharedDependency(DependencyProvider):
 
     def unregister_provider(self, provider):
         _log.debug('unregistering provider %s for %s', provider, self)
-
         providers = self._providers
 
         providers.remove(provider)
-
         if len(providers) == 0:
             self.last_provider_unregistered()
 
@@ -207,6 +210,13 @@ class DependencySet(SpawningSet):
         """
         return SpawningSet([item for item in self
                             if is_entrypoint_provider(item)])
+
+    @property
+    def nested(self):
+        """ A ``SpawningSet`` of any nested dependency instances in this set.
+        """
+        all_deps = self
+        return all_deps - self.injections - self.entrypoints
 
 
 registered_dependencies = WeakSet()
@@ -252,7 +262,7 @@ class DependencyFactory(object):
 
         See `:meth:~DependencyProvider.bind`.
         """
-        if issubclass(self.dep_cls, SharedDependency):
+        if self.shared:
             # TODO: support more types of sharing?
             if self.shared == PROCESS_SHARED:
                 sharing_key = process_shared

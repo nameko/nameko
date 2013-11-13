@@ -129,17 +129,16 @@ class ServiceContainer(object):
             # to ensure that running workers can successfully complete
             dependencies.entrypoints.all.stop()
 
-            # TODO: what about dependencies of entrypoints? can they keep
-            # running here without causing deadlock? and then get stopped
-            # later?
-
             # there might still be some running workers, which we have to
             # wait for to complete before we can stop injection dependencies
             self._worker_pool.waitall()
 
-            # it should be safe now to stop any injection as ther is no
+            # it should be safe now to stop any injection as there is no
             # active worker which could be using it
             dependencies.injections.all.stop()
+
+            # finally, stop nested dependencies
+            dependencies.nested.all.stop()
 
             # just in case there was a provider not taking care of it's worker
             self._kill_active_threads()
