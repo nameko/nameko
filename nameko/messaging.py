@@ -364,6 +364,7 @@ def consume(queue, requeue_on_error=False):
     return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
 
 
+# pylint: disable=E1101,E1123
 class ConsumeProvider(EntrypointProvider, HeaderDecoder):
 
     queue_consumer = queue_consumer(shared=True)

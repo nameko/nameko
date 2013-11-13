@@ -28,6 +28,7 @@ def get_rpc_exchange(container):
     return exchange
 
 
+# pylint: disable=E1101,E1123
 class RpcConsumer(DependencyProvider, ProviderCollector):
 
     queue_consumer = queue_consumer(shared=True)
@@ -97,6 +98,7 @@ def rpc_consumer():
     return DependencyFactory(RpcConsumer)
 
 
+# pylint: disable=E1101,E1123
 class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     rpc_consumer = rpc_consumer(shared=True)
@@ -165,6 +167,7 @@ class Responder(object):
                     routing_key=reply_to, correlation_id=correlation_id)
 
 
+# pylint: disable=E1101,E1123
 class ReplyListener(DependencyProvider):
 
     queue_consumer = queue_consumer(shared=True)
