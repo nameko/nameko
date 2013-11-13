@@ -169,9 +169,9 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
     def stop(self):
         """ Stop the queue-consumer gracefully.
 
-        It waits until the last provider has been unregistered
-        and all pending message ack or requeue requests as well as
-        pending provider removals have been processed before returning.
+        Wait until the last provider has been unregistered and for
+        the ConsumerMixin's greenthread to exit (i.e. until all pending
+        messages have been acked or requeued and all consumers stopped).
         """
         if not self._consumers_ready.ready():
             _log.debug('stopping while consumer is starting %s', self)
