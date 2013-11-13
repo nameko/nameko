@@ -1,10 +1,10 @@
 from greenlet import GreenletExit
 import eventlet
-from mock import Mock
+from mock import Mock, MagicMock
 import pytest
 from nameko.dependencies import get_injection_providers
 from nameko.parallel import ParallelExecutor, parallel_executor, \
-    ParalleliseProvider, ParallelExecutorBusyException
+    ParallelProvider, ParallelExecutorBusyException
 from nameko.service import ManagedThreadContainer, ServiceContainer, \
     WorkerContext, ServiceRunner
 from nameko.testing.utils import wait_for_call
@@ -108,9 +108,7 @@ class ExampleService(object):
 
 
 def test_parallel_executor_injection():
-    config = {
-        'max_workers': 4
-    }
+    config = Mock()
     container = ServiceContainer(ExampleService, WorkerContext, config)
 
     providers = list(get_injection_providers(container))
@@ -118,19 +116,13 @@ def test_parallel_executor_injection():
     provider = providers[0]
 
     assert provider.name == "injected"
-    assert isinstance(provider, ParalleliseProvider)
+    assert isinstance(provider, ParallelProvider)
 
 
 def test_busy_check_on_teardown():
-    config = {
-        'max_workers': 4
-    }
+    # max_workers needs to be provided, as it's used in a semaphore count
+    config = MagicMock({'max_workers': 4})
     kill_called = Mock()
-    original_kill = ServiceContainer.kill
-
-    def log_kill(container, exc):
-        kill_called(type(exc))
-        original_kill(container, exc)
 
     class MockedContainer(ServiceContainer):
         def kill(self, exc):

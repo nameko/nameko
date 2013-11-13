@@ -121,7 +121,7 @@ class ParallelExecutorBusyException(Exception):
     pass
 
 
-class ParalleliseProvider(InjectionProvider):
+class ParallelProvider(InjectionProvider):
     def __init__(self):
         self.executor = None
 
@@ -137,4 +137,4 @@ class ParalleliseProvider(InjectionProvider):
 
 @injection
 def parallel_executor(*args, **kwargs):
-    return DependencyFactory(ParalleliseProvider, *args, **kwargs)
+    return DependencyFactory(ParallelProvider, *args, **kwargs)
