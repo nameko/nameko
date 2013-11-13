@@ -182,7 +182,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(stop_exc)
 
         _log.debug('waiting for providers to unregister %s', self)
-        self._empty.wait()
+        self._last_provider_unregistered.wait()
         _log.debug('all providers unregistered %s', self)
 
         try:

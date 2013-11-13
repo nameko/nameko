@@ -165,7 +165,7 @@ class InjectionProvider(DependencyProvider):
 class ProviderCollector(object):
     def __init__(self, *args, **kwargs):
         self._providers = set()
-        self._empty = Event()
+        self._last_provider_unregistered = Event()
         super(ProviderCollector, self).__init__(*args, **kwargs)
 
     def register_provider(self, provider):
@@ -182,7 +182,7 @@ class ProviderCollector(object):
 
     def last_provider_unregistered(self):
         _log.debug('last provider unregistered for %s', self)
-        self._empty.send()
+        self._last_provider_unregistered.send()
 
 
 class DependencySet(SpawningSet):

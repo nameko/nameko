@@ -57,7 +57,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
 
     def stop(self):
         _log.debug('waiting for providers to unregister %s', self)
-        self._empty.wait()
+        self._last_provider_unregistered.wait()
         _log.debug('all providers unregistered %s', self)
         self.queue_consumer.unregister_provider(self)
 
