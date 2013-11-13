@@ -17,7 +17,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
-    SharedDependency, DependencyFactory, dependency)
+    DependencyProvider, ProviderCollector, DependencyFactory, dependency)
 
 _log = getLogger(__name__)
 
@@ -126,7 +126,7 @@ def queue_consumer():
     return DependencyFactory(QueueConsumer)
 
 
-class QueueConsumer(SharedDependency, ConsumerMixin):
+class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
     def __init__(self):
         super(QueueConsumer, self).__init__()
         self._connection = None

@@ -20,8 +20,8 @@ ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
 # constants for dependency sharing
 PROCESS_SHARED = "process"
 
-# sentinel object
-process_shared = object()
+# weakref-able sentinel object
+process_shared = type('process', (), {})()
 
 
 class NotInitializedError(Exception):
@@ -162,10 +162,11 @@ class InjectionProvider(DependencyProvider):
         delattr(service, injection_name)
 
 
-class SharedDependency(DependencyProvider):
-    def __init__(self):
+class ProviderCollector(object):
+    def __init__(self, *args, **kwargs):
         self._providers = set()
         self._empty = Event()
+        super(ProviderCollector, self).__init__(*args, **kwargs)
 
     def register_provider(self, provider):
         _log.debug('registering provider %s for %s', provider, self)
@@ -173,11 +174,9 @@ class SharedDependency(DependencyProvider):
 
     def unregister_provider(self, provider):
         _log.debug('unregistering provider %s for %s', provider, self)
-
         providers = self._providers
 
         providers.remove(provider)
-
         if len(providers) == 0:
             self.last_provider_unregistered()
 
@@ -203,6 +202,13 @@ class DependencySet(SpawningSet):
         """
         return SpawningSet([item for item in self
                             if is_entrypoint_provider(item)])
+
+    @property
+    def nested(self):
+        """ A ``SpawningSet`` of any nested dependency instances in this set.
+        """
+        all_deps = self
+        return all_deps - self.injections - self.entrypoints
 
 
 registered_dependencies = WeakSet()
@@ -248,7 +254,7 @@ class DependencyFactory(object):
 
         See `:meth:~DependencyProvider.bind`.
         """
-        if issubclass(self.dep_cls, SharedDependency):
+        if self.shared:
             # TODO: support more types of sharing?
             if self.shared == PROCESS_SHARED:
                 sharing_key = process_shared

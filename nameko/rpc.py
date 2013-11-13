@@ -12,7 +12,7 @@ from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
-    DependencyFactory, dependency, SharedDependency)
+    DependencyFactory, dependency, ProviderCollector, DependencyProvider)
 
 _log = getLogger(__name__)
 
@@ -28,7 +28,7 @@ def get_rpc_exchange(container):
     return exchange
 
 
-class RpcConsumer(SharedDependency):
+class RpcConsumer(DependencyProvider, ProviderCollector):
 
     queue_consumer = queue_consumer(shared=True)
 
@@ -101,9 +101,10 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     def prepare(self):
         self.rpc_consumer.register_provider(self)
-        # could be rpc_consumer.prepare (therefore omitted) iff dependencies
-        # called in the correct order
-        self.rpc_consumer.prepare()
+
+    def stop(self):
+        self.rpc_consumer.unregister_provider(self)
+        super(RpcProvider, self).stop()
 
     def handle_message(self, body, message):
         args = body['args']
@@ -162,7 +163,7 @@ class Responder(object):
                     routing_key=reply_to, correlation_id=correlation_id)
 
 
-class ReplyListener(SharedDependency):
+class ReplyListener(DependencyProvider):
 
     queue_consumer = queue_consumer(shared=True)
 
@@ -185,12 +186,9 @@ class ReplyListener(SharedDependency):
 
         self.queue_consumer.register_provider(self)
 
-    def start(self):
-        self.queue_consumer.start()
-
-    def last_provider_unregistered(self):
+    def stop(self):
         self.queue_consumer.unregister_provider(self)
-        super(ReplyListener, self).last_provider_unregistered()
+        super(ReplyListener, self).stop()
 
     def get_reply_event(self, correlation_id):
         reply_event = Event()
