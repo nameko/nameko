@@ -1,30 +1,54 @@
+from __future__ import absolute_import
+
+from logging import getLogger
+from threading import Lock
+
 from concurrent.futures import _base
 from nameko.dependencies import InjectionProvider
 
 
-class BadFuture(object):
-    def __init__(self, thread):
-        self.thread = thread
-
-    def result(self):
-        return self.thread.wait()
+_log = getLogger(__name__)
 
 
 class ParallelExecutor(_base.Executor):
     def __init__(self, thread_provider):
         self.thread_provider = thread_provider
         self.spawned_threads = set()
+        self._shutdown = False
+        self._shutdown_lock = Lock()
 
     def submit(self, func, *args, **kwargs):
-        def do_function_call():
-            return func(*args, **kwargs)
+        with self._shutdown_lock:
+            if self._shutdown:
+                raise RuntimeError('cannot schedule new futures after shutdown')
 
-        # TODO: Returning a poor version of Future
-        t = self.thread_provider.spawn_managed_thread(do_function_call)
-        self.spawned_threads.add(t)
+            def do_function_call():
+                return func(*args, **kwargs)
 
-        future = BadFuture(t)
-        return future
+            f = _base.Future()
+            t = self.thread_provider.spawn_managed_thread(do_function_call)
+            self.spawned_threads.add(t)
+            t.link(self._handle_thread_exited(f))
+
+            # Thread with this future starts immediately: you have no opportunity to cancel it
+            f.set_running_or_notify_cancel()
+
+            return f
+
+    def _handle_thread_exited(self, future):
+        def catch_thread_exit(gt):
+            # NOTE: Do not remove from `spawned_threads` here as that can change the set iterator whilst `shutdown` is
+            # running
+            try:
+                result = gt.wait()
+            except Exception as exc:
+                _log.error('%s thread exited with error', gt, exc_info=True)
+                # We just want to flag this exception on the Future
+                # When running in a ServiceContainer, an exception kills the container though anyway
+                future.set_exception(exc)
+            else:
+                future.set_result(result)
+        return catch_thread_exit
 
     def __call__(self, to_wrap):
         """
@@ -39,6 +63,8 @@ class ParallelExecutor(_base.Executor):
 
         This method is called when automatically ParallelExecutor is used as a Context Manager
         """
+        with self._shutdown_lock:
+            self._shutdown = True
         if wait:
             for thread in self.spawned_threads:
                 thread.wait()
@@ -49,7 +75,8 @@ class ParallelWrapper(object):
         """
         Create a new wrapper around an object then ensures method calls are ran by the executor.
 
-        Attribute access and function calls on the wrapped object can be performed as normal, but writing to fields is not allowed.
+        Attribute access and function calls on the wrapped object can be performed as normal, but writing to fields
+        is not allowed.
 
         You can use this as a context manager: it uses the associated executor as one.
         """
