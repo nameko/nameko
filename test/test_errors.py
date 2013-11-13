@@ -6,9 +6,10 @@ import pytest
 
 
 from nameko.exceptions import RemoteError
-from nameko.events import event_dispatcher
-from nameko.rpc import rpc, rpc_proxy, get_rpc_consumer, RpcConsumer
+from nameko.events import event_dispatcher, EventDispatcher
+from nameko.rpc import rpc, rpc_proxy, RpcConsumer
 from nameko.service import ServiceRunner
+from nameko.testing.utils import get_dependency
 
 
 class ExampleError(Exception):
@@ -76,7 +77,7 @@ def test_handle_result_error(container_factory, rabbit_config,
     proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
+    rpc_consumer = get_dependency(container, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
         err = "error in worker_result"
         handle_result.side_effect = Exception(err)
@@ -98,7 +99,7 @@ def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
     proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    dependency = next(iter(container.dependencies.injections))
+    dependency = get_dependency(container, EventDispatcher)
     with patch.object(dependency, method_name) as method:
         err = "error in {}".format(method_name)
         method.side_effect = Exception(err)
@@ -132,7 +133,7 @@ def test_runner_catches_container_errors(container_factory, rabbit_config,
     # actually start the containers (previously bypassed with mock)
     SpawningProxy(runner.containers).start()
 
-    rpc_consumer = get_rpc_consumer(container, RpcConsumer)
+    rpc_consumer = get_dependency(container, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
         exception = Exception("error")
         handle_result.side_effect = exception

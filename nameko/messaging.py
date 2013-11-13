@@ -6,7 +6,6 @@ from itertools import count
 from functools import partial
 from logging import getLogger
 import socket
-from weakref import WeakKeyDictionary
 
 import eventlet
 from eventlet.event import Event
@@ -18,7 +17,8 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
-    DependencyFactory, SharedDependency)
+    DependencyProvider, ProviderCollector, DependencyFactory, dependency,
+    CONTAINER_SHARED)
 
 _log = getLogger(__name__)
 
@@ -54,6 +54,11 @@ class HeaderDecoder(object):
             if name in message.headers:
                 data[key] = message.headers[name]
         return data
+
+
+@injection
+def publisher(exchange=None, queue=None):
+    return DependencyFactory(PublishProvider, exchange, queue)
 
 
 class PublishProvider(InjectionProvider, HeaderEncoder):
@@ -117,111 +122,15 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
         return publish
 
 
-@injection
-def publisher(exchange=None, queue=None):
-    return DependencyFactory(PublishProvider, exchange, queue)
+@dependency
+def queue_consumer():
+    return DependencyFactory(QueueConsumer)
 
 
-@entrypoint
-def consume(queue, requeue_on_error=False):
-    '''
-    Decorates a method as a message consumer.
-
-    Messaages from the queue will be deserialized depending on their content
-    type and passed to the the decorated method.
-    When the conumer method returns without raising any exceptions,
-    the message will automatically be acknowledged.
-    If any exceptions are raised during the consumtion and
-    `requeue_on_error` is True, the message will be requeued.
-
-    Example::
-
-        @consume(...)
-        def handle_message(self, body):
-
-            if not self.spam(body):
-                raise Exception('message will be requeued')
-
-            self.shrub(body)
-
-    Args:
-        queue: The queue to consume from.
-    '''
-    return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
-
-
-queue_consumers = WeakKeyDictionary()
-
-
-def get_queue_consumer(container):
-    """ Get or create a QueueConsumer instance for the given ServiceContainer
-    instance.
-    """
-    if container not in queue_consumers:
-        queue_consumer = QueueConsumer(container)
-        queue_consumers[container] = queue_consumer
-
-    return queue_consumers[container]
-
-
-class ConsumeProvider(EntrypointProvider, HeaderDecoder):
-
-    def __init__(self, queue, requeue_on_error):
-        self.queue = queue
-        self.requeue_on_error = requeue_on_error
-
-    def bind(self, name, container):
-        self._queue_consumer = get_queue_consumer(container)
-        super(ConsumeProvider, self).bind(name, container)
-
-    def prepare(self):
-        self._queue_consumer.register_provider(self)
-
-    def start(self):
-        self._queue_consumer.start()
-
-    def stop(self):
-        self._queue_consumer.unregister_provider(self)
-
-    def kill(self, exc=None):
-        self._queue_consumer.kill(exc)
-
-    def handle_message(self, body, message):
-        args = (body,)
-        kwargs = {}
-
-        worker_ctx_cls = self.container.worker_ctx_cls
-        context_data = self.unpack_message_headers(worker_ctx_cls, message)
-
-        self.container.spawn_worker(
-            self, args, kwargs,
-            context_data=context_data,
-            handle_result=partial(self.handle_result, message))
-
-    def handle_result(self, message, worker_ctx, result=None, exc=None):
-        self.handle_message_processed(message, result, exc)
-
-    def handle_message_processed(self, message, result=None, exc=None):
-
-        qc = get_queue_consumer(self.container)
-
-        if exc is not None and self.requeue_on_error:
-            qc.requeue_message(message)
-        else:
-            qc.ack_message(message)
-
-
-class QueueConsumerStopped(Exception):
-    pass
-
-
-class QueueConsumer(SharedDependency, ConsumerMixin):
-    def __init__(self, container):
-        super(QueueConsumer, self).__init__(container)
-
+class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
+    def __init__(self):
+        super(QueueConsumer, self).__init__()
         self._connection = None
-        self._amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
-        self._prefetch_count = container.max_workers
 
         self._consumers = {}
 
@@ -235,12 +144,20 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
 
         self._consumers_ready = Event()
 
+    @property
+    def _amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def _prefetch_count(self):
+        return self.container.max_workers
+
     def start(self):
         if not self._starting:
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self._container.spawn_managed_thread(self.run)
+            self._gt = self.container.spawn_managed_thread(self.run)
         try:
             _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()
@@ -249,7 +166,7 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
         else:
             _log.debug('started %s', self)
 
-    def last_provider_unregistered(self):
+    def stop(self):
         if not self._consumers_ready.ready():
             _log.debug('stopping while consumer is starting %s', self)
 
@@ -264,13 +181,17 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
             # so we send the same exceptions
             self._consumers_ready.send_exception(stop_exc)
 
+        _log.debug('waiting for providers to unregister %s', self)
+        self._last_provider_unregistered.wait()
+        _log.debug('all providers unregistered %s', self)
+
         try:
             _log.debug('waiting for consumer death %s', self)
             self._gt.wait()
         except QueueConsumerStopped:
             pass
 
-        super(QueueConsumer, self).last_provider_unregistered()
+        super(QueueConsumer, self).stop()
         _log.debug('stopped %s', self)
 
     def kill(self, exc):
@@ -414,3 +335,73 @@ class QueueConsumer(SharedDependency, ConsumerMixin):
                     else:
                         yield
                         elapsed = 0
+
+
+@entrypoint
+def consume(queue, requeue_on_error=False):
+    '''
+    Decorates a method as a message consumer.
+
+    Messaages from the queue will be deserialized depending on their content
+    type and passed to the the decorated method.
+    When the conumer method returns without raising any exceptions,
+    the message will automatically be acknowledged.
+    If any exceptions are raised during the consumtion and
+    `requeue_on_error` is True, the message will be requeued.
+
+    Example::
+
+        @consume(...)
+        def handle_message(self, body):
+
+            if not self.spam(body):
+                raise Exception('message will be requeued')
+
+            self.shrub(body)
+
+    Args:
+        queue: The queue to consume from.
+    '''
+    return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
+
+
+# pylint: disable=E1101,E1123
+class ConsumeProvider(EntrypointProvider, HeaderDecoder):
+
+    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
+
+    def __init__(self, queue, requeue_on_error):
+        self.queue = queue
+        self.requeue_on_error = requeue_on_error
+
+    def prepare(self):
+        self.queue_consumer.register_provider(self)
+
+    def stop(self):
+        self.queue_consumer.unregister_provider(self)
+
+    def handle_message(self, body, message):
+        args = (body,)
+        kwargs = {}
+
+        worker_ctx_cls = self.container.worker_ctx_cls
+        context_data = self.unpack_message_headers(worker_ctx_cls, message)
+
+        self.container.spawn_worker(
+            self, args, kwargs,
+            context_data=context_data,
+            handle_result=partial(self.handle_result, message))
+
+    def handle_result(self, message, worker_ctx, result=None, exc=None):
+        self.handle_message_processed(message, result, exc)
+
+    def handle_message_processed(self, message, result=None, exc=None):
+
+        if exc is not None and self.requeue_on_error:
+            self.queue_consumer.requeue_message(message)
+        else:
+            self.queue_consumer.ack_message(message)
+
+
+class QueueConsumerStopped(Exception):
+    pass

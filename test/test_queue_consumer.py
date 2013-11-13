@@ -34,7 +34,8 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
     container.max_workers = 3
     container.spawn_managed_thread.side_effect = eventlet.spawn
 
-    queue_consumer = QueueConsumer(container)
+    queue_consumer = QueueConsumer()
+    queue_consumer.bind("queue_consumer", container)
 
     handler = MessageHandler()
 
@@ -79,7 +80,8 @@ def test_reentrant_start_stops(reset_rabbit, rabbit_config):
     container.max_workers = 3
     container.spawn_managed_thread = eventlet.spawn
 
-    queue_consumer = QueueConsumer(container)
+    queue_consumer = QueueConsumer()
+    queue_consumer.bind("queue_consumer", container)
 
     queue_consumer.start()
     gt = queue_consumer._gt
@@ -106,7 +108,8 @@ def test_stop_while_starting():
             started.reset()
             return super(BrokenConnConsumer, self).consume(*args, **kwargs)
 
-    queue_consumer = BrokenConnConsumer(container)
+    queue_consumer = BrokenConnConsumer()
+    queue_consumer.bind("queue_consumer", container)
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
@@ -123,6 +126,7 @@ def test_stop_while_starting():
 
     with eventlet.Timeout(TIMEOUT):
         queue_consumer.unregister_provider(handler)
+        queue_consumer.stop()
 
     with eventlet.Timeout(TIMEOUT):
         # we expect the queue_consumer.start thread to finish
@@ -140,7 +144,8 @@ def test_error_stops_consumer_thread():
     container.max_workers = 3
     container.spawn_managed_thread = eventlet.spawn
 
-    queue_consumer = QueueConsumer(container)
+    queue_consumer = QueueConsumer()
+    queue_consumer.bind("queue_consumer", container)
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
@@ -162,8 +167,11 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     container.max_workers = 1
     container.spawn_managed_thread = eventlet.spawn
 
-    queue_consumer1 = QueueConsumer(container)
-    queue_consumer2 = QueueConsumer(container)
+    queue_consumer1 = QueueConsumer()
+    queue_consumer1.bind("queue_consumer", container)
+
+    queue_consumer2 = QueueConsumer()
+    queue_consumer2.bind("queue_consumer", container)
 
     consumer_continue = Event()
 
