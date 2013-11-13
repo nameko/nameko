@@ -4,7 +4,7 @@ from logging import getLogger
 from threading import Lock
 
 from concurrent.futures import _base
-from nameko.dependencies import InjectionProvider
+from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 
 
 _log = getLogger(__name__)
@@ -13,7 +13,7 @@ _log = getLogger(__name__)
 class ParallelExecutor(_base.Executor):
     def __init__(self, thread_provider):
         self.thread_provider = thread_provider
-        self.spawned_threads = set()
+        self._spawned_threads = set()
         self._shutdown = False
         self._shutdown_lock = Lock()
 
@@ -27,7 +27,7 @@ class ParallelExecutor(_base.Executor):
 
             f = _base.Future()
             t = self.thread_provider.spawn_managed_thread(do_function_call)
-            self.spawned_threads.add(t)
+            self._spawned_threads.add(t)
             t.link(self._handle_thread_exited(f))
 
             # Thread with this future starts immediately: you have no opportunity to cancel it
@@ -37,17 +37,17 @@ class ParallelExecutor(_base.Executor):
 
     def _handle_thread_exited(self, future):
         def catch_thread_exit(gt):
-            # NOTE: Do not remove from `spawned_threads` here as that can change the set iterator whilst `shutdown` is
-            # running
-            try:
-                result = gt.wait()
-            except Exception as exc:
-                _log.error('%s thread exited with error', gt, exc_info=True)
-                # We just want to flag this exception on the Future
-                # When running in a ServiceContainer, an exception kills the container though anyway
-                future.set_exception(exc)
-            else:
-                future.set_result(result)
+            with self._shutdown_lock:
+                self._spawned_threads.remove(gt)
+                try:
+                    result = gt.wait()
+                except Exception as exc:
+                    _log.error('%s thread exited with error', gt, exc_info=True)
+                    # We just want to flag this exception on the Future
+                    # When running in a ServiceContainer, an exception kills the container though anyway
+                    future.set_exception(exc)
+                else:
+                    future.set_result(result)
         return catch_thread_exit
 
     def __call__(self, to_wrap):
@@ -65,9 +65,15 @@ class ParallelExecutor(_base.Executor):
         """
         with self._shutdown_lock:
             self._shutdown = True
-        if wait:
-            for thread in self.spawned_threads:
-                thread.wait()
+            if wait:
+                for thread in self._spawned_threads:
+                    thread.wait()
+
+    def has_running_threads(self):
+        # If its trying to shutdown, this will wait
+        with self._shutdown_lock:
+            # Thread info hidden
+            return bool(self._spawned_threads)
 
 
 class ParallelWrapper(object):
@@ -103,6 +109,23 @@ class ParallelWrapper(object):
         return
 
 
+class ParallelExecutorBusyException(Exception):
+    pass
+
+
 class ParalleliseProvider(InjectionProvider):
+    def __init__(self):
+        self.executor = None
+
     def acquire_injection(self, worker_ctx):
-        return ParallelWrapper
+        self.executor = ParallelExecutor(worker_ctx.container)
+        return self.executor
+
+    def worker_teardown(self, worker_ctx):
+        # Find out from executor if there are threads still running
+        if self.executor.has_running_threads():
+            raise ParallelExecutorBusyException()
+
+@injection
+def parallel_executor(*args, **kwargs):
+    return DependencyFactory(ParalleliseProvider, *args, **kwargs)
