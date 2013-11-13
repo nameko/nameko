@@ -12,7 +12,8 @@ from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
-    DependencyFactory, dependency, ProviderCollector, DependencyProvider)
+    DependencyFactory, dependency, ProviderCollector, DependencyProvider,
+    CONTAINER_SHARED)
 
 _log = getLogger(__name__)
 
@@ -31,7 +32,7 @@ def get_rpc_exchange(container):
 # pylint: disable=E1101,E1123
 class RpcConsumer(DependencyProvider, ProviderCollector):
 
-    queue_consumer = queue_consumer(shared=True)
+    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
 
     def __init__(self):
         super(RpcConsumer, self).__init__()
@@ -101,7 +102,7 @@ def rpc_consumer():
 # pylint: disable=E1101,E1123
 class RpcProvider(EntrypointProvider, HeaderDecoder):
 
-    rpc_consumer = rpc_consumer(shared=True)
+    rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
     def prepare(self):
         self.rpc_consumer.register_provider(self)
@@ -170,7 +171,7 @@ class Responder(object):
 # pylint: disable=E1101,E1123
 class ReplyListener(DependencyProvider):
 
-    queue_consumer = queue_consumer(shared=True)
+    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
 
     def __init__(self):
         super(ReplyListener, self).__init__()
@@ -218,7 +219,7 @@ def reply_listener():
 
 class RpcProxyProvider(InjectionProvider):
 
-    rpc_reply_listener = reply_listener(shared=True)
+    rpc_reply_listener = reply_listener(shared=CONTAINER_SHARED)
 
     def __init__(self, service_name):
         self.service_name = service_name

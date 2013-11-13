@@ -17,7 +17,8 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
-    DependencyProvider, ProviderCollector, DependencyFactory, dependency)
+    DependencyProvider, ProviderCollector, DependencyFactory, dependency,
+    CONTAINER_SHARED)
 
 _log = getLogger(__name__)
 
@@ -367,7 +368,7 @@ def consume(queue, requeue_on_error=False):
 # pylint: disable=E1101,E1123
 class ConsumeProvider(EntrypointProvider, HeaderDecoder):
 
-    queue_consumer = queue_consumer(shared=True)
+    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
 
     def __init__(self, queue, requeue_on_error):
         self.queue = queue

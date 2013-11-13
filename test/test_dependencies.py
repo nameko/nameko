@@ -5,7 +5,7 @@ from nameko.dependencies import (
     entrypoint, EntrypointProvider, get_entrypoint_providers,
     injection, InjectionProvider, get_injection_providers,
     DependencyFactory, DependencyTypeError, dependency,
-    DependencyProvider, PROCESS_SHARED, process_shared)
+    DependencyProvider, PROCESS_SHARED, CONTAINER_SHARED)
 from nameko.service import ServiceContainer, WorkerContext
 
 
@@ -29,7 +29,7 @@ def nested_provider(*args, **kwargs):
 
 class FooProvider(EntrypointProvider):
 
-    shared_provider = shared_provider(shared=True)
+    shared_provider = shared_provider(shared=CONTAINER_SHARED)
 
     def __init__(self, *args, **kwargs):
         self.args = args
@@ -45,7 +45,7 @@ def foobar(*args, **kwargs):
 class BarProvider(InjectionProvider):
 
     nested_provider = nested_provider()
-    shared_provider = shared_provider(shared=True)
+    shared_provider = shared_provider(shared=CONTAINER_SHARED)
 
     def __init__(self, *args, **kwargs):
         self.args = args
@@ -150,7 +150,7 @@ def test_dependency_instances_are_shared(container_factory, rabbit_config):
         """ Example provider with two shared sub-dependencies - one at shared
         at the container level, one at the process level.
         """
-        ct_shared = shared_provider(shared=True)  # container shared
+        ct_shared = shared_provider(shared=CONTAINER_SHARED)
         process_shared = shared_provider(shared=PROCESS_SHARED)
 
         def __init__(self):
@@ -178,7 +178,7 @@ def test_dependency_instances_are_shared(container_factory, rabbit_config):
     # but all four share their sub-dependencies
     # two containers in one process result in three sharing_keys
     assert set(shared_deps.keys()) == set([container1, container2,
-                                           process_shared])
+                                           PROCESS_SHARED])
 
     # exactly three shared dependencies should have been instantiated
     all_dependencies = []

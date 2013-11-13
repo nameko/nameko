@@ -4,20 +4,21 @@ from contextlib import contextmanager
 from functools import partial
 
 
-def get_dependency(container, dependency_cls, **attrs):
+def get_dependency(container, dependency_cls, **match_attrs):
     """ Inspect ``container.dependencies`` and return the first item that is
     an instance of ``dependency_cls``.
 
-    Optionally also require that the instance has the given ``attr==value``
-    pairs given in the kwargs.
+    Optionally also require that the instance has an attribute with a
+    particular value as given in the ``match_attrs`` kwargs.
     """
     for dep in container.dependencies:
         if isinstance(dep, dependency_cls):
-            if not attrs:
+            if not match_attrs:
                 return dep
 
             has_attribute = lambda name, value: getattr(dep, name) == value
-            if all([has_attribute(name, val) for name, val in attrs.items()]):
+            if all([has_attribute(name, value)
+                    for name, value in match_attrs.items()]):
                 return dep
 
 
