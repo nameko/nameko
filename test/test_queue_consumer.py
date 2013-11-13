@@ -126,6 +126,7 @@ def test_stop_while_starting():
 
     with eventlet.Timeout(TIMEOUT):
         queue_consumer.unregister_provider(handler)
+        queue_consumer.stop()
 
     with eventlet.Timeout(TIMEOUT):
         # we expect the queue_consumer.start thread to finish
