@@ -116,7 +116,15 @@ class DependencyProvider(object):
                 yield attr
                 for nested_dep in attr.nested_dependencies:
                     yield nested_dep
-
+    def __str__(self):
+        try:
+            return '<{} [{}.{}] at 0x{:x}>'.format(
+                type(self).__name__,
+                self.container.service_name, self.name,
+                id(self))
+        except:
+            return '<{} [unbound] at 0x{:x}>'.format(
+                type(self).__name__, id(self))
 
 class EntrypointProvider(DependencyProvider):
     pass
@@ -240,7 +248,7 @@ class DependencyFactory(object):
         return (self.dep_cls, str(self.args), str(self.kwargs))
 
     def create_and_bind_instance(self, name, container):
-        """ Instaniate an instance of ``dep_cls`` and bind it to ``container``.
+        """ Instantiate ``dep_cls`` and bind it to ``container``.
 
         See `:meth:~DependencyProvider.bind`.
         """
