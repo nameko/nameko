@@ -248,7 +248,7 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     queue_consumer2.unregister_provider(handler2)
 
 
-def test_kill_connections_close(reset_rabbit, rabbit_manager, rabbit_config):
+def test_kill_closes_connections(reset_rabbit, rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 1
