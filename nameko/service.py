@@ -133,9 +133,12 @@ class ServiceContainer(object):
             # wait for to complete before we can stop injection dependencies
             self._worker_pool.waitall()
 
-            # it should be safe now to stop any injection as ther is no
+            # it should be safe now to stop any injection as there is no
             # active worker which could be using it
             dependencies.injections.all.stop()
+
+            # finally, stop nested dependencies
+            dependencies.nested.all.stop()
 
             # just in case there was a provider not taking care of it's worker
             self._kill_active_threads()
