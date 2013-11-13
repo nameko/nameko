@@ -175,7 +175,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             # stopping before we have started successfully by brutally
             # killing the consumer thread as we don't have a way to hook
             # into the pre-consumption startup process
-            self.kill(stop_exc)
+            self._gt.kill(stop_exc)
             # we also want to let the start method know that we died.
             # it is waiting for the consumer to be ready
             # so we send the same exceptions
@@ -195,9 +195,22 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         _log.debug('stopped %s', self)
 
     def kill(self, exc):
+
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if not self._gt.dead:
-            self._gt.kill(exc)
+            # we can't just kill the thread because we have to give
+            # ConsumerMixin a chance to close the sockets properly
+            # As we are being killed we don't care about outstanding
+            # messages. This will also speed up the kill.
+            self._providers = set()
+            self._pending_messages = set()
+            self._pending_ack_messages = []
+            self._pending_requeue_messages = []
+            self._pending_remove_providers = {}
+            self.should_stop = True
+            self._gt.wait()
+
+            super(QueueConsumer, self).kill(exc)
             _log.debug('killed %s', self)
 
     def unregister_provider(self, provider):

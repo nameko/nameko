@@ -120,6 +120,7 @@ class DependencyProvider(object):
                 yield attr
                 for nested_dep in attr.nested_dependencies:
                     yield nested_dep
+
     def __str__(self):
         try:
             return '<{} [{}.{}] at 0x{:x}>'.format(

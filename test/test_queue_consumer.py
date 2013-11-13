@@ -222,3 +222,29 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
 
     queue_consumer1.unregister_provider(handler1)
     queue_consumer2.unregister_provider(handler2)
+
+
+def test_kill_connections_close(reset_rabbit, rabbit_manager, rabbit_config):
+    container = Mock()
+    container.config = rabbit_config
+    container.max_workers = 1
+    container.spawn_managed_thread = eventlet.spawn
+
+    queue_consumer = QueueConsumer()
+    queue_consumer.bind("queue_consumer", container)
+
+    class Handler(object):
+        queue = ham_queue
+
+        def handle_message(self, body, message):
+            pass
+
+    queue_consumer.register_provider(Handler())
+    queue_consumer.start()
+
+    # kill should close all connections
+    queue_consumer.kill(Exception('test-kill'))
+
+    connections = rabbit_manager.get_connections()
+    assert connections is None
+
