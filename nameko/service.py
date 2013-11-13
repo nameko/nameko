@@ -119,7 +119,7 @@ class ManagedThreadContainer(object):
 
         self._handle_container_kill(exc)
 
-        _log.info('killing container due to "%s"', exc)
+        _log.info('killing %s due to "%s"', self, exc)
 
         self._kill_active_threads()
         self._died.send_exception(exc)
@@ -135,7 +135,7 @@ class ManagedThreadContainer(object):
         num_active_threads = len(self._active_threads)
 
         if num_active_threads:
-            _log.warning('killing active threads (%s)', num_active_threads)
+            _log.warning('killing (%s) active threads', num_active_threads)
             for gt in list(self._active_threads):
                 gt.kill()
 
@@ -332,7 +332,7 @@ class ServiceContainer(ManagedThreadContainer):
                 self.dependencies.injections.all.release(worker_ctx)
 
     def __str__(self):
-        return '<ServiceContainer {} at 0x{:x}>'.format(
+        return '<ServiceContainer [{}] at 0x{:x}>'.format(
             self.service_name, id(self))
 
 
