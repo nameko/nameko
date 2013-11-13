@@ -2,6 +2,14 @@ from concurrent.futures import _base
 from nameko.dependencies import InjectionProvider
 
 
+class BadFuture(object):
+    def __init__(self, thread):
+        self.thread = thread
+
+    def result(self):
+        return self.thread.wait()
+
+
 class ParallelExecutor(_base.Executor):
     def __init__(self, thread_provider):
         self.thread_provider = thread_provider
@@ -10,10 +18,13 @@ class ParallelExecutor(_base.Executor):
     def submit(self, func, *args, **kwargs):
         def do_function_call():
             return func(*args, **kwargs)
-        # TODO: Returning green thread, not future...
+
+        # TODO: Returning a poor version of Future
         t = self.thread_provider.spawn_managed_thread(do_function_call)
         self.spawned_threads.add(t)
-        return t
+
+        future = BadFuture(t)
+        return future
 
     def __call__(self, to_wrap):
         """

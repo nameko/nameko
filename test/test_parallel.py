@@ -5,10 +5,18 @@ from nameko.testing.utils import wait_for_call
 
 
 def test_parallel_executor_gives_submit():
-    to_call = Mock()
-    ParallelExecutor(ManagedThreadContainer()).submit(to_call, 1)
+    to_call = Mock(return_value=99)
+    future = ParallelExecutor(ManagedThreadContainer()).submit(to_call, 1)
     with wait_for_call(5, to_call) as to_call_waited:
         to_call_waited.assert_called_with(1)
+        assert future.result() == 99
+
+
+def test_calling_result_waits():
+    to_call = Mock(return_value=99)
+    future = ParallelExecutor(ManagedThreadContainer()).submit(to_call, 1)
+    assert future.result() == 99
+    to_call.assert_called_with(1)
 
 
 def test_parallel_wrapper_layer():
