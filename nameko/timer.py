@@ -90,7 +90,3 @@ class TimerProvider(EntrypointProvider):
         args = tuple()
         kwargs = {}
         self.container.spawn_worker(self, args, kwargs)
-
-    def __str__(self):
-        return '<TimerProvider {} with {}s interval at at 0x{:x}>'.format(
-            self.name, self.interval, id(self))

@@ -164,7 +164,7 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        _log.info('killing container due to "%s"', exc)
+        _log.info('killing %s due to: %s', self, exc)
 
         try:
             with eventlet.Timeout(KILL_TIMEOUT):
@@ -179,7 +179,7 @@ class ServiceContainer(object):
         num_active_threads = len(self._active_threads)
 
         if num_active_threads:
-            _log.warning('killing active threads (%s)', num_active_threads)
+            _log.warning('killing (%s) active threads', num_active_threads)
             for gt in list(self._active_threads):
                 gt.kill()
 
@@ -301,7 +301,7 @@ class ServiceContainer(object):
             self.kill(exc)
 
     def __str__(self):
-        return '<ServiceContainer {} at 0x{:x}>'.format(
+        return '<ServiceContainer [{}] at 0x{:x}>'.format(
             self.service_name, id(self))
 
 

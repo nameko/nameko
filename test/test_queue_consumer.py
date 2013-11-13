@@ -1,3 +1,5 @@
+import socket
+
 import eventlet
 from eventlet.event import Event
 from kombu import Queue, Exchange, Connection
@@ -161,6 +163,28 @@ def test_error_stops_consumer_thread():
     assert exc_info.value.args == ('test',)
 
 
+def test_socket_error_kills_consumer():
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.max_workers = 1
+    container.spawn_managed_thread = eventlet.spawn
+
+    queue_consumer = QueueConsumer()
+
+    queue_consumer.bind("queue_consumer", container)
+
+    handler = MessageHandler()
+    queue_consumer.register_provider(handler)
+    queue_consumer.start()
+
+    with patch.object(Connection, 'drain_events') as drain_events:
+        drain_events.side_effect = socket.error('test-error')
+        # for now we are happy with socket errors to just kill the consumer
+        # in the future we want retries to work
+        with pytest.raises(Exception):
+            queue_consumer._gt.wait()
+
+
 def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
@@ -222,3 +246,28 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
 
     queue_consumer1.unregister_provider(handler1)
     queue_consumer2.unregister_provider(handler2)
+
+
+def test_kill_closes_connections(reset_rabbit, rabbit_manager, rabbit_config):
+    container = Mock()
+    container.config = rabbit_config
+    container.max_workers = 1
+    container.spawn_managed_thread = eventlet.spawn
+
+    queue_consumer = QueueConsumer()
+    queue_consumer.bind("queue_consumer", container)
+
+    class Handler(object):
+        queue = ham_queue
+
+        def handle_message(self, body, message):
+            pass
+
+    queue_consumer.register_provider(Handler())
+    queue_consumer.start()
+
+    # kill should close all connections
+    queue_consumer.kill(Exception('test-kill'))
+
+    connections = rabbit_manager.get_connections()
+    assert connections is None
