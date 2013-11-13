@@ -215,3 +215,13 @@ def test_decorated_functions_must_return_dependency_factories():
         @bar
         def baz():
             pass
+
+
+def test_stringify():
+    dep = DependencyProvider()
+    assert str(dep).startswith('<DependencyProvider [unbound] at')
+
+    container = Mock()
+    container.service_name = 'foobar'
+    dep.bind('spam', container)
+    assert str(dep).startswith('<DependencyProvider [foobar.spam] at')

@@ -195,7 +195,6 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         _log.debug('stopped %s', self)
 
     def kill(self, exc):
-
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
         if not self._gt.dead:
             # we can't just kill the thread because we have to give

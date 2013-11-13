@@ -131,6 +131,7 @@ class DependencyProvider(object):
             return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
+
 class EntrypointProvider(DependencyProvider):
     pass
 
