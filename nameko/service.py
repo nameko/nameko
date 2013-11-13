@@ -77,17 +77,8 @@ class ManagedThreadContainer(object):
     def stop(self):
         """ Stop the container gracefully.
 
-        First all entrypoints are asked to ``stop()``.
-        This ensures that no new worker threads are started.
-
-        It is the providers' responsiblity to gracefully shut down when
-        ``stop()`` is called on them and only return when they have stopped.
-
-        After all entrypoints have stopped the container waits for any
-        active workers to complete.
-
-        After all active workers have stopped the container stops all
-        injections.
+        `_handle_container_stop` is called to give sub-classes an opportunity
+        to clean up dependencies.
 
         At this point there should be no more active threads. In case there
         are any active threads, they are killed by the container.
@@ -107,20 +98,18 @@ class ManagedThreadContainer(object):
             self._died.send(None)
 
     def _handle_container_stop(self):
+        """
+        Called when a container is stopped, this is an opportunity to
+        gracefully stop any dependencies a subclass may accrue.
+        """
         return
 
     def kill(self, exc):
         """ Kill the container in a semi-graceful way.
 
-        First all dependencies have a chance to kill themselves
-        within a given time limit (``KILL_TIMEOUT``).
-
-        To do so they must implement a ``kill(exc)`` method and take care
-        of shutting down any resources when that method is called on them.
-
-        After all the dependencies have been killed or ``KILL_TIMEOUT``
-        has been reached, all remaining active threads, worker and
-        managed ones, are explicitly killed by the container.
+        `_handle_container_kill` is called to give sub-classes an opportunity
+        to clean up dependencies. Once complete, any remaining active threads
+        are killed.
 
         The container dies with the given ``exc``.
         """
@@ -136,6 +125,10 @@ class ManagedThreadContainer(object):
         self._died.send_exception(exc)
 
     def _handle_container_kill(self, exc):
+        """
+        Called when a container is killed, this is an opportunity to kill any
+        dependencies a subclass may accrue
+        """
         return
 
     def _kill_active_threads(self):
@@ -227,6 +220,20 @@ class ServiceContainer(ManagedThreadContainer):
             self.dependencies.all.start()
 
     def _handle_container_stop(self):
+        """ Stop the container gracefully.
+
+        First all entrypoints are asked to ``stop()``.
+        This ensures that no new worker threads are started.
+
+        It is the providers' responsiblity to gracefully shut down when
+        ``stop()`` is called on them and only return when they have stopped.
+
+        After all entrypoints have stopped the container waits for any
+        active workers to complete.
+
+        After all active workers have stopped the container stops all
+        injections.
+        """
         dependencies = self.dependencies
 
         # entrypoint deps have to be stopped before injection deps
@@ -245,6 +252,14 @@ class ServiceContainer(ManagedThreadContainer):
         dependencies.nested.all.stop()
 
     def _handle_container_kill(self, exc):
+        """ Kill the container in a semi-graceful way.
+
+        First all dependencies have a chance to kill themselves
+        within a given time limit (``KILL_TIMEOUT``).
+
+        To do so they must implement a ``kill(exc)`` method and take care
+        of shutting down any resources when that method is called on them.
+        """
         try:
             with eventlet.Timeout(KILL_TIMEOUT):
                 self.dependencies.all.kill(exc)
