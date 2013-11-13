@@ -26,7 +26,7 @@ def test_runner_lifecycle():
         def stop(self):
             events.append(('stop', self.service_cls.name, self.service_cls))
 
-        def kill(self):
+        def kill(self, exc):
             events.append(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
@@ -53,7 +53,7 @@ def test_runner_lifecycle():
     ]
 
     events = []
-    runner.kill()
+    runner.kill(Exception('die'))
     assert sorted(events) == [
         ('kill', 'foobar_1', TestService1),
         ('kill', 'foobar_2', TestService2),
@@ -78,7 +78,7 @@ def test_runner_waits_raises_error():
         def stop(self):
             pass
 
-        def kill(self):
+        def kill(self, exc):
             pass
 
         def wait(self):
