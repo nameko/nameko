@@ -82,6 +82,18 @@ def test_no_submit_after_shutdown():
         pe.submit(to_call, 2)
 
 
+def test_future_gets_exception():
+    pe = ParallelExecutor(ManagedThreadContainer())
+
+    def raises():
+        raise Exception()
+
+    future = pe.submit(raises)
+
+    with pytest.raises(Exception):
+        future.result()
+
+
 def everlasting_call():
     while True:
         eventlet.sleep(1)
