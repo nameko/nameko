@@ -17,11 +17,11 @@ _log = getLogger(__name__)
 
 ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
 
-# constants for dependency sharing
-PROCESS_SHARED = "process"
 
-# weakref-able sentinel object
-process_shared = type('process', (), {})()
+# constants for dependency sharing
+CONTAINER_SHARED = object()
+# PROCESS_SHARED also serves as weakref-able sentinel obj
+PROCESS_SHARED = type('process', (), {})()
 
 
 class NotInitializedError(Exception):
@@ -173,7 +173,7 @@ class InjectionProvider(DependencyProvider):
 class ProviderCollector(object):
     def __init__(self, *args, **kwargs):
         self._providers = set()
-        self._empty = Event()
+        self._last_provider_unregistered = Event()
         super(ProviderCollector, self).__init__(*args, **kwargs)
 
     def register_provider(self, provider):
@@ -190,7 +190,7 @@ class ProviderCollector(object):
 
     def last_provider_unregistered(self):
         _log.debug('last provider unregistered for %s', self)
-        self._empty.send()
+        self._last_provider_unregistered.send()
 
 
 class DependencySet(SpawningSet):
@@ -246,7 +246,7 @@ shared_dependencies = WeakKeyDictionary()
 
 class DependencyFactory(object):
 
-    shared = False
+    sharing_key = None
 
     def __init__(self, dep_cls, *init_args, **init_kwargs):
         self.dep_cls = dep_cls
@@ -262,11 +262,9 @@ class DependencyFactory(object):
 
         See `:meth:~DependencyProvider.bind`.
         """
-        if self.shared:
-            # TODO: support more types of sharing?
-            if self.shared == PROCESS_SHARED:
-                sharing_key = process_shared
-            else:
+        sharing_key = self.sharing_key
+        if sharing_key is not None:
+            if sharing_key is CONTAINER_SHARED:
                 sharing_key = container
 
             shared_dependencies.setdefault(sharing_key, {})
@@ -363,12 +361,13 @@ def injection(fn):
 def dependency(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
-        shared = kwargs.pop('shared', None)
+        sharing_key = kwargs.pop('shared', None)
+
         factory = fn(*args, **kwargs)
         if not isinstance(factory, DependencyFactory):
             raise DependencyTypeError('Arguments to `dependency` must return '
                                       'DependencyFactory instances')
-        factory.shared = shared
+        factory.sharing_key = sharing_key
         register_dependency(factory)
         return factory
     return wrapped

@@ -17,7 +17,8 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
-    DependencyProvider, ProviderCollector, DependencyFactory, dependency)
+    DependencyProvider, ProviderCollector, DependencyFactory, dependency,
+    CONTAINER_SHARED)
 
 _log = getLogger(__name__)
 
@@ -165,7 +166,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         else:
             _log.debug('started %s', self)
 
-    def last_provider_unregistered(self):
+    def stop(self):
         if not self._consumers_ready.ready():
             _log.debug('stopping while consumer is starting %s', self)
 
@@ -180,13 +181,17 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             # so we send the same exceptions
             self._consumers_ready.send_exception(stop_exc)
 
+        _log.debug('waiting for providers to unregister %s', self)
+        self._last_provider_unregistered.wait()
+        _log.debug('all providers unregistered %s', self)
+
         try:
             _log.debug('waiting for consumer death %s', self)
             self._gt.wait()
         except QueueConsumerStopped:
             pass
 
-        super(QueueConsumer, self).last_provider_unregistered()
+        super(QueueConsumer, self).stop()
         _log.debug('stopped %s', self)
 
     def kill(self, exc):
@@ -360,9 +365,10 @@ def consume(queue, requeue_on_error=False):
     return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
 
 
+# pylint: disable=E1101,E1123
 class ConsumeProvider(EntrypointProvider, HeaderDecoder):
 
-    queue_consumer = queue_consumer(shared=True)
+    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
 
     def __init__(self, queue, requeue_on_error):
         self.queue = queue
