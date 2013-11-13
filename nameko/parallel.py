@@ -1,7 +1,8 @@
+from concurrent.futures import _base
 from nameko.dependencies import InjectionProvider
 
 
-class ParallelExecutor(object):
+class ParallelExecutor(_base.Executor):
     def __init__(self, thread_provider):
         self.thread_provider = thread_provider
 
@@ -13,12 +14,6 @@ class ParallelExecutor(object):
 
     def __call__(self, to_wrap):
         return ParallelWrapper(self, to_wrap)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        return
-
-    def __enter__(self):
-        return self
 
 
 class ParallelWrapper(object):
