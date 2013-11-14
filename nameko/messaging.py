@@ -305,7 +305,6 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
     def on_iteration(self):
         """ kombu callback for each drain_events loop iteration."""
-
         self._cancel_consumers_if_requested()
 
         self._process_pending_message_acks()
@@ -325,38 +324,32 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         self._consumers_ready.send(None)
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted from kombu so we are able to break the loop immediately
-            after a shutdown is triggered rather than waiting for the timeout.
-        """
         elapsed = 0
+        with self.consumer_context(**kwargs) as (conn, channel, consumers):
+            for i in limit and range(limit) or count():
+                # moved from after the following `should_stop` condition to
+                # avoid waiting on a drain_events timeout before breaking
+                # the loop.
+                self.on_iteration()
 
-        with self.Consumer() as ccc:
-            connection, channel, consumers = ccc
-            with self.extra_context(connection, channel):
-                self.on_consume_ready(connection, channel, consumers, **kwargs)
-                for _ in limit and xrange(limit) or count():
-                    # moved from after the following `should_stop` condition to
-                    # avoid waiting on a drain_events timeout before breaking
-                    # the loop.
-                    self.on_iteration()
-                    if self.should_stop:
-                        break
+                if self.should_stop:
+                    break
 
-                    try:
-                        connection.drain_events(timeout=safety_interval)
-                    except socket.timeout:
-                        elapsed += safety_interval
-                        # Excluding the following clause from coverage,
-                        # as timeout never appears to be set - This method
-                        # is a lift from kombu so will leave in place for now.
-                        if timeout and elapsed >= timeout:  # pragma: no cover
-                            raise socket.timeout()
-                    except socket.error:
-                        if not self.should_stop:
-                            raise
-                    else:
-                        yield
-                        elapsed = 0
+                try:
+                    conn.drain_events(timeout=safety_interval)
+                except socket.timeout:
+                    elapsed += safety_interval
+                    # Excluding the following clause from coverage,
+                    # as timeout never appears to be set - This method
+                    # is a lift from kombu so will leave in place for now.
+                    if timeout and elapsed >= timeout:  # pragma: no cover
+                        raise
+                except socket.error:
+                    if not self.should_stop:
+                        raise
+                else:
+                    yield
+                    elapsed = 0
 
 
 @entrypoint
