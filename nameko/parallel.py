@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from functools import partial
+from functools import partial, wraps
 
 from logging import getLogger
 from threading import Lock
@@ -103,6 +103,8 @@ class ParallelProxy(object):
         """
         wrapped_attribute = getattr(self.to_wrap, item)
         if callable(wrapped_attribute):
+            # Give name/docs of wrapped_attribute to do_submit
+            @wraps(wrapped_attribute)
             def do_submit(*args, **kwargs):
                 return self.executor.submit(wrapped_attribute, *args, **kwargs)
             return do_submit
