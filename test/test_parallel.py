@@ -111,7 +111,7 @@ def test_parallel_executor_injection():
     assert len(providers) == 1
     provider = providers[0]
 
-    assert provider.name == "injected"
+    assert provider.name == "parallel"
     assert isinstance(provider, ParallelProvider)
 
 
