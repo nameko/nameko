@@ -72,6 +72,7 @@ class WorkerContext(WorkerContextBase):
 class ManagedThreadContainer(object):
     def __init__(self):
         self._active_threads = set()
+        self._being_killed = False
         self._died = Event()
 
     def stop(self):
@@ -113,6 +114,15 @@ class ManagedThreadContainer(object):
 
         The container dies with the given ``exc``.
         """
+        if self._being_killed:
+            # this happens if a managed thread exits with an exception
+            # while the container is being killed or another caller
+            # behaves in a similar manner
+            _log.debug('already killing %s ... waiting for death', self)
+            self._died.wait()
+
+        self._being_killed = True
+
         if self._died.ready():
             _log.debug('already stopped %s', self)
             return
@@ -260,6 +270,9 @@ class ServiceContainer(ManagedThreadContainer):
         To do so they must implement a ``kill(exc)`` method and take care
         of shutting down any resources when that method is called on them.
         """
+        self._kill_dependencies(exc)
+
+    def _kill_dependencies(self, exc):
         try:
             with eventlet.Timeout(KILL_TIMEOUT):
                 self.dependencies.all.kill(exc)
