@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from functools import partial
 
 from logging import getLogger
 from threading import Lock
@@ -29,7 +30,7 @@ class ParallelExecutor(futures.Executor):
             f = futures.Future()
             t = self.thread_provider.spawn_managed_thread(do_function_call)
             self._spawned_threads.add(t)
-            t.link(self._handle_thread_exited(f))
+            t.link(partial(self._handle_thread_exited, f))
 
             # Thread with this future starts immediately: you have no
             # opportunity to cancel it
@@ -37,22 +38,20 @@ class ParallelExecutor(futures.Executor):
 
             return f
 
-    def _handle_thread_exited(self, future):
-        def catch_thread_exit(gt):
-            with self._shutdown_lock:
-                self._spawned_threads.remove(gt)
-                try:
-                    result = gt.wait()
-                except Exception as exc:
-                    _log.error('%s thread exited with error', gt,
-                               exc_info=True)
-                    # We just want to flag this exception on the Future
-                    # When running in a ServiceContainer, an exception kills
-                    # the container though anyway
-                    future.set_exception(exc)
-                else:
-                    future.set_result(result)
-        return catch_thread_exit
+    def _handle_thread_exited(self, future, gt):
+        with self._shutdown_lock:
+            self._spawned_threads.remove(gt)
+            try:
+                result = gt.wait()
+            except Exception as exc:
+                _log.error('%s thread exited with error', gt,
+                           exc_info=True)
+                # We just want to flag this exception on the Future
+                # When running in a ServiceContainer, an exception kills
+                # the container though anyway
+                future.set_exception(exc)
+            else:
+                future.set_result(result)
 
     def __call__(self, to_wrap):
         """
