@@ -39,6 +39,10 @@ class CallCollectorMixin(object):
         self._log_call(('stop'))
         super(CallCollectorMixin, self).stop()
 
+    def kill(self, exc):
+        self._log_call(('kill'))
+        super(CallCollectorMixin, self).stop()
+
     def worker_setup(self, worker_ctx):
         self._log_call(('setup', worker_ctx))
         super(CallCollectorMixin, self).worker_setup(worker_ctx)
@@ -365,3 +369,25 @@ def test_spawned_thread_causes_container_to_kill_other_thread(container):
 
     with Timeout(1):
         killed_by_error_raised.wait()
+
+
+def test_container_only_killed_once(container):
+    exc = Exception('foobar')
+
+    def raise_error():
+        raise exc
+
+    with patch.object(container, '_kill_dependencies',
+                      side_effect=container._kill_dependencies) as kill_deps:
+        container.start()
+        # Any exception in a managed thread will cause the container
+        # to be killed. Two threads raising an exception,
+        # will cause the container's handle_thread_exit() method to
+        # kill the container twice.
+        container.spawn_managed_thread(raise_error)
+        container.spawn_managed_thread(raise_error)
+
+        with pytest.raises(Exception):
+            container.wait()
+
+        kill_deps.assert_called_once_with(exc)
