@@ -3,14 +3,14 @@ from __future__ import absolute_import
 from logging import getLogger
 from threading import Lock
 
-from concurrent.futures import _base
+from concurrent import futures
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 
 
 _log = getLogger(__name__)
 
 
-class ParallelExecutor(_base.Executor):
+class ParallelExecutor(futures.Executor):
     def __init__(self, thread_provider):
         self.thread_provider = thread_provider
         self._spawned_threads = set()
@@ -26,7 +26,7 @@ class ParallelExecutor(_base.Executor):
             def do_function_call():
                 return func(*args, **kwargs)
 
-            f = _base.Future()
+            f = futures.Future()
             t = self.thread_provider.spawn_managed_thread(do_function_call)
             self._spawned_threads.add(t)
             t.link(self._handle_thread_exited(f))
