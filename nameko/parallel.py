@@ -58,7 +58,7 @@ class ParallelExecutor(futures.Executor):
         Provides a wrapper around the provided object that ensures any method
         calls on it are handled by the `submit` method of this executor.
         """
-        return ParallelWrapper(self, to_wrap)
+        return ParallelProxy(self, to_wrap)
 
     def shutdown(self, wait=True):
         """
@@ -80,10 +80,10 @@ class ParallelExecutor(futures.Executor):
             return bool(self._spawned_threads)
 
 
-class ParallelWrapper(object):
+class ParallelProxy(object):
     def __init__(self, executor, to_wrap=None):
         """
-        Create a new wrapper around an object then ensures method calls are ran
+        Create a new proxy around an object then ensures method calls are ran
         by the executor.
 
         Attribute access and function calls on the wrapped object can be
