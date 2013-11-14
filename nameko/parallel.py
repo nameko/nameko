@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from contextlib import contextmanager
 from functools import partial, wraps
 
 from logging import getLogger
@@ -24,6 +25,18 @@ def try_wraps(func):
             return inner
 
     return try_to_wrap
+
+
+class ParallelProxyManager(object):
+    def __init__(self, thread_provider):
+        self.thread_provider = thread_provider
+
+    @contextmanager
+    def __call__(self, to_wrap):
+        executor = ParallelExecutor(self.thread_provider)
+        proxy = ParallelProxy(executor, to_wrap)
+        with executor:
+            yield proxy
 
 
 class ParallelExecutor(futures.Executor):
@@ -80,13 +93,6 @@ class ParallelExecutor(futures.Executor):
                 # by `_handle_call_complete`
                 future.set_exception(green_exit)
 
-    def __call__(self, to_wrap):
-        """
-        Provides a wrapper around the provided object that ensures any method
-        calls on it are handled by the `submit` method of this executor.
-        """
-        return ParallelProxy(self, to_wrap)
-
     def shutdown(self, wait=True):
         """
         Call to ensure all spawned threads have finished.
@@ -99,12 +105,6 @@ class ParallelExecutor(futures.Executor):
             if wait:
                 for thread in self._spawned_threads:
                     thread.wait()
-
-    def has_running_threads(self):
-        # If its trying to shutdown, this will wait
-        with self._shutdown_lock:
-            # Thread info hidden
-            return bool(self._spawned_threads)
 
 
 class ParallelProxy(object):
@@ -137,32 +137,16 @@ class ParallelProxy(object):
             return do_submit
         return wrapped_attribute
 
-    def __enter__(self):
-        self.executor.__enter__()
-        return self
-
-    def __exit__(self, *args, **kwargs):
-        return self.executor.__exit__(*args, **kwargs)
-
-
-class ParallelExecutorBusyException(Exception):
-    pass
-
 
 class ParallelProvider(InjectionProvider):
     def __init__(self):
-        self.executor = None
+        self.proxy_manager = None
 
     def acquire_injection(self, worker_ctx):
-        self.executor = ParallelExecutor(worker_ctx.container)
-        return self.executor
-
-    def worker_teardown(self, worker_ctx):
-        # Find out from executor if there are threads still running
-        if self.executor.has_running_threads():
-            raise ParallelExecutorBusyException()
+        self.proxy_manager = ParallelProxyManager(self.container)
+        return self.proxy_manager
 
 
 @injection
-def parallel_executor(*args, **kwargs):
+def parallel_provider(*args, **kwargs):
     return DependencyFactory(ParallelProvider, *args, **kwargs)
