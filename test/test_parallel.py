@@ -102,6 +102,16 @@ def test_stop_managed_container():
         container.stop()
 
 
+def test_kill_managed_container():
+    container = ManagedThreadContainer()
+    pe = ParallelExecutor(container)
+    with pe as execution_context:
+        f = execution_context.submit(everlasting_call)
+        container.kill(Exception())
+        with pytest.raises(GreenletExit):
+            f.result()
+
+
 def everlasting_call():
     while True:
         eventlet.sleep(1)

@@ -5,10 +5,25 @@ from logging import getLogger
 from threading import Lock
 
 from concurrent import futures
+import greenlet
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 
 
 _log = getLogger(__name__)
+
+
+def try_wraps(func):
+    do_wrap = wraps(func)
+
+    def try_to_wrap(inner):
+        try:
+            return do_wrap(inner)
+        except AttributeError:
+            # Mock objects don't have all the attributes needed in order to
+            # be wrapped.
+            return inner
+
+    return try_to_wrap
 
 
 class ParallelExecutor(futures.Executor):
@@ -24,10 +39,21 @@ class ParallelExecutor(futures.Executor):
                 raise RuntimeError('cannot schedule new futures after '
                                    'shutdown')
 
-            def do_function_call():
-                return func(*args, **kwargs)
-
             f = futures.Future()
+
+            @try_wraps(func)
+            def do_function_call():
+                # A failure on the function call doesn't propagate up and kill
+                # the container: it's marked on the future only.
+                try:
+                    result = func(*args, **kwargs)
+                except Exception as exc:
+                    self._handle_call_complete(f, exc=exc)
+                    return None, exc
+                else:
+                    self._handle_call_complete(f, result=result)
+                    return result, None
+
             t = self.thread_provider.spawn_managed_thread(do_function_call)
             self._spawned_threads.add(t)
             t.link(partial(self._handle_thread_exited, f))
@@ -38,20 +64,21 @@ class ParallelExecutor(futures.Executor):
 
             return f
 
+    def _handle_call_complete(self, future, result=None, exc=None):
+        if exc:
+            future.set_exception(exc)
+        else:
+            future.set_result(result)
+
     def _handle_thread_exited(self, future, gt):
         with self._shutdown_lock:
             self._spawned_threads.remove(gt)
             try:
-                result = gt.wait()
-            except Exception as exc:
-                _log.error('%s thread exited with error', gt,
-                           exc_info=True)
-                # We just want to flag this exception on the Future
-                # When running in a ServiceContainer, an exception kills
-                # the container though anyway
-                future.set_exception(exc)
-            else:
-                future.set_result(result)
+                gt.wait()
+            except greenlet.GreenletExit as green_exit:
+                # 'Normal' errors with the submitted function call are handled
+                # by `_handle_call_complete`
+                future.set_exception(green_exit)
 
     def __call__(self, to_wrap):
         """
@@ -104,7 +131,7 @@ class ParallelProxy(object):
         wrapped_attribute = getattr(self.to_wrap, item)
         if callable(wrapped_attribute):
             # Give name/docs of wrapped_attribute to do_submit
-            @wraps(wrapped_attribute)
+            @try_wraps(wrapped_attribute)
             def do_submit(*args, **kwargs):
                 return self.executor.submit(wrapped_attribute, *args, **kwargs)
             return do_submit
