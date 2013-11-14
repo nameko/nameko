@@ -380,9 +380,11 @@ def test_container_only_killed_once(container):
     with patch.object(container, '_kill_dependencies',
                       side_effect=container._kill_dependencies) as kill_deps:
         container.start()
+        # Any exception in a managed thread will cause the container
+        # to be killed. Two threads raising an exception,
+        # will cause the container's handle_thread_exit() method to
+        # kill the container twice.
         container.spawn_managed_thread(raise_error)
-        # we need a second thread to also raise and error
-        # the container should only get killed once
         container.spawn_managed_thread(raise_error)
 
         with pytest.raises(Exception):

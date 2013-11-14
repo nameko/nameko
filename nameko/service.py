@@ -162,6 +162,9 @@ class ServiceContainer(object):
         The container dies with the given ``exc``.
         """
         if self._being_killed:
+            # this happens if a managed thread exits with an exception
+            # while the container is being killed or another caller
+            # behaves in a similar manner
             _log.debug('already killing %s ... waiting for death', self)
             self._died.wait()
 
