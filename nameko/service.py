@@ -117,9 +117,9 @@ class ManagedThreadContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        self._handle_container_kill(exc)
-
         _log.info('killing %s due to "%s"', self, exc)
+
+        self._handle_container_kill(exc)
 
         self._kill_active_threads()
         self._died.send_exception(exc)
