@@ -2,7 +2,7 @@ from mock import ANY, Mock, patch
 import pytest
 
 from nameko.legacy import proxy
-from nameko.testing.proxy import MockRPCProxy
+from nameko.legacy.testing import MockRPCProxy
 
 
 def test_anon_context_constructor():

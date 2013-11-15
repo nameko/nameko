@@ -36,5 +36,5 @@ def get_connection(request, reset_rabbit):
 
 @pytest.fixture(autouse=True)
 def reset_mock_proxy(request):
-    from nameko.testing.proxy import reset_state
+    from nameko.legacy.testing import reset_state
     reset_state()
