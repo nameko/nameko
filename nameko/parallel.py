@@ -1,30 +1,17 @@
 from __future__ import absolute_import
 from contextlib import contextmanager
-from functools import partial, wraps
+from functools import partial
 
 from logging import getLogger
 from threading import Lock
 
 from concurrent import futures
 import greenlet
+from nameko.decorators import try_wraps
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 
 
 _log = getLogger(__name__)
-
-
-def try_wraps(func):
-    do_wrap = wraps(func)
-
-    def try_to_wrap(inner):
-        try:
-            return do_wrap(inner)
-        except AttributeError:
-            # Mock objects don't have all the attributes needed in order to
-            # be wrapped.
-            return inner
-
-    return try_to_wrap
 
 
 class ParallelProxyManager(object):
