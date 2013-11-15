@@ -11,7 +11,7 @@ from nameko.testing.utils import wait_for_call
 from nameko.timer import timer
 
 
-def test_parallel_executor_gives_submit():
+def test_parallel_executor_submit_makes_call():
     to_call = Mock(return_value=99)
     future = ParallelExecutor(ManagedThreadContainer()).submit(to_call, 1)
     with wait_for_call(5, to_call) as to_call_waited:
@@ -47,11 +47,11 @@ def test_future_gets_exception():
     pe = ParallelExecutor(ManagedThreadContainer())
 
     def raises():
-        raise Exception()
+        raise AssertionError()
 
     future = pe.submit(raises)
 
-    with pytest.raises(Exception):
+    with pytest.raises(AssertionError):
         future.result()
 
 
@@ -73,7 +73,7 @@ def test_kill_managed_container():
             f.result()
 
 
-def test_parallel_proxy_cm():
+def test_parallel_proxy_context_manager():
     to_wrap = Mock()
     to_wrap.wrapped_attribute = 2
     to_call = Mock()
