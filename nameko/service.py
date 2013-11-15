@@ -98,13 +98,6 @@ class ManagedThreadContainer(object):
 
             self._died.send(None)
 
-    def _handle_container_stop(self):
-        """
-        Called when a container is stopped, this is an opportunity to
-        gracefully stop any dependencies a subclass may accrue.
-        """
-        return
-
     def kill(self, exc):
         """ Kill the container in a semi-graceful way.
 
@@ -133,21 +126,6 @@ class ManagedThreadContainer(object):
 
         self._kill_active_threads()
         self._died.send_exception(exc)
-
-    def _handle_container_kill(self, exc):
-        """
-        Called when a container is killed, this is an opportunity to kill any
-        dependencies a subclass may accrue
-        """
-        return
-
-    def _kill_active_threads(self):
-        num_active_threads = len(self._active_threads)
-
-        if num_active_threads:
-            _log.warning('killing (%s) active threads', num_active_threads)
-            for gt in list(self._active_threads):
-                gt.kill()
 
     def wait(self):
         """ Block until the container has been stopped.
@@ -180,6 +158,28 @@ class ManagedThreadContainer(object):
         self._active_threads.add(gt)
         gt.link(self._handle_thread_exited)
         return gt
+
+    def _handle_container_stop(self):
+        """
+        Called when a container is stopped, this is an opportunity to
+        gracefully stop any dependencies a subclass may accrue.
+        """
+        return
+
+    def _handle_container_kill(self, exc):
+        """
+        Called when a container is killed, this is an opportunity to kill any
+        dependencies a subclass may accrue
+        """
+        return
+
+    def _kill_active_threads(self):
+        num_active_threads = len(self._active_threads)
+
+        if num_active_threads:
+            _log.warning('killing (%s) active threads', num_active_threads)
+            for gt in list(self._active_threads):
+                gt.kill()
 
     def _handle_thread_exited(self, gt):
         self._active_threads.remove(gt)
@@ -228,6 +228,32 @@ class ServiceContainer(ManagedThreadContainer):
         with log_time(_log.debug, 'started %s in %0.3f sec', self):
             self.dependencies.all.prepare()
             self.dependencies.all.start()
+
+    def spawn_worker(self, provider, args, kwargs,
+                     context_data=None, handle_result=None):
+        """ Spawn a worker thread for running the service method decorated
+        with an entrypoint ``provider``.
+
+        ``args`` and ``kwargs`` are used as arguments for the service
+        method.
+
+        ``context_data`` is used to initialize a ``WorkerContext``.
+
+        ``handle_result`` is an optional callback which may be passed
+        in by the calling entrypoint provider. It is called with the
+        result returned or error raised by the service method.
+        """
+
+        service = self.service_cls()
+        worker_ctx = self.worker_ctx_cls(
+            self, service, provider.name, args, kwargs, data=context_data)
+
+        _log.debug('spawning %s', worker_ctx)
+        gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
+                                     handle_result)
+        self._active_threads.add(gt)
+        gt.link(self._handle_thread_exited)
+        return worker_ctx
 
     def _handle_container_stop(self):
         """ Stop the container gracefully.
@@ -278,32 +304,6 @@ class ServiceContainer(ManagedThreadContainer):
                 self.dependencies.all.kill(exc)
         except eventlet.Timeout:
             _log.warning('timeout waiting for dependencies.kill %s', self)
-
-    def spawn_worker(self, provider, args, kwargs,
-                     context_data=None, handle_result=None):
-        """ Spawn a worker thread for running the service method decorated
-        with an entrypoint ``provider``.
-
-        ``args`` and ``kwargs`` are used as arguments for the service
-        method.
-
-        ``context_data`` is used to initialize a ``WorkerContext``.
-
-        ``handle_result`` is an optional callback which may be passed
-        in by the calling entrypoint provider. It is called with the
-        result returned or error raised by the service method.
-        """
-
-        service = self.service_cls()
-        worker_ctx = self.worker_ctx_cls(
-            self, service, provider.name, args, kwargs, data=context_data)
-
-        _log.debug('spawning %s', worker_ctx)
-        gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
-                                     handle_result)
-        self._active_threads.add(gt)
-        gt.link(self._handle_thread_exited)
-        return worker_ctx
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
