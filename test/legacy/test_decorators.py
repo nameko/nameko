@@ -1,4 +1,4 @@
-from nameko import decorators
+from nameko.legacy import decorators
 
 
 class _Tester(object):

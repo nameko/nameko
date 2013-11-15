@@ -3,29 +3,15 @@ eventlet.monkey_patch()
 import sys
 import uuid
 
-from functools import partial
+
 import logging
 from urlparse import urlparse
 
-from kombu import Connection
 from pyrabbit.api import Client
 import pytest
 
 running_services = []
 all_containers = []
-connections = []
-
-
-def _get_connection(uri):
-    conn = Connection(uri)
-    connections.append(conn)
-    return conn
-
-
-def close_connections():
-    for c in connections:
-        c.close()
-    connections[:]
 
 
 def pytest_addoption(parser):
@@ -67,6 +53,12 @@ def pytest_configure(config):
     if log_level is not None:
         log_level = getattr(logging, log_level)
         logging.basicConfig(level=log_level, stream=sys.stderr)
+
+
+@pytest.fixture(autouse=True)
+def reset_kombu_pools(request):
+    from kombu.pools import reset
+    reset()
 
 
 @pytest.fixture
@@ -111,34 +103,6 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
 
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
-
-
-@pytest.fixture
-def connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('AMQP_URI')
-
-    request.addfinalizer(close_connections)
-    return _get_connection(amqp_uri)
-
-
-@pytest.fixture
-def get_connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('AMQP_URI')
-
-    request.addfinalizer(close_connections)
-    return partial(_get_connection, amqp_uri)
-
-
-@pytest.fixture(autouse=True)
-def reset_kombu_pools(request):
-    from kombu.pools import reset
-    reset()
-
-
-@pytest.fixture(autouse=True)
-def reset_mock_proxy(request):
-    from nameko.testing.proxy import reset_state
-    reset_state()
 
 
 @pytest.fixture

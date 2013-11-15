@@ -1,6 +1,6 @@
 import iso8601
 
-from nameko.common import UTCNOW, UIDGEN
+from nameko.legacy.common import UTCNOW, UIDGEN
 
 
 class Context(dict):

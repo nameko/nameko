@@ -272,6 +272,27 @@ def start_containers(request, container_factory,
     return make
 
 
+def test_event_handler_event_type():
+    class MyEvent(Event):
+        type = 'my_event'
+
+    @event_handler('foo', 'bar')
+    def foo(self):
+        pass
+
+    @event_handler('foo', MyEvent)
+    def bar(self):
+        pass
+
+    class MyNonEvent(object):
+        type = 'my_non_event'
+
+    with pytest.raises(TypeError):
+        @event_handler('foo', MyNonEvent)
+        def baz(self):
+            pass
+
+
 def test_service_pooled_events(rabbit_manager, rabbit_config,
                                start_containers):
     vhost = rabbit_config['vhost']

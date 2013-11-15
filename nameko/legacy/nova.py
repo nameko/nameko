@@ -3,13 +3,11 @@ from logging import getLogger
 
 from kombu import Producer, Exchange, Queue
 
-from nameko import consuming
-from nameko import responses
-
-from nameko.context import Context
-from nameko.channelhandler import ChannelHandler
-from nameko.common import UIDGEN
-from nameko.decorators import ensure
+from nameko.legacy import consuming, responses
+from nameko.legacy.context import Context
+from nameko.legacy.channelhandler import ChannelHandler
+from nameko.legacy.common import UIDGEN
+from nameko.legacy.decorators import ensure
 
 
 _log = getLogger(__name__)
