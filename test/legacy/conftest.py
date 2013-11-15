@@ -17,6 +17,7 @@ def close_connections():
         c.close()
     connections[:]
 
+
 @pytest.fixture
 def connection(request, reset_rabbit):
     amqp_uri = request.config.getoption('AMQP_URI')
@@ -37,4 +38,3 @@ def get_connection(request, reset_rabbit):
 def reset_mock_proxy(request):
     from nameko.testing.proxy import reset_state
     reset_state()
-
