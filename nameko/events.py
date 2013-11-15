@@ -161,7 +161,9 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                   reliable_delivery=True, requeue_on_error=False):
     """
     Decorate a method as a handler of ``event_type`` events on the service
-    called ``service_name``.
+    called ``service_name``. ``event_type`` must be either a subclass of
+    :class:`~.Event` with a class attribute ``type`` or a string matching the
+    value of this attribute.
 
     ``handler_type`` determines the behaviour of the handler:
         - ``events.SERVICE_POOL``: event handlers will be pooled by service
@@ -210,6 +212,14 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
         raise EventHandlerConfigurationError(
             "Broadcast event handlers cannot be configured with reliable "
             "delivery.")
+
+    if isinstance(event_type, type) and issubclass(event_type, Event):
+        event_type = event_type.type
+    elif not isinstance(event_type, basestring):
+        raise TypeError(
+            'event_type must be either a nameko.events.Event subclass or a '
+            'string a string matching the Event.type value. '
+            'Got {}'.format(type(event_type).__name__))
 
     def event_decorator(fn):
         consumer_configs[fn] = EventConfig(
