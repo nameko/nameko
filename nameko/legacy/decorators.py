@@ -22,19 +22,3 @@ def ensure(func):
             #    *args, **kwargs)
             return ch((ch, func), connection, *args, **kwargs)
     return wrapped
-
-
-def try_wraps(func):
-    """Marks a function as wrapping another one using `functools.wraps`, but
-    fails unobtrusively when this isn't possible"""
-    do_wrap = functools.wraps(func)
-
-    def try_to_wrap(inner):
-        try:
-            return do_wrap(inner)
-        except AttributeError:
-            # Some objects don't have all the attributes needed in order to
-            # be wrapped. Fail gracefully and don't wrap.
-            return inner
-
-    return try_to_wrap

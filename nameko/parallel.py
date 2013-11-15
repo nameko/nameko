@@ -6,7 +6,7 @@ from logging import getLogger
 
 from concurrent import futures
 import greenlet
-from nameko.decorators import try_wraps
+from nameko.utils import try_wraps
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 
 
