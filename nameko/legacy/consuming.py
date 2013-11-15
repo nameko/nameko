@@ -1,5 +1,6 @@
 import eventlet
 from kombu.common import itermessages
+
 from nameko.exceptions import WaiterTimeout
 
 

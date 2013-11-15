@@ -1,7 +1,7 @@
 import kombu
 
-from nameko.context import Context
-from nameko import nova
+from nameko.legacy.context import Context
+from nameko.legacy import nova
 
 
 def get_anon_context():

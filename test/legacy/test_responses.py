@@ -1,6 +1,6 @@
 from mock import Mock
 
-from nameko import responses
+from nameko.legacy import responses
 
 
 def test_iter_rpcresponses():

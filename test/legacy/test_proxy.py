@@ -1,7 +1,7 @@
 from mock import ANY, Mock, patch
 import pytest
 
-from nameko import proxy
+from nameko.legacy import proxy
 from nameko.testing.proxy import MockRPCProxy
 
 

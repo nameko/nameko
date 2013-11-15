@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from nameko.channelhandler import ChannelHandler
+from nameko.legacy.channelhandler import ChannelHandler
 
 
 def test_ensure():

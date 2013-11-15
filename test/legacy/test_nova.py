@@ -3,11 +3,11 @@ from kombu import Producer
 import mock
 import pytest
 
-from nameko import context
-from nameko import nova
-from nameko.consuming import queue_iterator
+from nameko.legacy import context
+from nameko.legacy import nova
+from nameko.legacy.consuming import queue_iterator
+from nameko.legacy.responses import ifirst
 from nameko.exceptions import RemoteError
-from nameko.responses import ifirst
 
 
 def test_delegation_to_send_rpc():
@@ -22,7 +22,7 @@ def test_delegation_to_send_rpc():
     exchange = 'spam_exchange'
     options = {'CONTROL_EXCHANGE': exchange}
 
-    with mock.patch('nameko.nova.send_rpc') as send_rpc:
+    with mock.patch('nameko.legacy.nova.send_rpc') as send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout, options=options)
@@ -44,7 +44,7 @@ def test_delegation_to_send_rpc_default_exchange():
     timeout = 123
     exchange = 'rpc'
 
-    with mock.patch('nameko.nova.send_rpc') as send_rpc:
+    with mock.patch('nameko.legacy.nova.send_rpc') as send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout)
