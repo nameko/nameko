@@ -1,4 +1,4 @@
-from nameko.proxy import RPCProxy
+from nameko.legacy.proxy import RPCProxy
 
 _state = {}
 

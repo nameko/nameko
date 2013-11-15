@@ -1,7 +1,7 @@
 import unittest
 
-from nameko import context
-from nameko.nova import parse_message
+from nameko.legacy import context
+from nameko.legacy.nova import parse_message
 
 
 class TestContext(unittest.TestCase):

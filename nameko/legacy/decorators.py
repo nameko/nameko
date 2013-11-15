@@ -1,7 +1,7 @@
 
 import functools
 
-from nameko.channelhandler import ChannelHandler
+from nameko.legacy.channelhandler import ChannelHandler
 
 
 def autoretry(func):
