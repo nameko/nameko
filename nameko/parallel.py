@@ -16,19 +16,19 @@ _log = getLogger(__name__)
 
 class ParallelProxyManager(object):
     def __init__(self, thread_provider):
-        self.thread_provider = thread_provider
+        self.container = thread_provider
 
     @contextmanager
     def __call__(self, to_wrap):
-        executor = ParallelExecutor(self.thread_provider)
+        executor = ParallelExecutor(self.container)
         proxy = ParallelProxy(executor, to_wrap)
         with executor:
             yield proxy
 
 
 class ParallelExecutor(futures.Executor):
-    def __init__(self, thread_provider):
-        self.thread_provider = thread_provider
+    def __init__(self, container):
+        self.container = container
         self._spawned_threads = set()
         self._shutdown = False
         self._shutdown_lock = Lock()
@@ -54,7 +54,7 @@ class ParallelExecutor(futures.Executor):
                     self._handle_call_complete(f, result=result)
                     return result, None
 
-            t = self.thread_provider.spawn_managed_thread(do_function_call)
+            t = self.container.spawn_managed_thread(do_function_call)
             self._spawned_threads.add(t)
             t.link(partial(self._handle_thread_exited, f))
 
