@@ -15,7 +15,8 @@ develop: requirements
 	python setup.py develop
 
 pytest:
-	py.test --cov nameko test --cov-report term-missing
+	coverage run --source nameko -m pytest test
+	coverage report
 
 flake8:
 	flake8 nameko test

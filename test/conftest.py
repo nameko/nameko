@@ -10,6 +10,11 @@ from urlparse import urlparse
 from pyrabbit.api import Client
 import pytest
 
+from nameko.containers import ServiceContainer, WorkerContext
+from nameko.dependencies import DependencyFactory
+from nameko.rpc import RpcProxyProvider
+
+
 running_services = []
 all_containers = []
 
@@ -109,10 +114,9 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
 def container_factory(request, reset_rabbit):
 
     def make_container(service_cls, config, worker_ctx_cls=None):
-        from nameko.containers import ServiceContainer
         if worker_ctx_cls is None:
-            from nameko.containers import WorkerContext
             worker_ctx_cls = WorkerContext
+
         container = ServiceContainer(service_cls, worker_ctx_cls, config)
         all_containers.append(container)
         return container
@@ -131,9 +135,6 @@ def container_factory(request, reset_rabbit):
 
 @pytest.fixture
 def service_proxy_factory(request):
-    from nameko.dependencies import DependencyFactory
-    from nameko.rpc import RpcProxyProvider
-
     def make_proxy(container, service_name, worker_ctx=None):
         if worker_ctx is None:
             worker_ctx_cls = container.worker_ctx_cls
