@@ -65,12 +65,20 @@ class ParallelExecutor(futures.Executor):
             return f
 
     def _handle_call_complete(self, future, result=None, exc=None):
+        """
+        Set a result or exception on ``future``
+
+        Called when the future's function completes, inside the spawned thread.
+        """
         if exc:
             future.set_exception(exc)
         else:
             future.set_result(result)
 
     def _handle_thread_exited(self, future, gt):
+        """
+        Handle the completion of a thread spawned for a future.
+        """
         with self._shutdown_lock:
             self._spawned_threads.remove(gt)
             try:
