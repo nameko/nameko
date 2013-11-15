@@ -25,18 +25,18 @@ Here's the business logic:
 .. code:: python
 
     class HelloWorld(object):
-      
+
         def hello(self, name):
             print "Hello, {}!".format(name)
-        
+
 To make it respond to an event, we have to make ``hello`` an event handler:
 
 .. code:: python
 
     from nameko.events import event_handler
-   
+
     class HelloWorld(object):
-     
+
         @event_handler('friendlyservice', 'hello')
         def hello(self, name):
             print "Hello, {}!".format(name)
@@ -53,10 +53,10 @@ called. Let's create ``FriendlyService`` now:
         type = "hello"
 
    class FriendlyService(object):
-      
+
        name = "friendlyservice"
        dispatch = EventDispatcher()
-   
+
        @timer(interval=5)
        def say_hello(self):
            self.dispatch(HelloEvent(self.name))
@@ -66,8 +66,8 @@ event every 5 seconds. Let's use nameko to make these two services interact:
 
 .. code:: python
 
-    from nameko.service import ServiceRunner
-    
+    from nameko.runners import ServiceRunner
+
     config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/'}
     runner = ServiceRunner(config)
     runner.add_service(HelloWorld)
@@ -92,7 +92,7 @@ Adder service:
     from nameko.rpc import rpc
 
     class AdderService(object):
-      
+
         @rpc
         def add(self, x, y):
             return x + y
@@ -108,12 +108,12 @@ Adder client:
 
     from nameko.rpc import rpc, Service
     from nameko.timer import timer
-    
-    
+
+
     class RpcClient(object):
-   
+
         adder = Service('adderservice')
-      
+
         @timer(interval=2)
         def add(self):
             x = random.randint(0, 10)
@@ -121,7 +121,7 @@ Adder client:
             res = self.adder.add(x, y)
             print "{} + {} = {}".format(x, y, res)
 
-        
+
 Messaging Example
 =================
 
@@ -145,7 +145,7 @@ consume from AMQP directly.
         """ Publish messages to the ``demo_ex`` exchange every two seconds.
         """
         publish = Publisher(exchange=demo_ex)
-   
+
         @timer(interval=2)
         def send_msg(self):
             msg = "log-{}".format(uuid.uuid4())
@@ -186,25 +186,25 @@ lifecycle management to open, close and flush the file at apppropriate points.
 .. code:: python
 
    class LogFile(InjectionProvider):
-      
+
       # called at dependency creation time (i.e. service definition)
       def __init__(self, path):
          self.path = path
-   
+
       # called when the service container starts
       def prepare(self, srv_ctx):
          self.file_handle = open(self.path, 'w')
-   
+
       # called when the service container stops
       def stop(self, srv_ctx):
          self.file_handle.close()
-   
+
       # called before this dependency's service handles any call
       def acquire_injection(self, worker_ctx):
          def log(msg):
             self.file_handle.write(msg + "\n")
          return log
-   
+
       # called after this dependency's service handles a call
       def release_injection(self, worker_ctx):
          self.file_handle.flush()
@@ -218,9 +218,9 @@ To incorporate this dependency into our ``MessagingConsumer``, we'd do this:
 .. code:: python
 
     class MessagingConsumer(object):
-      
+
         log = LogFile('/var/log/nameko.log')
-   
+
         @consume(demo_queue)
         def process(self, payload):
             self.log(payload)

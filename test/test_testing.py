@@ -70,7 +70,7 @@ def test_get_dependency(rabbit_config):
 
     from nameko.messaging import QueueConsumer
     from nameko.rpc import rpc, RpcProvider, RpcConsumer
-    from nameko.service import ServiceContainer, WorkerContext
+    from nameko.containers import ServiceContainer, WorkerContext
 
     class Service(object):
         @rpc

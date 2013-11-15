@@ -109,9 +109,9 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
 def container_factory(request, reset_rabbit):
 
     def make_container(service_cls, config, worker_ctx_cls=None):
-        from nameko.service import ServiceContainer
+        from nameko.containers import ServiceContainer
         if worker_ctx_cls is None:
-            from nameko.service import WorkerContext
+            from nameko.containers import WorkerContext
             worker_ctx_cls = WorkerContext
         container = ServiceContainer(service_cls, worker_ctx_cls, config)
         all_containers.append(container)

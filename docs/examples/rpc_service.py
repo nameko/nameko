@@ -7,7 +7,7 @@ eventlet.monkey_patch()
 
 
 from nameko.rpc import rpc
-from nameko.service import ServiceRunner
+from nameko.runners import ServiceRunner
 
 
 class AdderService(object):

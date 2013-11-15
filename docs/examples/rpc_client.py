@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 import random
 
 from nameko.rpc import rpc_proxy
-from nameko.service import ServiceRunner
+from nameko.runners import ServiceRunner
 from nameko.timer import timer
 
 

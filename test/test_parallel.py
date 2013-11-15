@@ -3,10 +3,12 @@ import eventlet
 from mock import Mock, MagicMock
 import pytest
 from nameko.dependencies import get_injection_providers
-from nameko.parallel import ParallelExecutor, parallel_provider, \
-    ParallelProvider, ParallelProxyFactory, ProxySettingUnsupportedException
-from nameko.service import ManagedThreadContainer, ServiceContainer, \
-    WorkerContext, ServiceRunner
+from nameko.parallel import (
+    ParallelExecutor, parallel_provider, ParallelProvider,
+    ParallelProxyFactory, ProxySettingUnsupportedException)
+from nameko.containers import (
+    ManagedThreadContainer, ServiceContainer, WorkerContext)
+from nameko.runners import ServiceRunner
 from nameko.testing.utils import wait_for_call
 from nameko.timer import timer
 

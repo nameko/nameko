@@ -6,7 +6,7 @@ from nameko.dependencies import (
     injection, InjectionProvider, get_injection_providers,
     DependencyFactory, DependencyTypeError, dependency,
     DependencyProvider, PROCESS_SHARED, CONTAINER_SHARED)
-from nameko.service import ServiceContainer, WorkerContext
+from nameko.containers import ServiceContainer, WorkerContext
 
 
 class SharedProvider(DependencyProvider):

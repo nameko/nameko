@@ -1,6 +1,6 @@
 import pytest
 
-from nameko.service import ServiceRunner
+from nameko.runners import ServiceRunner
 
 
 class TestService1(object):

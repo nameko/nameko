@@ -8,7 +8,7 @@ eventlet.monkey_patch()
 import logging
 logger = logging.getLogger(__name__)
 
-from nameko.service import ServiceRunner
+from nameko.runners import ServiceRunner
 from nameko.events import Event, event_dispatcher, event_handler
 from nameko.timer import timer
 

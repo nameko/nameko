@@ -8,7 +8,7 @@ import pytest
 from nameko.exceptions import RemoteError
 from nameko.events import event_dispatcher, EventDispatcher
 from nameko.rpc import rpc, rpc_proxy, RpcConsumer
-from nameko.service import ServiceRunner
+from nameko.runners import ServiceRunner
 from nameko.testing.utils import get_dependency
 
 
@@ -36,7 +36,7 @@ class ExampleService(object):
 
 @pytest.yield_fixture
 def logger():
-    with patch('nameko.service._log') as logger:
+    with patch('nameko.containers._log') as logger:
         yield logger
 
 
@@ -124,7 +124,7 @@ def test_runner_catches_container_errors(container_factory, rabbit_config,
     # we can't actually start the container until we've had a chance to
     # attach service_proxy, but we can't access the containers until we
     # call runner.start
-    with mock.patch('nameko.service.SpawningProxy'):
+    with mock.patch('nameko.runners.SpawningProxy'):
         runner.start()
 
     container = runner.containers[0]
