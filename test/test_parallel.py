@@ -4,7 +4,7 @@ from mock import Mock, MagicMock
 import pytest
 from nameko.dependencies import get_injection_providers
 from nameko.parallel import ParallelExecutor, parallel_provider, \
-    ParallelProvider, ParallelProxyManager
+    ParallelProvider, ParallelProxyFactory
 from nameko.service import ManagedThreadContainer, ServiceContainer, \
     WorkerContext, ServiceRunner
 from nameko.testing.utils import wait_for_call
@@ -78,7 +78,7 @@ def test_parallel_proxy_cm():
     to_wrap.wrapped_attribute = 2
     to_call = Mock()
     to_wrap.wrapped_call = to_call
-    with ParallelProxyManager(ManagedThreadContainer())(to_wrap) as wrapped:
+    with ParallelProxyFactory(ManagedThreadContainer())(to_wrap) as wrapped:
         # Non-callables are returned immediately
         assert wrapped.wrapped_attribute == 2
         wrapped.wrapped_call(5)

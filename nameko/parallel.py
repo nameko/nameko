@@ -14,7 +14,7 @@ from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 _log = getLogger(__name__)
 
 
-class ParallelProxyManager(object):
+class ParallelProxyFactory(object):
     def __init__(self, thread_provider):
         self.container = thread_provider
 
@@ -54,12 +54,12 @@ class ParallelExecutor(futures.Executor):
                     self._handle_call_complete(f, result=result)
                     return result, None
 
-            t = self.container.spawn_managed_thread(do_function_call)
-            self._spawned_threads.add(t)
-            t.link(partial(self._handle_thread_exited, f))
+            gt = self.container.spawn_managed_thread(do_function_call)
+            self._spawned_threads.add(gt)
+            gt.link(partial(self._handle_thread_exited, f))
 
-            # Thread with this future starts immediately: you have no
-            # opportunity to cancel it
+            # Mark the future as running immediately. It's not possible for it
+            # to have been cancelled.
             f.set_running_or_notify_cancel()
 
             return f
@@ -85,7 +85,8 @@ class ParallelExecutor(futures.Executor):
                 gt.wait()
             except greenlet.GreenletExit as green_exit:
                 # 'Normal' errors with the submitted function call are handled
-                # by `_handle_call_complete`
+                # by `_handle_call_complete`. This only occurs when the
+                # container is killed before the future's thread exits.
                 future.set_exception(green_exit)
 
     def shutdown(self, wait=True):
@@ -118,12 +119,12 @@ class ParallelProxy(object):
         self.executor = executor
         self.to_wrap = to_wrap
 
-    def __getattr__(self, item):
+    def __getattr__(self, name):
         """
         Callables accessed on the wrapped object are performed by the executor
         calling `submit`
         """
-        wrapped_attribute = getattr(self.to_wrap, item)
+        wrapped_attribute = getattr(self.to_wrap, name)
         if callable(wrapped_attribute):
             # Give name/docs of wrapped_attribute to do_submit
             @try_wraps(wrapped_attribute)
@@ -134,12 +135,8 @@ class ParallelProxy(object):
 
 
 class ParallelProvider(InjectionProvider):
-    def __init__(self):
-        self.proxy_manager = None
-
     def acquire_injection(self, worker_ctx):
-        self.proxy_manager = ParallelProxyManager(self.container)
-        return self.proxy_manager
+        return ParallelProxyFactory(self.container)
 
 
 @injection
