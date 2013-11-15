@@ -3,7 +3,6 @@ from contextlib import contextmanager
 from functools import partial
 
 from logging import getLogger
-from threading import Lock
 
 from concurrent import futures
 import greenlet
@@ -31,38 +30,36 @@ class ParallelExecutor(futures.Executor):
         self.container = container
         self._spawned_threads = set()
         self._shutdown = False
-        self._shutdown_lock = Lock()
 
     def submit(self, func, *args, **kwargs):
-        with self._shutdown_lock:
-            if self._shutdown:
-                raise RuntimeError('cannot schedule new futures after '
-                                   'shutdown')
+        if self._shutdown:
+            raise RuntimeError('cannot schedule new futures after '
+                               'shutdown')
 
-            f = futures.Future()
+        f = futures.Future()
 
-            @try_wraps(func)
-            def do_function_call():
-                # A failure on the function call doesn't propagate up and kill
-                # the container: it's marked on the future only.
-                try:
-                    result = func(*args, **kwargs)
-                except Exception as exc:
-                    self._handle_call_complete(f, exc=exc)
-                    return None, exc
-                else:
-                    self._handle_call_complete(f, result=result)
-                    return result, None
+        @try_wraps(func)
+        def do_function_call():
+            # A failure on the function call doesn't propagate up and kill
+            # the container: it's marked on the future only.
+            try:
+                result = func(*args, **kwargs)
+            except Exception as exc:
+                self._handle_call_complete(f, exc=exc)
+                return None, exc
+            else:
+                self._handle_call_complete(f, result=result)
+                return result, None
 
-            gt = self.container.spawn_managed_thread(do_function_call)
-            self._spawned_threads.add(gt)
-            gt.link(partial(self._handle_thread_exited, f))
+        gt = self.container.spawn_managed_thread(do_function_call)
+        self._spawned_threads.add(gt)
+        gt.link(partial(self._handle_thread_exited, f))
 
-            # Mark the future as running immediately. It's not possible for it
-            # to have been cancelled.
-            f.set_running_or_notify_cancel()
+        # Mark the future as running immediately. It's not possible for it
+        # to have been cancelled.
+        f.set_running_or_notify_cancel()
 
-            return f
+        return f
 
     def _handle_call_complete(self, future, result=None, exc=None):
         """
@@ -79,15 +76,14 @@ class ParallelExecutor(futures.Executor):
         """
         Handle the completion of a thread spawned for a future.
         """
-        with self._shutdown_lock:
-            self._spawned_threads.remove(gt)
-            try:
-                gt.wait()
-            except greenlet.GreenletExit as green_exit:
-                # 'Normal' errors with the submitted function call are handled
-                # by `_handle_call_complete`. This only occurs when the
-                # container is killed before the future's thread exits.
-                future.set_exception(green_exit)
+        self._spawned_threads.remove(gt)
+        try:
+            gt.wait()
+        except greenlet.GreenletExit as green_exit:
+            # 'Normal' errors with the submitted function call are handled
+            # by `_handle_call_complete`. This only occurs when the
+            # container is killed before the future's thread exits.
+            future.set_exception(green_exit)
 
     def shutdown(self, wait=True):
         """
@@ -96,11 +92,12 @@ class ParallelExecutor(futures.Executor):
         This method is called when automatically ParallelExecutor is used as a
         Context Manager
         """
-        with self._shutdown_lock:
-            self._shutdown = True
-            if wait:
-                for thread in self._spawned_threads:
-                    thread.wait()
+        self._shutdown = True
+        if wait:
+            # Fix the list of threads to wait for, so threads that remove while
+            # waiting don't change the iterator
+            for thread in list(self._spawned_threads):
+                thread.wait()
 
 
 class ParallelProxy(object):
