@@ -4,7 +4,7 @@ from mock import Mock, MagicMock
 import pytest
 from nameko.dependencies import get_injection_providers
 from nameko.parallel import ParallelExecutor, parallel_provider, \
-    ParallelProvider, ParallelProxyFactory
+    ParallelProvider, ParallelProxyFactory, ProxySettingUnsupportedException
 from nameko.service import ManagedThreadContainer, ServiceContainer, \
     WorkerContext, ServiceRunner
 from nameko.testing.utils import wait_for_call
@@ -81,9 +81,22 @@ def test_parallel_proxy_cm():
     with ParallelProxyFactory(ManagedThreadContainer())(to_wrap) as wrapped:
         # Non-callables are returned immediately
         assert wrapped.wrapped_attribute == 2
+
         wrapped.wrapped_call(5)
     # No waiting, the context manager handles that
     to_call.assert_called_with(5)
+
+
+def test_proxy_read_only():
+    class Dummy(object):
+        pass
+
+    dummy = Dummy()
+
+    with ParallelProxyFactory(ManagedThreadContainer())(dummy) as wrapped:
+        # Setting attributes is not allowed
+        with pytest.raises(ProxySettingUnsupportedException):
+            wrapped.set_me = 1
 
 
 def everlasting_call():

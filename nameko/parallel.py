@@ -110,14 +110,13 @@ class ParallelProxy(object):
         by the executor.
 
         Attribute access and function calls on the wrapped object can be
-        performed as normal, but writing to fields
-        is not allowed.
+        performed as normal, but writing to fields is not allowed.
 
         You can use this as a context manager: it uses the associated executor
         as one.
         """
-        self.executor = executor
-        self.to_wrap = to_wrap
+        self.__dict__['executor'] = executor
+        self.__dict__['to_wrap'] = to_wrap
 
     def __getattr__(self, name):
         """
@@ -132,6 +131,16 @@ class ParallelProxy(object):
                 return self.executor.submit(wrapped_attribute, *args, **kwargs)
             return do_submit
         return wrapped_attribute
+
+    def __setattr__(self, key, value):
+        """
+        Attribute setting is unsupported on proxy objects
+        """
+        raise ProxySettingUnsupportedException()
+
+
+class ProxySettingUnsupportedException(Exception):
+    pass
 
 
 class ParallelProvider(InjectionProvider):
