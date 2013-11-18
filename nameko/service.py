@@ -69,49 +69,17 @@ class WorkerContext(WorkerContextBase):
     data_keys = NAMEKO_DATA_KEYS
 
 
-class ServiceContainer(object):
-
-    def __init__(self, service_cls, worker_ctx_cls, config):
-        self.service_cls = service_cls
-        self.worker_ctx_cls = worker_ctx_cls
-
-        self.service_name = get_service_name(service_cls)
-
-        self.config = config
-        self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
-
-        self.dependencies = DependencySet()
-        for dep in get_dependencies(self):
-            self.dependencies.add(dep)
-
-        self._worker_pool = GreenPool(size=self.max_workers)
+class ManagedThreadContainer(object):
+    def __init__(self):
         self._active_threads = set()
         self._being_killed = False
         self._died = Event()
 
-    def start(self):
-        """ Start a container by starting all the dependency providers.
-        """
-        _log.debug('starting %s', self)
-
-        with log_time(_log.debug, 'started %s in %0.3f sec', self):
-            self.dependencies.all.prepare()
-            self.dependencies.all.start()
-
     def stop(self):
         """ Stop the container gracefully.
 
-        First all entrypoints are asked to ``stop()``.
-        This ensures that no new worker threads are started.
-
-        It is the providers' responsiblity to gracefully shut down when
-        ``stop()`` is called on them and only return when they have stopped.
-
-        After all entrypoints have stopped the container waits for any
-        active workers to complete.
-
-        After all active workers have stopped the container stops all
-        injections.
+        `_handle_container_stop` is called to give sub-classes an opportunity
+        to clean up dependencies.
 
         At this point there should be no more active threads. In case there
         are any active threads, they are killed by the container.
@@ -123,23 +91,7 @@ class ServiceContainer(object):
         _log.debug('stopping %s', self)
 
         with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
-
-            dependencies = self.dependencies
-
-            # entrypoint deps have to be stopped before injection deps
-            # to ensure that running workers can successfully complete
-            dependencies.entrypoints.all.stop()
-
-            # there might still be some running workers, which we have to
-            # wait for to complete before we can stop injection dependencies
-            self._worker_pool.waitall()
-
-            # it should be safe now to stop any injection as there is no
-            # active worker which could be using it
-            dependencies.injections.all.stop()
-
-            # finally, stop nested dependencies
-            dependencies.nested.all.stop()
+            self._handle_container_stop()
 
             # just in case there was a provider not taking care of it's worker
             self._kill_active_threads()
@@ -149,15 +101,9 @@ class ServiceContainer(object):
     def kill(self, exc):
         """ Kill the container in a semi-graceful way.
 
-        First all dependencies have a chance to kill themselves
-        within a given time limit (``KILL_TIMEOUT``).
-
-        To do so they must implement a ``kill(exc)`` method and take care
-        of shutting down any resources when that method is called on them.
-
-        After all the dependencies have been killed or ``KILL_TIMEOUT``
-        has been reached, all remaining active threads, worker and
-        managed ones, are explicitly killed by the container.
+        `_handle_container_kill` is called to give sub-classes an opportunity
+        to clean up dependencies. Once complete, any remaining active threads
+        are killed.
 
         The container dies with the given ``exc``.
         """
@@ -174,53 +120,12 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        _log.info('killing %s due to: %s', self, exc)
+        _log.info('killing %s due to "%s"', self, exc)
 
-        self._kill_dependencies(exc)
+        self._handle_container_kill(exc)
+
         self._kill_active_threads()
-
         self._died.send_exception(exc)
-
-    def _kill_dependencies(self, exc):
-        try:
-            with eventlet.Timeout(KILL_TIMEOUT):
-                self.dependencies.all.kill(exc)
-        except eventlet.Timeout:
-            _log.warning('timeout waiting for dependencies.kill %s', self)
-
-    def _kill_active_threads(self):
-        num_active_threads = len(self._active_threads)
-
-        if num_active_threads:
-            _log.warning('killing (%s) active threads', num_active_threads)
-            for gt in list(self._active_threads):
-                gt.kill()
-
-    def spawn_worker(self, provider, args, kwargs,
-                     context_data=None, handle_result=None):
-        """ Spawn a worker thread for running the service method decorated
-        with an entrypoint ``provider``.
-
-        ``args`` and ``kwargs`` are used as arguments for the service
-        method.
-
-        ``context_data`` is used to initialize a ``WorkerContext``.
-
-        ``handle_result`` is an optional callback which may be passed
-        in by the calling entrypoint provider. It is called with the
-        result returned or error raised by the service method.
-        """
-
-        service = self.service_cls()
-        worker_ctx = self.worker_ctx_cls(
-            self, service, provider.name, args, kwargs, data=context_data)
-
-        _log.debug('spawning %s', worker_ctx)
-        gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
-                                     handle_result)
-        self._active_threads.add(gt)
-        gt.link(self._handle_thread_exited)
-        return worker_ctx
 
     def wait(self):
         """ Block until the container has been stopped.
@@ -253,6 +158,152 @@ class ServiceContainer(object):
         self._active_threads.add(gt)
         gt.link(self._handle_thread_exited)
         return gt
+
+    def _handle_container_stop(self):
+        """
+        Called when a container is stopped, this is an opportunity to
+        gracefully stop any dependencies a subclass may accrue.
+        """
+        return
+
+    def _handle_container_kill(self, exc):
+        """
+        Called when a container is killed, this is an opportunity to kill any
+        dependencies a subclass may accrue
+        """
+        return
+
+    def _kill_active_threads(self):
+        num_active_threads = len(self._active_threads)
+
+        if num_active_threads:
+            _log.warning('killing (%s) active threads', num_active_threads)
+            for gt in list(self._active_threads):
+                gt.kill()
+
+    def _handle_thread_exited(self, gt):
+        self._active_threads.remove(gt)
+
+        try:
+            gt.wait()
+
+        except greenlet.GreenletExit:
+            # we don't care much about threads killed by the container
+            # this can happen in stop() and kill() if providers
+            # don't properly take care of their threads
+            _log.warning('%s thread killed by container', self)
+
+        except Exception as exc:
+            _log.error('%s thread exited with error', self,
+                       exc_info=True)
+            # any error raised inside an active thread is unexpected behavior
+            # and probably a bug in the providers or container
+            # to be safe we kill the container
+            self.kill(exc)
+
+
+class ServiceContainer(ManagedThreadContainer):
+
+    def __init__(self, service_cls, worker_ctx_cls, config):
+        super(ServiceContainer, self).__init__()
+        self.service_cls = service_cls
+        self.worker_ctx_cls = worker_ctx_cls
+
+        self.service_name = get_service_name(service_cls)
+
+        self.config = config
+        self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
+
+        self.dependencies = DependencySet()
+        for dep in get_dependencies(self):
+            self.dependencies.add(dep)
+
+        self._worker_pool = GreenPool(size=self.max_workers)
+
+    def start(self):
+        """ Start a container by starting all the dependency providers.
+        """
+        _log.debug('starting %s', self)
+
+        with log_time(_log.debug, 'started %s in %0.3f sec', self):
+            self.dependencies.all.prepare()
+            self.dependencies.all.start()
+
+    def spawn_worker(self, provider, args, kwargs,
+                     context_data=None, handle_result=None):
+        """ Spawn a worker thread for running the service method decorated
+        with an entrypoint ``provider``.
+
+        ``args`` and ``kwargs`` are used as arguments for the service
+        method.
+
+        ``context_data`` is used to initialize a ``WorkerContext``.
+
+        ``handle_result`` is an optional callback which may be passed
+        in by the calling entrypoint provider. It is called with the
+        result returned or error raised by the service method.
+        """
+
+        service = self.service_cls()
+        worker_ctx = self.worker_ctx_cls(
+            self, service, provider.name, args, kwargs, data=context_data)
+
+        _log.debug('spawning %s', worker_ctx)
+        gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
+                                     handle_result)
+        self._active_threads.add(gt)
+        gt.link(self._handle_thread_exited)
+        return worker_ctx
+
+    def _handle_container_stop(self):
+        """ Stop the container gracefully.
+
+        First all entrypoints are asked to ``stop()``.
+        This ensures that no new worker threads are started.
+
+        It is the providers' responsiblity to gracefully shut down when
+        ``stop()`` is called on them and only return when they have stopped.
+
+        After all entrypoints have stopped the container waits for any
+        active workers to complete.
+
+        After all active workers have stopped the container stops all
+        injections.
+        """
+        dependencies = self.dependencies
+
+        # entrypoint deps have to be stopped before injection deps
+        # to ensure that running workers can successfully complete
+        dependencies.entrypoints.all.stop()
+
+        # there might still be some running workers, which we have to
+        # wait for to complete before we can stop injection dependencies
+        self._worker_pool.waitall()
+
+        # it should be safe now to stop any injection as ther is no
+        # active worker which could be using it
+        dependencies.injections.all.stop()
+
+        # finally, stop nested dependencies
+        dependencies.nested.all.stop()
+
+    def _handle_container_kill(self, exc):
+        """ Kill the container in a semi-graceful way.
+
+        First all dependencies have a chance to kill themselves
+        within a given time limit (``KILL_TIMEOUT``).
+
+        To do so they must implement a ``kill(exc)`` method and take care
+        of shutting down any resources when that method is called on them.
+        """
+        self._kill_dependencies(exc)
+
+    def _kill_dependencies(self, exc):
+        try:
+            with eventlet.Timeout(KILL_TIMEOUT):
+                self.dependencies.all.kill(exc)
+        except eventlet.Timeout:
+            _log.warning('timeout waiting for dependencies.kill %s', self)
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
@@ -292,26 +343,6 @@ class ServiceContainer(object):
                 _log.debug('tearing down %s', worker_ctx)
                 self.dependencies.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
-
-    def _handle_thread_exited(self, gt):
-        self._active_threads.remove(gt)
-
-        try:
-            gt.wait()
-
-        except greenlet.GreenletExit:
-            # we don't care much about threads killed by the container
-            # this can happen in stop() and kill() if providers
-            # don't properly take care of their threads
-            _log.warning('%s thread killed by container', self)
-
-        except Exception as exc:
-            _log.error('%s thread exited with error', self,
-                       exc_info=True)
-            # any error raised inside an active thread is unexpected behavior
-            # and probably a bug in the providers or container
-            # to be safe we kill the container
-            self.kill(exc)
 
     def __str__(self):
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
