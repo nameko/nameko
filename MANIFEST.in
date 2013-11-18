@@ -1,1 +1,1 @@
-include readme.rst LICENSE requirements.txt test_requirements.txt
+include readme.rst LICENSE requirements.txt test_requirements.txt contrib_requirements.txt
