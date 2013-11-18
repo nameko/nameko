@@ -1,6 +1,7 @@
 import unittest
 
-from nameko import context
+from nameko.legacy import context
+from nameko.legacy.nova import parse_message
 
 
 class TestContext(unittest.TestCase):
@@ -98,7 +99,7 @@ class TestContext(unittest.TestCase):
 
         ctx.add_to_message(message)
 
-        msg_id, new_ctx, method, args = context.parse_message(message)
+        msg_id, new_ctx, method, args = parse_message(message)
 
         assert msg_id == message_base['_msg_id']
         assert id(ctx) != id(new_ctx)

@@ -1,3 +1,6 @@
+# See https://bugs.launchpad.net/pyflakes/+bug/1223150
+export PYFLAKES_NODOCTEST=1
+
 noop:
 	@true
 
@@ -12,7 +15,8 @@ develop: requirements
 	python setup.py develop
 
 pytest:
-	py.test --cov nameko test --cov-report term-missing
+	coverage run --source nameko -m pytest test
+	coverage report
 
 flake8:
 	flake8 nameko test
@@ -20,6 +24,10 @@ flake8:
 pylint:
 	pylint nameko -E
 
-test: pytest pylint flake8
+test: pytest pylint flake8 coverage_check
 
 full-test: requirements test
+
+coverage_check:
+	coverage report | grep "TOTAL.*100%" > /dev/null
+

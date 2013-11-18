@@ -47,20 +47,24 @@ def parse_requirements(fn, dependency_links):
 requirements, dependency_links = parse_requirements(
     join(setup_dir, 'requirements.txt'), [])
 
+contrib_requirements, dependency_links = parse_requirements(
+    join(setup_dir, 'contrib_requirements.txt'),
+    dependency_links)
+
 test_requirements, dependency_links = parse_requirements(
     join(setup_dir, 'test_requirements.txt'),
     dependency_links)
 
 setup(
     name='nameko',
-    version='0.7.0',
+    version='1.0.0',
     description='service framework supporting multiple'
                 'messaging and RPC implementations',
     author='onefinestay',
     author_email='engineering@onefinestay.com',
     url='http://github.com/onefinestay/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
-    install_requires=requirements,
+    install_requires=requirements + contrib_requirements,
     tests_require=test_requirements,
     dependency_links=dependency_links,
     zip_safe=True,

@@ -1,71 +1,93 @@
 import eventlet
-from nameko.timer import timer, get_timers, get_timer, Timer
+from eventlet import Timeout
+
+from mock import Mock
+
+from nameko.timer import TimerProvider
+from nameko.containers import ServiceContainer
+from nameko.testing.utils import wait_for_call
 
 
-class FooError(Exception):
-    pass
+def test_provider():
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = Mock()
+    container.spawn_managed_thread = eventlet.spawn
+
+    timer = TimerProvider(interval=0, config_key=None)
+    timer.bind('foobar', container)
+    timer.prepare()
+
+    assert timer.interval == 0
+
+    timer.start()
+
+    with wait_for_call(1, container.spawn_worker) as spawn_worker:
+        with Timeout(1):
+            timer.stop()
+
+    # the timer should have stopped and should only have spawned
+    # a single worker
+    spawn_worker.assert_called_once_with(timer, (), {})
+
+    assert timer.gt.dead
 
 
-class Foobar(object):
-    def __init__(self, raise_at_call=0):
-        self.timer_calls = 0
-        self.raise_at_call = raise_at_call
+def test_provider_uses_config_for_interval():
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = {'spam-conf': 10}
+    container.spawn_managed_thread = eventlet.spawn
 
-    @timer(interval=0)
-    def foobar(self):
-        self.timer_calls += 1
-        if self.timer_calls == self.raise_at_call:
-            raise FooError('error in call: %d' % self.timer_calls)
+    timer = TimerProvider(interval=None, config_key='spam-conf')
+    timer.bind('foobar', container)
+    timer.prepare()
 
-
-def test_get_timers():
-    foo = Foobar()
-    timers = list(get_timers(foo))
-
-    assert len(timers) == 1
-    tmr = timers[0]
-
-    assert isinstance(tmr, Timer)
-    assert tmr.interval == 0
-    assert tmr.func == foo.foobar
+    assert timer.interval == 10
 
 
-def test_set_interval():
-    foo = Foobar()
-    get_timer(foo.foobar).interval = 5
-    tmr = get_timer(foo.foobar)
-    assert tmr.interval == 5
+def test_provider_interval_as_config_fallback():
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = {}
 
+    timer = TimerProvider(interval=1, config_key='spam-conf')
+    timer.bind('foobar', container)
+    timer.prepare()
 
-def test_stop_running_timer():
-    foo = Foobar()
-    tmr = get_timer(foo.foobar)
-    tmr.start()
-
-    with eventlet.Timeout(0.5):
-        while foo.timer_calls < 5:
-            eventlet.sleep()
-
-    count = foo.timer_calls
-    tmr.stop()
-    assert foo.timer_calls == count
+    assert timer.interval == 1
 
 
 def test_stop_timer_immediatly():
-    foo = Foobar()
-    tmr = get_timer(foo.foobar)
-    tmr.interval = 5
-    tmr.start()
-    tmr.stop()
-    assert foo.timer_calls == 0
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = {}
+
+    timer = TimerProvider(interval=5, config_key=None)
+    timer.bind('foobar', container)
+    timer.prepare()
+    timer.start()
+    eventlet.sleep(0.1)
+    timer.stop()
+
+    assert container.spawn_worker.call_count == 0
+    assert timer.gt.dead
 
 
-def test_exception_in_timer_method_ignored():
-    foo = Foobar(2)
-    tmr = get_timer(foo.foobar)
-    tmr.start()
-    with eventlet.Timeout(0.5):
-        while foo.timer_calls < 5:
-            eventlet.sleep()
+def test_kill_stops_timer():
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.spawn_managed_thread = eventlet.spawn
 
-    assert foo.timer_calls >= 5
+    timer = TimerProvider(interval=0, config_key=None)
+    timer.bind('foobar', container)
+    timer.prepare()
+    timer.start()
+
+    with wait_for_call(1, container.spawn_worker):
+        timer.kill(Exception('time'))
+
+    # unless the timer is dead, the following nap would cause a timer
+    # to trigger
+    eventlet.sleep(0.1)
+    assert container.spawn_worker.call_count == 1

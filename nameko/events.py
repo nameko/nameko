@@ -26,16 +26,15 @@ import uuid
 
 from kombu import Exchange, Queue
 
-from nameko.messaging import (
-    Publisher, PERSISTENT,
-    ConsumerConfig, consumer_configs)
+from nameko.messaging import PublishProvider, PERSISTENT, ConsumeProvider
+from nameko.dependencies import entrypoint, injection, DependencyFactory
 
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
 BROADCAST = "broadcast"
 
-log = getLogger(__name__)
+_log = getLogger(__name__)
 
 
 def get_event_exchange(service_name):
@@ -110,7 +109,7 @@ class Event(object):
         self.data = data
 
 
-class EventDispatcher(Publisher):
+class EventDispatcher(PublishProvider):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,
@@ -140,23 +139,35 @@ class EventDispatcher(Publisher):
             self.dispatch_spam(evt)
 
     """
-
-    def __init__(self):
-        super(EventDispatcher, self).__init__()
-
-    def get_instance(self, service):
-        service_name = service.topic
+    def prepare(self):
+        service_name = self.container.service_name
         self.exchange = get_event_exchange(service_name)
-        publish = super(EventDispatcher, self).get_instance(service)
+        super(EventDispatcher, self).prepare()
 
+    def acquire_injection(self, worker_ctx):
+        """ Inject a dispatch method onto the service instance
+        """
         def dispatch(evt):
+            exchange = self.exchange
+
             msg = evt.data
             routing_key = evt.type
-            publish(msg, routing_key=routing_key)
+
+            with self.get_producer() as producer:
+
+                headers = self.get_message_headers(worker_ctx)
+                producer.publish(msg, exchange=exchange, headers=headers,
+                                 routing_key=routing_key)
 
         return dispatch
 
 
+@injection
+def event_dispatcher():
+    return DependencyFactory(EventDispatcher)
+
+
+@entrypoint
 def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                   reliable_delivery=True, requeue_on_error=False):
     """
@@ -221,52 +232,49 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             'string a string matching the Event.type value. '
             'Got {}'.format(type(event_type).__name__))
 
-    def event_decorator(fn):
-        consumer_configs[fn] = EventConfig(
-            service_name, event_type, handler_type, reliable_delivery,
-            requeue_on_error)
-        return fn
-
-    return event_decorator
+    return DependencyFactory(EventHandler, service_name, event_type,
+                             handler_type, reliable_delivery, requeue_on_error)
 
 
-class EventConfig(ConsumerConfig):
-    """ Configuration object for an Event listener.
-    """
+class EventHandler(ConsumeProvider):
+
     def __init__(self, service_name, event_type, handler_type,
                  reliable_delivery, requeue_on_error):
+
         self.service_name = service_name
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
-        self.requeue_on_error = requeue_on_error
 
-    def get_queue(self, service, method_name):
-        """ Get a queue for the given ``service`` instance to listen to events
-        with this configuration.
-        """
+        super(EventHandler, self).__init__(
+            queue=None, requeue_on_error=requeue_on_error)
+
+    def prepare(self):
+        _log.debug('starting handler for %s', self.container)
+
         # handler_type determines queue name
+        service_name = self.container.service_name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
                                                    self.event_type,
-                                                   service.topic,
-                                                   method_name)
+                                                   service_name,
+                                                   self.name)
         elif self.handler_type is SINGLETON:
             queue_name = "evt-{}-{}".format(self.service_name,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
                                                       self.event_type,
-                                                      service.topic,
-                                                      method_name,
+                                                      service_name,
+                                                      self.name,
                                                       uuid.uuid4().hex)
 
         exchange = get_event_exchange(self.service_name)
 
         # auto-delete queues if events are not reliably delivered
         auto_delete = not self.reliable_delivery
-        queue = Queue(
+        self.queue = Queue(
             queue_name, exchange=exchange, routing_key=self.event_type,
             durable=True, auto_delete=auto_delete)
 
-        return queue
+        super(EventHandler, self).prepare()
