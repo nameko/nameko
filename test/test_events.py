@@ -9,7 +9,7 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
 from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
-from nameko.service import WorkerContext, ServiceContainer
+from nameko.containers import WorkerContext, ServiceContainer
 from nameko.testing.utils import as_context_manager
 
 

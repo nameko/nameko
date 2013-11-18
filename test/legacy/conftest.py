@@ -3,6 +3,8 @@ from functools import partial
 from kombu import Connection
 import pytest
 
+from nameko.legacy.testing import reset_state
+
 connections = []
 
 
@@ -36,5 +38,4 @@ def get_connection(request, reset_rabbit):
 
 @pytest.fixture(autouse=True)
 def reset_mock_proxy(request):
-    from nameko.legacy.testing import reset_state
     reset_state()

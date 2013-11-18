@@ -10,7 +10,7 @@ import uuid
 from kombu import Exchange
 
 from nameko.messaging import publisher
-from nameko.service import ServiceRunner
+from nameko.runners import ServiceRunner
 from nameko.timer import timer
 
 

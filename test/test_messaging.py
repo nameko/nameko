@@ -5,7 +5,7 @@ from mock import patch, Mock
 from nameko.dependencies import DependencyFactory
 from nameko.messaging import (
     PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
-from nameko.service import (
+from nameko.containers import (
     WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS, ServiceContainer)
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL)

@@ -13,7 +13,7 @@ from nameko.exceptions import RemoteError, MethodNotFound
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
-from nameko.service import (
+from nameko.containers import (
     ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
 from nameko.testing.utils import get_dependency
 

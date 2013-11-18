@@ -4,7 +4,7 @@ from eventlet.event import Event
 import greenlet
 import pytest
 
-from nameko.service import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
+from nameko.containers import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
 
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
@@ -116,7 +116,7 @@ def container():
 
 @pytest.yield_fixture
 def logger():
-    with patch('nameko.service._log') as patched:
+    with patch('nameko.containers._log') as patched:
         yield patched
 
 
@@ -255,7 +255,7 @@ def test_stop_already_stopped(container):
     container.stop()
     assert container._died.ready()
 
-    with patch('nameko.service._log') as logger:
+    with patch('nameko.containers._log') as logger:
         container.stop()
         assert logger.debug.call_args == call("already stopped %s", container)
 
@@ -266,7 +266,7 @@ def test_kill_already_stopped(container):
     container.stop()
     assert container._died.ready()
 
-    with patch('nameko.service._log') as logger:
+    with patch('nameko.containers._log') as logger:
         container.kill(Exception("kill"))
         assert logger.debug.call_args == call("already stopped %s", container)
 
@@ -286,7 +286,7 @@ def test_kill_misbehaving_dependency(container, logger):
     exc = Killed("kill")
 
     with patch.object(dep, 'kill', sleep_forever):
-        with patch('nameko.service.KILL_TIMEOUT', 0):  # reduce kill timeout
+        with patch('nameko.containers.KILL_TIMEOUT', 0):  # reduce kill timeout
             container.kill(exc)
             assert logger.warning.called
             assert logger.warning.call_args == call(

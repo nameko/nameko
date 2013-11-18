@@ -59,7 +59,7 @@ class DependencyProvider(object):
         causing the kill may be provided.
 
         DependencyProviders should urgently shut down here. This method must
-        return within ``nameko.service.KILL_TIMEOUT`` seconds, otherwise it
+        return within ``nameko.containers.KILL_TIMEOUT`` seconds, otherwise it
         may be forcibly stopped.
         """
 
@@ -74,7 +74,8 @@ class DependencyProvider(object):
         Example: ...
 
         Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
+            - worker_ctx: see
+                ``nameko.containers.ServiceContainer.spawn_worker``
         """
 
     def worker_teardown(self, worker_ctx):
@@ -88,7 +89,8 @@ class DependencyProvider(object):
         Example: a database session provider may commit the session
 
         Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
+            - worker_ctx: see
+                ``nameko.containers.ServiceContainer.spawn_worker``
         """
 
     def bind(self, name, container):
@@ -155,7 +157,8 @@ class InjectionProvider(DependencyProvider):
         Example: a database session provider may flush the transaction
 
         Args:
-            - worker_ctx: see ``nameko.service.ServiceContainer.spawn_worker``
+            - worker_ctx: see
+                ``nameko.containers.ServiceContainer.spawn_worker``
         """
 
     def inject(self, worker_ctx):
