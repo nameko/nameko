@@ -314,16 +314,15 @@ class ServiceContainer(ManagedThreadContainer):
 
     def _prepare_call_id_stack(self, current_stack=None):
         """
-        Returns a list containing the call IDs of this and any parent calls
-        that have been provided. The most recent call -- this one -- goes at
-        the end of the list
+        Returns a list containing the call IDs of this and the parent call. The
+        most recent call -- this one -- goes at the end of the list
         """
-        # TODO: Is it better to have a full stack or just 'me and my parent' --
-        # the former is a potential issue if you initiate an infinite call loop
         current_stack = current_stack or []
         if not current_stack:
             _log.debug('starting call chain')
         call_id_stack = current_stack + [new_call_id()]
+        # We truncate the stack so only the parent and this call are included
+        call_id_stack = call_id_stack[-1:]
         _log.debug('call stack %s', call_id_stack)
         return call_id_stack
 

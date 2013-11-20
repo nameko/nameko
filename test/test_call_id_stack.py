@@ -130,7 +130,7 @@ def test_call_id_stack(reset_rabbit, rabbit_config):
         stack_request.assert_has_calls([
             call(None),
             call(['0']),
-            call(['0', '1']),
+            call(['1']),
         ])
 
 
