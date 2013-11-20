@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from abc import ABCMeta, abstractproperty
 from logging import getLogger
+import uuid
 
 import eventlet
 from eventlet.event import Event
@@ -22,6 +23,7 @@ NAMEKO_DATA_KEYS = (
     'language',
     'user_id',
     'auth_token',
+    'call_id_stack',
 )
 
 
@@ -33,6 +35,10 @@ def log_worker_exception(worker_ctx, exc):
     if isinstance(exc, RemoteError):
         exc = "RemoteError"
     _log.error('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
+
+
+def new_call_id():
+    return str(uuid.uuid4())
 
 
 class WorkerContextBase(object):
@@ -304,8 +310,20 @@ class ServiceContainer(ManagedThreadContainer):
         except eventlet.Timeout:
             _log.warning('timeout waiting for dependencies.kill %s', self)
 
+    def _prepare_call_id_stack(self, current_stack=None):
+        current_stack = current_stack or []
+        if not current_stack:
+            _log.debug('starting call chain')
+        call_id_stack = current_stack + [new_call_id()]
+        _log.debug('call stack %s', call_id_stack)
+        return call_id_stack
+
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
+
+        current_stack = worker_ctx.data.get('call_id_stack')
+        call_id_stack = self._prepare_call_id_stack(current_stack)
+        worker_ctx.data['call_id_stack'] = call_id_stack
 
         with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
