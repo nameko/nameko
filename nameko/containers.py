@@ -13,6 +13,8 @@ from nameko.dependencies import get_dependencies, DependencySet
 from nameko.exceptions import RemoteError
 from nameko.logging import log_time
 
+WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
+
 _log = getLogger(__name__)
 
 
@@ -23,7 +25,7 @@ NAMEKO_DATA_KEYS = (
     'language',
     'user_id',
     'auth_token',
-    'call_id_stack',
+    WORKER_CALL_ID_STACK_KEY,
 )
 
 
@@ -328,9 +330,9 @@ class ServiceContainer(ManagedThreadContainer):
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
 
-        current_stack = worker_ctx.data.get('call_id_stack')
+        current_stack = worker_ctx.data.get(WORKER_CALL_ID_STACK_KEY)
         call_id_stack = self._prepare_call_id_stack(current_stack)
-        worker_ctx.data['call_id_stack'] = call_id_stack
+        worker_ctx.data[WORKER_CALL_ID_STACK_KEY] = call_id_stack
 
         with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
