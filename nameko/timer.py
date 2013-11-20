@@ -48,7 +48,7 @@ class TimerProvider(EntrypointProvider):
         self.interval = interval
 
     def start(self):
-        _log.debug('sarting %s', self)
+        _log.debug('starting %s', self)
         self.gt = self.container.spawn_managed_thread(self._run)
 
     def stop(self):

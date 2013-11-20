@@ -280,6 +280,7 @@ class MethodProxy(HeaderEncoder):
                 reply_queue_name = reply_listener.reply_queue_name
                 reply_event = reply_listener.get_reply_event(correlation_id)
 
+                _log.debug('Doing publish %s (%s, %s, %s)' % (self, exchange, routing_key, reply_queue_name))
                 producer.publish(
                     msg,
                     exchange=exchange,
