@@ -1,9 +1,11 @@
+from contextlib import contextmanager
 from logging import getLogger
 
 from eventlet import Timeout
 from mock import Mock, patch, call
 from eventlet.event import Event
 from nameko.containers import ServiceContainer, WorkerContext
+from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
 
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
@@ -62,11 +64,16 @@ def get_log_id_container(stack_request):
     return LogIdContainer
 
 
-def test_service_container_gets_stack(rabbit_config):
+@contextmanager
+def int_ids():
     with patch('nameko.containers.new_call_id') as get_id:
         i = Increment()
         get_id.side_effect = i.next
+        yield get_id
 
+
+def test_service_container_gets_stack(rabbit_config):
+    with int_ids() as get_id:
         stack_request = Mock()
         LogIdContainer = get_log_id_container(stack_request)
 
@@ -84,10 +91,7 @@ def test_service_container_gets_stack(rabbit_config):
 
 
 def test_call_id_stack(reset_rabbit, rabbit_config):
-    # Consistent message IDs
-    with patch('nameko.containers.new_call_id') as get_id:
-        i = Increment()
-        get_id.side_effect = i.next
+    with int_ids() as get_id:
         wait_to_go = Event()
         e = Event()
 
@@ -127,4 +131,53 @@ def test_call_id_stack(reset_rabbit, rabbit_config):
             call(None),
             call(['0']),
             call(['0', '1']),
+        ])
+
+
+def test_call_id_over_events(reset_rabbit, rabbit_config):
+    with int_ids() as get_id:
+        one_called = Mock()
+        two_called = Mock()
+        wait_to_go = Event()
+
+        class HelloEvent(NamekoEvent):
+            type = "hello"
+
+        class EventListeningServiceOne(object):
+            @event_handler('event_raiser', 'hello')
+            def hello(self, name):
+                one_called()
+
+        class EventListeningServiceTwo(object):
+            @event_handler('event_raiser', 'hello')
+            def hello(self, name):
+                two_called()
+
+        class EventRaisingService(object):
+            name = "event_raiser"
+            dispatch = event_dispatcher()
+
+            @once()
+            def say_hello(self):
+                wait_to_go.wait()
+                self.dispatch(HelloEvent(self.name))
+
+        stack_request = Mock()
+        LogIdContainer = get_log_id_container(stack_request)
+
+        runner = ServiceRunner(config=rabbit_config,
+                               container_cls=LogIdContainer)
+        runner.add_service(EventListeningServiceOne)
+        runner.add_service(EventListeningServiceTwo)
+        runner.add_service(EventRaisingService)
+        wait_to_go.send(runner.start())
+
+        with wait_for_call(5, one_called), wait_for_call(5, two_called):
+            runner.stop()
+
+        assert get_id.call_count == 3
+        stack_request.assert_has_calls([
+            call(None),
+            call(['0']),
+            call(['0']),
         ])
