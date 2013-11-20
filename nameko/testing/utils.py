@@ -17,9 +17,9 @@ def instance_factory(service_cls, **injections):
         if isinstance(attr, DependencyFactory):
             factory = attr
             if issubclass(factory.dep_cls, InjectionProvider):
-                if name in injections:
+                try:
                     injection = injections[name]
-                else:
+                except KeyError:
                     injection = Mock()
                 setattr(service, name, injection)
     return service
