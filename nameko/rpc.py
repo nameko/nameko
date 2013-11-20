@@ -290,7 +290,9 @@ class MethodProxy(HeaderEncoder):
                     correlation_id=correlation_id,
                 )
 
+            _log.debug('Waiting for RPC reply event %s' % self)
             resp_body = reply_event.wait()
+            _log.debug('RPC reply event complete %s %s' % (self, resp_body))
 
             error = resp_body.get('error')
             if error:
