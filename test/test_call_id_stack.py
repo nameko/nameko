@@ -1,48 +1,14 @@
 from contextlib import contextmanager
-from logging import getLogger
-
 from eventlet import Timeout
+from eventlet.event import Event as EventletEvent
 from mock import Mock, patch, call
-from eventlet.event import Event
+
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
-
+from nameko.once import once, OnceProvider
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
-from nameko.once import once, OnceProvider
 from nameko.testing.utils import wait_for_call
-
-
-_log = getLogger(__name__)
-
-
-child_do_called = Mock()
-
-
-class Child(object):
-    name = 'child'
-
-    @rpc
-    def child_do(self):
-        child_do_called()
-        return 1
-
-    @rpc
-    def child_fail(self):
-        raise Exception()
-
-
-class Parent(object):
-    child_service = rpc_proxy('child')
-
-    @rpc
-    def parent_do(self):
-        r = self.child_service.child_do()
-        return r
-
-    @rpc
-    def parent_fail(self):
-        return self.child_service.child_fail()
 
 
 class Increment(object):
@@ -77,8 +43,11 @@ def test_service_container_gets_stack(rabbit_config):
         stack_request = Mock()
         LogIdContainer = get_log_id_container(stack_request)
 
+        class Service(object):
+            pass
+
+        container = LogIdContainer(Service, WorkerContext, rabbit_config)
         entry = OnceProvider()
-        container = LogIdContainer(Child, WorkerContext, rabbit_config)
         entry.bind('foobar', container)
         entry.prepare()
         entry.start()
@@ -92,10 +61,28 @@ def test_service_container_gets_stack(rabbit_config):
 
 def test_call_id_stack(reset_rabbit, rabbit_config):
     with int_ids() as get_id:
-        wait_to_go = Event()
-        e = Event()
+        wait_to_go = EventletEvent()
+        e = EventletEvent()
 
-        class GrandparentDo(object):
+        child_do_called = Mock()
+
+        class Child(object):
+            name = 'child'
+
+            @rpc
+            def child_do(self):
+                child_do_called()
+                return 1
+
+        class Parent(object):
+            child_service = rpc_proxy('child')
+
+            @rpc
+            def parent_do(self):
+                r = self.child_service.child_do()
+                return r
+
+        class Grandparent(object):
             parent_service = rpc_proxy('parent')
 
             @once()
@@ -112,7 +99,7 @@ def test_call_id_stack(reset_rabbit, rabbit_config):
                                container_cls=LogIdContainer)
         runner.add_service(Child)
         runner.add_service(Parent)
-        runner.add_service(GrandparentDo)
+        runner.add_service(Grandparent)
         wait_to_go.send(runner.start())
 
         with Timeout(30):
@@ -138,7 +125,7 @@ def test_call_id_over_events(reset_rabbit, rabbit_config):
     with int_ids() as get_id:
         one_called = Mock()
         two_called = Mock()
-        wait_to_go = Event()
+        wait_to_go = EventletEvent()
 
         class HelloEvent(NamekoEvent):
             type = "hello"
