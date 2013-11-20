@@ -3,11 +3,12 @@ from logging import getLogger
 from eventlet import Timeout
 from mock import Mock, patch, call
 from eventlet.event import Event
-from nameko.containers import ServiceContainer
+from nameko.containers import ServiceContainer, WorkerContext
 
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
-from nameko.once import once
+from nameko.once import once, OnceProvider
+from nameko.testing.utils import wait_for_call
 
 
 _log = getLogger(__name__)
@@ -51,6 +52,37 @@ class Increment(object):
         return str(self.i)
 
 
+def get_log_id_container(stack_request):
+    class LogIdContainer(ServiceContainer):
+        def _prepare_call_id_stack(self, current_stack=None):
+            stack_request(current_stack)
+            return super(LogIdContainer, self).\
+                _prepare_call_id_stack(current_stack)
+
+    return LogIdContainer
+
+
+def test_service_container_gets_stack(rabbit_config):
+    with patch('nameko.containers.new_call_id') as get_id:
+        i = Increment()
+        get_id.side_effect = i.next
+
+        stack_request = Mock()
+        LogIdContainer = get_log_id_container(stack_request)
+
+        entry = OnceProvider()
+        container = LogIdContainer(Child, WorkerContext, rabbit_config)
+        entry.bind('foobar', container)
+        entry.prepare()
+        entry.start()
+
+        with wait_for_call(1, stack_request):
+            entry.stop()
+
+        stack_request.assert_called_once_with(None)
+        assert get_id.call_count == 1
+
+
 def test_call_id_stack(reset_rabbit, rabbit_config):
     # Consistent message IDs
     with patch('nameko.containers.new_call_id') as get_id:
@@ -70,12 +102,7 @@ def test_call_id_stack(reset_rabbit, rabbit_config):
                 return r
 
         stack_request = Mock()
-
-        class LogIdContainer(ServiceContainer):
-            def _prepare_call_id_stack(self, current_stack=None):
-                stack_request(current_stack)
-                return super(LogIdContainer, self).\
-                    _prepare_call_id_stack(current_stack)
+        LogIdContainer = get_log_id_container(stack_request)
 
         runner = ServiceRunner(config=rabbit_config,
                                container_cls=LogIdContainer)
@@ -101,4 +128,3 @@ def test_call_id_stack(reset_rabbit, rabbit_config):
             call(['0']),
             call(['0', '1']),
         ])
-
