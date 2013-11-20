@@ -133,6 +133,7 @@ def rpc():
 
 
 class Responder(object):
+
     def __init__(self, message, retry=True, retry_policy=None):
         self._connection = None
         self.message = message
@@ -140,9 +141,6 @@ class Responder(object):
         if retry_policy is None:
             retry_policy = {'max_retries': 3}
         self.retry_policy = retry_policy
-
-    def connection_factory(self, container):
-        return Connection(container.config[AMQP_URI_CONFIG_KEY])
 
     def send_response(self, container, result, error_wrapper):
 
@@ -153,19 +151,23 @@ class Responder(object):
         if error_wrapper is not None:
             error = error_wrapper.serialize()
 
-        with self.connection_factory(container) as conn:
+        conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
 
-            with producers[conn].acquire(block=True) as producer:
+        exchange = get_rpc_exchange(container)
 
-                reply_to = self.message.properties['reply_to']
-                correlation_id = self.message.properties.get('correlation_id')
+        with producers[conn].acquire(block=True) as producer:
 
-                msg = {'result': result, 'error': error}
+            routing_key = self.message.properties['reply_to']
+            correlation_id = self.message.properties.get('correlation_id')
 
-                # all queues are bound to the anonymous direct exchange
-                producer.publish(
-                    msg, retry=self.retry, retry_policy=self.retry_policy,
-                    routing_key=reply_to, correlation_id=correlation_id)
+            msg = {'result': result, 'error': error}
+
+            _log.debug('publis response %s:%s', routing_key, correlation_id)
+            # all queues are bound to the anonymous direct exchange
+            producer.publish(
+                msg, retry=self.retry, retry_policy=self.retry_policy,
+                exchange=exchange, routing_key=routing_key,
+                correlation_id=correlation_id)
 
 
 # pylint: disable=E1101,E1123
@@ -183,12 +185,16 @@ class ReplyListener(DependencyProvider):
         container = self.container
 
         service_name = container.service_name
-        self.reply_queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
+
+        queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
             service_name, service_uuid)
 
+        self.routing_key = str(service_uuid)
+
         exchange = get_rpc_exchange(container)
-        self.queue = Queue(
-            self.reply_queue_name, exchange=exchange, exclusive=True)
+
+        self.queue = Queue(queue_name, exchange=exchange,
+                           routing_key=self.routing_key)
 
         self.queue_consumer.register_provider(self)
 
@@ -264,37 +270,34 @@ class MethodProxy(HeaderEncoder):
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
-        # TODO: should connection sharing be done during worker_setup in the
-        #       dependency provider?
-        with conn as conn:
-            exchange = get_rpc_exchange(container)
+        exchange = get_rpc_exchange(container)
 
-            with producers[conn].acquire(block=True) as producer:
-                # TODO: should we enable auto-retry,
-                #      should that be an option in __init__?
+        with producers[conn].acquire(block=True) as producer:
+            # TODO: should we enable auto-retry,
+            #      should that be an option in __init__?
 
-                headers = self.get_message_headers(worker_ctx)
-                correlation_id = str(uuid.uuid4())
+            headers = self.get_message_headers(worker_ctx)
+            correlation_id = str(uuid.uuid4())
 
-                reply_listener = self.reply_listener
-                reply_queue_name = reply_listener.reply_queue_name
-                reply_event = reply_listener.get_reply_event(correlation_id)
+            reply_listener = self.reply_listener
+            reply_to_routing_key = reply_listener.routing_key
+            reply_event = reply_listener.get_reply_event(correlation_id)
 
-                producer.publish(
-                    msg,
-                    exchange=exchange,
-                    routing_key=routing_key,
-                    reply_to=reply_queue_name,
-                    headers=headers,
-                    correlation_id=correlation_id,
-                )
+            producer.publish(
+                msg,
+                exchange=exchange,
+                routing_key=routing_key,
+                reply_to=reply_to_routing_key,
+                headers=headers,
+                correlation_id=correlation_id,
+            )
 
-            resp_body = reply_event.wait()
+        resp_body = reply_event.wait()
 
-            error = resp_body.get('error')
-            if error:
-                raise RemoteErrorWrapper.deserialize(error)
-            return resp_body['result']
+        error = resp_body.get('error')
+        if error:
+            raise RemoteErrorWrapper.deserialize(error)
+        return resp_body['result']
 
     def __str__(self):
         return '<proxy method: %s.%s>' % (self.service_name, self.method_name)
