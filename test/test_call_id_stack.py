@@ -1,8 +1,9 @@
 from logging import getLogger
 
 from eventlet import Timeout
-from mock import Mock, patch
+from mock import Mock, patch, call
 from eventlet.event import Event
+from nameko.containers import ServiceContainer
 
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
@@ -50,7 +51,7 @@ class Increment(object):
         return str(self.i)
 
 
-def test_positive_tracking(reset_rabbit, rabbit_config):
+def test_call_id_stack(reset_rabbit, rabbit_config):
     # Consistent message IDs
     with patch('nameko.containers.new_call_id') as get_id:
         i = Increment()
@@ -68,7 +69,16 @@ def test_positive_tracking(reset_rabbit, rabbit_config):
                 e.send(True)
                 return r
 
-        runner = ServiceRunner(config=rabbit_config)
+        stack_request = Mock()
+
+        class LogIdContainer(ServiceContainer):
+            def _prepare_call_id_stack(self, current_stack=None):
+                stack_request(current_stack)
+                return super(LogIdContainer, self).\
+                    _prepare_call_id_stack(current_stack)
+
+        runner = ServiceRunner(config=rabbit_config,
+                               container_cls=LogIdContainer)
         runner.add_service(Child)
         runner.add_service(Parent)
         runner.add_service(GrandparentDo)
@@ -78,8 +88,17 @@ def test_positive_tracking(reset_rabbit, rabbit_config):
             e.wait()
         runner.stop()
 
+        # Check child is called
         child_do_called.assert_called_with()
         assert child_do_called.call_count == 1
 
+        # Check IDs were requested
         assert get_id.call_count == 3
+
+        # Check call ID stack persisted over RPC
+        stack_request.assert_has_calls([
+            call(None),
+            call(['0']),
+            call(['0', '1']),
+        ])
 

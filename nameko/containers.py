@@ -311,6 +311,11 @@ class ServiceContainer(ManagedThreadContainer):
             _log.warning('timeout waiting for dependencies.kill %s', self)
 
     def _prepare_call_id_stack(self, current_stack=None):
+        """
+        Returns a list containing the call IDs of this and any parent calls
+        that have been provided. The most recent call -- this one -- goes at
+        the end of the list
+        """
         current_stack = current_stack or []
         if not current_stack:
             _log.debug('starting call chain')
