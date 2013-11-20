@@ -316,6 +316,8 @@ class ServiceContainer(ManagedThreadContainer):
         that have been provided. The most recent call -- this one -- goes at
         the end of the list
         """
+        # TODO: Is it better to have a full stack or just 'me and my parent' --
+        # the former is a potential issue if you initiate an infinite call loop
         current_stack = current_stack or []
         if not current_stack:
             _log.debug('starting call chain')
