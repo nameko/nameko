@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from eventlet import Timeout
 from eventlet.event import Event as EventletEvent
 from mock import Mock, patch, call
+import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
@@ -59,7 +60,8 @@ def test_service_container_gets_stack(rabbit_config):
         assert get_id.call_count == 1
 
 
-def test_call_id_stack(reset_rabbit, rabbit_config):
+@pytest.mark.usefixtures("reset_rabbit")
+def test_call_id_stack(rabbit_config):
     with int_ids() as get_id:
         wait_to_go = EventletEvent()
         e = EventletEvent()
@@ -121,7 +123,8 @@ def test_call_id_stack(reset_rabbit, rabbit_config):
         ])
 
 
-def test_call_id_over_events(reset_rabbit, rabbit_config):
+@pytest.mark.usefixtures("reset_rabbit")
+def test_call_id_over_events(rabbit_config):
     with int_ids() as get_id:
         one_called = Mock()
         two_called = Mock()
