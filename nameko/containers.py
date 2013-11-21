@@ -56,6 +56,7 @@ class WorkerContextBase(object):
         self.config = container.config  # TODO: remove?
         self.service = service
         self.method_name = method_name
+        self.service_name = self.container.service_name
 
         self.args = args if args is not None else ()
         self.kwargs = kwargs if kwargs is not None else {}
@@ -66,7 +67,7 @@ class WorkerContextBase(object):
         self.parent_call_stack = parent_call_stack or []
         self.unique_id = new_call_id()
         self.call_id = '{}.{}.{}'.format(
-            self._service_name(), self.method_name, self.unique_id
+            self.service_name, self.method_name, self.unique_id
         )
         self.call_id_stack = self._truncate_stack(
             self.parent_call_stack + [self.call_id]
@@ -76,21 +77,6 @@ class WorkerContextBase(object):
     def data_keys(self):
         """ Return a tuple of keys describing data kept on this WorkerContext.
         """
-
-    def _service_name(self):
-        service_name = self.container.service_name
-        return service_name
-
-    def __str__(self):
-        cls_name = type(self).__name__
-        return '<{} {}.{} at 0x{:x}>'.format(
-            cls_name, self._service_name(), self.method_name, id(self))
-
-    def _truncate_stack(self, stack):
-        # We truncate the stack so only this call and n parents are included
-        i = -(self.PARENT_CALLS_TRACKED + 1)
-        stack = stack[i:]
-        return stack
 
     def data_for_transfer(self):
         # Values from `self.data` if key is in `data_keys', plus the ID info.
@@ -105,6 +91,17 @@ class WorkerContextBase(object):
         data = {k: v for k, v in incoming.iteritems()
                 if k in cls.data_keys}
         return {'parent_call_stack': parent_call_stack, 'data': data}
+
+    def _truncate_stack(self, stack):
+        # We truncate the stack so only this call and n parents are included
+        i = -(self.PARENT_CALLS_TRACKED + 1)
+        stack = stack[i:]
+        return stack
+
+    def __str__(self):
+        cls_name = type(self).__name__
+        return '<{} {}.{} at 0x{:x}>'.format(
+            cls_name, self.service_name, self.method_name, id(self))
 
 
 class WorkerContext(WorkerContextBase):
