@@ -221,7 +221,8 @@ def test_header_decoder():
         'testprefix.foo': 'FOO',
         'testprefix.bar': 'BAR',
         'testprefix.baz': 'BAZ',
-        'bogusprefix.foo': 'XXX'
+        'bogusprefix.foo': 'XXX',
+        'testprefix.call_id_stack': ['a', 'b', 'c'],
     }
 
     decoder = HeaderDecoder()
@@ -232,7 +233,7 @@ def test_header_decoder():
 
         res = decoder.unpack_message_headers(worker_ctx_cls, message)
         assert res == {'data': {'foo': 'FOO', 'bar': 'BAR'},
-                       'parent_call_stack': None}
+                       'parent_call_stack': ['a', 'b', 'c']}
 
 
 #==============================================================================
