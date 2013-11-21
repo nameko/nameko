@@ -36,6 +36,8 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
 
     def __init__(self):
         super(RpcConsumer, self).__init__()
+        self._unregistering_providers = set()
+        self._unregistered_from_queue_consumer = Event()
         self.queue = None
 
     def prepare(self):
@@ -54,12 +56,25 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
                 durable=True)
 
             self.queue_consumer.register_provider(self)
+            self._registered = True
 
-    def stop(self):
-        _log.debug('waiting for providers to unregister %s', self)
-        self._last_provider_unregistered.wait()
-        _log.debug('all providers unregistered %s', self)
-        self.queue_consumer.unregister_provider(self)
+    def unregister_provider(self, provider):
+        """ Unregister a provider.
+
+        Blocks until this RpcConsumer is unregistered from its QueueConsumer,
+        which only happens when all providers have asked to unregister.
+        """
+        self._unregistering_providers.add(provider)
+        remaining_providers = self._providers - self._unregistering_providers
+        if not remaining_providers:
+            _log.debug('unregistering from queueconsumer %s', self)
+            self.queue_consumer.unregister_provider(self)
+            _log.debug('unregistered from queueconsumer %s', self)
+            self._unregistered_from_queue_consumer.send(True)
+
+        _log.debug('waiting for unregister from queue consumer %s', self)
+        self._unregistered_from_queue_consumer.wait()
+        super(RpcConsumer, self).unregister_provider(provider)
 
     def get_provider_for_method(self, routing_key):
         service_name = self.container.service_name
