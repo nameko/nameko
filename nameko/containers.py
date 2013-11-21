@@ -19,6 +19,7 @@ _log = getLogger(__name__)
 
 
 MAX_WOKERS_KEY = 'max_workers'
+PARENT_CALLS_KEY = 'parent_calls_tracked'
 KILL_TIMEOUT = 3  # seconds
 
 NAMEKO_DATA_KEYS = (
@@ -48,13 +49,18 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
-    # TODO get from config...
-    PARENT_CALLS_TRACKED = 1
+    DEFAULT_PARENT_CALLS_TRACKED = 1
 
     def __init__(self, container, service, method_name, args=None, kwargs=None,
                  data=None):
         self.container = container
         self.config = container.config  # TODO: remove?
+
+        try:
+            self.parent_calls_tracked = int(self.config[PARENT_CALLS_KEY])
+        except (TypeError, KeyError):
+            self.parent_calls_tracked = self.DEFAULT_PARENT_CALLS_TRACKED
+
         self.service = service
         self.method_name = method_name
         self.service_name = self.container.service_name
@@ -93,7 +99,7 @@ class WorkerContextBase(object):
 
     def _truncate_stack(self, stack):
         # We truncate the stack so only this call and n parents are included
-        i = -(self.PARENT_CALLS_TRACKED + 1)
+        i = -(self.parent_calls_tracked + 1)
         stack = stack[i:]
         return stack
 

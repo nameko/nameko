@@ -3,7 +3,7 @@ from eventlet.event import Event as EventletEvent
 from mock import Mock, call
 import pytest
 
-from nameko.containers import WorkerContext
+from nameko.containers import WorkerContext, PARENT_CALLS_KEY
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
@@ -50,6 +50,23 @@ def test_worker_context_gets_stack(container_factory):
         context = context_cls(container, service, "long",
                               data={'call_id_stack': many_ids})
         assert context.call_id_stack == ['99', 'baz.long.2']
+
+
+def test_long_call_stack(container_factory):
+    with predictable_call_ids():
+        context_cls = worker_context_factory()
+
+        class FooService(object):
+            name = 'baz'
+
+        container = container_factory(FooService, {PARENT_CALLS_KEY: 4})
+        service = FooService()
+
+        # Trim stack
+        many_ids = [str(i) for i in xrange(100)]
+        context = context_cls(container, service, "long",
+                              data={'call_id_stack': many_ids})
+        assert context.call_id_stack == ['96', '97', '98', '99', 'baz.long.0']
 
 
 @pytest.mark.usefixtures("reset_rabbit")
