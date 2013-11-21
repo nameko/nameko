@@ -289,10 +289,9 @@ class ServiceContainer(ManagedThreadContainer):
         in by the calling entrypoint provider. It is called with the
         result returned or error raised by the service method.
         """
-        context_data = context_data or {}
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
-            self, service, provider.name, args, kwargs, context_data)
+            self, service, provider.name, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,

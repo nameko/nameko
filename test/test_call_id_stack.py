@@ -16,8 +16,8 @@ def get_logging_worker_context(stack_request):
     class LoggingWorkerContext(WorkerContext):
         def __init__(self, container, service, method_name, args=None,
                      kwargs=None, data=None):
-            if data is not None:
-                stack_request(data.get('call_id_stack'))
+            parent_stack = data.get('call_id_stack') if data else None
+            stack_request(parent_stack)
             super(LoggingWorkerContext, self).__init__(
                 container, service, method_name, args, kwargs, data
             )
