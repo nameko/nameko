@@ -3,7 +3,8 @@ from contextlib import contextmanager
 from functools import partial
 
 import eventlet
-from mock import Mock
+from mock import Mock, patch
+from nameko.containers import WorkerContextBase
 
 from nameko.dependencies import DependencyFactory, InjectionProvider
 
@@ -84,3 +85,34 @@ class AnyInstanceOf(object):
 
 
 ANY_PARTIAL = AnyInstanceOf(partial)
+
+
+class Increment(object):
+    def __init__(self):
+        self.i = -1
+
+    def next(self):
+        self.i += 1
+        return str(self.i)
+
+
+@contextmanager
+def predictable_call_ids():
+    with patch('nameko.containers.new_call_id') as get_id:
+        i = Increment()
+        get_id.side_effect = i.next
+        yield get_id
+
+
+def worker_context_factory(*keys):
+    class NewContext(WorkerContextBase):
+        data_keys = keys
+
+        def __init__(self, container=None, service=None, method_name=None,
+                     **kwargs):
+            super(NewContext, self).__init__(
+                container or Mock(), service or Mock(), method_name or Mock(),
+                **kwargs
+            )
+
+    return NewContext

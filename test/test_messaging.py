@@ -8,7 +8,8 @@ from nameko.messaging import (
 from nameko.containers import (
     WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS, ServiceContainer)
 from nameko.testing.utils import (
-    wait_for_call, as_context_manager, ANY_PARTIAL)
+    wait_for_call, as_context_manager, ANY_PARTIAL, worker_context_factory,
+    predictable_call_ids)
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -18,6 +19,10 @@ CONSUME_TIMEOUT = 1
 
 class CustomWorkerContext(WorkerContextBase):
     data_keys = NAMEKO_DATA_KEYS + ('customheader',)
+
+    @property
+    def call_id_stack(self):
+        return ['x']
 
 
 def test_consume_provider():
@@ -76,72 +81,80 @@ def test_consume_provider():
 
 
 def test_publish_to_exchange():
+    with predictable_call_ids():
+        container = Mock(spec=ServiceContainer)
+        container.service_name = "srcservice"
+        container.config = Mock()
 
-    container = Mock(spec=ServiceContainer)
-    container.service_name = "srcservice"
-    container.config = Mock()
+        service = Mock()
+        worker_ctx = WorkerContext(container, service, "publish")
 
-    service = Mock()
-    worker_ctx = WorkerContext(container, service, "publish")
+        publisher = PublishProvider(exchange=foobar_ex)
+        publisher.bind("publish", container)
 
-    publisher = PublishProvider(exchange=foobar_ex)
-    publisher.bind("publish", container)
+        producer = Mock()
+        connection = Mock()
 
-    producer = Mock()
-    connection = Mock()
+        with patch('nameko.messaging.maybe_declare') as maybe_declare, \
+                patch.object(publisher, 'get_connection') as get_connection, \
+                patch.object(publisher, 'get_producer') as get_producer:
 
-    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-            patch.object(publisher, 'get_connection') as get_connection, \
-            patch.object(publisher, 'get_producer') as get_producer:
+            get_connection.return_value = as_context_manager(connection)
+            get_producer.return_value = as_context_manager(producer)
 
-        get_connection.return_value = as_context_manager(connection)
-        get_producer.return_value = as_context_manager(producer)
+            # test declarations
+            publisher.prepare()
+            maybe_declare.assert_called_once_with(foobar_ex, connection)
 
-        # test declarations
-        publisher.prepare()
-        maybe_declare.assert_called_once_with(foobar_ex, connection)
-
-        # test publish
-        msg = "msg"
-        publisher.inject(worker_ctx)
-        service.publish(msg)
-        producer.publish.assert_called_once_with(msg, headers={},
-                                                 exchange=foobar_ex)
+            # test publish
+            msg = "msg"
+            publisher.inject(worker_ctx)
+            service.publish(msg)
+            headers = {
+                'nameko.call_id_stack': ['srcservice.publish.0']
+            }
+            producer.publish.assert_called_once_with(msg, headers=headers,
+                                                     exchange=foobar_ex)
 
 
 def test_publish_to_queue():
-    container = Mock(spec=ServiceContainer)
-    container.service_name = "srcservice"
-    container.config = Mock()
+    with predictable_call_ids():
+        container = Mock(spec=ServiceContainer)
+        container.service_name = "srcservice"
+        container.config = Mock()
 
-    ctx_data = {'language': 'en'}
-    service = Mock()
-    worker_ctx = WorkerContext(container, service, "publish", data=ctx_data)
+        ctx_data = {'language': 'en'}
+        service = Mock()
+        worker_ctx = WorkerContext(
+            container, service, "publish", data=ctx_data)
 
-    publisher = PublishProvider(queue=foobar_queue)
-    publisher.bind("publish", container)
+        publisher = PublishProvider(queue=foobar_queue)
+        publisher.bind("publish", container)
 
-    producer = Mock()
-    connection = Mock()
+        producer = Mock()
+        connection = Mock()
 
-    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-            patch.object(publisher, 'get_connection') as get_connection, \
-            patch.object(publisher, 'get_producer') as get_producer:
+        with patch('nameko.messaging.maybe_declare') as maybe_declare, \
+                patch.object(publisher, 'get_connection') as get_connection, \
+                patch.object(publisher, 'get_producer') as get_producer:
 
-        get_connection.return_value = as_context_manager(connection)
-        get_producer.return_value = as_context_manager(producer)
+            get_connection.return_value = as_context_manager(connection)
+            get_producer.return_value = as_context_manager(producer)
 
-        # test declarations
-        publisher.prepare()
-        maybe_declare.assert_called_once_with(foobar_queue, connection)
+            # test declarations
+            publisher.prepare()
+            maybe_declare.assert_called_once_with(foobar_queue, connection)
 
-        # test publish
-        msg = "msg"
-        headers = {'nameko.language': 'en'}
-        publisher.inject(worker_ctx)
-        service.publish(msg)
-        producer.publish.assert_called_once_with(msg, headers=headers,
-                                                 exchange=foobar_ex)
+            # test publish
+            msg = "msg"
+            headers = {
+                'nameko.language': 'en',
+                'nameko.call_id_stack': ['srcservice.publish.0'],
+            }
+            publisher.inject(worker_ctx)
+            service.publish(msg)
+            producer.publish.assert_called_once_with(msg, headers=headers,
+                                                     exchange=foobar_ex)
 
 
 def test_publish_custom_headers():
@@ -174,7 +187,8 @@ def test_publish_custom_headers():
         # test publish
         msg = "msg"
         headers = {'nameko.language': 'en',
-                   'nameko.customheader': 'customvalue'}
+                   'nameko.customheader': 'customvalue',
+                   'nameko.call_id_stack': ['x']}
         publisher.inject(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
@@ -192,10 +206,13 @@ def test_header_encoder():
     encoder = HeaderEncoder()
     with patch.object(encoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx = Mock(data_keys=("foo", "bar", "xxx"), data=context_data)
+        worker_ctx_cls = worker_context_factory('foo', 'bar', 'xxx')
+        worker_ctx_cls.call_id_stack = ['x']
+        worker_ctx = worker_ctx_cls(data=context_data)
 
         res = encoder.get_message_headers(worker_ctx)
-        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR'}
+        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR',
+                       'testprefix.call_id_stack': ['x']}
 
 
 def test_header_decoder():
@@ -210,11 +227,12 @@ def test_header_decoder():
     decoder = HeaderDecoder()
     with patch.object(decoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx_cls = Mock(data_keys=("foo", "bar"))
+        worker_ctx_cls = worker_context_factory("foo", "bar")
         message = Mock(headers=headers)
 
         res = decoder.unpack_message_headers(worker_ctx_cls, message)
-        assert res == {'foo': 'FOO', 'bar': 'BAR'}
+        assert res == {'data': {'foo': 'FOO', 'bar': 'BAR'},
+                       'parent_call_stack': None}
 
 
 #==============================================================================
@@ -259,7 +277,8 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     # test message headers
     assert messages[0]['properties']['headers'] == {
         'nameko.language': 'en',
-        'nameko.customheader': 'customvalue'
+        'nameko.customheader': 'customvalue',
+        'nameko.call_id_stack': ['x'],
     }
 
 
@@ -302,7 +321,8 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     rabbit_manager.publish(
         vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
-    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
+    ctx_data = {'parent_call_stack': None,
+                'data': {'language': 'en', 'customheader': 'customvalue'}}
     with wait_for_call(CONSUME_TIMEOUT, container.spawn_worker) as method:
         method.assert_called_once_with(consumer, ('msg',), {},
                                        context_data=ctx_data,

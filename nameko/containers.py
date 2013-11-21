@@ -25,7 +25,6 @@ NAMEKO_DATA_KEYS = (
     'language',
     'user_id',
     'auth_token',
-    WORKER_CALL_ID_STACK_KEY,
 )
 
 
@@ -48,8 +47,10 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
+    PARENT_CALLS_TRACKED = 1
+
     def __init__(self, container, service, method_name, args=None, kwargs=None,
-                 data=None):
+                 data=None, parent_call_stack=None):
         self.container = container
         self.config = container.config  # TODO: remove?
         self.service = service
@@ -57,17 +58,54 @@ class WorkerContextBase(object):
         self.args = args if args is not None else ()
         self.kwargs = kwargs if kwargs is not None else {}
         self.data = data if data is not None else {}
+        self.unique_id = new_call_id()
+        self.parent_call_stack = parent_call_stack or []
 
     @abstractproperty
     def data_keys(self):
         """ Return a tuple of keys describing data kept on this WorkerContext.
         """
 
+    def _service_name(self):
+        service_name = self.container.service_name
+        return service_name
+
     def __str__(self):
         cls_name = type(self).__name__
-        service_name = self.container.service_name
         return '<{} {}.{} at 0x{:x}>'.format(
-            cls_name, service_name, self.method_name, id(self))
+            cls_name, self._service_name(), self.method_name, id(self))
+
+    @property
+    def call_id(self):
+        return '{}.{}.{}'.format(
+            self._service_name(), self.method_name, self.unique_id
+        )
+
+    def _truncate_stack(self, stack):
+        # We truncate the stack so only this call and n parents are included
+        i = -(self.PARENT_CALLS_TRACKED + 1)
+        stack = stack[i:]
+        return stack
+
+    @property
+    def call_id_stack(self):
+        stack = self.parent_call_stack + [self.call_id]
+        stack = self._truncate_stack(stack)
+        return stack
+
+    def data_for_transfer(self):
+        # Values from `self.data` if key is in `data_keys', plus the ID info.
+        key_data = {k: v for k, v in self.data.iteritems()
+                    if k in self.data_keys}
+        key_data[WORKER_CALL_ID_STACK_KEY] = self.call_id_stack
+        return key_data
+
+    @classmethod
+    def context_from_transfer(cls, incoming):
+        parent_call_stack = incoming.get(WORKER_CALL_ID_STACK_KEY)
+        data = {k: v for k, v in incoming.iteritems()
+                if k in cls.data_keys}
+        return {'parent_call_stack': parent_call_stack, 'data': data}
 
 
 class WorkerContext(WorkerContextBase):
@@ -250,10 +288,10 @@ class ServiceContainer(ManagedThreadContainer):
         in by the calling entrypoint provider. It is called with the
         result returned or error raised by the service method.
         """
-
+        context_data = context_data or {}
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
-            self, service, provider.name, args, kwargs, data=context_data)
+            self, service, provider.name, args, kwargs, **context_data)
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
@@ -312,26 +350,13 @@ class ServiceContainer(ManagedThreadContainer):
         except eventlet.Timeout:
             _log.warning('timeout waiting for dependencies.kill %s', self)
 
-    def _prepare_call_id_stack(self, current_stack=None):
-        """
-        Returns a list containing the call IDs of this and the parent call. The
-        most recent call -- this one -- goes at the end of the list
-        """
-        current_stack = current_stack or []
-        if not current_stack:
-            _log.debug('starting call chain')
-        call_id_stack = current_stack + [new_call_id()]
-        # We truncate the stack so only the parent and this call are included
-        call_id_stack = call_id_stack[-1:]
-        _log.debug('call stack %s', call_id_stack)
-        return call_id_stack
-
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
 
-        current_stack = worker_ctx.data.get(WORKER_CALL_ID_STACK_KEY)
-        call_id_stack = self._prepare_call_id_stack(current_stack)
-        worker_ctx.data[WORKER_CALL_ID_STACK_KEY] = call_id_stack
+        if not worker_ctx.parent_call_stack:
+            _log.debug('starting call chain')
+        _log.debug('call stack for %s: %s',
+                   worker_ctx, '->'.join(worker_ctx.call_id_stack))
 
         with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 

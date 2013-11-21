@@ -32,12 +32,12 @@ class HeaderEncoder(object):
 
     header_prefix = HEADER_PREFIX
 
+    def _get_header_name(self, key):
+        return "{}.{}".format(self.header_prefix, key)
+
     def get_message_headers(self, worker_ctx):
-        headers = {}
-        for key in worker_ctx.data_keys:
-            if key in worker_ctx.data:
-                name = "{}.{}".format(self.header_prefix, key)
-                headers[name] = worker_ctx.data[key]
+        headers = {self._get_header_name(key): value
+                   for key, value in worker_ctx.data_for_transfer().items()}
         return headers
 
 
@@ -45,15 +45,16 @@ class HeaderDecoder(object):
 
     header_prefix = HEADER_PREFIX
 
-    def unpack_message_headers(self, worker_ctx_cls, message):
-        data_keys = worker_ctx_cls.data_keys
+    def _strip_header_name(self, key):
+        full_prefix = "{}.".format(self.header_prefix)
+        if key.startswith(full_prefix):
+            return key[len(full_prefix):]
+        return key
 
-        data = {}
-        for key in data_keys:
-            name = "{}.{}".format(self.header_prefix, key)
-            if name in message.headers:
-                data[key] = message.headers[name]
-        return data
+    def unpack_message_headers(self, worker_ctx_cls, message):
+        stripped = {self._strip_header_name(k): v
+                    for k, v in message.headers.iteritems()}
+        return worker_ctx_cls.context_from_transfer(stripped)
 
 
 @injection
