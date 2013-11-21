@@ -1,12 +1,15 @@
 from __future__ import absolute_import
+from contextlib import contextmanager
 from functools import partial
 from logging import getLogger
 import uuid
 
 from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
+from kombu.common import itermessages, maybe_declare
 from kombu.pools import producers
 
+from nameko.containers import WorkerContext
 from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
@@ -301,3 +304,77 @@ class MethodProxy(HeaderEncoder):
 
     def __str__(self):
         return '<proxy method: %s.%s>' % (self.service_name, self.method_name)
+
+
+class ConsumeEvent(object):
+    def __init__(self, queue_consumer, correlation_id):
+        self.correlation_id = correlation_id
+        self.queue_consumer = queue_consumer
+
+    def send(self, body):
+        self.body = body
+
+    def wait(self):
+        self.queue_consumer.poll_messages(self.correlation_id)
+        return self.body
+
+
+class PollingQueueConsumer(object):
+    def register_provider(self, provider):
+        self.provider = provider
+        conn = Connection(provider.container.config['AMQP_URI'])
+        self.channel = conn.channel()
+        self.queue = provider.queue
+        maybe_declare(self.queue, self.channel)
+
+    def unregister_provider(self, provider):
+        pass
+
+    def ack_message(self, msg):
+        msg.ack()
+
+    def poll_messages(self, correlation_id):
+        channel = self.channel
+        conn = channel.connection
+        for body, msg in itermessages(conn, channel, self.queue, limit=None):
+            if correlation_id == msg.properties.get('correlation_id'):
+                self.provider.handle_message(body, msg)
+                break
+
+
+class SingleThreadedReplyListener(ReplyListener):
+    queue_consumer = None
+
+    def __init__(self):
+        self.queue_consumer = PollingQueueConsumer()
+        super(SingleThreadedReplyListener, self).__init__()
+
+    def get_reply_event(self, correlation_id):
+        reply_event = ConsumeEvent(self.queue_consumer, correlation_id)
+        self._reply_events[correlation_id] = reply_event
+        return reply_event
+
+
+class FakeContainer(object):
+    service_name = 'rpc-client'
+
+    def __init__(self, config):
+        self.config = config
+
+
+@contextmanager
+def standalone_proxy(service_name, config):
+    container = FakeContainer(config)
+
+    worker_ctx = WorkerContext(container, None, None)
+
+    reply_listener = SingleThreadedReplyListener()
+
+    reply_listener.container = container
+    reply_listener.prepare()
+
+    service_proxy = ServiceProxy(worker_ctx, service_name, reply_listener)
+
+    yield service_proxy
+
+    reply_listener.stop()
