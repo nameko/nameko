@@ -13,11 +13,11 @@ listener.
 To listen to an event, a service must declare a handler using the
 `handle_event` decorator, providing the target service and an event filter.
 
-Example:
+Example::
 
-@handle_event("foo_service", "event.type")
-def bar(evt):
-    pass
+    @handle_event("foo_service", "event.type")
+    def bar(evt):
+        pass
 
 """
 from __future__ import absolute_import
@@ -100,7 +100,7 @@ class Event(object):
     """ The type of the event.
 
     Events can be name-spaced using the type property:
-    e.g. type = 'spam.ham.eggs'
+    e.g.: ``type = 'spam.ham.eggs'``
 
     See amqp routing keys for `topic` exchanges for more info.
     """
@@ -125,18 +125,18 @@ class EventDispatcher(PublishProvider):
     There is no guarantee that any service will receive the event, only
     that the event has been successfully dispatched.
 
-    Example:
+    Example::
 
-    class MyEvent(Event):
-        type = 'spam.ham'
+        class MyEvent(Event):
+            type = 'spam.ham'
 
 
-    class Spammer(object):
-        dispatch_spam = EventDispatcher()
+        class Spammer(object):
+            dispatch_spam = EventDispatcher()
 
-        def emit_spam(self):
-            evt = MyEvent('ham and eggs')
-            self.dispatch_spam(evt)
+            def emit_spam(self):
+                evt = MyEvent('ham and eggs')
+                self.dispatch_spam(evt)
 
     """
     def prepare(self):
@@ -170,45 +170,45 @@ def event_dispatcher():
 @entrypoint
 def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                   reliable_delivery=True, requeue_on_error=False):
-    """
+    r"""
     Decorate a method as a handler of ``event_type`` events on the service
     called ``service_name``. ``event_type`` must be either a subclass of
     :class:`~.Event` with a class attribute ``type`` or a string matching the
     value of this attribute.
-
     ``handler_type`` determines the behaviour of the handler:
         - ``events.SERVICE_POOL``: event handlers will be pooled by service
             type and handler-method and one from each pool will receive
-            the event
+            the event. ::
 
-                       .-[queue]- (service X handler-method-1)
-                      /
-            exchange o --[queue]- (service X handler-method-2)
-                      \
-                       \          (service Y(instance 1) hanlder-method)
-                        \       /
-                         [queue]
-                                \
-                                  (service Y(instance 2) handler-method)
+                           .-[queue]- (service X handler-method-1)
+                          /
+                exchange o --[queue]- (service X handler-method-2)
+                          \
+                           \          (service Y(instance 1) hanlder-method)
+                            \       /
+                             [queue]
+                                    \
+                                      (service Y(instance 2) handler-method)
+
 
         - ``events.SINGLETON``: events will be received by only one registered
             handler. If requeued on error, they may be given to a different
-            handler.
-                                   (service X handler-method)
-                                 /
-            exchange o -- [queue]
-                                 \
-                                   (service Y handler-method)
+            handler. ::
+                                       (service X handler-method)
+                                     /
+                exchange o -- [queue]
+                                     \
+                                       (service Y handler-method)
 
         - ``events.BROADCAST``: events will be received by every handler. This
             will broadcast to every service instance, not just every service
-            type - use wisely!
+            type - use wisely! ::
 
-                        [queue]- (service X(instance 1) handler-method)
-                      /
-            exchange o - [queue]- (service X(instance 2) handler-method)
-                      \
-                        [queue]- (service Y handler-method)
+                            [queue]- (service X(instance 1) handler-method)
+                          /
+                exchange o - [queue]- (service X(instance 2) handler-method)
+                          \
+                            [queue]- (service Y handler-method)
 
     If ``requeue_on_error``, handlers will return the event to the queue if an
     error occurs while handling it. Defaults to False.
