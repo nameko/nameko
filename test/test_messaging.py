@@ -228,12 +228,15 @@ def test_header_decoder():
     decoder = HeaderDecoder()
     with patch.object(decoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx_cls = worker_context_factory("foo", "bar")
+        worker_ctx_cls = worker_context_factory("foo", "bar", "call_id_stack")
         message = Mock(headers=headers)
 
         res = decoder.unpack_message_headers(worker_ctx_cls, message)
-        assert res == {'data': {'foo': 'FOO', 'bar': 'BAR'},
-                       'parent_call_stack': ['a', 'b', 'c']}
+        assert res == {
+            'foo': 'FOO',
+            'bar': 'BAR',
+            'call_id_stack': ['a', 'b', 'c'],
+        }
 
 
 #==============================================================================
@@ -322,8 +325,10 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     rabbit_manager.publish(
         vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
-    ctx_data = {'parent_call_stack': None,
-                'data': {'language': 'en', 'customheader': 'customvalue'}}
+    ctx_data = {
+        'language': 'en',
+        'customheader': 'customvalue',
+    }
     with wait_for_call(CONSUME_TIMEOUT, container.spawn_worker) as method:
         method.assert_called_once_with(consumer, ('msg',), {},
                                        context_data=ctx_data,

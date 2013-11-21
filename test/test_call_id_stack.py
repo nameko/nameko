@@ -14,10 +14,13 @@ from nameko.testing.utils import (
 
 def get_logging_worker_context(stack_request):
     class LoggingWorkerContext(WorkerContext):
-        def __init__(self, *args, **kwargs):
-            parent_stack = kwargs.get('parent_call_stack')
-            stack_request(parent_stack)
-            super(LoggingWorkerContext, self).__init__(*args, **kwargs)
+        def __init__(self, container, service, method_name, args=None,
+                     kwargs=None, data=None):
+            if data is not None:
+                stack_request(data.get('call_id_stack'))
+            super(LoggingWorkerContext, self).__init__(
+                container, service, method_name, args, kwargs, data
+            )
     return LoggingWorkerContext
 
 
@@ -38,14 +41,14 @@ def test_worker_context_gets_stack(container_factory):
 
         # Build stack
         context = context_cls(container, service, "foo",
-                              parent_call_stack=context.call_id_stack)
+                              data={'call_id_stack': context.call_id_stack})
         assert context.call_id == 'baz.foo.1'
         assert context.call_id_stack == ['baz.bar.0', 'baz.foo.1']
 
         # Trim stack
         many_ids = [str(i) for i in xrange(100)]
         context = context_cls(container, service, "long",
-                              parent_call_stack=many_ids)
+                              data={'call_id_stack': many_ids})
         assert context.call_id_stack == ['99', 'baz.long.2']
 
 

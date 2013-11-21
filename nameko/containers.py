@@ -25,6 +25,7 @@ NAMEKO_DATA_KEYS = (
     'language',
     'user_id',
     'auth_token',
+    WORKER_CALL_ID_STACK_KEY,
 )
 
 
@@ -51,7 +52,7 @@ class WorkerContextBase(object):
     PARENT_CALLS_TRACKED = 1
 
     def __init__(self, container, service, method_name, args=None, kwargs=None,
-                 data=None, parent_call_stack=None):
+                 data=None):
         self.container = container
         self.config = container.config  # TODO: remove?
         self.service = service
@@ -63,8 +64,7 @@ class WorkerContextBase(object):
 
         self.data = data if data is not None else {}
 
-        # TODO get parent from data instead
-        self.parent_call_stack = parent_call_stack or []
+        self.parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
         self.unique_id = new_call_id()
         self.call_id = '{}.{}.{}'.format(
             self.service_name, self.method_name, self.unique_id
@@ -87,10 +87,9 @@ class WorkerContextBase(object):
 
     @classmethod
     def context_from_transfer(cls, incoming):
-        parent_call_stack = incoming.get(WORKER_CALL_ID_STACK_KEY)
         data = {k: v for k, v in incoming.iteritems()
                 if k in cls.data_keys}
-        return {'parent_call_stack': parent_call_stack, 'data': data}
+        return data
 
     def _truncate_stack(self, stack):
         # We truncate the stack so only this call and n parents are included
@@ -287,7 +286,7 @@ class ServiceContainer(ManagedThreadContainer):
         context_data = context_data or {}
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
-            self, service, provider.name, args, kwargs, **context_data)
+            self, service, provider.name, args, kwargs, context_data)
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
