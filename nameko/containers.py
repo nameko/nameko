@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 from abc import ABCMeta, abstractproperty
+import base64
 from logging import getLogger
 import uuid
 
@@ -41,7 +42,8 @@ def log_worker_exception(worker_ctx, exc):
 
 
 def new_call_id():
-    return str(uuid.uuid4())
+    # All of the entropy of a UUID, in a shorter string
+    return base64.urlsafe_b64encode(uuid.uuid4().get_bytes()).strip('=')
 
 
 class WorkerContextBase(object):
