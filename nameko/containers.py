@@ -47,6 +47,7 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
+    # TODO get from config...
     PARENT_CALLS_TRACKED = 1
 
     def __init__(self, container, service, method_name, args=None, kwargs=None,
@@ -55,11 +56,21 @@ class WorkerContextBase(object):
         self.config = container.config  # TODO: remove?
         self.service = service
         self.method_name = method_name
+
         self.args = args if args is not None else ()
         self.kwargs = kwargs if kwargs is not None else {}
+
         self.data = data if data is not None else {}
-        self.unique_id = new_call_id()
+
+        # TODO get parent from data instead
         self.parent_call_stack = parent_call_stack or []
+        self.unique_id = new_call_id()
+        self.call_id = '{}.{}.{}'.format(
+            self._service_name(), self.method_name, self.unique_id
+        )
+        self.call_id_stack = self._truncate_stack(
+            self.parent_call_stack + [self.call_id]
+        )
 
     @abstractproperty
     def data_keys(self):
@@ -75,22 +86,10 @@ class WorkerContextBase(object):
         return '<{} {}.{} at 0x{:x}>'.format(
             cls_name, self._service_name(), self.method_name, id(self))
 
-    @property
-    def call_id(self):
-        return '{}.{}.{}'.format(
-            self._service_name(), self.method_name, self.unique_id
-        )
-
     def _truncate_stack(self, stack):
         # We truncate the stack so only this call and n parents are included
         i = -(self.PARENT_CALLS_TRACKED + 1)
         stack = stack[i:]
-        return stack
-
-    @property
-    def call_id_stack(self):
-        stack = self.parent_call_stack + [self.call_id]
-        stack = self._truncate_stack(stack)
         return stack
 
     def data_for_transfer(self):

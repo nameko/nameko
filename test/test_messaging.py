@@ -20,9 +20,9 @@ CONSUME_TIMEOUT = 1
 class CustomWorkerContext(WorkerContextBase):
     data_keys = NAMEKO_DATA_KEYS + ('customheader',)
 
-    @property
-    def call_id_stack(self):
-        return ['x']
+    def __init__(self, *args, **kwargs):
+        super(CustomWorkerContext, self).__init__(*args, **kwargs)
+        self.call_id_stack = ['x']
 
 
 def test_consume_provider():
@@ -207,8 +207,8 @@ def test_header_encoder():
     with patch.object(encoder, 'header_prefix', new="testprefix"):
 
         worker_ctx_cls = worker_context_factory('foo', 'bar', 'xxx')
-        worker_ctx_cls.call_id_stack = ['x']
         worker_ctx = worker_ctx_cls(data=context_data)
+        worker_ctx.call_id_stack = ['x']
 
         res = encoder.get_message_headers(worker_ctx)
         assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR',
