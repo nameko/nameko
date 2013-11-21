@@ -189,7 +189,7 @@ def test_reply_listener(get_rpc_exchange):
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
         assert queue.exchange == exchange
-        assert queue.exclusive
+        assert queue.routing_key == forced_uuid
 
     queue_consumer.register_provider.assert_called_once_with(reply_listener)
 
