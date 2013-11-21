@@ -49,7 +49,7 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
-    DEFAULT_PARENT_CALLS_TRACKED = 1
+    DEFAULT_PARENT_CALLS_TRACKED = 200
 
     def __init__(self, container, service, method_name, args=None, kwargs=None,
                  data=None):

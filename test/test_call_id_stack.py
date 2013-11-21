@@ -45,28 +45,29 @@ def test_worker_context_gets_stack(container_factory):
         assert context.call_id == 'baz.foo.1'
         assert context.call_id_stack == ['baz.bar.0', 'baz.foo.1']
 
-        # Trim stack
+        # Long stack
         many_ids = [str(i) for i in xrange(100)]
         context = context_cls(container, service, "long",
                               data={'call_id_stack': many_ids})
-        assert context.call_id_stack == ['99', 'baz.long.2']
+        expected = many_ids + ['baz.long.2']
+        assert context.call_id_stack == expected
 
 
-def test_long_call_stack(container_factory):
+def test_short_call_stack(container_factory):
     with predictable_call_ids():
         context_cls = worker_context_factory()
 
         class FooService(object):
             name = 'baz'
 
-        container = container_factory(FooService, {PARENT_CALLS_KEY: 4})
+        container = container_factory(FooService, {PARENT_CALLS_KEY: 1})
         service = FooService()
 
         # Trim stack
         many_ids = [str(i) for i in xrange(100)]
         context = context_cls(container, service, "long",
                               data={'call_id_stack': many_ids})
-        assert context.call_id_stack == ['96', '97', '98', '99', 'baz.long.0']
+        assert context.call_id_stack == ['99', 'baz.long.0']
 
 
 @pytest.mark.usefixtures("reset_rabbit")
