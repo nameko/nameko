@@ -6,8 +6,6 @@
 Welcome to nameko's documentation!
 ==================================
 
-bla bla bla
-
 
 
 Indices and tables
