@@ -197,6 +197,14 @@ class ProviderCollector(object):
         _log.debug('last provider unregistered for %s', self)
         self._last_provider_unregistered.send()
 
+    def stop(self):
+        """ Default `:meth:DependencyProvider.stop()` implementation for
+        subclasses using `ProviderCollector` as a mixin.
+        """
+        _log.debug('waiting for providers to unregister %s', self)
+        self._last_provider_unregistered.wait()
+        _log.debug('all providers unregistered %s', self)
+
 
 class DependencySet(SpawningSet):
 
