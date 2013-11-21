@@ -1,6 +1,6 @@
 from mock import Mock
 from nameko.containers import ServiceContainer
-from nameko.once import OnceProvider
+from nameko.testing.once import OnceProvider
 from nameko.testing.utils import wait_for_call
 
 

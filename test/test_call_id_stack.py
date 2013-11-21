@@ -5,9 +5,9 @@ import pytest
 
 from nameko.containers import WorkerContext
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
-from nameko.once import once
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
+from nameko.testing.once import once
 from nameko.testing.utils import (
     wait_for_call, predictable_call_ids, worker_context_factory)
 
