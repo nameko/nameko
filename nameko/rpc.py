@@ -307,6 +307,8 @@ class MethodProxy(HeaderEncoder):
 
 
 class ConsumeEvent(object):
+    """ Event for the RPC consumer with the same interface as eventlet.Event.
+    """
     def __init__(self, queue_consumer, correlation_id):
         self.correlation_id = correlation_id
         self.queue_consumer = queue_consumer
@@ -315,11 +317,18 @@ class ConsumeEvent(object):
         self.body = body
 
     def wait(self):
+        """ Makes a blocking call to it's queue_consumer until the message
+        with the given correlation_id has been processed.
+        """
         self.queue_consumer.poll_messages(self.correlation_id)
         return self.body
 
 
 class PollingQueueConsumer(object):
+    """ Implements a minimum interface of the  messaging.QueueConsumer.
+    Instead of processing messages in a separatet thread it provides a
+    polling method to dequeue messages.
+    """
     def register_provider(self, provider):
         self.provider = provider
         conn = Connection(provider.container.config['AMQP_URI'])
@@ -343,6 +352,8 @@ class PollingQueueConsumer(object):
 
 
 class SingleThreadedReplyListener(ReplyListener):
+    """ A ReplyListener which uses a custom queue consumer and ConsumeEvent.
+    """
     queue_consumer = None
 
     def __init__(self):
