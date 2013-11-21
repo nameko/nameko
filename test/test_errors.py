@@ -1,7 +1,7 @@
 # start a runner with a service that errors. does it hang? or stop?
 # how do we get an individual servicecontainer to blow up?
 import eventlet
-from mock import patch, call, ANY
+from mock import patch
 import pytest
 
 
@@ -34,14 +34,8 @@ class ExampleService(object):
         raise ExampleError("broken")
 
 
-@pytest.yield_fixture
-def logger():
-    with patch('nameko.containers._log') as logger:
-        yield logger
-
-
 def test_error_in_worker(container_factory, rabbit_config,
-                         service_proxy_factory, logger):
+                         service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
     proxy = service_proxy_factory(container, "exampleservice")
@@ -50,13 +44,11 @@ def test_error_in_worker(container_factory, rabbit_config,
     with pytest.raises(RemoteError) as exc_info:
         proxy.broken()
     assert exc_info.value.exc_type == "ExampleError"
-    assert logger.error.call_args == call('error handling worker %s: %s', ANY,
-                                          ANY, exc_info=True)
     assert not container._died.ready()
 
 
 def test_error_in_remote_worker(container_factory, rabbit_config,
-                                service_proxy_factory, logger):
+                                service_proxy_factory):
 
     container = container_factory(ExampleService, rabbit_config)
     proxy = service_proxy_factory(container, "exampleservice")
@@ -65,8 +57,6 @@ def test_error_in_remote_worker(container_factory, rabbit_config,
     with pytest.raises(RemoteError) as exc_info:
         proxy.proxy()
     assert exc_info.value.exc_type == "RemoteError"
-    assert logger.error.call_args == call('error handling worker %s: %s', ANY,
-                                          "RemoteError", exc_info=True)
     assert not container._died.ready()
 
 

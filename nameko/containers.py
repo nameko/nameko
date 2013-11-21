@@ -35,7 +35,7 @@ def get_service_name(service_cls):
 def log_worker_exception(worker_ctx, exc):
     if isinstance(exc, RemoteError):
         exc = "RemoteError"
-    _log.error('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
+    _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
 
 
 def new_call_id():
