@@ -162,8 +162,7 @@ class Responder(object):
 
             msg = {'result': result, 'error': error}
 
-            _log.debug('publis response %s:%s', routing_key, correlation_id)
-            # all queues are bound to the anonymous direct exchange
+            _log.debug('publish response %s:%s', routing_key, correlation_id)
             producer.publish(
                 msg, retry=self.retry, retry_policy=self.retry_policy,
                 exchange=exchange, routing_key=routing_key,
