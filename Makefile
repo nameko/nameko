@@ -16,7 +16,7 @@ develop: requirements
 
 pytest:
 	coverage run --source nameko -m pytest test
-	coverage report
+	coverage report --show-missing
 
 flake8:
 	flake8 nameko test

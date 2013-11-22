@@ -1,3 +1,4 @@
+import eventlet
 from mock import Mock, patch
 import pytest
 
@@ -5,7 +6,7 @@ from nameko.dependencies import (
     entrypoint, EntrypointProvider, get_entrypoint_providers,
     injection, InjectionProvider, get_injection_providers,
     DependencyFactory, DependencyTypeError, dependency,
-    DependencyProvider, PROCESS_SHARED, CONTAINER_SHARED)
+    DependencyProvider, PROCESS_SHARED, CONTAINER_SHARED, ProviderCollector)
 from nameko.containers import ServiceContainer, WorkerContext
 
 
@@ -225,3 +226,31 @@ def test_stringify():
     container.service_name = 'foobar'
     dep.bind('spam', container)
     assert str(dep).startswith('<DependencyProvider [foobar.spam] at')
+
+
+def test_provider_collector():
+    collector = ProviderCollector()
+
+    provider1 = object()
+    provider2 = object()
+    collector.register_provider(provider1)
+    collector.register_provider(provider2)
+
+    assert provider1 in collector._providers
+    assert provider2 in collector._providers
+
+    collector.unregister_provider(provider1)
+    assert provider1 not in collector._providers
+
+    with pytest.raises(KeyError):
+        collector.unregister_provider(provider1)
+
+    # should time out waiting for stop
+    with pytest.raises(eventlet.Timeout):
+        with eventlet.Timeout(0):
+            collector.stop()
+
+    # should not time out
+    with eventlet.Timeout(0):
+        collector.unregister_provider(provider2)
+        collector.stop()
