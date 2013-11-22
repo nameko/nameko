@@ -87,5 +87,9 @@ API - reference
 Examples
 --------
 
+.. toctree::
+    :maxdepth: 3
+
+    examples/index
 
 """
