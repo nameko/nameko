@@ -32,7 +32,7 @@ coverage_check:
 	coverage report | grep "TOTAL.*100%" > /dev/null
 
 auto-doc:
-	sphinx-apidoc -e -f -o docs/api  ./nameko/
+	sphinx-apidoc -e -f -o docs  ./nameko/
 
 sphinx:
 	sphinx-build -b html -d ./docs/build/doctrees  ./docs ./docs/build/html
