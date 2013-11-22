@@ -6,6 +6,7 @@
 Welcome to nameko's documentation!
 ==================================
 
+.. automodule:: nameko
 
 
 Indices and tables

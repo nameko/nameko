@@ -10,6 +10,16 @@ Nameko
    ingredient in miso soup and nabemono.
 #. python services framework on top of AMQP
 
+
+Documentation:
+--------------
+
+Nameko is using Sphinx, and the latest documentation can be found here:
+
+  http://nameko.readthedocs.org
+
+ 
+
 Getting Started
 ---------------
 
