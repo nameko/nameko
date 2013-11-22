@@ -76,14 +76,12 @@ API - reference
 .. toctree::
     :maxdepth: 2
 
-    Events (high level pub/sub) <nameko.events>
-    RPC over AMQP <nameko.rpc>
+    Events (high level pub/sub)         <nameko.events>
+    RPC over AMQP                       <nameko.rpc>
     Messagng (low level AMQP messaging) <nameko.messaging>
-
-    Server  <nameko.runners>
-
-    Containers <nameko.containers>
-    Dependency Injection <nameko.dependencies>
+    Server                              <nameko.runners>
+    Containers                          <nameko.containers>
+    Dependency Injection                <nameko.dependencies>
 
 
 Examples

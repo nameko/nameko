@@ -62,14 +62,14 @@ called. Let's create ``FriendlyService`` now:
     class HelloEvent(Event):
         type = "hello"
 
-   class FriendlyService(object):
+    class FriendlyService(object):
 
-       name = "friendlyservice"
-       dispatch = EventDispatcher()
+        name = "friendlyservice"
+        dispatch = EventDispatcher()
 
-       @timer(interval=5)
-       def say_hello(self):
-           self.dispatch(HelloEvent(self.name))
+        @timer(interval=5)
+        def say_hello(self):
+            self.dispatch(HelloEvent(self.name))
 
 Using the nameko ``timer``,  instances of ``FriendlyService`` dispatch a hello
 event every 5 seconds. Let's use nameko to make these two services interact:
