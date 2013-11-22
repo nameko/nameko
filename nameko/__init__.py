@@ -23,13 +23,13 @@ To make it respond to an event, we have to make ``hello`` an event handler:
 
 .. code:: python
 
-    from nameko.events import event_handler
+  from nameko.events import event_handler
 
-    class HelloWorld(object):
+  class HelloWorld(object):
 
-        @event_handler('friendlyservice', 'hello')
-        def hello(self, name):
-            print "Hello, {}!".format(name)
+      @event_handler('friendlyservice', 'hello')
+      def hello(self, name):
+          print "Hello, {}!".format(name)
 
 Now, whenever a "friendlyservice" fires a "hello" event, ``hello`` will be
 called. Let's create ``FriendlyService`` now:
@@ -44,12 +44,12 @@ called. Let's create ``FriendlyService`` now:
 
     class FriendlyService(object):
 
-       name = "friendlyservice"
-       dispatch = EventDispatcher()
+        name = "friendlyservice"
+        dispatch = EventDispatcher()
 
-       @timer(interval=5)
-       def say_hello(self):
-           self.dispatch(HelloEvent(self.name))
+        @timer(interval=5)
+        def say_hello(self):
+            self.dispatch(HelloEvent(self.name))
 
 
 Using the nameko ``timer``,  instances of ``FriendlyService`` dispatch a hello
