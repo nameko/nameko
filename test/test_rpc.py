@@ -15,7 +15,7 @@ from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.containers import (
     ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
-from nameko.testing.utils import get_dependency, predictable_call_ids
+from nameko.testing.utils import get_dependency
 
 
 class ExampleError(Exception):
@@ -291,76 +291,76 @@ def test_rpc_context_data(container_factory, rabbit_config,
     assert fr_proxy.say_hello() == "bonjour"
 
 
+@pytest.mark.usefixtures("predictable_call_ids")
 def test_rpc_headers(container_factory, rabbit_config,
                      service_proxy_factory):
-    with predictable_call_ids():
-        container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService, rabbit_config)
 
-        context_data = {
-            'language': 'en',
-            'bogus_header': '123456789'
-        }
+    context_data = {
+        'language': 'en',
+        'bogus_header': '123456789'
+    }
 
-        headers = {}
-        rpc_consumer = get_dependency(container, RpcConsumer)
-        handle_message = rpc_consumer.handle_message
+    headers = {}
+    rpc_consumer = get_dependency(container, RpcConsumer)
+    handle_message = rpc_consumer.handle_message
 
-        with patch.object(rpc_consumer, 'handle_message') as patched_handler:
-            def side_effect(body, message):
-                headers.update(message.headers)  # extract message headers
-                return handle_message(body, message)
+    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+        def side_effect(body, message):
+            headers.update(message.headers)  # extract message headers
+            return handle_message(body, message)
 
-            patched_handler.side_effect = side_effect
+        patched_handler.side_effect = side_effect
 
-            worker_ctx = WorkerContext(container, None, 'method',
-                                       data=context_data.copy())
-            proxy = service_proxy_factory(
-                container, "exampleservice", worker_ctx)
-            container.start()
+        worker_ctx = WorkerContext(container, None, 'method',
+                                   data=context_data.copy())
+        proxy = service_proxy_factory(
+            container, "exampleservice", worker_ctx)
+        container.start()
 
-        assert proxy.say_hello() == "hello"
-        # bogus_header dropped
-        assert headers == {
-            'nameko.language': 'en',
-            'nameko.call_id_stack': ['exampleservice.method.0'],
-        }
+    assert proxy.say_hello() == "hello"
+    # bogus_header dropped
+    assert headers == {
+        'nameko.language': 'en',
+        'nameko.call_id_stack': ['exampleservice.method.0'],
+    }
 
 
+@pytest.mark.usefixtures("predictable_call_ids")
 def test_rpc_custom_headers(container_factory, rabbit_config,
                             service_proxy_factory):
-    with predictable_call_ids():
-        container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService, rabbit_config)
 
-        context_data = {
-            'language': 'en',
-            'bogus_header': '123456789',
-            'custom_header': 'specialvalue',
-        }
+    context_data = {
+        'language': 'en',
+        'bogus_header': '123456789',
+        'custom_header': 'specialvalue',
+    }
 
-        headers = {}
-        rpc_consumer = get_dependency(container, RpcConsumer)
-        handle_message = rpc_consumer.handle_message
+    headers = {}
+    rpc_consumer = get_dependency(container, RpcConsumer)
+    handle_message = rpc_consumer.handle_message
 
-        with patch.object(rpc_consumer, 'handle_message') as patched_handler:
-            def side_effect(body, message):
-                headers.update(message.headers)  # extract message headers
-                return handle_message(body, message)
+    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+        def side_effect(body, message):
+            headers.update(message.headers)  # extract message headers
+            return handle_message(body, message)
 
-            patched_handler.side_effect = side_effect
+        patched_handler.side_effect = side_effect
 
-            worker_ctx = CustomWorkerContext(container, None, 'method',
-                                             data=context_data.copy())
-            proxy = service_proxy_factory(
-                container, "exampleservice", worker_ctx)
-            container.start()
+        worker_ctx = CustomWorkerContext(container, None, 'method',
+                                         data=context_data.copy())
+        proxy = service_proxy_factory(
+            container, "exampleservice", worker_ctx)
+        container.start()
 
-        assert proxy.say_hello() == "hello"
-        # bogus_header dropped, custom_header present
-        assert headers == {
-            'nameko.language': 'en',
-            'nameko.custom_header': 'specialvalue',
-            'nameko.call_id_stack': ['exampleservice.method.0']
-        }
+    assert proxy.say_hello() == "hello"
+    # bogus_header dropped, custom_header present
+    assert headers == {
+        'nameko.language': 'en',
+        'nameko.custom_header': 'specialvalue',
+        'nameko.call_id_stack': ['exampleservice.method.0']
+    }
 
 
 def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager,
