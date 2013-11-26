@@ -4,6 +4,7 @@ import socket
 import uuid
 
 import eventlet
+from eventlet.event import Event
 from kombu import Connection
 from mock import patch, Mock, call
 
@@ -188,7 +189,7 @@ def test_reply_listener(get_rpc_exchange):
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
         assert queue.exchange == exchange
-        assert queue.exclusive
+        assert queue.routing_key == forced_uuid
 
     queue_consumer.register_provider.assert_called_once_with(reply_listener)
 
@@ -435,3 +436,69 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
             assert type(exc_info.value) == socket.error
 
 # test reply-to and correlation-id correct
+
+
+def test_rpc_consumer_sharing(container_factory, rabbit_config,
+                              rabbit_manager, service_proxy_factory):
+    """ Verify that the RpcConsumer unregisters from the queueconsumer when
+    the first provider unregisters itself. Otherwise it keeps consuming
+    messages for the unregistered provider, raising MethodNotFound.
+    """
+
+    container = container_factory(ExampleService, rabbit_config)
+    proxy = service_proxy_factory(container, "exampleservice")
+    container.start()
+
+    task_a = get_dependency(container, RpcProvider, name="task_a")
+    task_a_stop = task_a.stop
+
+    task_b = get_dependency(container, RpcProvider, name="task_b")
+    task_b_stop = task_b.stop
+
+    task_a_stopped = Event()
+
+    def patched_task_a_stop():
+        task_a_stop()  # stop immediately
+        task_a_stopped.send(True)
+
+    def patched_task_b_stop():
+        eventlet.sleep(2)  # stop after 2 seconds
+        task_b_stop()
+
+    with patch.object(task_b, 'stop', patched_task_b_stop), \
+            patch.object(task_a, 'stop', patched_task_a_stop):
+
+        # stop the container and wait for task_a to stop
+        # task_b will still be in the process of stopping
+        eventlet.spawn(container.stop)
+        task_a_stopped.wait()
+
+        # try to call task_a.
+        # should timeout, rather than raising MethodNotFound
+        with pytest.raises(eventlet.Timeout):
+            with eventlet.Timeout(1):
+                proxy.task_a()
+
+    # kill the container so we don't have to wait for task_b to stop
+    container.kill(Exception('test stopped'))
+
+
+def test_rpc_consumer_cannot_exit_with_providers(
+        container_factory, rabbit_config, rabbit_manager):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    task_a = get_dependency(container, RpcProvider, name="task_a")
+
+    def never_stops():
+        while True:
+            eventlet.sleep()
+
+    with patch.object(task_a, 'stop', never_stops):
+        with pytest.raises(eventlet.Timeout):
+            with eventlet.Timeout(1):
+                container.stop()
+
+    # kill off task_a's misbehaving rpc provider
+    container.kill(Exception('test-end'))
