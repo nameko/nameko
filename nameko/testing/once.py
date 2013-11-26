@@ -20,4 +20,18 @@ class OnceProvider(EntrypointProvider):
 
 @entrypoint
 def once(interval=None, config_key=None):
+    """
+    Decorates a method to be executed as a one-off in a service.
+
+    This is useful in testing for triggering work to start, where you don't
+    want the open-ended nature of the `timer` entry-point.
+
+    Example:
+
+    class Foobar(object):
+
+        @once()
+        def handle_timer(self):
+            self.shrub(body)
+    """
     return DependencyFactory(OnceProvider, interval, config_key)
