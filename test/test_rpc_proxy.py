@@ -1,4 +1,5 @@
-from nameko.rpc import standalone_proxy, rpc
+from nameko.rpc import rpc
+from nameko.singlethreaded.rpc import rpc_proxy
 
 
 class FooService(object):
@@ -14,5 +15,5 @@ def test_proxy(container_factory, rabbit_config):
 
     container = container_factory(FooService, config)
     container.start()
-    with standalone_proxy('foobar', config) as foo:
+    with rpc_proxy('foobar', config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
