@@ -58,9 +58,8 @@ class WorkerContextBase(object):
         self.container = container
         self.config = container.config  # TODO: remove?
 
-        calls = self.config.get(PARENT_CALLS_KEY,
-                                self.DEFAULT_PARENT_CALLS_TRACKED)
-        self.parent_calls_tracked = int(calls)
+        self.parent_calls_tracked = self.config.get(
+            PARENT_CALLS_KEY, self.DEFAULT_PARENT_CALLS_TRACKED)
 
         self.service = service
         self.method_name = method_name
