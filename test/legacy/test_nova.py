@@ -129,7 +129,6 @@ def test_send_rpc_errors(get_connection):
                 args={'foo': 'bar', },
                 timeout=3)
 
-    # TODO This assertion can occasionally fail
     assert not g
 
 
@@ -176,5 +175,4 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
         assert resp == {'spam': 'shrub', }
     eventlet.sleep()
 
-    # TODO This assertion can occasionally fail
     assert not g
