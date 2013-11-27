@@ -70,6 +70,11 @@ def reset_kombu_pools(request):
 
 
 @pytest.fixture
+def empty_config(request):
+    return {}
+
+
+@pytest.fixture
 def rabbit_config(request):
     amqp_uri = request.config.getoption('AMQP_URI')
 

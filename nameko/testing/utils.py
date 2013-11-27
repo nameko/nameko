@@ -93,8 +93,12 @@ def worker_context_factory(*keys):
 
         def __init__(self, container=None, service=None, method_name=None,
                      **kwargs):
+            container_mock = Mock()
+            container_mock.config = {}
             super(CustomWorkerContext, self).__init__(
-                container or Mock(), service or Mock(), method_name or Mock(),
+                container or container_mock,
+                service or Mock(),
+                method_name or Mock(),
                 **kwargs
             )
 

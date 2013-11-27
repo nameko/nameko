@@ -22,12 +22,12 @@ class CustomWorkerContext(WorkerContextBase):
     data_keys = NAMEKO_DATA_KEYS + ('customheader',)
 
 
-def test_consume_provider():
+def test_consume_provider(empty_config):
 
     container = Mock(spec=ServiceContainer)
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
-    container.config = Mock()
+    container.config = empty_config
 
     worker_ctx = WorkerContext(container, None, None)
 
@@ -78,10 +78,10 @@ def test_consume_provider():
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_exchange():
+def test_publish_to_exchange(empty_config):
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
-    container.config = Mock()
+    container.config = empty_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, "publish")
@@ -115,10 +115,10 @@ def test_publish_to_exchange():
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_queue():
+def test_publish_to_queue(empty_config):
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
-    container.config = Mock()
+    container.config = empty_config
 
     ctx_data = {'language': 'en'}
     service = Mock()
@@ -155,11 +155,11 @@ def test_publish_to_queue():
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_custom_headers():
+def test_publish_custom_headers(empty_config):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
-    container.config = Mock()
+    container.config = empty_config
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
@@ -194,7 +194,7 @@ def test_publish_custom_headers():
                                                  exchange=foobar_ex)
 
 
-def test_header_encoder():
+def test_header_encoder(empty_config):
 
     context_data = {
         'foo': 'FOO',

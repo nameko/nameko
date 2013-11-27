@@ -58,10 +58,9 @@ class WorkerContextBase(object):
         self.container = container
         self.config = container.config  # TODO: remove?
 
-        try:
-            self.parent_calls_tracked = int(self.config[PARENT_CALLS_KEY])
-        except (TypeError, KeyError):
-            self.parent_calls_tracked = self.DEFAULT_PARENT_CALLS_TRACKED
+        calls = self.config.get(PARENT_CALLS_KEY,
+                                self.DEFAULT_PARENT_CALLS_TRACKED)
+        self.parent_calls_tracked = int(calls)
 
         self.service = service
         self.method_name = method_name
