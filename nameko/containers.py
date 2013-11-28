@@ -150,7 +150,6 @@ class ManagedThreadContainer(object):
         Threads are killed automatically by the container if they are
         still running after all their providers have been stopped.
 
-
         Entrypoints may only create separate threads using this method,
         to ensure they are life-cycle managed.
         """

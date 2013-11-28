@@ -27,9 +27,10 @@ class ConsumeEvent(object):
 
 
 class PollingQueueConsumer(object):
-    """ Implements a minimum interface of the  messaging.QueueConsumer.
+    """ Implements a minimum interface of the messaging.QueueConsumer.
     Instead of processing messages in a separate thread it provides a
-    polling method to dequeue messages.
+    polling method to block until a message with the same correlation
+    ID of the RPC-proxy call arrives.
     """
     def register_provider(self, provider):
         self.provider = provider
@@ -84,7 +85,7 @@ def rpc_proxy(container_service_name, nameko_config):
 
     container = FakeContainer(nameko_config)
 
-    worker_ctx = WorkerContext(container, None, None)
+    worker_ctx = WorkerContext(container, service=None, method_name=None)
 
     reply_listener = SingleThreadedReplyListener()
 
