@@ -19,7 +19,7 @@ class ConsumeEvent(object):
         self.body = body
 
     def wait(self):
-        """ Makes a blocking call to it's queue_consumer until the message
+        """ Makes a blocking call to its queue_consumer until the message
         with the given correlation_id has been processed.
         """
         self.queue_consumer.poll_messages(self.correlation_id)
@@ -77,13 +77,13 @@ def rpc_proxy(container_service_name, nameko_config):
     directly.
     """
 
-    class FakeContainer(object):
+    class ProxyContainer(object):
         service_name = container_service_name
 
         def __init__(self, config):
             self.config = config
 
-    container = FakeContainer(nameko_config)
+    container = ProxyContainer(nameko_config)
 
     worker_ctx = WorkerContext(container, service=None, method_name=None)
 
