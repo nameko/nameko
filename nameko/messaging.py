@@ -37,7 +37,7 @@ class HeaderEncoder(object):
 
     def get_message_headers(self, worker_ctx):
         headers = {self._get_header_name(key): value
-                   for key, value in worker_ctx.data_for_transfer().items()}
+                   for key, value in worker_ctx.context_data.items()}
         return headers
 
 
@@ -54,7 +54,7 @@ class HeaderDecoder(object):
     def unpack_message_headers(self, worker_ctx_cls, message):
         stripped = {self._strip_header_name(k): v
                     for k, v in message.headers.iteritems()}
-        return worker_ctx_cls.context_from_transfer(stripped)
+        return worker_ctx_cls.get_context_data(stripped)
 
 
 @injection

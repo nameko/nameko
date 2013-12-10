@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 from abc import ABCMeta, abstractproperty
-import base64
 from logging import getLogger
 import uuid
 
@@ -42,8 +41,7 @@ def log_worker_exception(worker_ctx, exc):
 
 
 def new_call_id():
-    # All of the entropy of a UUID, in a shorter string
-    return base64.urlsafe_b64encode(uuid.uuid4().get_bytes()).strip('=')
+    return str(uuid.uuid4())
 
 
 class WorkerContextBase(object):
@@ -51,7 +49,7 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
-    DEFAULT_PARENT_CALLS_TRACKED = 200
+    DEFAULT_PARENT_CALLS_TRACKED = 10
 
     def __init__(self, container, service, method_name, args=None, kwargs=None,
                  data=None):
@@ -80,25 +78,29 @@ class WorkerContextBase(object):
         )
 
     @abstractproperty
-    def data_keys(self):
+    def context_keys(self):
         """ Return a tuple of keys describing data kept on this WorkerContext.
         """
 
-    def data_for_transfer(self):
-        # Values from `self.data` if key is in `data_keys', plus the ID info.
+    @property
+    def context_data(self):
+        # Values from `self.data` if key is in `context_keys', plus the ID info
         key_data = {k: v for k, v in self.data.iteritems()
-                    if k in self.data_keys}
+                    if k in self.context_keys}
         key_data[WORKER_CALL_ID_STACK_KEY] = self.call_id_stack
         return key_data
 
     @classmethod
-    def context_from_transfer(cls, incoming):
+    def get_context_data(cls, incoming):
         data = {k: v for k, v in incoming.iteritems()
-                if k in cls.data_keys}
+                if k in cls.context_keys}
         return data
 
     def _truncate_stack(self, stack):
-        # We truncate the stack so only this call and n parents are included
+        """
+        Truncate the stack so only this call and ``self.parent_calls_tracked``
+        parents are included
+        """
         i = -(self.parent_calls_tracked + 1)
         stack = stack[i:]
         return stack
