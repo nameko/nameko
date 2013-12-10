@@ -2,20 +2,25 @@
 Provides a high level interface to the core messaging module.
 
 Events are special messages, which can be emitted by one service
-and handled by other listenting services.
+and handled by other listening services.
 
-To emit an event, a service must define an `Event` class with a unique type
-and dispatch an instance of it using the `EventDispatcher`.
-Dispatching of events is done asynchronously. It is only guaranteed
-that the event has been dispatched, not that it was received or handled by a
-listener.
+To emit an event, a service must define an :class:`Event` class with a unique
+type and dispatch an instance of it using an injection acquired from an
+instance of :class:`EventDispatcher`.
+
+Events are dispatched asynchronously. It is only guaranteed that the event has
+been dispatched, not that it was received or handled by a listener.
 
 To listen to an event, a service must declare a handler using the
-`handle_event` decorator, providing the target service and an event filter.
+:func:`handle_event` entrypoint, providing the target service and an event type
+filter.
 
 Example::
 
-    @handle_event("foo_service", "event.type")
+    class MyEvent(Event):
+        type = "myevent"
+
+    @handle_event("foo_service", "myevent")
     def bar(evt):
         pass
 
