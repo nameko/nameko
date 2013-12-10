@@ -1,5 +1,5 @@
 from nameko.rpc import rpc
-from nameko.singlethreaded.rpc import rpc_proxy
+from nameko.standalone.rpc import rpc_proxy
 
 
 class FooService(object):

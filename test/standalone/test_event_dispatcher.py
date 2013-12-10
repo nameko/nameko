@@ -1,7 +1,7 @@
 from mock import Mock
 
 from nameko.events import Event, event_handler
-from nameko.singlethreaded.events import event_dispatcher
+from nameko.standalone.events import event_dispatcher
 from nameko.testing.utils import wait_for_call
 
 handler_called = Mock()
