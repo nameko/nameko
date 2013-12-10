@@ -176,9 +176,10 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
     :class:`~.Event` with a class attribute ``type`` or a string matching the
     value of this attribute.
     ``handler_type`` determines the behaviour of the handler:
-        - ``events.SERVICE_POOL``: event handlers will be pooled by service
-            type and handler-method and one from each pool will receive
-            the event. ::
+        - ``events.SERVICE_POOL``:
+
+            Event handlers will be pooled by service type and handler-method
+            and one from each pool will receive the event. ::
 
                            .-[queue]- (service X handler-method-1)
                           /
@@ -191,8 +192,10 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                                       (service Y(instance 2) handler-method)
 
 
-        - ``events.SINGLETON``: events will be received by only one registered
-            handler. If requeued on error, they may be given to a different
+        - ``events.SINGLETON``:
+
+            Events will be received by only one registered handler.
+            If requeued on error, they may be given to a different
             handler. ::
                                        (service X handler-method)
                                      /
@@ -200,9 +203,10 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                                      \
                                        (service Y handler-method)
 
-        - ``events.BROADCAST``: events will be received by every handler. This
-            will broadcast to every service instance, not just every service
-            type - use wisely! ::
+        - ``events.BROADCAST``:
+            Events will be received by every handler. This  will broadcast
+            to every service instance, not just every service type
+            - use wisely! ::
 
                             [queue]- (service X(instance 1) handler-method)
                           /
