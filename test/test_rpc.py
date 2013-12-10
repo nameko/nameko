@@ -15,7 +15,7 @@ from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.containers import (
-    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
+    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.testing.utils import get_dependency
 
 
@@ -45,7 +45,7 @@ def translator():
 
 
 class CustomWorkerContext(WorkerContextBase):
-    data_keys = NAMEKO_DATA_KEYS + ('custom_header',)
+    context_keys = NAMEKO_CONTEXT_KEYS + ('custom_header',)
 
 
 class ExampleService(object):

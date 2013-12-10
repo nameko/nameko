@@ -22,7 +22,7 @@ MAX_WOKERS_KEY = 'max_workers'
 PARENT_CALLS_KEY = 'parent_calls_tracked'
 KILL_TIMEOUT = 3  # seconds
 
-NAMEKO_DATA_KEYS = (
+NAMEKO_CONTEXT_KEYS = (
     'language',
     'user_id',
     'auth_token',
@@ -114,7 +114,7 @@ class WorkerContextBase(object):
 class WorkerContext(WorkerContextBase):
     """ Default WorkerContext implementation
     """
-    data_keys = NAMEKO_DATA_KEYS
+    context_keys = NAMEKO_CONTEXT_KEYS
 
 
 class ManagedThreadContainer(object):

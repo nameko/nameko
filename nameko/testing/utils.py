@@ -89,7 +89,7 @@ ANY_PARTIAL = AnyInstanceOf(partial)
 
 def worker_context_factory(*keys):
     class CustomWorkerContext(WorkerContextBase):
-        data_keys = keys
+        context_keys = keys
 
         def __init__(self, container=None, service=None, method_name=None,
                      **kwargs):
