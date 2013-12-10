@@ -46,6 +46,8 @@ Stable releases of nameko are available on the Python Package Index (
  * pip install -U nameko
  * easy_install -U nameko
 
+Nameko requires an AMQP broker and is tested with
+`RabbitMQ <http://http://www.rabbitmq.com/>`_.
 
 Contributing:
 -------------
