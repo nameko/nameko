@@ -1,7 +1,10 @@
+-r requirements.txt
+
 flake8==2.1
 mock==1.0.1
 pylint==1.0.0
 pyrabbit==1.0.1
 pytest==2.4.2
+Sphinx==1.2
 # patched version of coverage, to deal with eventlet
 git+https://github.com/newbrough/coverage.git#egg=coverage-3.5.2pl1

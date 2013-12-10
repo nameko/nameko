@@ -100,7 +100,7 @@ RPC Example
 ===========
 
 Nameko comes with RPC support out of the box. To expose a method over RPC,
-decorate it with ``@rpc`` entrypoint.
+decorate it with the ``@rpc`` entrypoint.
 
 Adder service:
 

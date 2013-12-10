@@ -8,7 +8,7 @@ Nameko
 
 #. amber-brown mushroom with a slightly gelatinous coating that is used as an
    ingredient in miso soup and nabemono.
-#. python framework for writing Service Orientated Architectures
+#. python framework for building service orientated software
 
 Features:
 ---------
@@ -36,6 +36,16 @@ Nameko is using Sphinx, and the latest documentation can be found here:
   http://nameko.readthedocs.org
 
 
+Prerequisites:
+--------------
+
+Nameko requires an AMQP broker and is tested with
+`RabbitMQ <http://http://www.rabbitmq.com/>`_.
+
+The RabbitMQ `tutorials <http://www.rabbitmq.com/getstarted.html>`_ are very
+good and serve as an excellent introduction to messaging and AMQP.
+
+
 Installation:
 -------------
 
@@ -46,8 +56,6 @@ Stable releases of nameko are available on the Python Package Index (
  * pip install -U nameko
  * easy_install -U nameko
 
-Nameko requires an AMQP broker and is tested with
-`RabbitMQ <http://http://www.rabbitmq.com/>`_.
 
 Contributing:
 -------------
