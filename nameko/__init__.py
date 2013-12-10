@@ -84,7 +84,7 @@ in your AMQP broker and see messages passing through it.
 The complete source for this example is available here:
 :ref:`hello-world-example`.
 
-.. note:: Naming declarations
+.. note::
 
    ``@event_handler`` and ``@timer`` are examples of *entrypoint dependencies*.
    That is, they declare things on which the service *depends* to function as

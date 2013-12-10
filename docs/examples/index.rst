@@ -23,7 +23,7 @@ RPC Client
     .. literalinclude:: rpc_client.py
 
 
-.. messaging-example:
+.. _messaging-example:
 
 Messsaging
 ==========
