@@ -78,6 +78,9 @@ def rpc_proxy(container_service_name, nameko_config):
     """
 
     class ProxyContainer(object):
+        """ Implements a minimum interface of the containers.ServiceContainer
+        to be used by the subclasses and rpc imports in this module.
+        """
         service_name = container_service_name
 
         def __init__(self, config):
