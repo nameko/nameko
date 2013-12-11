@@ -17,7 +17,7 @@ class ServiceRunner(object):
     then use the start method to serve them and the stop and kill methods
     to stop them. The wait method will block until all services have stopped.
 
-    Example:
+    Example::
 
         runner = ServiceRunner(config)
         runner.add_service('foobar', Foobar)

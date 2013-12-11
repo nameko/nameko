@@ -1,7 +1,8 @@
-from __future__ import absolute_import
 """
 Provides classes and method to deal with dependency injection.
 """
+from __future__ import absolute_import
+
 from abc import ABCMeta, abstractmethod
 from functools import wraps, partial
 import inspect

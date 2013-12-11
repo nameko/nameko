@@ -7,12 +7,10 @@ noop:
 .PHONY: noop
 
 requirements:
-	pip install -r requirements.txt
-	pip install -r test_requirements.txt
-
+	pip install -r dev_requirements.txt -q
 
 develop: requirements
-	python setup.py develop
+	python setup.py -q develop
 
 pytest:
 	coverage run --source nameko -m pytest test
@@ -24,10 +22,19 @@ flake8:
 pylint:
 	pylint nameko -E
 
-test: pytest pylint flake8 coverage_check
+test: pytest pylint flake8 coverage-check
 
 full-test: requirements test
 
-coverage_check:
+coverage-check:
 	coverage report | grep "TOTAL.*100%" > /dev/null
 
+sphinx: develop
+	sphinx-build -b html -d docs/build/doctrees docs docs/build/html
+
+docs/modules.rst: $(wildcard nameko/*.py) $(wildcard nameko/**/*.py)
+	sphinx-apidoc -e -f -o docs nameko
+
+autodoc: docs/modules.rst
+
+docs: autodoc sphinx
