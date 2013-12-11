@@ -29,12 +29,12 @@ full-test: requirements test
 coverage-check:
 	coverage report | grep "TOTAL.*100%" > /dev/null
 
-sphinx:
-	sphinx-build -b html -d ./docs/build/doctrees  ./docs ./docs/build/html
+sphinx: develop
+	sphinx-build -b html -d docs/build/doctrees docs docs/build/html
 
-docs/api/modules.rst: $(wildcard nameko/**/*.py)
-	sphinx-apidoc -e -f -o docs/api nameko
+docs/modules.rst: $(wildcard nameko/*.py) $(wildcard nameko/**/*.py)
+	sphinx-apidoc -e -f -o docs nameko
 
-autodoc: docs/api/modules.rst
+autodoc: docs/modules.rst
 
 docs: autodoc sphinx

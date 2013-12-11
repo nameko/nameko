@@ -15,6 +15,7 @@ services:
 
 script:
   - make test
+  - make docs
 
 notifications:
   email: false
