@@ -266,5 +266,5 @@ texinfo_documents = [
 
 # -- api-doc experiment ---------------------------------------------------
 
-from sphinx.apidoc import main
-main(["sphinx-apidoc", "-e", "-f", "-o", "docs", "./nameko/"])
+# from sphinx.apidoc import main
+# main(["sphinx-apidoc", "-e", "-f", "-o", "docs", "./nameko/"])
