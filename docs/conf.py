@@ -262,13 +262,3 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 # texinfo_no_detailmenu = False
-
-
-# -- api-doc experiment ---------------------------------------------------
-
-import nameko
-srcpath = os.path.dirname(os.path.realpath(nameko.__file__))
-docspath = os.path.join(srcpath, "docs")
-
-from sphinx.apidoc import main
-main(["sphinx-apidoc", "-e", "-f", "-o", docspath, srcpath])
