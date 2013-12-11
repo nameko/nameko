@@ -7,10 +7,10 @@ noop:
 .PHONY: noop
 
 requirements:
-	pip install -r dev_requirements.txt
+	pip install -r dev_requirements.txt -q
 
 develop: requirements
-	python setup.py develop
+	python setup.py -q develop
 
 pytest:
 	coverage run --source nameko -m pytest test
