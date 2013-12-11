@@ -27,10 +27,10 @@ class ConsumeEvent(object):
 
 
 class PollingQueueConsumer(object):
-    """ Implements a minimum interface of the messaging.QueueConsumer.
-    Instead of processing messages in a separate thread it provides a
-    polling method to block until a message with the same correlation
-    ID of the RPC-proxy call arrives.
+    """ Implements a minimum interface of the
+    :class:`~messaging.QueueConsumer`. Instead of processing messages in a
+    separate thread it provides a polling method to block until a message with
+    the same correlation ID of the RPC-proxy call arrives.
     """
     def register_provider(self, provider):
         self.provider = provider
@@ -72,12 +72,18 @@ class SingleThreadedReplyListener(ReplyListener):
 @contextmanager
 def rpc_proxy(container_service_name, nameko_config):
     """
-    Provides a simple single-threaded RPC proxy to a named service. Method
-    calls to the proxy are converted into RPC calls, with responses returned
-    directly.
+    Yield a single-threaded RPC proxy to a named service. Method calls to the
+    proxy are converted into RPC calls, with responses returned directly.
+
+    Enables services not hosted by nameko to make RPC requests to a nameko
+    cluster.
     """
 
     class ProxyContainer(object):
+        """ Implements a minimum interface of the
+        :class:`~containers.ServiceContainer` to be used by the subclasses
+        and rpc imports in this module.
+        """
         service_name = container_service_name
 
         def __init__(self, config):
