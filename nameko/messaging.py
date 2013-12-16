@@ -291,7 +291,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
     def get_consumers(self, Consumer, channel):
         """ kombu callback to set up consumers """
-        _log.debug('settting up consumers')
+        _log.debug('setting up consumers')
 
         for provider in self._providers:
             callbacks = [self._on_message, provider.handle_message]

@@ -176,7 +176,7 @@ class ManagedThreadContainer(object):
         num_active_threads = len(self._active_threads)
 
         if num_active_threads:
-            _log.warning('killing (%s) active threads', num_active_threads)
+            _log.warning('killing %s active thread(s)', num_active_threads)
             for gt in list(self._active_threads):
                 gt.kill()
 
@@ -260,7 +260,7 @@ class ServiceContainer(ManagedThreadContainer):
         First all entrypoints are asked to ``stop()``.
         This ensures that no new worker threads are started.
 
-        It is the providers' responsiblity to gracefully shut down when
+        It is the providers' responsibility to gracefully shut down when
         ``stop()`` is called on them and only return when they have stopped.
 
         After all entrypoints have stopped the container waits for any
