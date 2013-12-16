@@ -214,16 +214,16 @@ class DependencySet(SpawningSet):
         """ A ``SpawningSet`` of just the ``InjectionProvider`` instances in
         this set.
         """
-        return SpawningSet([item for item in self
-                           if is_injection_provider(item)])
+        return SpawningSet(item for item in self
+                           if is_injection_provider(item))
 
     @property
     def entrypoints(self):
         """ A ``SpawningSet`` of just the ``EntrypointProvider`` instances in
         this set.
         """
-        return SpawningSet([item for item in self
-                            if is_entrypoint_provider(item)])
+        return SpawningSet(item for item in self
+                           if is_entrypoint_provider(item))
 
     @property
     def nested(self):
