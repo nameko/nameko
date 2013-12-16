@@ -59,9 +59,7 @@ class DependencyProvider(object):
         """ Called to stop this dependency without grace. The exception
         causing the kill may be provided.
 
-        DependencyProviders should urgently shut down here. This method must
-        return within ``nameko.containers.KILL_TIMEOUT`` seconds, otherwise it
-        may be forcibly stopped.
+        DependencyProviders should urgently shut down here.
         """
 
     def worker_setup(self, worker_ctx):

@@ -271,32 +271,6 @@ def test_kill_already_stopped(container):
         assert logger.debug.call_args == call("already stopped %s", container)
 
 
-def test_kill_misbehaving_dependency(container, logger):
-    """ Break a dependency by making its ``kill`` method hang. The container
-    should still exit.
-    """
-    dep = next(iter(container.dependencies))
-
-    def sleep_forever(*args):
-        while True:
-            sleep()
-
-    class Killed(Exception):
-        pass
-    exc = Killed("kill")
-
-    with patch.object(dep, 'kill', sleep_forever):
-        with patch('nameko.containers.KILL_TIMEOUT', 0):  # reduce kill timeout
-            container.kill(exc)
-            assert logger.warning.called
-            assert logger.warning.call_args == call(
-                "timeout waiting for dependencies.kill %s", container)
-
-    with Timeout(1):
-        with pytest.raises(Killed):
-            container._died.wait()
-
-
 def test_kill_container_with_active_workers(container):
     """ Start a worker that's not managed by dependencies. Ensure it is killed
     when the container is.
@@ -377,8 +351,13 @@ def test_container_only_killed_once(container):
     def raise_error():
         raise exc
 
-    with patch.object(container, '_kill_dependencies',
-                      side_effect=container._kill_dependencies) as kill_deps:
+    # ensure we yield so the second thread had a chance to raise its
+    # exception before we yield
+    container._prepare_for_kill_threads = lambda e: sleep()
+
+    orig = container._handle_container_kill
+    with patch.object(container, '_handle_container_kill',
+                      wraps=orig) as _handle_container_kill:
         container.start()
         # Any exception in a managed thread will cause the container
         # to be killed. Two threads raising an exception,
@@ -390,4 +369,4 @@ def test_container_only_killed_once(container):
         with pytest.raises(Exception):
             container.wait()
 
-        kill_deps.assert_called_once_with(exc)
+        _handle_container_kill.assert_called_once_with(exc)

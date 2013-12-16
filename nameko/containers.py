@@ -11,12 +11,13 @@ import greenlet
 from nameko.dependencies import get_dependencies, DependencySet
 from nameko.exceptions import RemoteError
 from nameko.logging import log_time
+from nameko.messaging import QueueConsumer
+from nameko.utils import SpawningSet
 
 _log = getLogger(__name__)
 
 
 MAX_WOKERS_KEY = 'max_workers'
-KILL_TIMEOUT = 3  # seconds
 
 NAMEKO_DATA_KEYS = (
     'language',
@@ -100,9 +101,10 @@ class ManagedThreadContainer(object):
     def kill(self, exc):
         """ Kill the container in a semi-graceful way.
 
-        `_handle_container_kill` is called to give sub-classes an opportunity
-        to clean up dependencies. Once complete, any remaining active threads
-        are killed.
+        ``_prepare_for_kill_threads`` is called to give sub-classes an
+        opportunity to notify dependencies. Any remaining active threads
+        are then killed. ``_handle_container_kill`` is called afterwards,
+        allowing sub-classes to perform any final cleanup.
 
         The container dies with the given ``exc``.
         """
@@ -121,9 +123,10 @@ class ManagedThreadContainer(object):
 
         _log.info('killing %s due to "%s"', self, exc)
 
+        self._prepare_for_kill_threads(exc)
+        self._kill_active_threads()
         self._handle_container_kill(exc)
 
-        self._kill_active_threads()
         self._died.send_exception(exc)
 
     def wait(self):
@@ -165,10 +168,19 @@ class ManagedThreadContainer(object):
         """
         return
 
+    def _prepare_for_kill_threads(self, exc):
+        """
+        Called when a container is killed, but before any worker threads are
+        killed. This is an opportunity to kill any dependencies a subclass
+        may accrue before their workers have been terminated.
+        """
+        return
+
     def _handle_container_kill(self, exc):
         """
-        Called when a container is killed, this is an opportunity to kill any
-        dependencies a subclass may accrue
+        Called when a container is killed, but after any worker threads are
+        killed. This is an opportunity to clean up after any dependencies a
+        subclass may accrue after their workers have been terminated.
         """
         return
 
@@ -279,30 +291,22 @@ class ServiceContainer(ManagedThreadContainer):
         # wait for to complete before we can stop injection dependencies
         self._worker_pool.waitall()
 
-        # it should be safe now to stop any injection as ther is no
+        # it should be safe now to stop any injection as there is no
         # active worker which could be using it
         dependencies.injections.all.stop()
 
         # finally, stop nested dependencies
         dependencies.nested.all.stop()
 
+    def _prepare_for_kill_threads(self, exc):
+        """Kill the queue consumers, allowing them to terminate their own
+        greenthreads."""
+        queue_consumers = SpawningSet(dep for dep in self.dependencies
+                                      if isinstance(dep, QueueConsumer))
+        queue_consumers.all.kill(exc)
+
     def _handle_container_kill(self, exc):
-        """ Kill the container in a semi-graceful way.
-
-        First all dependencies have a chance to kill themselves
-        within a given time limit (``KILL_TIMEOUT``).
-
-        To do so they must implement a ``kill(exc)`` method and take care
-        of shutting down any resources when that method is called on them.
-        """
-        self._kill_dependencies(exc)
-
-    def _kill_dependencies(self, exc):
-        try:
-            with eventlet.Timeout(KILL_TIMEOUT):
-                self.dependencies.all.kill(exc)
-        except eventlet.Timeout:
-            _log.warning('timeout waiting for dependencies.kill %s', self)
+        self.dependencies.all.kill(exc)
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
