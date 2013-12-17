@@ -25,6 +25,17 @@ def get_dependency(container, dependency_cls, **match_attrs):
                 return dep
 
 
+def get_container(runner, service_cls=None, service_name=None):
+    """ Inspect ``runner.containers`` and return the first item that is
+    hosting an instance of ``service_cls``, or has the name ``service_name``.
+    """
+    for container in runner.containers:
+        if container.service_cls == service_cls:
+            return container
+        if container.service_name == service_name:
+            return container
+
+
 @contextmanager
 def wait_for_call(timeout, mock_method):
     """ Return a context manager that waits ``timeout`` seconds for
