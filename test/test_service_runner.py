@@ -110,7 +110,7 @@ def test_multiple_runners_coexist(runner_factory, rabbit_config):
 
         @rpc
         @event_handler("srcservice", TestEvent.type, handler_type=BROADCAST,
-                      reliable_delivery=False)
+                       reliable_delivery=False)
         def handle(self, msg):
             received.append(msg)
 
