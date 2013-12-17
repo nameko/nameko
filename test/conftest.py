@@ -13,10 +13,12 @@ import pytest
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.dependencies import DependencyFactory
 from nameko.rpc import RpcProxyProvider
+from nameko.runners import ServiceRunner
 
 
 running_services = []
 all_containers = []
+all_runners = []
 
 
 def pytest_addoption(parser):
@@ -131,6 +133,28 @@ def container_factory(request, reset_rabbit):
 
     request.addfinalizer(stop_all_containers)
     return make_container
+
+
+@pytest.fixture
+def runner_factory(request, reset_rabbit):
+
+    def make_runner(config, *service_classes):
+        runner = ServiceRunner(config)
+        for service_cls in service_classes:
+            runner.add_service(service_cls)
+        all_runners.append(runner)
+        return runner
+
+    def stop_all_runners():
+        for r in all_runners:
+            try:
+                r.stop()
+            except:
+                pass
+        del all_runners[:]
+
+    request.addfinalizer(stop_all_runners)
+    return make_runner
 
 
 @pytest.fixture

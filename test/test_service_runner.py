@@ -1,3 +1,4 @@
+import eventlet
 import pytest
 
 from nameko.runners import ServiceRunner
@@ -91,3 +92,53 @@ def test_runner_waits_raises_error():
     with pytest.raises(Exception) as exc_info:
         runner.wait()
     assert exc_info.value.args == ('error in container',)
+
+
+def test_multiple_runners_coexist(runner_factory, rabbit_config):
+
+    from nameko.events import event_handler, Event, BROADCAST
+    from nameko.standalone.events import event_dispatcher
+    from nameko.standalone.rpc import rpc_proxy
+    from nameko.rpc import rpc
+
+    received = []
+
+    class TestEvent(Event):
+        type = "testevent"
+
+    class Service(object):
+
+        @rpc
+        @event_handler("srcservice", TestEvent.type, handler_type=BROADCAST,
+                      reliable_delivery=False)
+        def handle(self, msg):
+            received.append(msg)
+
+    runner1 = runner_factory(rabbit_config, Service)
+    runner1.start()
+
+    runner2 = runner_factory(rabbit_config, Service)
+    runner2.start()
+
+    # test events (both services will receive if in "broadcast" mode)
+    event_data = "msg"
+    with event_dispatcher('srcservice', rabbit_config) as dispatch:
+        dispatch(TestEvent(event_data))
+
+    with eventlet.Timeout(1):
+        while len(received) < 2:
+            eventlet.sleep()
+
+        assert received == [event_data, event_data]
+
+    # test rpc (only one service will respond)
+    del received[:]
+    arg = "msg"
+    with rpc_proxy('service', rabbit_config) as proxy:
+        proxy.handle(arg)
+
+    with eventlet.Timeout(1):
+        while len(received) == 0:
+            eventlet.sleep()
+
+        assert received == [arg]
