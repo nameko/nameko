@@ -1,27 +1,9 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
-from setuptools.command.test import test as TestCommand
 from os.path import abspath, dirname, join
-import sys
 
 
 setup_dir = dirname(abspath(__file__))
-
-
-class PyTest(TestCommand):
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = [
-            '--cov', 'nameko',
-            join(setup_dir, 'test'),
-        ]
-        self.test_suite = True
-
-    def run_tests(self):
-        # import here, cause outside the eggs aren't loaded
-        import pytest
-        errno = pytest.main(self.test_args)
-        sys.exit(errno)
 
 
 def parse_requirements(fn, dependency_links):
@@ -47,28 +29,18 @@ def parse_requirements(fn, dependency_links):
 requirements, dependency_links = parse_requirements(
     join(setup_dir, 'requirements.txt'), [])
 
-contrib_requirements, dependency_links = parse_requirements(
-    join(setup_dir, 'contrib_requirements.txt'),
-    dependency_links)
-
-test_requirements, dependency_links = parse_requirements(
-    join(setup_dir, 'test_requirements.txt'),
-    dependency_links)
-
 setup(
     name='nameko',
-    version='1.1.2',
+    version='1.1.3',
     description='service framework supporting multiple'
                 'messaging and RPC implementations',
     author='onefinestay',
     author_email='engineering@onefinestay.com',
     url='http://github.com/onefinestay/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
-    install_requires=requirements + contrib_requirements,
-    tests_require=test_requirements,
+    install_requires=requirements,
     dependency_links=dependency_links,
     zip_safe=True,
-    cmdclass={'test': PyTest},
     license='Apache License, Version 2.0',
     classifiers=[
         "Programming Language :: Python",
