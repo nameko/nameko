@@ -1,28 +1,10 @@
-import inspect
+"""
+Common testing utilities.
+"""
 from contextlib import contextmanager
 from functools import partial
 
 import eventlet
-from mock import Mock
-
-from nameko.dependencies import DependencyFactory, InjectionProvider
-
-
-def instance_factory(service_cls, **injections):
-    """ Return an instance of ``service_cls`` with its injected dependencies
-    replaced with Mock objects, or as given in ``injections``.
-    """
-    service = service_cls()
-    for name, attr in inspect.getmembers(service):
-        if isinstance(attr, DependencyFactory):
-            factory = attr
-            if issubclass(factory.dep_cls, InjectionProvider):
-                try:
-                    injection = injections[name]
-                except KeyError:
-                    injection = Mock()
-                setattr(service, name, injection)
-    return service
 
 
 def get_dependency(container, dependency_cls, **match_attrs):

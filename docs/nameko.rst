@@ -8,6 +8,7 @@ Subpackages
 
     nameko.contrib
     nameko.legacy
+    nameko.standalone
     nameko.testing
 
 Submodules
