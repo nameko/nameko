@@ -16,24 +16,21 @@ class Service(object):
     def subtract(self, x, y):
         return self.math.subtract(x, y)
 
+#==============================================================================
+# Begin test
+#==============================================================================
 
-def unit_test():
+# create instance
+service = instance_factory(Service)
 
-    # create instance
-    service = instance_factory(Service)
+# mock out "math" service
+service.math.add.side_effect = lambda x, y: x + y
+service.math.subtract.side_effect = lambda x, y: x - y
 
-    # mock out "math" service
-    service.math.add.side_effect = lambda x, y: x + y
-    service.math.subtract.side_effect = lambda x, y: x - y
+# test add business logic
+assert service.add(3, 4) == 7
+service.math.add.assert_called_once_with(3, 4)
 
-    # test add business logic
-    assert service.add(3, 4) == 7
-    service.math.add.assert_called_once_with(3, 4)
-
-    # test subtract business logic
-    assert service.subtract(5, 2) == 3
-    service.math.subtract.assert_called_once_with(5, 2)
-
-
-def unit_testing_with_provided_injection():
-    
+# test subtract business logic
+assert service.subtract(5, 2) == 3
+service.math.subtract.assert_called_once_with(5, 2)

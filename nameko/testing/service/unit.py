@@ -62,45 +62,9 @@ def instance_factory(service_cls, **injections):
 
     The ``**injections`` kwargs to ``instance_factory`` can be used to provide
     a replacement injection instead of a Mock. For example, to unit test a
-    service against a real database::
+    service against a real database:
 
-        from sqlalchemy import Column, Integer, String, create_engine
-        from sqlalchemy.ext.declarative import declarative_base
-        from sqlalchemy.orm import sessionmaker
-
-        from nameko.rpc import rpc
-        from nameko.contrib.sqlalchemy import orm_session
-
-        # define a simple declarative base and model for sqlalchemy
-        DeclBase = declarative_base(name='example_base')
-
-        class Result(DeclBase):
-            __tablename__ = 'model'
-            id = Column(Integer, primary_key=True)
-            value = Column(String(64))
-
-        # service under test writes to a database
-        class Service(object):
-            db = orm_session(DeclBase)
-
-            @rpc
-            def save(self, value):
-                result = Result(value=value)
-                self.db.add(result)
-                self.db.commit()
-
-        # create sqlite database and session
-        engine = create_engine('sqlite:///:memory:')
-        DeclBase.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-
-        # create instance, providing the real session for the ``db`` injection
-        service = instance_factory(Service, db=session)
-
-        # verify ``save`` logic by querying the real database
-        service.save("helloworld")
-        assert session.query(Result.value).all() == [("helloworld",)]
+    .. literalinclude:: examples/testing/unit_test_with_provided_injection.py
 
     """
     service = service_cls()
