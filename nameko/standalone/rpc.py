@@ -70,7 +70,8 @@ class SingleThreadedReplyListener(ReplyListener):
 
 
 @contextmanager
-def rpc_proxy(container_service_name, nameko_config):
+def rpc_proxy(container_service_name, nameko_config, context_data=None,
+              worker_ctx_cls=WorkerContext):
     """
     Yield a single-threaded RPC proxy to a named service. Method calls to the
     proxy are converted into RPC calls, with responses returned directly.
@@ -91,7 +92,8 @@ def rpc_proxy(container_service_name, nameko_config):
 
     container = ProxyContainer(nameko_config)
 
-    worker_ctx = WorkerContext(container, service=None, method_name=None)
+    worker_ctx = worker_ctx_cls(container, service=None, method_name=None,
+                                data=context_data)
 
     reply_listener = SingleThreadedReplyListener()
 
