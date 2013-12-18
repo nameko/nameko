@@ -1,15 +1,31 @@
 from mock import Mock
 import pytest
 
+from nameko.dependencies import injection, InjectionProvider, DependencyFactory
 from nameko.events import event_handler
 from nameko.rpc import rpc_proxy, rpc
 from nameko.testing.service.integration import entrypoint_hook
 from nameko.testing.utils import get_container, wait_for_call
 
 
+class LanguageReporter(InjectionProvider):
+    """ Return the language given in the worker context data
+    """
+    def acquire_injection(self, worker_ctx):
+        def get_language():
+            return worker_ctx.data['language']
+        return get_language
+
+
+@injection
+def language_reporter():
+    return DependencyFactory(LanguageReporter)
+
+
 class Service(object):
 
     a = rpc_proxy("service_a")
+    language = language_reporter()
 
     @rpc
     def working(self, value):
@@ -17,11 +33,15 @@ class Service(object):
 
     @rpc
     def broken(self, value):
-        raise Error('broken')
+        raise ExampleError('broken')
 
     @event_handler('srcservice', 'eventtype')
     def handle(self, msg):
         handle_event(msg)
+
+    @rpc
+    def get_language(self):
+        return self.language()
 
 
 class ServiceA(object):
@@ -55,7 +75,7 @@ class ServiceC(object):
         return "{}-c".format(value)
 
 
-class Error(Exception):
+class ExampleError(Exception):
     pass
 
 
@@ -95,5 +115,18 @@ def test_entrypoint_hook_with_return(runner_factory, rabbit_config):
         assert entrypoint("value") == "value-a-b-c"
 
     with entrypoint_hook(service_container, 'broken') as entrypoint:
-        with pytest.raises(Error):
+        with pytest.raises(ExampleError):
             entrypoint("value")
+
+
+@pytest.mark.parametrize("context_data",
+                         [{'language': 'en'}, {'language': 'fr'}])
+def test_entrypoint_hook_context_data(container_factory, rabbit_config,
+                                      context_data):
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    method = 'get_language'
+    with entrypoint_hook(container, method, context_data) as get_language:
+        assert get_language() == context_data['language']
