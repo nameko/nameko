@@ -8,8 +8,9 @@ import pytest
 from nameko.exceptions import RemoteError
 from nameko.events import event_dispatcher, EventDispatcher
 from nameko.rpc import rpc, rpc_proxy, RpcConsumer
-from nameko.runners import ServiceRunner
-from nameko.testing.utils import get_dependency
+from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
+from nameko.testing.utils import get_dependency, get_container
+from nameko.testing.service.integration import entrypoint_hook
 
 
 class ExampleError(Exception):
@@ -26,45 +27,43 @@ class ExampleService(object):
         return "task_result"
 
     @rpc
-    def proxy(self):
-        self.rpcproxy.broken()
-
-    @rpc
     def broken(self):
         raise ExampleError("broken")
 
+    @rpc
+    def proxy(self, method, *args):
+        """ Proxies RPC calls to ``method`` on itself, so we can test handling
+        of errors in remote services.
+        """
+        getattr(self.rpcproxy, method)(*args)
 
-def test_error_in_worker(container_factory, rabbit_config,
-                         service_proxy_factory):
+
+def test_error_in_worker(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    with pytest.raises(RemoteError) as exc_info:
-        proxy.broken()
+    with entrypoint_hook(container, "broken") as broken:
+        with pytest.raises(ExampleError):
+            broken()
+    assert not container._died.ready()
+
+
+def test_error_in_remote_worker(container_factory, rabbit_config):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with entrypoint_hook(container, "proxy") as proxy:
+        with pytest.raises(RemoteError) as exc_info:
+            proxy("broken")
     assert exc_info.value.exc_type == "ExampleError"
     assert not container._died.ready()
 
 
-def test_error_in_remote_worker(container_factory, rabbit_config,
-                                service_proxy_factory):
+def test_handle_result_error(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
-    container.start()
-
-    with pytest.raises(RemoteError) as exc_info:
-        proxy.proxy()
-    assert exc_info.value.exc_type == "RemoteError"
-    assert not container._died.ready()
-
-
-def test_handle_result_error(container_factory, rabbit_config,
-                             service_proxy_factory):
-
-    container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
     rpc_consumer = get_dependency(container, RpcConsumer)
@@ -72,7 +71,9 @@ def test_handle_result_error(container_factory, rabbit_config,
         err = "error in worker_result"
         handle_result.side_effect = Exception(err)
 
-        eventlet.spawn(proxy.task)
+        # use a standalone rpc proxy to call exampleservice.task()
+        with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+            eventlet.spawn(proxy.task)
 
         with eventlet.Timeout(1):
             with pytest.raises(Exception) as exc_info:
@@ -82,11 +83,10 @@ def test_handle_result_error(container_factory, rabbit_config,
 
 @pytest.mark.parametrize("method_name",
                          ["worker_setup", "worker_result", "worker_teardown"])
-def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
-                                          service_proxy_factory, method_name):
+def test_dependency_call_lifecycle_errors(
+        container_factory, rabbit_config, method_name):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
     dependency = get_dependency(container, EventDispatcher)
@@ -94,7 +94,9 @@ def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
         err = "error in {}".format(method_name)
         method.side_effect = Exception(err)
 
-        eventlet.spawn(proxy.task)
+        # use a standalone rpc proxy to call exampleservice.task()
+        with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+            eventlet.spawn(proxy.task)
 
         with eventlet.Timeout(1):
             with pytest.raises(Exception) as exc_info:
@@ -102,33 +104,21 @@ def test_dependency_call_lifecycle_errors(container_factory, rabbit_config,
             assert exc_info.value.message == err
 
 
-def test_runner_catches_container_errors(container_factory, rabbit_config,
-                                         service_proxy_factory):
+def test_runner_catches_container_errors(runner_factory, rabbit_config):
 
-    runner = ServiceRunner(rabbit_config)
-    runner.add_service(ExampleService)
+    runner = runner_factory(rabbit_config, ExampleService)
+    runner.start()
 
-    import mock
-    from nameko.utils import SpawningProxy
-
-    # we can't actually start the container until we've had a chance to
-    # attach service_proxy, but we can't access the containers until we
-    # call runner.start
-    with mock.patch('nameko.runners.SpawningProxy'):
-        runner.start()
-
-    container = runner.containers[0]
-    proxy = service_proxy_factory(container, "exampleservice")
-
-    # actually start the containers (previously bypassed with mock)
-    SpawningProxy(runner.containers).start()
+    container = get_container(runner, ExampleService)
 
     rpc_consumer = get_dependency(container, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
         exception = Exception("error")
         handle_result.side_effect = exception
 
-        eventlet.spawn(proxy.task)
+        # use a standalone rpc proxy to call exampleservice.task()
+        with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+            eventlet.spawn(proxy.task)
 
         with pytest.raises(Exception) as exc_info:
             runner.wait()

@@ -155,25 +155,3 @@ def runner_factory(request, reset_rabbit):
 
     request.addfinalizer(stop_all_runners)
     return make_runner
-
-
-@pytest.fixture
-def service_proxy_factory(request):
-    def make_proxy(container, service_name, worker_ctx=None):
-        if worker_ctx is None:
-            worker_ctx_cls = container.worker_ctx_cls
-            worker_ctx = worker_ctx_cls(container, None, None, data={})
-
-        factory = DependencyFactory(RpcProxyProvider, service_name)
-        bind_name = uuid.uuid4().hex
-        service_proxy = factory.create_and_bind_instance(bind_name, container)
-
-        # manually add proxy and its nested dependencies to get lifecycle
-        # management
-        container.dependencies.add(service_proxy)
-        container.dependencies.update(service_proxy.nested_dependencies)
-
-        proxy = service_proxy.acquire_injection(worker_ctx)
-        return proxy
-
-    return make_proxy
