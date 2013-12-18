@@ -53,6 +53,11 @@ class PollingQueueConsumer(object):
                 self.provider.handle_message(body, msg)
                 break
 
+    def stop(self):
+        import eventlet
+        while self.channel.connection.connected:
+            eventlet.sleep()
+
 
 class SingleThreadedReplyListener(ReplyListener):
     """ A ReplyListener which uses a custom queue consumer and ConsumeEvent.
@@ -67,6 +72,10 @@ class SingleThreadedReplyListener(ReplyListener):
         reply_event = ConsumeEvent(self.queue_consumer, correlation_id)
         self._reply_events[correlation_id] = reply_event
         return reply_event
+
+    def stop(self):
+        super(SingleThreadedReplyListener, self).stop()
+        self.queue_consumer.stop()
 
 
 @contextmanager
