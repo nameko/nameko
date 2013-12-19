@@ -34,13 +34,13 @@ class PollingQueueConsumer(object):
     """
     def register_provider(self, provider):
         self.provider = provider
-        conn = Connection(provider.container.config['AMQP_URI'])
-        self.channel = conn.channel()
+        self.connection = Connection(provider.container.config['AMQP_URI'])
+        self.channel = self.connection.channel()
         self.queue = provider.queue
         maybe_declare(self.queue, self.channel)
 
     def unregister_provider(self, provider):
-        pass
+        self.connection.close()
 
     def ack_message(self, msg):
         msg.ack()

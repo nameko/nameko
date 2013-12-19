@@ -1,18 +1,14 @@
 import eventlet
 eventlet.monkey_patch()
-import sys
-import uuid
-
 
 import logging
+import sys
 from urlparse import urlparse
 
 from pyrabbit.api import Client
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
-from nameko.dependencies import DependencyFactory
-from nameko.rpc import RpcProxyProvider
 from nameko.runners import ServiceRunner
 
 
