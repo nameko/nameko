@@ -68,14 +68,17 @@ class WorkerContextBase(object):
 
         self.data = data if data is not None else {}
 
-        self.parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
-        self.unique_id = new_call_id()
+        self.parent_call_stack, self.unique_id = self._init_call_id()
         self.call_id = '{}.{}.{}'.format(
             self.service_name, self.method_name, self.unique_id
         )
         self.call_id_stack = self._truncate_stack(
             self.parent_call_stack + [self.call_id]
         )
+        try:
+            self.immediate_parent_call_id = self.parent_call_stack[-1]
+        except IndexError:
+            self.immediate_parent_call_id = None
 
     @abstractproperty
     def context_keys(self):
@@ -109,6 +112,11 @@ class WorkerContextBase(object):
         cls_name = type(self).__name__
         return '<{} {}.{} at 0x{:x}>'.format(
             cls_name, self.service_name, self.method_name, id(self))
+
+    def _init_call_id(self):
+        parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
+        unique_id = new_call_id()
+        return parent_call_stack, unique_id
 
 
 class WorkerContext(WorkerContextBase):
