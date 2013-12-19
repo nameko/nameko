@@ -37,7 +37,8 @@ def get_service_name(service_cls):
 def log_worker_exception(worker_ctx, exc):
     if isinstance(exc, RemoteError):
         exc = "RemoteError"
-    _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
+    _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True,
+               extra=worker_ctx.extra_for_logging())
 
 
 def new_call_id():
@@ -117,6 +118,12 @@ class WorkerContextBase(object):
         parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
         unique_id = new_call_id()
         return parent_call_stack, unique_id
+
+    def extra_for_logging(self):
+        """
+        Get a dictionary of extra data to apply to log statements.
+        """
+        return {}
 
 
 class WorkerContext(WorkerContextBase):
@@ -303,7 +310,8 @@ class ServiceContainer(ManagedThreadContainer):
         worker_ctx = self.worker_ctx_cls(
             self, service, provider.name, args, kwargs, data=context_data)
 
-        _log.debug('spawning %s', worker_ctx)
+        _log.debug('spawning %s', worker_ctx,
+                   extra=worker_ctx.extra_for_logging())
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
         self._active_threads.add(gt)
@@ -361,12 +369,15 @@ class ServiceContainer(ManagedThreadContainer):
             _log.warning('timeout waiting for dependencies.kill %s', self)
 
     def _run_worker(self, worker_ctx, handle_result):
-        _log.debug('setting up %s', worker_ctx)
+        _log.debug('setting up %s', worker_ctx,
+                   extra=worker_ctx.extra_for_logging())
 
         if not worker_ctx.parent_call_stack:
-            _log.debug('starting call chain')
+            _log.debug('starting call chain',
+                       extra=worker_ctx.extra_for_logging())
         _log.debug('call stack for %s: %s',
-                   worker_ctx, '->'.join(worker_ctx.call_id_stack))
+                   worker_ctx, '->'.join(worker_ctx.call_id_stack),
+                   extra=worker_ctx.extra_for_logging())
 
         with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
@@ -375,7 +386,8 @@ class ServiceContainer(ManagedThreadContainer):
 
             result = exc = None
             try:
-                _log.debug('calling handler for %s', worker_ctx)
+                _log.debug('calling handler for %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging())
 
                 method = getattr(worker_ctx.service, worker_ctx.method_name)
 
@@ -387,7 +399,8 @@ class ServiceContainer(ManagedThreadContainer):
                 exc = e
 
             if handle_result is not None:
-                _log.debug('handling result for %s', worker_ctx)
+                _log.debug('handling result for %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging())
 
                 with log_time(_log.debug, 'handled result for %s in %0.3fsec',
                               worker_ctx):
@@ -396,11 +409,13 @@ class ServiceContainer(ManagedThreadContainer):
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):
 
-                _log.debug('signalling result for %s', worker_ctx)
+                _log.debug('signalling result for %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging())
                 self.dependencies.injections.all.worker_result(
                     worker_ctx, result, exc)
 
-                _log.debug('tearing down %s', worker_ctx)
+                _log.debug('tearing down %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging())
                 self.dependencies.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
 
