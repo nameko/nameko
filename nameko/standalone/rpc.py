@@ -21,6 +21,12 @@ class ConsumeEvent(object):
     def wait(self):
         """ Makes a blocking call to its queue_consumer until the message
         with the given correlation_id has been processed.
+
+        By the time the blocking call exits, self.send() will have been called
+        with the body of the received message
+        (see :class:nameko.rpc.ReplyListener.handle_message).
+
+        Exceptions are raised directly.
         """
         self.queue_consumer.poll_messages(self.correlation_id)
         return self.body
@@ -48,6 +54,7 @@ class PollingQueueConsumer(object):
     def poll_messages(self, correlation_id):
         channel = self.channel
         conn = channel.connection
+
         for body, msg in itermessages(conn, channel, self.queue, limit=None):
             if correlation_id == msg.properties.get('correlation_id'):
                 self.provider.handle_message(body, msg)

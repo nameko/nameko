@@ -68,7 +68,7 @@ def test_handle_result_error(container_factory, rabbit_config):
 
     rpc_consumer = get_dependency(container, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
-        err = "error in worker_result"
+        err = "error in handle_result"
         handle_result.side_effect = Exception(err)
 
         # use a standalone rpc proxy to call exampleservice.task()

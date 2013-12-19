@@ -1,5 +1,10 @@
+from mock import patch
+import pytest
+import socket
+
 from nameko.containers import WorkerContext
 from nameko.dependencies import injection, InjectionProvider, DependencyFactory
+from nameko.exceptions import RemoteError
 from nameko.rpc import rpc
 from nameko.standalone.rpc import rpc_proxy
 
@@ -31,8 +36,17 @@ class FooService(object):
         return ham
 
     @rpc
+    def broken(self):
+        print "BROKEN"
+        raise ExampleError('broken')
+
+    @rpc
     def get_context_data(self, name):
         return self.get_context_value(name)
+
+
+class ExampleError(Exception):
+    pass
 
 
 class CustomWorkerContext(WorkerContext):
@@ -76,3 +90,28 @@ def test_proxy_worker_context(container_factory, rabbit_config):
 
     with rpc_proxy('foobar', rabbit_config, context_data) as foo:
         assert foo.get_context_data('custom_header') is None
+
+
+def test_proxy_remote_error(container_factory, rabbit_config):
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with rpc_proxy("foobar", rabbit_config) as proxy:
+        with pytest.raises(RemoteError) as exc_info:
+            proxy.broken()
+        assert exc_info.value.exc_type == "ExampleError"
+
+
+def test_proxy_connection_error(container_factory, rabbit_config):
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    queue_consumer_cls = 'nameko.standalone.rpc.PollingQueueConsumer'
+    with patch("{}.poll_messages".format(queue_consumer_cls)) as poll_messages:
+        poll_messages.side_effect = socket.error
+
+        with rpc_proxy("foobar", rabbit_config) as proxy:
+            with pytest.raises(socket.error):
+                proxy.spam("")
