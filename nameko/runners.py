@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from contextlib import contextmanager
 from logging import getLogger
 
 from nameko.utils import SpawningProxy
@@ -91,3 +92,62 @@ class ServiceRunner(object):
         """ Wait for all running containers to stop.
         """
         SpawningProxy(self.containers).wait()
+
+
+class ContextualServiceRunner(ServiceRunner):
+    """ Serves a number of services for a contextual block.
+    The caller can register a number of service classes with a name and
+    then serve them with a number of exit strategies to use on exiting the
+    contextual block.
+
+    Valid strategies are the same as are provided by :class:``ServiceRunner``;
+    ``wait``, ``stop`` and ``kill``
+
+
+    Example::
+
+        runner = ContextualServiceRunner(config)
+        runner.add_service('foobar', Foobar)
+        runner.add_service('spam', Spam)
+
+        add_sig_term_handler(runner.kill)
+
+        with runner.wait():
+            # interact with services and wait for them to stop
+    """
+
+    @contextmanager
+    def stop(self):
+        """ Stops all running containers concurrently on exiting.
+
+        The method blocks exiting the context block until all containers have
+        stopped.
+        """
+        self.start()
+        yield
+        super(ContextualServiceRunner, self).stop()
+        self.containers = []
+
+    @contextmanager
+    def kill(self, exc):
+        """ Kills all running containers concurrently on exiting.
+
+        The method blocks exiting the context block until all containers have
+        stopped.
+        """
+        self.start()
+        yield
+        super(ContextualServiceRunner, self).kill(exc)
+        self.containers = []
+
+    @contextmanager
+    def wait(self):
+        """ Wait for all running containers to stop.
+
+        The method blocks exiting the context block until all containers have
+        stopped.
+        """
+        self.start()
+        yield
+        super(ContextualServiceRunner, self).wait()
+        self.containers = []
