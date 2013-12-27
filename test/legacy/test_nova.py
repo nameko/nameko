@@ -1,4 +1,5 @@
 import eventlet
+from eventlet.event import Event
 from kombu import Producer
 import mock
 import pytest
@@ -56,12 +57,16 @@ def test_delegation_to_send_rpc_default_exchange():
 
 
 def test_send_rpc(get_connection):
+
+    queue_declared = Event()
+
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
                 queue = nova.get_topic_queue(
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
+                queue_declared.send(True)
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = nova.parse_message(msg.payload)
 
@@ -78,6 +83,8 @@ def test_send_rpc(get_connection):
 
     with get_connection() as conn:
         ctx = context.get_admin_context()
+
+        queue_declared.wait()
         resp = nova.send_rpc(
             conn,
             context=ctx,
@@ -93,12 +100,16 @@ def test_send_rpc(get_connection):
 
 
 def test_send_rpc_errors(get_connection):
+
+    queue_declared = Event()
+
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
                 queue = nova.get_topic_queue(
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
+                queue_declared.send(True)
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = nova.parse_message(msg.payload)
 
@@ -120,6 +131,8 @@ def test_send_rpc_errors(get_connection):
         ctx = context.get_admin_context()
 
         with pytest.raises(RemoteError):
+
+            queue_declared.wait()
             nova.send_rpc(
                 conn,
                 context=ctx,
@@ -133,12 +146,16 @@ def test_send_rpc_errors(get_connection):
 
 
 def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
+
+    queue_declared = Event()
+
     def response_greenthread():
         with get_connection() as conn:
             with conn.channel() as chan:
                 queue = nova.get_topic_queue(
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
+                queue_declared.send(True)
 
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, ctx, method, args = nova.parse_message(msg.payload)
@@ -163,6 +180,8 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
 
     with get_connection() as conn:
         ctx = context.get_admin_context()
+
+        queue_declared.wait()
         resp = nova.send_rpc(
             conn,
             context=ctx,
