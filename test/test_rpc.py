@@ -17,7 +17,7 @@ from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
-from nameko.testing.service.integration import entrypoint_hook
+from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_dependency
 
 

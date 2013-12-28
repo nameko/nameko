@@ -2,35 +2,37 @@
 """
 
 from nameko.rpc import rpc_proxy, rpc
-from nameko.testing.service.unit import instance_factory
+from nameko.testing.services import instance_factory
 
 
-class Service(object):
+class ConversionService(object):
     math = rpc_proxy("math_service")
 
     @rpc
-    def add(self, x, y):
-        return self.math.add(x, y)
+    def inches_to_cm(self, inches):
+        return self.math.multiply(inches, 2.54)
 
     @rpc
-    def subtract(self, x, y):
-        return self.math.subtract(x, y)
+    def cm_to_inches(self, cms):
+        return self.math.divide(cms, 2.54)
 
 #==============================================================================
 # Begin test
 #==============================================================================
 
 # create instance
-service = instance_factory(Service)
+# dependencies are replaced with mocks unless otherwise given - see
+# :class:`nameko.testing.services.instance_factory`
+service = instance_factory(ConversionService)
 
-# mock out "math" service
-service.math.add.side_effect = lambda x, y: x + y
-service.math.subtract.side_effect = lambda x, y: x - y
+# replace "math" service
+service.math.multiply.side_effect = lambda x, y: x * y
+service.math.divide.side_effect = lambda x, y: x / y
 
-# test add business logic
-assert service.add(3, 4) == 7
-service.math.add.assert_called_once_with(3, 4)
+# test inches_to_cm business logic
+assert service.inches_to_cm(300) == 762
+service.math.multiply.assert_called_once_with(300, 2.54)
 
-# test subtract business logic
-assert service.subtract(5, 2) == 3
-service.math.subtract.assert_called_once_with(5, 2)
+# test cms_to_inches business logic
+assert service.cms_to_inches(762) == 300
+service.math.subtract.assert_called_once_with(762, 2.54)

@@ -13,24 +13,10 @@ def patch_injection_provider(provider):
     such that it returns a `Mock` as the injection object.
     The injection object will be yielded by the contextmanager.
 
-    Example::
+    .. deprecated::
 
-        class MyService(object):
-            dispatch=EventDispatcher()
-
-            @rpc
-            def foo(self):
-                self.dispatch(MyEvent())
-
-
-        def test_service_dispatches_event():
-
-            test_srv = TestProxy(MyService)
-
-            with patch_attr_dependency(MyService.dispatch) as dispatch:
-                test_srv.foo()
-                dispatch.assert_called_once_with(Any)
-
+        ``patch_injection_provider`` is deprecated in favour of
+        :meth:`nameko.testing.services.instance_factory`
     """
     injection = Mock()
 

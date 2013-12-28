@@ -4,7 +4,7 @@ import pytest
 from nameko.dependencies import injection, InjectionProvider, DependencyFactory
 from nameko.events import event_handler
 from nameko.rpc import rpc_proxy, rpc
-from nameko.testing.service.integration import entrypoint_hook
+from nameko.testing.services import entrypoint_hook, instance_factory
 from nameko.testing.utils import get_container, wait_for_call
 
 
@@ -130,3 +130,39 @@ def test_entrypoint_hook_context_data(container_factory, rabbit_config,
     method = 'get_language'
     with entrypoint_hook(container, method, context_data) as get_language:
         assert get_language() == context_data['language']
+
+
+def test_instance_factory():
+
+    from nameko.rpc import rpc_proxy
+
+    class Service(object):
+        foo_proxy = rpc_proxy("foo_service")
+        bar_proxy = rpc_proxy("bar_service")
+
+    class OtherService(object):
+        pass
+
+    # simplest case, no overrides
+    instance = instance_factory(Service)
+    assert isinstance(instance, Service)
+    assert isinstance(instance.foo_proxy, Mock)
+    assert isinstance(instance.bar_proxy, Mock)
+
+    # no injections to replace
+    instance = instance_factory(OtherService)
+    assert isinstance(instance, OtherService)
+
+    # override specific injection
+    bar_injection = object()
+    instance = instance_factory(Service, bar_proxy=bar_injection)
+    assert isinstance(instance, Service)
+    assert isinstance(instance.foo_proxy, Mock)
+    assert instance.bar_proxy is bar_injection
+
+    # non-applicable injection
+    instance = instance_factory(Service, nonexist=object())
+    assert isinstance(instance, Service)
+    assert isinstance(instance.foo_proxy, Mock)
+    assert isinstance(instance.bar_proxy, Mock)
+    assert not hasattr(instance, "nonexist")

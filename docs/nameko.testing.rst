@@ -1,19 +1,13 @@
 nameko.testing package
 ======================
 
-Subpackages
------------
-
-.. toctree::
-
-    nameko.testing.service
-
 Submodules
 ----------
 
 .. toctree::
 
    nameko.testing.dependencies
+   nameko.testing.services
    nameko.testing.utils
 
 Module contents

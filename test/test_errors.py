@@ -10,7 +10,7 @@ from nameko.events import event_dispatcher, EventDispatcher
 from nameko.rpc import rpc, rpc_proxy, RpcConsumer
 from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
 from nameko.testing.utils import get_dependency, get_container
-from nameko.testing.service.integration import entrypoint_hook
+from nameko.testing.services import entrypoint_hook
 
 
 class ExampleError(Exception):

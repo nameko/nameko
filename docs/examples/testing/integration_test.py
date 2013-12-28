@@ -10,7 +10,7 @@ eventlet.monkey_patch()
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import get_container
-from nameko.testing.service.integration import entrypoint_hook
+from nameko.testing.services import entrypoint_hook
 
 
 class ServiceX(object):
