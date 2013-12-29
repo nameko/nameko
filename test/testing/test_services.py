@@ -3,6 +3,7 @@ import pytest
 
 from nameko.dependencies import injection, InjectionProvider, DependencyFactory
 from nameko.events import event_handler
+from nameko.exceptions import DependencyNotFound
 from nameko.rpc import rpc_proxy, rpc
 from nameko.testing.services import entrypoint_hook, instance_factory
 from nameko.testing.utils import get_container, wait_for_call
@@ -20,6 +21,14 @@ class LanguageReporter(InjectionProvider):
 @injection
 def language_reporter():
     return DependencyFactory(LanguageReporter)
+
+
+handle_event = Mock()
+
+
+@pytest.fixture(autouse=True)
+def reset_mock():
+    handle_event.reset_mock()
 
 
 class Service(object):
@@ -79,14 +88,6 @@ class ExampleError(Exception):
     pass
 
 
-handle_event = Mock()
-
-
-@pytest.fixture(autouse=True)
-def reset_mock():
-    handle_event.reset_mock()
-
-
 def test_entrypoint_hook(runner_factory, rabbit_config):
 
     service_classes = (Service, ServiceA, ServiceB, ServiceC)
@@ -132,9 +133,20 @@ def test_entrypoint_hook_context_data(container_factory, rabbit_config,
         assert get_language() == context_data['language']
 
 
-def test_instance_factory():
+def test_entrypoint_hook_dependency_not_found(container_factory,
+                                              rabbit_config):
 
-    from nameko.rpc import rpc_proxy
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    method = 'nonexistent_method'
+
+    with pytest.raises(DependencyNotFound):
+        with entrypoint_hook(container, method):
+            pass
+
+
+def test_instance_factory():
 
     class Service(object):
         foo_proxy = rpc_proxy("foo_service")

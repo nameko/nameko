@@ -85,12 +85,6 @@ def test_get_container(runner_factory, rabbit_config):
     runner = runner_factory(rabbit_config, ServiceX, ServiceY)
     runner.start()
 
-    assert get_container(runner, service_cls=ServiceX).service_cls is ServiceX
-    assert get_container(runner, service_cls=ServiceY).service_cls is ServiceY
-    assert get_container(runner, service_cls=object) is None
-
-    assert get_container(runner,
-                         service_name="service_x").service_cls is ServiceX
-    assert get_container(runner,
-                         service_name="service_y").service_cls is ServiceY
-    assert get_container(runner, service_name="noservice") is None
+    assert get_container(runner, ServiceX).service_cls is ServiceX
+    assert get_container(runner, ServiceY).service_cls is ServiceY
+    assert get_container(runner, object) is None

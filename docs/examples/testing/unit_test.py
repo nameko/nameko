@@ -35,4 +35,4 @@ service.math.multiply.assert_called_once_with(300, 2.54)
 
 # test cms_to_inches business logic
 assert service.cms_to_inches(762) == 300
-service.math.subtract.assert_called_once_with(762, 2.54)
+service.math.divide.assert_called_once_with(762, 2.54)

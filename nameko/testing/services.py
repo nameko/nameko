@@ -10,6 +10,7 @@ from mock import Mock
 
 from nameko.dependencies import (
     get_entrypoint_providers, DependencyFactory, InjectionProvider)
+from nameko.exceptions import DependencyNotFound
 
 
 @contextmanager
@@ -24,39 +25,17 @@ def entrypoint_hook(container, name, context_data=None):
     =====
 
     To verify that ServiceX and ServiceY are compatible, make an integration
-    test that checks their interaction::
+    test that checks their interaction:
 
-        class ServiceX(object):
-            name = "service_x"
-
-            y = rpc_proxy("service_y")
-
-            @rpc
-            def remote_method(self, value):
-                res = "{}-x".format(value)
-                return self.y.append_identifier(res)
-
-
-        class ServiceY(object):
-            name = "service_y"
-
-            @rpc
-            def append_identifier(self, value):
-                return "{}-y".format(value)
-
-    Given a ServiceRunner hosting these services::
-
-        # get the container hosting ServiceX
-        container = get_container(runner, ServiceX)
-
-        # using an ``entrypoint_hook`` into "remote_method", verify the
-        # interaction between the two hosted services
-        with entrypoint_hook(container, "remote_method") as entrypoint:
-            assert entrypoint("value") == "value-x-y"
+    .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = next(prov for prov in get_entrypoint_providers(container)
-                    if prov.name == name)
+    provider = next((prov for prov in get_entrypoint_providers(container)
+                    if prov.name == name), None)
+
+    if provider is None:
+        raise DependencyNotFound("No entrypoint called '{}' found "
+                                 "on container {}.".format(name, container))
 
     def hook(*args, **kwargs):
         result = event.Event()
@@ -84,21 +63,21 @@ def instance_factory(service_cls, **injections):
 
         from nameko.rpc import rpc_proxy, rpc
 
-        class Service(object):
+        class ConversionService(object):
             math = rpc_proxy("math_service")
 
             @rpc
-            def add(self, x, y):
-                return self.math.add(x, y)
+            def inches_to_cm(self, inches):
+                return self.math.multiply(inches, 2.54)
 
             @rpc
-            def subtract(self, x, y):
-                return self.math.subtract(x, y)
+            def cm_to_inches(self, cms):
+                return self.math.divide(cms, 2.54)
 
-    Use the ``instance_factory`` to create an unhosted instance of ``Service``
-    with its injections replaced by Mock objects::
+    Use the ``instance_factory`` to create an unhosted instance of
+    ``ConversionService`` with its injections replaced by Mock objects::
 
-        service = instance_factory(Service)
+        service = instance_factory(ConversionService)
 
     Nameko's entrypoints do not modify the service methods, so they can be
     called directly on an unhosted instance. The injection Mocks can be used
@@ -108,17 +87,17 @@ def instance_factory(service_cls, **injections):
         # create instance
         service = instance_factory(Service)
 
-        # mock out "math" service
-        service.math.add.side_effect = lambda x, y: x + y
-        service.math.subtract.side_effect = lambda x, y: x - y
+        # replace "math" service
+        service.math.multiply.side_effect = lambda x, y: x * y
+        service.math.divide.side_effect = lambda x, y: x / y
 
-        # test add business logic
-        assert service.add(3, 4) == 7
-        service.math.add.assert_called_once_with(3, 4)
+        # test inches_to_cm business logic
+        assert service.inches_to_cm(300) == 762
+        service.math.multiply.assert_called_once_with(300, 2.54)
 
-        # test subtract business logic
-        assert service.subtract(5, 2) == 3
-        service.math.subtract.assert_called_once_with(5, 2)
+        # test cms_to_inches business logic
+        assert service.cms_to_inches(762) == 300
+        service.math.divide.assert_called_once_with(762, 2.54)
 
     Providing Injections
     --------------------

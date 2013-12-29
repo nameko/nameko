@@ -25,14 +25,12 @@ def get_dependency(container, dependency_cls, **match_attrs):
                 return dep
 
 
-def get_container(runner, service_cls=None, service_name=None):
+def get_container(runner, service_cls):
     """ Inspect ``runner.containers`` and return the first item that is
-    hosting an instance of ``service_cls``, or has the name ``service_name``.
+    hosting an instance of ``service_cls``.
     """
     for container in runner.containers:
         if container.service_cls == service_cls:
-            return container
-        if container.service_name == service_name:
             return container
 
 

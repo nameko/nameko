@@ -12,11 +12,6 @@ from nameko.containers import ServiceContainer, WorkerContext
 from nameko.runners import ServiceRunner
 
 
-running_services = []
-all_containers = []
-all_runners = []
-
-
 def pytest_addoption(parser):
     parser.addoption(
         '--blocking-detection',
@@ -89,8 +84,8 @@ def rabbit_manager(request):
     return rabbit
 
 
-@pytest.fixture  # TODO: consider making this autouse=True
-def reset_rabbit(request, rabbit_manager, rabbit_config):
+@pytest.yield_fixture
+def reset_rabbit(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     username = rabbit_config['username']
 
@@ -100,16 +95,19 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
         except:
             pass
 
-    request.addfinalizer(del_vhost)
-
     del_vhost()
-
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
+    yield
 
-@pytest.fixture
-def container_factory(request, reset_rabbit):
+    del_vhost()
+
+
+@pytest.yield_fixture
+def container_factory(reset_rabbit):
+
+    all_containers = []
 
     def make_container(service_cls, config, worker_ctx_cls=None):
         if worker_ctx_cls is None:
@@ -119,20 +117,19 @@ def container_factory(request, reset_rabbit):
         all_containers.append(container)
         return container
 
-    def stop_all_containers():
-        for c in all_containers:
-            try:
-                c.stop()
-            except:
-                pass
-        del all_containers[:]
+    yield make_container
 
-    request.addfinalizer(stop_all_containers)
-    return make_container
+    for c in all_containers:
+        try:
+            c.stop()
+        except:
+            pass
 
 
-@pytest.fixture
-def runner_factory(request, reset_rabbit):
+@pytest.yield_fixture
+def runner_factory(reset_rabbit):
+
+    all_runners = []
 
     def make_runner(config, *service_classes):
         runner = ServiceRunner(config)
@@ -141,13 +138,10 @@ def runner_factory(request, reset_rabbit):
         all_runners.append(runner)
         return runner
 
-    def stop_all_runners():
-        for r in all_runners:
-            try:
-                r.stop()
-            except:
-                pass
-        del all_runners[:]
+    yield make_runner
 
-    request.addfinalizer(stop_all_runners)
-    return make_runner
+    for r in all_runners:
+        try:
+            r.stop()
+        except:
+            pass
