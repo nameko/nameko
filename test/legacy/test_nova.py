@@ -106,7 +106,7 @@ def test_send_rpc_errors(get_connection):
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
 
                 exc = Exception('error')
-                failure = (type(exc).__name__, str(exc), "tb_placeholder")
+                failure = (type(exc).__name__, str(exc))
 
                 msg = {'result': None, 'failure': failure, 'ending': False}
                 producer.publish(msg)
@@ -174,4 +174,5 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
 
         assert resp == {'spam': 'shrub', }
     eventlet.sleep()
+
     assert not g

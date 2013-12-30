@@ -274,7 +274,8 @@ class MethodProxy(HeaderEncoder):
         self.reply_listener = reply_listener
 
     def __call__(self, *args, **kwargs):
-        _log.debug('invoking %s', self)
+        _log.debug('invoking %s', self,
+                   extra=self.worker_ctx.extra_for_logging)
 
         worker_ctx = self.worker_ctx
         container = worker_ctx.container
@@ -306,7 +307,11 @@ class MethodProxy(HeaderEncoder):
                 correlation_id=correlation_id,
             )
 
+        _log.debug('Waiting for RPC reply event %s', self,
+                   extra=worker_ctx.extra_for_logging)
         resp_body = reply_event.wait()
+        _log.debug('RPC reply event complete %s %s', self, resp_body,
+                   extra=worker_ctx.extra_for_logging)
 
         error = resp_body.get('error')
         if error:

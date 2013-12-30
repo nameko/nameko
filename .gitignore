@@ -5,4 +5,5 @@
 *.pyc
 *.sublime-*
 _py_cache
+nameko.egg-info
 docs/build

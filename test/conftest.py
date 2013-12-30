@@ -1,4 +1,7 @@
 import eventlet
+import itertools
+from mock import patch
+
 eventlet.monkey_patch()
 import sys
 import uuid
@@ -64,6 +67,11 @@ def pytest_configure(config):
 def reset_kombu_pools(request):
     from kombu.pools import reset
     reset()
+
+
+@pytest.fixture
+def empty_config(request):
+    return {}
 
 
 @pytest.fixture
@@ -153,3 +161,10 @@ def service_proxy_factory(request):
         return proxy
 
     return make_proxy
+
+
+@pytest.yield_fixture
+def predictable_call_ids(request):
+    with patch('nameko.containers.new_call_id') as get_id:
+        get_id.side_effect = (str(i) for i in itertools.count())
+        yield get_id

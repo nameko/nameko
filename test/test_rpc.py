@@ -15,7 +15,7 @@ from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.containers import (
-    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS)
+    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.testing.utils import get_dependency
 
 
@@ -45,7 +45,7 @@ def translator():
 
 
 class CustomWorkerContext(WorkerContextBase):
-    data_keys = NAMEKO_DATA_KEYS + ('custom_header',)
+    context_keys = NAMEKO_CONTEXT_KEYS + ('custom_header',)
 
 
 class ExampleService(object):
@@ -292,9 +292,9 @@ def test_rpc_context_data(container_factory, rabbit_config,
     assert fr_proxy.say_hello() == "bonjour"
 
 
+@pytest.mark.usefixtures("predictable_call_ids")
 def test_rpc_headers(container_factory, rabbit_config,
                      service_proxy_factory):
-
     container = container_factory(ExampleService, rabbit_config)
 
     context_data = {
@@ -313,18 +313,23 @@ def test_rpc_headers(container_factory, rabbit_config,
 
         patched_handler.side_effect = side_effect
 
-        worker_ctx = WorkerContext(container, None, None,
+        worker_ctx = WorkerContext(container, None, 'method',
                                    data=context_data.copy())
-        proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+        proxy = service_proxy_factory(
+            container, "exampleservice", worker_ctx)
         container.start()
 
     assert proxy.say_hello() == "hello"
-    assert headers == {'nameko.language': 'en'}  # bogus_header dropped
+    # bogus_header dropped
+    assert headers == {
+        'nameko.language': 'en',
+        'nameko.call_id_stack': ['exampleservice.method.0'],
+    }
 
 
+@pytest.mark.usefixtures("predictable_call_ids")
 def test_rpc_custom_headers(container_factory, rabbit_config,
                             service_proxy_factory):
-
     container = container_factory(ExampleService, rabbit_config)
 
     context_data = {
@@ -344,16 +349,18 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
 
         patched_handler.side_effect = side_effect
 
-        worker_ctx = CustomWorkerContext(container, None, None,
+        worker_ctx = CustomWorkerContext(container, None, 'method',
                                          data=context_data.copy())
-        proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+        proxy = service_proxy_factory(
+            container, "exampleservice", worker_ctx)
         container.start()
 
     assert proxy.say_hello() == "hello"
     # bogus_header dropped, custom_header present
     assert headers == {
         'nameko.language': 'en',
-        'nameko.custom_header': 'specialvalue'
+        'nameko.custom_header': 'specialvalue',
+        'nameko.call_id_stack': ['exampleservice.method.0']
     }
 
 
