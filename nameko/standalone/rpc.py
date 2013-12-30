@@ -92,14 +92,14 @@ def rpc_proxy(container_service_name, nameko_config, context_data=None,
         :class:`~containers.ServiceContainer` to be used by the subclasses
         and rpc imports in this module.
         """
-        service_name = container_service_name
+        service_name = "standalone_rpc_proxy"
 
         def __init__(self, config):
             self.config = config
 
     container = ProxyContainer(nameko_config)
 
-    worker_ctx = worker_ctx_cls(container, service=None, method_name=None,
+    worker_ctx = worker_ctx_cls(container, service=None, method_name="call",
                                 data=context_data)
 
     reply_listener = SingleThreadedReplyListener()

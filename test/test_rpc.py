@@ -9,7 +9,7 @@ from kombu import Connection
 from mock import patch, Mock, call
 
 from nameko.containers import (
-    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
+    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError, MethodNotFound
@@ -316,7 +316,7 @@ def test_rpc_headers(container_factory, rabbit_config):
     # bogus_header dropped
     assert headers == {
         'nameko.language': 'en',
-        'nameko.call_id_stack': ['exampleservice.method.0'],
+        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0'],
     }
 
 
@@ -352,7 +352,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     assert headers == {
         'nameko.language': 'en',
         'nameko.custom_header': 'specialvalue',
-        'nameko.call_id_stack': ['exampleservice.method.0']
+        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0']
     }
 
 

@@ -37,7 +37,6 @@ class FooService(object):
 
     @rpc
     def broken(self):
-        print "BROKEN"
         raise ExampleError('broken')
 
     @rpc
@@ -50,7 +49,7 @@ class ExampleError(Exception):
 
 
 class CustomWorkerContext(WorkerContext):
-    data_keys = ("custom_header",)
+    context_keys = ("custom_header",)
 
 
 def test_proxy(container_factory, rabbit_config):
