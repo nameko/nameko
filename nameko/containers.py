@@ -73,9 +73,8 @@ class WorkerContextBase(object):
         self.call_id = '{}.{}.{}'.format(
             self.service_name, self.method_name, self.unique_id
         )
-        self.call_id_stack = self._truncate_stack(
-            self.parent_call_stack + [self.call_id]
-        )
+        self.call_id_stack = self.parent_call_stack[-self.parent_calls_tracked:]
+        self.call_id_stack.append(self.call_id)
         try:
             self.immediate_parent_call_id = self.parent_call_stack[-1]
         except IndexError:
@@ -105,15 +104,6 @@ class WorkerContextBase(object):
         data = {k: v for k, v in incoming.iteritems()
                 if k in cls.context_keys}
         return data
-
-    def _truncate_stack(self, stack):
-        """
-        Truncate the stack so only this call and ``self.parent_calls_tracked``
-        parents are included
-        """
-        i = -(self.parent_calls_tracked + 1)
-        stack = stack[i:]
-        return stack
 
     def __str__(self):
         cls_name = type(self).__name__
