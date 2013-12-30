@@ -88,7 +88,13 @@ class WorkerContextBase(object):
 
     @property
     def context_data(self):
-        # Values from `self.data` if key is in `context_keys', plus the ID info
+        """
+        Contextual data to pass with each call originating from the active
+        worker.
+
+        Comprises items from ``self.data`` where the key is included in
+        ``context_keys``, as well as the call stack.
+        """
         key_data = {k: v for k, v in self.data.iteritems()
                     if k in self.context_keys}
         key_data[WORKER_CALL_ID_STACK_KEY] = self.call_id_stack
