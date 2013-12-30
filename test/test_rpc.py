@@ -9,7 +9,7 @@ from kombu import Connection
 from mock import patch, Mock, call
 
 from nameko.containers import (
-    ServiceContainer, WorkerContextBase, NAMEKO_DATA_KEYS)
+    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError, MethodNotFound
@@ -47,7 +47,7 @@ def translator():
 
 
 class CustomWorkerContext(WorkerContextBase):
-    data_keys = NAMEKO_DATA_KEYS + ('custom_header',)
+    context_keys = NAMEKO_CONTEXT_KEYS + ('custom_header',)
 
 
 class ExampleService(object):
@@ -286,6 +286,7 @@ def test_rpc_context_data(container_factory, rabbit_config):
         assert say_hello() == "bonjour"
 
 
+@pytest.mark.usefixtures("predictable_call_ids")
 def test_rpc_headers(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
@@ -312,11 +313,15 @@ def test_rpc_headers(container_factory, rabbit_config):
             "exampleservice", rabbit_config, context_data) as proxy:
         proxy.say_hello()
 
-    assert headers == {'nameko.language': 'en'}  # bogus_header dropped
+    # bogus_header dropped
+    assert headers == {
+        'nameko.language': 'en',
+        'nameko.call_id_stack': ['exampleservice.method.0'],
+    }
 
 
+@pytest.mark.usefixtures("predictable_call_ids")
 def test_rpc_custom_headers(container_factory, rabbit_config):
-
     container = container_factory(ExampleService, rabbit_config)
 
     context_data = {
@@ -346,7 +351,8 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     # bogus_header dropped, custom_header present
     assert headers == {
         'nameko.language': 'en',
-        'nameko.custom_header': 'specialvalue'
+        'nameko.custom_header': 'specialvalue',
+        'nameko.call_id_stack': ['exampleservice.method.0']
     }
 
 

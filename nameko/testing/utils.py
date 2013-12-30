@@ -5,6 +5,9 @@ from contextlib import contextmanager
 from functools import partial
 
 import eventlet
+from mock import Mock
+
+from nameko.containers import WorkerContextBase
 
 
 def get_dependency(container, dependency_cls, **match_attrs):
@@ -75,3 +78,21 @@ class AnyInstanceOf(object):
 
 
 ANY_PARTIAL = AnyInstanceOf(partial)
+
+
+def worker_context_factory(*keys):
+    class CustomWorkerContext(WorkerContextBase):
+        context_keys = keys
+
+        def __init__(self, container=None, service=None, method_name=None,
+                     **kwargs):
+            container_mock = Mock()
+            container_mock.config = {}
+            super(CustomWorkerContext, self).__init__(
+                container or container_mock,
+                service or Mock(),
+                method_name or Mock(),
+                **kwargs
+            )
+
+    return CustomWorkerContext
