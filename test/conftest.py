@@ -139,7 +139,7 @@ def runner_factory(reset_rabbit):
 
     all_runners = []
 
-    def make_runner(config, *service_classes):
+    def make_runner(config, worker_ctx_cls=WorkerContext, *service_classes):
         runner = ServiceRunner(config)
         for service_cls in service_classes:
             runner.add_service(service_cls)
