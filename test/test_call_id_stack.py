@@ -71,8 +71,8 @@ def test_short_call_stack(container_factory):
 
 @pytest.mark.usefixtures("reset_rabbit")
 def test_call_id_stack(rabbit_config, predictable_call_ids):
-    wait_to_go = EventletEvent()
-    e = EventletEvent()
+    wait_for_services_start = EventletEvent()
+    wait_for_responses = EventletEvent()
     child_do_called = Mock()
 
     stack_request = Mock()
@@ -99,19 +99,19 @@ def test_call_id_stack(rabbit_config, predictable_call_ids):
 
         @once()
         def grandparent_do(self):
-            wait_to_go.wait()
+            wait_for_services_start.wait()
             r = self.parent_service.parent_do()
-            e.send(True)
+            wait_for_responses.send(True)
             return r
 
     runner = ServiceRunner(config=rabbit_config)
     runner.add_service(Child, LoggingWorkerContext)
     runner.add_service(Parent, LoggingWorkerContext)
     runner.add_service(Grandparent, LoggingWorkerContext)
-    wait_to_go.send(runner.start())
+    wait_for_services_start.send(runner.start())
 
     with Timeout(5):
-        e.wait()
+        wait_for_responses.wait()
     runner.stop()
 
     # Check child is called
