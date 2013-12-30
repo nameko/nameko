@@ -235,7 +235,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         removed_event = Event()
         # we can only cancel a consumer from within the consumer thread
         self._pending_remove_providers[provider] = removed_event
-        # so we will just register the consumer to be cancleed
+        # so we will just register the consumer to be canceled
         removed_event.wait()
 
         super(QueueConsumer, self).unregister_provider(provider)
@@ -292,7 +292,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
     def get_consumers(self, Consumer, channel):
         """ kombu callback to set up consumers """
-        _log.debug('settting up consumers %s', self)
+        _log.debug('setting up consumers %s', self)
 
         for provider in self._providers:
             callbacks = [self._on_message, provider.handle_message]
@@ -358,11 +358,11 @@ def consume(queue, requeue_on_error=False):
     '''
     Decorates a method as a message consumer.
 
-    Messaages from the queue will be deserialized depending on their content
+    Messages from the queue will be deserialized depending on their content
     type and passed to the the decorated method.
-    When the conumer method returns without raising any exceptions,
+    When the consumer method returns without raising any exceptions,
     the message will automatically be acknowledged.
-    If any exceptions are raised during the consumtion and
+    If any exceptions are raised during the consumption and
     `requeue_on_error` is True, the message will be requeued.
 
     Example::

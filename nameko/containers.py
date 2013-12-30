@@ -18,7 +18,7 @@ WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
 _log = getLogger(__name__)
 
 
-MAX_WOKERS_KEY = 'max_workers'
+MAX_WORKERS_KEY = 'max_workers'
 PARENT_CALLS_KEY = 'parent_calls_tracked'
 KILL_TIMEOUT = 3  # seconds
 
@@ -271,7 +271,7 @@ class ServiceContainer(ManagedThreadContainer):
         self.service_name = get_service_name(service_cls)
 
         self.config = config
-        self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
+        self.max_workers = config.get(MAX_WORKERS_KEY, 10) or 10
 
         self.dependencies = DependencySet()
         for dep in get_dependencies(self):
@@ -320,7 +320,7 @@ class ServiceContainer(ManagedThreadContainer):
         First all entrypoints are asked to ``stop()``.
         This ensures that no new worker threads are started.
 
-        It is the providers' responsiblity to gracefully shut down when
+        It is the providers' responsibility to gracefully shut down when
         ``stop()`` is called on them and only return when they have stopped.
 
         After all entrypoints have stopped the container waits for any
@@ -339,7 +339,7 @@ class ServiceContainer(ManagedThreadContainer):
         # wait for to complete before we can stop injection dependencies
         self._worker_pool.waitall()
 
-        # it should be safe now to stop any injection as ther is no
+        # it should be safe now to stop any injection as there is no
         # active worker which could be using it
         dependencies.injections.all.stop()
 
