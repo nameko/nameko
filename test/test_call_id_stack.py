@@ -1,12 +1,9 @@
-from eventlet import Timeout
-from eventlet.event import Event as EventletEvent
 from mock import Mock, call
 import pytest
 
 from nameko.containers import WorkerContext, PARENT_CALLS_KEY
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
 from nameko.rpc import rpc, rpc_proxy
-from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
     get_container, wait_for_call, worker_context_factory)
 from nameko.testing.services import entrypoint_hook
