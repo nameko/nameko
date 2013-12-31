@@ -67,7 +67,6 @@ def test_short_call_stack(container_factory):
     assert context.call_id_stack == ['99', 'baz.long.0']
 
 
-@pytest.mark.usefixtures("reset_rabbit")
 def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
     child_do_called = Mock()
 
@@ -121,7 +120,6 @@ def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
     ])
 
 
-@pytest.mark.usefixtures("reset_rabbit")
 def test_call_id_over_events(rabbit_config, predictable_call_ids,
                              runner_factory):
     one_called = Mock()

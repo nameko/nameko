@@ -29,7 +29,7 @@ class MessageHandler(object):
         return self.handle_message_called.wait()
 
 
-def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
+def test_lifecycle(rabbit_manager, rabbit_config):
 
     container = Mock()
     container.config = rabbit_config
@@ -76,7 +76,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
     assert ['ni'] == [msg['payload'] for msg in messages]
 
 
-def test_reentrant_start_stops(reset_rabbit, rabbit_config):
+def test_reentrant_start_stops(rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 3
@@ -185,7 +185,7 @@ def test_socket_error_kills_consumer():
             queue_consumer._gt.wait()
 
 
-def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
+def test_prefetch_count(rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 1
@@ -248,7 +248,7 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     queue_consumer2.unregister_provider(handler2)
 
 
-def test_kill_closes_connections(reset_rabbit, rabbit_manager, rabbit_config):
+def test_kill_closes_connections(rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 1

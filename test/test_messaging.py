@@ -242,8 +242,8 @@ def test_header_decoder():
 # INTEGRATION TESTS
 #==============================================================================
 
-@pytest.mark.usefixtures("reset_rabbit", "predictable_call_ids")
-def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_publish_to_rabbit(rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
 
@@ -286,7 +286,7 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     }
 
 
-def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
+def test_consume_from_rabbit(rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
 
