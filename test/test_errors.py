@@ -101,13 +101,16 @@ def test_dependency_call_lifecycle_errors(
 
         # use a standalone rpc proxy to call exampleservice.task()
         with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
-            # proxy.task() will never return, so give up almost immediately
+            # proxy.task() will hang forever because it generates an error
+            # in the remote container (so never receives a response).
+            # generate and then swallow a timeout as soon as the thread yields
             try:
                 with eventlet.Timeout(0):
                     proxy.task()
             except eventlet.Timeout:
                 pass
 
+        # verify that the error bubbles up to container.wait()
         with eventlet.Timeout(1):
             with pytest.raises(Exception) as exc_info:
                 container.wait()
@@ -128,13 +131,16 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
 
         # use a standalone rpc proxy to call exampleservice.task()
         with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
-            # proxy.task() will never return, so give up almost immediately
+            # proxy.task() will hang forever because it generates an error
+            # in the remote container (so never receives a response).
+            # generate and then swallow a timeout as soon as the thread yields
             try:
                 with eventlet.Timeout(0):
                     proxy.task()
             except eventlet.Timeout:
                 pass
 
+        # verify that the error bubbles up to runner.wait()
         with pytest.raises(Exception) as exc_info:
             runner.wait()
         assert exc_info.value == exception
