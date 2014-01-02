@@ -2,6 +2,7 @@
 Utilities for testing nameko services.
 """
 
+from collections import OrderedDict
 from contextlib import contextmanager
 import inspect
 
@@ -9,8 +10,10 @@ from eventlet import event
 from mock import Mock
 
 from nameko.dependencies import (
-    get_entrypoint_providers, DependencyFactory, InjectionProvider)
+    get_entrypoint_providers, DependencyFactory, InjectionProvider,
+    ENTRYPOINT_PROVIDERS_ATTR, is_injection_provider)
 from nameko.exceptions import DependencyNotFound
+from nameko.testing.utils import get_dependency
 
 
 @contextmanager
@@ -120,3 +123,49 @@ def instance_factory(service_cls, **injections):
                     injection = Mock()
                 setattr(service, name, injection)
     return service
+
+
+class MockInjection(InjectionProvider):
+    def __init__(self, name):
+        self.name = name
+        self.injection = Mock()
+
+    def acquire_injection(self, worker_ctx):
+        return self.injection
+
+
+def replace_injections(container, names):
+
+    replacements = OrderedDict()
+
+    for name in names:
+        maybe_factory = getattr(container.service_cls, name, None)
+        if isinstance(maybe_factory, DependencyFactory):
+            factory = maybe_factory
+            dependency = get_dependency(container, factory.dep_cls, name=name)
+            if is_injection_provider(dependency):
+                replacements[dependency] = MockInjection(name)
+
+    for dependency, replacement in replacements.items():
+        container.dependencies.remove(dependency)
+        container.dependencies.add(replacement)
+
+    return [replacement.injection for replacement in replacements.values()]
+
+
+def replace_entrypoints(container, entrypoints):
+
+    dependencies = []
+
+    for entrypoint, name in entrypoints:
+        entrypoint_method = getattr(container.service_cls, name, None)
+        entrypoint_factories = getattr(
+            entrypoint_method, ENTRYPOINT_PROVIDERS_ATTR, tuple())
+        for factory in entrypoint_factories:
+            if factory.dep_cls == entrypoint.provider_cls:
+                dependency = get_dependency(container, factory.dep_cls,
+                                            name=name)
+                dependencies.append(dependency)
+
+    for dependency in dependencies:
+        container.dependencies.remove(dependency)
