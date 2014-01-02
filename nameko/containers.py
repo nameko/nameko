@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from abc import ABCMeta, abstractproperty
 from logging import getLogger
+import uuid
 
 import eventlet
 from eventlet.event import Event
@@ -14,15 +15,19 @@ from nameko.logging import log_time
 from nameko.messaging import QueueConsumer
 from nameko.utils import SpawningSet
 
+WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
+
 _log = getLogger(__name__)
 
 
-MAX_WOKERS_KEY = 'max_workers'
+MAX_WORKERS_KEY = 'max_workers'
+PARENT_CALLS_KEY = 'parent_calls_tracked'
 
-NAMEKO_DATA_KEYS = (
+NAMEKO_CONTEXT_KEYS = (
     'language',
     'user_id',
     'auth_token',
+    WORKER_CALL_ID_STACK_KEY,
 )
 
 
@@ -33,7 +38,12 @@ def get_service_name(service_cls):
 def log_worker_exception(worker_ctx, exc):
     if isinstance(exc, RemoteError):
         exc = "RemoteError"
-    _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True)
+    _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True,
+               extra=worker_ctx.extra_for_logging)
+
+
+def new_call_id():
+    return str(uuid.uuid4())
 
 
 class WorkerContextBase(object):
@@ -41,32 +51,84 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
+    DEFAULT_PARENT_CALLS_TRACKED = 10
+
     def __init__(self, container, service, method_name, args=None, kwargs=None,
                  data=None):
         self.container = container
         self.config = container.config  # TODO: remove?
+
+        self.parent_calls_tracked = self.config.get(
+            PARENT_CALLS_KEY, self.DEFAULT_PARENT_CALLS_TRACKED)
+
         self.service = service
         self.method_name = method_name
+        self.service_name = self.container.service_name
+
         self.args = args if args is not None else ()
         self.kwargs = kwargs if kwargs is not None else {}
+
         self.data = data if data is not None else {}
 
+        self.parent_call_stack, self.unique_id = self._init_call_id()
+        self.call_id = '{}.{}.{}'.format(
+            self.service_name, self.method_name, self.unique_id
+        )
+        n = -self.parent_calls_tracked
+        self.call_id_stack = self.parent_call_stack[n:]
+        self.call_id_stack.append(self.call_id)
+        try:
+            self.immediate_parent_call_id = self.parent_call_stack[-1]
+        except IndexError:
+            self.immediate_parent_call_id = None
+
     @abstractproperty
-    def data_keys(self):
+    def context_keys(self):
         """ Return a tuple of keys describing data kept on this WorkerContext.
         """
 
+    @property
+    def context_data(self):
+        """
+        Contextual data to pass with each call originating from the active
+        worker.
+
+        Comprises items from ``self.data`` where the key is included in
+        ``context_keys``, as well as the call stack.
+        """
+        key_data = {k: v for k, v in self.data.iteritems()
+                    if k in self.context_keys}
+        key_data[WORKER_CALL_ID_STACK_KEY] = self.call_id_stack
+        return key_data
+
+    @property
+    def extra_for_logging(self):
+        """
+        Get a dictionary of extra data to apply to log statements.
+        """
+        return {}
+
+    @classmethod
+    def get_context_data(cls, incoming):
+        data = {k: v for k, v in incoming.iteritems()
+                if k in cls.context_keys}
+        return data
+
     def __str__(self):
         cls_name = type(self).__name__
-        service_name = self.container.service_name
         return '<{} {}.{} at 0x{:x}>'.format(
-            cls_name, service_name, self.method_name, id(self))
+            cls_name, self.service_name, self.method_name, id(self))
+
+    def _init_call_id(self):
+        parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
+        unique_id = new_call_id()
+        return parent_call_stack, unique_id
 
 
 class WorkerContext(WorkerContextBase):
     """ Default WorkerContext implementation
     """
-    data_keys = NAMEKO_DATA_KEYS
+    context_keys = NAMEKO_CONTEXT_KEYS
 
 
 class ManagedThreadContainer(object):
@@ -223,7 +285,7 @@ class ServiceContainer(ManagedThreadContainer):
         self.service_name = get_service_name(service_cls)
 
         self.config = config
-        self.max_workers = config.get(MAX_WOKERS_KEY, 10) or 10
+        self.max_workers = config.get(MAX_WORKERS_KEY, 10) or 10
 
         self.dependencies = DependencySet()
         for dep in get_dependencies(self):
@@ -254,12 +316,12 @@ class ServiceContainer(ManagedThreadContainer):
         in by the calling entrypoint provider. It is called with the
         result returned or error raised by the service method.
         """
-
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
             self, service, provider.name, args, kwargs, data=context_data)
 
-        _log.debug('spawning %s', worker_ctx)
+        _log.debug('spawning %s', worker_ctx,
+                   extra=worker_ctx.extra_for_logging)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
         self._active_threads.add(gt)
@@ -309,7 +371,15 @@ class ServiceContainer(ManagedThreadContainer):
         self.dependencies.all.kill(exc)
 
     def _run_worker(self, worker_ctx, handle_result):
-        _log.debug('setting up %s', worker_ctx)
+        _log.debug('setting up %s', worker_ctx,
+                   extra=worker_ctx.extra_for_logging)
+
+        if not worker_ctx.parent_call_stack:
+            _log.debug('starting call chain',
+                       extra=worker_ctx.extra_for_logging)
+        _log.debug('call stack for %s: %s',
+                   worker_ctx, '->'.join(worker_ctx.call_id_stack),
+                   extra=worker_ctx.extra_for_logging)
 
         with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
 
@@ -318,7 +388,8 @@ class ServiceContainer(ManagedThreadContainer):
 
             result = exc = None
             try:
-                _log.debug('calling handler for %s', worker_ctx)
+                _log.debug('calling handler for %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging)
 
                 method = getattr(worker_ctx.service, worker_ctx.method_name)
 
@@ -330,7 +401,8 @@ class ServiceContainer(ManagedThreadContainer):
                 exc = e
 
             if handle_result is not None:
-                _log.debug('handling result for %s', worker_ctx)
+                _log.debug('handling result for %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging)
 
                 with log_time(_log.debug, 'handled result for %s in %0.3fsec',
                               worker_ctx):
@@ -339,11 +411,13 @@ class ServiceContainer(ManagedThreadContainer):
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):
 
-                _log.debug('signalling result for %s', worker_ctx)
+                _log.debug('signalling result for %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging)
                 self.dependencies.injections.all.worker_result(
                     worker_ctx, result, exc)
 
-                _log.debug('tearing down %s', worker_ctx)
+                _log.debug('tearing down %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging)
                 self.dependencies.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
 

@@ -32,12 +32,12 @@ class HeaderEncoder(object):
 
     header_prefix = HEADER_PREFIX
 
+    def _get_header_name(self, key):
+        return "{}.{}".format(self.header_prefix, key)
+
     def get_message_headers(self, worker_ctx):
-        headers = {}
-        for key in worker_ctx.data_keys:
-            if key in worker_ctx.data:
-                name = "{}.{}".format(self.header_prefix, key)
-                headers[name] = worker_ctx.data[key]
+        headers = {self._get_header_name(key): value
+                   for key, value in worker_ctx.context_data.items()}
         return headers
 
 
@@ -45,15 +45,16 @@ class HeaderDecoder(object):
 
     header_prefix = HEADER_PREFIX
 
-    def unpack_message_headers(self, worker_ctx_cls, message):
-        data_keys = worker_ctx_cls.data_keys
+    def _strip_header_name(self, key):
+        full_prefix = "{}.".format(self.header_prefix)
+        if key.startswith(full_prefix):
+            return key[len(full_prefix):]
+        return key
 
-        data = {}
-        for key in data_keys:
-            name = "{}.{}".format(self.header_prefix, key)
-            if name in message.headers:
-                data[key] = message.headers[name]
-        return data
+    def unpack_message_headers(self, worker_ctx_cls, message):
+        stripped = {self._strip_header_name(k): v
+                    for k, v in message.headers.iteritems()}
+        return worker_ctx_cls.get_context_data(stripped)
 
 
 @injection
@@ -234,7 +235,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         removed_event = Event()
         # we can only cancel a consumer from within the consumer thread
         self._pending_remove_providers[provider] = removed_event
-        # so we will just register the consumer to be cancleed
+        # so we will just register the consumer to be canceled
         removed_event.wait()
 
         super(QueueConsumer, self).unregister_provider(provider)
@@ -291,7 +292,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
     def get_consumers(self, Consumer, channel):
         """ kombu callback to set up consumers """
-        _log.debug('setting up consumers')
+        _log.debug('setting up consumers %s', self)
 
         for provider in self._providers:
             callbacks = [self._on_message, provider.handle_message]
@@ -320,7 +321,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         """ kombu callback when consumers have been set up and before the
         first message is consumed """
 
-        _log.debug('consumer started')
+        _log.debug('consumer started %s', self)
         self._consumers_ready.send(None)
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
@@ -357,11 +358,11 @@ def consume(queue, requeue_on_error=False):
     '''
     Decorates a method as a message consumer.
 
-    Messaages from the queue will be deserialized depending on their content
+    Messages from the queue will be deserialized depending on their content
     type and passed to the the decorated method.
-    When the conumer method returns without raising any exceptions,
+    When the consumer method returns without raising any exceptions,
     the message will automatically be acknowledged.
-    If any exceptions are raised during the consumtion and
+    If any exceptions are raised during the consumption and
     `requeue_on_error` is True, the message will be requeued.
 
     Example::
