@@ -339,7 +339,14 @@ def rpc_proxy_factory(rabbit_config):
 def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     """ Simulate a checkout flow as an integration test.
 
-    Explicitly replace certain dependencies to limit service interaction.
+    Requires instances of AcmeShopService, StockService and InvoiceService
+    to be running. Explicitly replaces the rpc proxy to PaymentService so
+    that service doesn't need to be hosted.
+
+    Also replaces the event dispatcher injection on AcmeShopService and
+    disables the timer entrypoint on StockService. Limiting the interactions
+    of services in this way reduces the scope of the integration test and
+    eliminates undesirable side-effects (e.g. processing events unnecessarily).
     """
     context_data = {'user_id': 'wile_e_coyote'}
     shop = rpc_proxy_factory('acmeshopservice', context_data=context_data)
