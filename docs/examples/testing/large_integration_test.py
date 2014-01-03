@@ -1,6 +1,18 @@
 """
 In a large integration test of highly connected services, it's preferable to
 limit interactions to only those under test.
+
+This file defines several toy services that interact to form a shop of the
+famous ACME Corporation. The AcmeShopService relies on the StockService,
+InvoiceService and PaymentService to fulfil its orders. They are not best
+practice examples! They're minimal services provided for the test at the
+bottom of the file.
+
+``test_shop_integration`` is a  full integration test of the ACME shop
+"checkout" flow. It demonstrates how to test the multiple ACME services in
+combination with each other, including limiting service interactions by
+replacing certain entrypoint and injection dependencies.
+
 """
 # Nameko relies on eventlet
 # You should monkey patch the standard library as early as possible to avoid
@@ -86,6 +98,8 @@ class AcmeShopService(object):
     @rpc
     def add_to_basket(self, item_code):
         """ Add item identified by ``item_code`` to the shopping basket.
+
+        This is a toy example! Ignore the obvious race condition.
         """
         stock_level = self.stock_service.check_stock(item_code)
         if stock_level > 0:
@@ -124,6 +138,8 @@ class AcmeShopService(object):
 
 class Warehouse(InjectionProvider):
     """ A database of items in the warehouse.
+
+    This is a toy example! A dictionary is not a database.
     """
     def __init__(self):
         self.database = {
@@ -185,19 +201,6 @@ class StockService(object):
             return self.warehouse[item_code]['stock']
         except KeyError:
             raise ItemDoesNotExist(item_code)
-
-    @rpc
-    def pick_item(self, item_code):
-        """ Remove an item from the stock.
-        """
-        try:
-            items = self.warehouse[item_code]
-        except KeyError:
-            raise ItemDoesNotExist(item_code)
-
-        if not items['stock'] > 0:
-            raise ItemOutOfStock(item_code)
-        items['stock'] -= 1
 
     @rpc
     @timer(100)
@@ -333,10 +336,10 @@ def rpc_proxy_factory(rabbit_config):
         proxy.__exit__(None, None, None)
 
 
-def test_shop_integration(runner_factory, rpc_proxy_factory):
-    """ Start all services and simulate a checkout flow.
+def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
+    """ Simulate a checkout flow as an integration test.
 
-    Explicitly mock out certain dependencies to limit service interaction.
+    Explicitly replace certain dependencies to limit service interaction.
     """
     context_data = {'user_id': 'wile_e_coyote'}
     shop = rpc_proxy_factory('acmeshopservice', context_data=context_data)
