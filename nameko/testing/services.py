@@ -24,8 +24,7 @@ def entrypoint_hook(container, name, context_data=None):
     in the service class. Intended to be used as an integration testing
     utility.
 
-    Usage
-    =====
+    **Usage**
 
     To verify that ServiceX and ServiceY are compatible, make an integration
     test that checks their interaction:
@@ -58,8 +57,7 @@ def instance_factory(service_cls, **injections):
     """ Return an instance of ``service_cls`` with its injected dependencies
     replaced with Mock objects, or as given in ``injections``.
 
-    Usage
-    =====
+    **Usage**
 
     The following example service proxies calls to a "math" service via
     and ``rpc_proxy`` injection::
@@ -102,14 +100,13 @@ def instance_factory(service_cls, **injections):
         assert service.cms_to_inches(762) == 300
         service.math.divide.assert_called_once_with(762, 2.54)
 
-    Providing Injections
-    --------------------
+    *Providing Injections*
 
     The ``**injections`` kwargs to ``instance_factory`` can be used to provide
     a replacement injection instead of a Mock. For example, to unit test a
     service against a real database:
 
-    .. literalinclude:: examples/testing/unit_test_with_provided_injection.py
+    .. literalinclude:: examples/testing/unit_with_provided_injection_test.py
 
     """
     service = service_cls()

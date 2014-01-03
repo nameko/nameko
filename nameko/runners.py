@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from contextlib import contextmanager
 from logging import getLogger
 
 from nameko.utils import SpawningProxy
@@ -90,3 +91,15 @@ class ServiceRunner(object):
         """ Wait for all running containers to stop.
         """
         SpawningProxy(self.containers).wait()
+
+
+@contextmanager
+def service_runner(config, container_cls=ServiceContainer, *services):
+
+    runner = ServiceRunner(config, container_cls=container_cls)
+    for service_cls in services:
+        runner.add(service_cls)
+
+    runner.start()
+    yield runner
+    runner.stop()

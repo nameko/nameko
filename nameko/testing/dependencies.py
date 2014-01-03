@@ -13,7 +13,7 @@ def patch_injection_provider(provider):
     such that it returns a `Mock` as the injection object.
     The injection object will be yielded by the contextmanager.
 
-    .. deprecated::
+    .. admonition:: Deprecated
 
         ``patch_injection_provider`` is deprecated in favour of
         :meth:`nameko.testing.services.instance_factory`
