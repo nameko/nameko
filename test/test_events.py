@@ -241,8 +241,7 @@ def service_factory(prefix, base):
 
 
 @pytest.fixture
-def start_containers(request, container_factory,
-                     rabbit_config, reset_rabbit, reset_state):
+def start_containers(request, container_factory, rabbit_config, reset_state):
     def make(base, prefixes):
         """ Use ``service_factory`` to create a service type inheriting from
         ``base`` using the given prefixes, and start a container for that

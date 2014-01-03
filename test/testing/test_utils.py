@@ -2,27 +2,8 @@ import eventlet
 from mock import Mock
 import pytest
 
-from nameko.dependencies import InjectionProvider
-from nameko.testing import patch_injection_provider
 from nameko.testing.utils import (
-    AnyInstanceOf, get_dependency, wait_for_call, instance_factory)
-
-
-def test_patch_attr_dependency():
-
-    class TestProvider(InjectionProvider):
-        def acquire_injection(self, worker_ctx):
-            return 'before patch injection'
-
-    attr = TestProvider()
-    patch_attr = patch_injection_provider(attr)
-
-    # make sure patching does not happen until used as a contextmanager
-    assert attr.acquire_injection(None) == 'before patch injection'
-
-    with patch_attr as injected_mock:
-        assert attr.acquire_injection(None) is injected_mock
-        assert isinstance(injected_mock, Mock)
+    AnyInstanceOf, get_dependency, get_container, wait_for_call)
 
 
 def test_any_instance_of():
@@ -93,37 +74,17 @@ def test_get_dependency(rabbit_config):
     assert all_deps == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
 
 
-def test_instance_factory():
+def test_get_container(runner_factory, rabbit_config):
 
-    from nameko.rpc import rpc_proxy
+    class ServiceX(object):
+        name = "service_x"
 
-    class Service(object):
-        foo_proxy = rpc_proxy("foo_service")
-        bar_proxy = rpc_proxy("bar_service")
+    class ServiceY(object):
+        name = "service_y"
 
-    class OtherService(object):
-        pass
+    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner.start()
 
-    # simplest case, no overrides
-    instance = instance_factory(Service)
-    assert isinstance(instance, Service)
-    assert isinstance(instance.foo_proxy, Mock)
-    assert isinstance(instance.bar_proxy, Mock)
-
-    # no injections to replace
-    instance = instance_factory(OtherService)
-    assert isinstance(instance, OtherService)
-
-    # override specific injection
-    bar_injection = object()
-    instance = instance_factory(Service, bar_proxy=bar_injection)
-    assert isinstance(instance, Service)
-    assert isinstance(instance.foo_proxy, Mock)
-    assert instance.bar_proxy is bar_injection
-
-    # non-applicable injection
-    instance = instance_factory(Service, nonexist=object())
-    assert isinstance(instance, Service)
-    assert isinstance(instance.foo_proxy, Mock)
-    assert isinstance(instance.bar_proxy, Mock)
-    assert not hasattr(instance, "nonexist")
+    assert get_container(runner, ServiceX).service_cls is ServiceX
+    assert get_container(runner, ServiceY).service_cls is ServiceY
+    assert get_container(runner, object) is None
