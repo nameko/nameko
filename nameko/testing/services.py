@@ -134,7 +134,7 @@ class MockInjection(InjectionProvider):
         return self.injection
 
 
-def replace_injections(container, names):
+def replace_injections(container, *names):
 
     replacements = OrderedDict()
 
@@ -150,10 +150,16 @@ def replace_injections(container, names):
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
 
-    return [replacement.injection for replacement in replacements.values()]
+    # if only once name was provided, return any replacement directly
+    # otherwise return a generator
+    injections = (replacement.injection
+                  for replacement in replacements.values())
+    if len(names) == 1:
+        return next(injections, None)
+    return injections
 
 
-def replace_entrypoints(container, entrypoints):
+def replace_entrypoints(container, *entrypoints):
 
     dependencies = []
 

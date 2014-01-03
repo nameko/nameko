@@ -347,14 +347,12 @@ def test_shop_integration(runner_factory, rpc_proxy_factory):
     # AcmeShopService with Mock injections
     shop_container = get_container(runner, AcmeShopService)
     fire_event, payment_service = replace_injections(
-        shop_container, ("fire_event", "payment_service"))
+        shop_container, "fire_event", "payment_service")
 
     # replace ``montitor_stock`` timer entrypoint on StockService
     # note that the rpc endpoint on the same method remains active
     stock_container = get_container(runner, StockService)
-    replace_entrypoints(stock_container, (
-        (timer, "monitor_stock"),
-    ))
+    replace_entrypoints(stock_container, (timer, "monitor_stock"))
 
     runner.start()
 
