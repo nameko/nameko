@@ -12,14 +12,7 @@ bottom of the file.
 "checkout" flow. It demonstrates how to test the multiple ACME services in
 combination with each other, including limiting service interactions by
 replacing certain entrypoint and injection dependencies.
-
 """
-# Nameko relies on eventlet
-# You should monkey patch the standard library as early as possible to avoid
-# importing anything before the patch is applied.
-# See http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library
-import eventlet
-eventlet.monkey_patch()
 
 from collections import defaultdict
 
@@ -28,6 +21,7 @@ import pytest
 from nameko.dependencies import (
     InjectionProvider, injection, DependencyFactory)
 from nameko.events import event_dispatcher, Event, event_handler
+from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
@@ -37,6 +31,14 @@ from nameko.timer import timer
 
 
 class NotLoggedIn(Exception):
+    pass
+
+
+class ItemOutOfStock(Exception):
+    pass
+
+
+class ItemDoesNotExist(Exception):
     pass
 
 
@@ -105,27 +107,22 @@ class AcmeShopService(object):
         if stock_level > 0:
             self.user_basket.add(item_code)
             self.fire_event(ItemAddedToBasket(item_code))
-            return True, item_code
+            return item_code
 
-        return False, "Out of stock."
+        raise ItemOutOfStock(item_code)
 
     @rpc
     def checkout(self):
         """ Take payment for all items in the shopping basket.
         """
-        total_price = sum([self.stock_service.check_price(item)
-                           for item in self.user_basket])
+        total_price = sum(self.stock_service.check_price(item)
+                          for item in self.user_basket)
 
         # prepare invoice
-        success, result = self.invoice_service.prepare_invoice(total_price)
-        if not success:
-            return False, result
+        invoice = self.invoice_service.prepare_invoice(total_price)
 
         # take payment
-        invoice = result
-        success, result = self.payment_service.take_payment(invoice)
-        if not success:
-            return False, result
+        self.payment_service.take_payment(invoice)
 
         # fire checkout event if prepare_invoice and take_payment succeeded
         checkout_event = CheckoutComplete({
@@ -133,7 +130,7 @@ class AcmeShopService(object):
             'items': list(self.user_basket)
         })
         self.fire_event(checkout_event)
-        return success, result
+        return total_price
 
 
 class Warehouse(InjectionProvider):
@@ -170,14 +167,6 @@ def warehouse():
     """ A shopping basket tied to the current user.
     """
     return DependencyFactory(Warehouse)
-
-
-class ItemDoesNotExist(Exception):
-    pass
-
-
-class ItemOutOfStock(Exception):
-    pass
 
 
 class StockService(object):
@@ -260,12 +249,9 @@ class InvoiceService(object):
     def prepare_invoice(self, amount):
         """ Prepare an invoice for ``amount`` for the current user.
         """
-        try:
-            address = self.get_user_details().get('address')
-            fullname = self.get_user_details().get('fullname')
-            username = self.get_user_details().get('username')
-        except NotLoggedIn:
-            return False, "You must be logged in to make purchases."
+        address = self.get_user_details().get('address')
+        fullname = self.get_user_details().get('fullname')
+        username = self.get_user_details().get('username')
 
         msg = "Dear {}. Please pay ${} to ACME Corp.".format(fullname, amount)
         invoice = {
@@ -274,7 +260,7 @@ class InvoiceService(object):
             'customer': username,
             'address': address
         }
-        return True, invoice
+        return invoice
 
 
 class PaymentService(object):
@@ -367,22 +353,24 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     runner.start()
 
     # add some items to the basket
-    assert shop.add_to_basket("anvil") == [True, "anvil"]
-    assert shop.add_to_basket("invisible_paint") == [True, "invisible_paint"]
+    assert shop.add_to_basket("anvil") == "anvil"
+    assert shop.add_to_basket("invisible_paint") == "invisible_paint"
 
     # try to buy something that's out of stock
-    assert shop.add_to_basket("toothpicks") == [False, "Out of stock."]
+    with pytest.raises(RemoteError) as exc_info:
+        shop.add_to_basket("toothpicks")
+    assert exc_info.value.exc_type == "ItemOutOfStock"
 
     # provide a mock response from the payment service
-    payment_service.take_payment.return_value = (True, "Payment complete.")
+    payment_service.take_payment.return_value = "Payment complete."
 
     # checkout
     res = shop.checkout()
 
-    assert res == [True, "Payment complete."]
+    total_amount = 100 + 10
+    assert res == total_amount
 
     # verify integration with mocked out payment service
-    total_amount = 100 + 10
     payment_service.take_payment.assert_called_once_with({
         'customer': "wile_e_coyote",
         'address': "12 Long Road, High Cliffs, Utah",

@@ -1,5 +1,17 @@
 """ Barebones conftest.py
 """
+# Nameko relies on eventlet
+# You should monkey patch the standard library as early as possible to avoid
+# importing anything before the patch is applied.
+# See http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library
+import eventlet
+eventlet.monkey_patch()
+
+from nameko.rpc import rpc, rpc_proxy
+from nameko.runners import ServiceRunner
+from nameko.testing.utils import get_container
+from nameko.testing.services import entrypoint_hook
+
 from urlparse import urlparse
 
 from pyrabbit.api import Client
