@@ -21,8 +21,8 @@ class ServiceRunner(object):
     Example::
 
         runner = ServiceRunner(config)
-        runner.add_service('foobar', Foobar)
-        runner.add_service('spam', Spam)
+        runner.add_service(Foobar)
+        runner.add_service(Spam, CustomWorkerContext)
 
         add_sig_term_handler(runner.kill)
 
