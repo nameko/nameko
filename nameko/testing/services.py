@@ -132,7 +132,48 @@ class MockInjection(InjectionProvider):
 
 
 def replace_injections(container, *names):
+    """ Replace the injections on ``container`` with :class:`MockInjection`
+    objects if their name is in ``names``.
 
+    Return the :attr:`MockInjection.injection` of the replacements, so that
+    calls to the replaced injections can be inspected. Return a single object
+    if only one injection was replaced, and a generator yielding the
+    replacements in the same order as ``names`` otherwise.
+
+    Replacements are made on the container instance and have no effect on the
+    service class. New container instances are therefore unaffected by
+    replacements on previous instances.
+
+    **Usage**
+
+    ::
+
+        from nameko.rpc import rpc_proxy, rpc
+        from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
+
+        class ConversionService(object):
+            math = rpc_proxy("math_service")
+
+            @rpc
+            def inches_to_cm(self, inches):
+                return self.math.multiply(inches, 2.54)
+
+            @rpc
+            def cm_to_inches(self, cms):
+                return self.math.divide(cms, 2.54)
+
+        container = ServiceContainer(ConversionService, config)
+        math = replace_injections(container, "math")
+
+        container.start()
+
+        with standalone_rpc_proxy('conversionservice', config) as proxy:
+            proxy.cm_to_inches(100)
+
+        # assert that the injection was called as expected
+        math.divide.assert_called_once_with(100, 2.54)
+
+    """
     replacements = OrderedDict()
 
     for name in names:
@@ -147,7 +188,7 @@ def replace_injections(container, *names):
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
 
-    # if only once name was provided, return any replacement directly
+    # if only one name was provided, return any replacement directly
     # otherwise return a generator
     injections = (replacement.injection
                   for replacement in replacements.values())
@@ -156,8 +197,36 @@ def replace_injections(container, *names):
     return injections
 
 
-def replace_entrypoints(container, *entrypoints):
+def remove_entrypoints(container, *entrypoints):
+    """ Remove the entrypoints from ``container`` if if they are identified
+    by ``*entrypoints``.
 
+    Each item in ``entrypoints`` is a tuple of
+    ``(entrypoint_decorator, method_name)``.
+
+    **Usage**
+
+    The following service definition has two entrypoints for "method"::
+
+        class Service(object):
+
+            @rpc
+            @event_handler('srcservice', 'event_one')
+            def method(self, arg):
+                pass
+
+        container = container_factory(Service, config)
+
+    To remove by the rpc entrypoint from "method"::
+
+        remove_entrypoints(container, (rpc, "method"))
+
+    To remove both entrypoints from "method"::
+
+        remove_entrypoints(container, (rpc, "method"),
+                                      (event_handler, "method"))
+
+    """
     dependencies = []
 
     for entrypoint, name in entrypoints:

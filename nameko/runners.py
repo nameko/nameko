@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-from contextlib import contextmanager
 from logging import getLogger
 
 from nameko.utils import SpawningProxy
@@ -36,7 +35,7 @@ class ServiceRunner(object):
         self.container_cls = container_cls
 
     @property
-    def services(self):
+    def service_names(self):
         return self.service_map.keys()
 
     @property
@@ -61,45 +60,33 @@ class ServiceRunner(object):
         All containers are started concurently and the method will block
         until all have completed their startup routine.
         """
-        _log.info('starting services: %s', self.services)
+        _log.info('starting services: %s', self.service_names)
 
         SpawningProxy(self.containers).start()
 
-        _log.info('services started: %s', self.services)
+        _log.info('services started: %s', self.service_names)
 
     def stop(self):
         """ Stop all running containers concurrently.
         The method blocks until all containers have stopped.
         """
-        _log.info('stopping services: %s', self.services)
+        _log.info('stopping services: %s', self.service_names)
 
         SpawningProxy(self.containers).stop()
 
-        _log.info('services stopped: %s', self.services)
+        _log.info('services stopped: %s', self.service_names)
 
     def kill(self, exc):
         """ Kill all running containers concurrently.
         The method will block until all containers have stopped.
         """
-        _log.info('killing services: %s', self.services)
+        _log.info('killing services: %s', self.service_names)
 
         SpawningProxy(self.containers).kill(exc)
 
-        _log.info('services killed: %s ', self.services)
+        _log.info('services killed: %s ', self.service_names)
 
     def wait(self):
         """ Wait for all running containers to stop.
         """
         SpawningProxy(self.containers).wait()
-
-
-@contextmanager
-def service_runner(config, container_cls=ServiceContainer, *services):
-
-    runner = ServiceRunner(config, container_cls=container_cls)
-    for service_cls in services:
-        runner.add(service_cls)
-
-    runner.start()
-    yield runner
-    runner.stop()

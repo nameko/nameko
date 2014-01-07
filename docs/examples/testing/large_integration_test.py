@@ -25,7 +25,7 @@ from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
-from nameko.testing.services import replace_injections, replace_entrypoints
+from nameko.testing.services import replace_injections, remove_entrypoints
 from nameko.testing.utils import get_container
 from nameko.timer import timer
 
@@ -345,10 +345,10 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     fire_event, payment_service = replace_injections(
         shop_container, "fire_event", "payment_service")
 
-    # replace ``montitor_stock`` timer entrypoint on StockService
+    # remove ``monitor_stock`` timer entrypoint on StockService
     # note that the rpc endpoint on the same method remains active
     stock_container = get_container(runner, StockService)
-    replace_entrypoints(stock_container, (timer, "monitor_stock"))
+    remove_entrypoints(stock_container, (timer, "monitor_stock"))
 
     runner.start()
 

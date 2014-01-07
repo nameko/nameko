@@ -267,6 +267,9 @@ class DependencyFactory(object):
         self.args = init_args
         self.kwargs = init_kwargs
 
+        # keep a reference to every created instance
+        self.instances = WeakSet()
+
     @property
     def key(self):
         return (self.dep_cls, str(self.args), str(self.kwargs))
@@ -295,6 +298,7 @@ class DependencyFactory(object):
                 prov = attr.create_and_bind_instance(name, container)
                 setattr(instance, name, prov)
 
+        self.instances.add(instance)
         return instance
 
 

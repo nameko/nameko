@@ -10,7 +10,7 @@ from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
 from nameko.testing.services import (
-    entrypoint_hook, instance_factory, replace_injections, replace_entrypoints)
+    entrypoint_hook, instance_factory, replace_injections, remove_entrypoints)
 from nameko.testing.utils import get_container, wait_for_call
 
 
@@ -228,7 +228,7 @@ def test_replace_injections(container_factory, rabbit_config):
     foo_proxy.remote_method.assert_called_once_with(msg)
 
 
-def test_replace_entrypoints(container_factory, rabbit_config):
+def test_remove_entrypoints(container_factory, rabbit_config):
 
     remote_method_called = Mock()
 
@@ -265,8 +265,8 @@ def test_replace_entrypoints(container_factory, rabbit_config):
 
     container = container_factory(Service, rabbit_config)
 
-    # replace the rpc entrypoint on "method" and the once on "remote_method"
-    replace_entrypoints(container, (rpc, "method"), (once, "remote_method"))
+    # remove the rpc entrypoint on "method" and the once on "remote_method"
+    remove_entrypoints(container, (rpc, "method"), (once, "remote_method"))
 
     container.start()
 
