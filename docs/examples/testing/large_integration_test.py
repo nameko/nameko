@@ -284,7 +284,6 @@ def runner_factory(rabbit_config):
 
     all_runners = []
 
-    # TODO: remove config from normal runner_factory signature too?
     def make_runner(*service_classes):
         runner = ServiceRunner(rabbit_config)
         for service_cls in service_classes:
@@ -345,10 +344,9 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     fire_event, payment_service = replace_injections(
         shop_container, "fire_event", "payment_service")
 
-    # remove ``monitor_stock`` timer entrypoint on StockService
-    # note that the rpc endpoint on the same method remains active
+    # remove ``monitor_stock`` entrypoints on StockService
     stock_container = get_container(runner, StockService)
-    remove_entrypoints(stock_container, (timer, "monitor_stock"))
+    remove_entrypoints(stock_container, "monitor_stock")
 
     runner.start()
 

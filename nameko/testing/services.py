@@ -197,12 +197,9 @@ def replace_injections(container, *names):
     return injections
 
 
-def remove_entrypoints(container, *entrypoints):
-    """ Remove the entrypoints from ``container`` if if they are identified
-    by ``*entrypoints``.
-
-    Each item in ``entrypoints`` is a tuple of
-    ``(entrypoint_decorator, method_name)``.
+def remove_entrypoints(container, *names):
+    """ Remove the entrypoints from ``container`` if if their name is in
+    ``names``.
 
     **Usage**
 
@@ -211,33 +208,36 @@ def remove_entrypoints(container, *entrypoints):
         class Service(object):
 
             @rpc
+            def foo(self, arg):
+                pass
+
+            @rpc
             @event_handler('srcservice', 'event_one')
-            def method(self, arg):
+            def bar(self, arg)
                 pass
 
         container = container_factory(Service, config)
 
-    To remove by the rpc entrypoint from "method"::
+    To remove the rpc entrypoint from "foo"::
 
-        remove_entrypoints(container, (rpc, "method"))
+        remove_entrypoints(container, "foo")
 
-    To remove both entrypoints from "method"::
+    To remove both the rpc and the event_handler entrypoints from "bar"::
 
-        remove_entrypoints(container, (rpc, "method"),
-                                      (event_handler, "method"))
+        remove_entrypoints(container, "bar")
 
+    Note that it is not possible to remove entrypoints individually.
     """
     dependencies = []
 
-    for entrypoint, name in entrypoints:
+    for name in names:
         entrypoint_method = getattr(container.service_cls, name, None)
         entrypoint_factories = getattr(
             entrypoint_method, ENTRYPOINT_PROVIDERS_ATTR, tuple())
         for factory in entrypoint_factories:
-            if factory.dep_cls == entrypoint.provider_cls:
-                dependency = get_dependency(container, factory.dep_cls,
-                                            name=name)
-                dependencies.append(dependency)
+            dependency = get_dependency(container, factory.dep_cls,
+                                        name=name)
+            dependencies.append(dependency)
 
     for dependency in dependencies:
         container.dependencies.remove(dependency)

@@ -5,7 +5,7 @@ from nameko.dependencies import (
     injection, entrypoint, InjectionProvider, EntrypointProvider,
     DependencyFactory)
 from nameko.events import Event, event_handler
-from nameko.exceptions import DependencyNotFound, RemoteError
+from nameko.exceptions import DependencyNotFound
 from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
@@ -230,7 +230,7 @@ def test_replace_injections(container_factory, rabbit_config):
 
 def test_remove_entrypoints(container_factory, rabbit_config):
 
-    remote_method_called = Mock()
+    method_called = Mock()
 
     class OnceProvider(EntrypointProvider):
         """ Entrypoint that spawns a worker exactly once, as soon as
@@ -251,37 +251,30 @@ def test_remove_entrypoints(container_factory, rabbit_config):
         type = "eventtype"
 
     class Service(object):
-        proxy = rpc_proxy("service")
 
-        @rpc
-        @event_handler('srcservice', 'eventtype')
-        def method(self, arg):
-            self.proxy.remote_method(arg)
-
-        @rpc
         @once("assert not seen")
-        def remote_method(self, msg):
-            remote_method_called(msg)
+        def handler_one(self, arg):
+            method_called(arg)
+
+        @event_handler('srcservice', 'eventtype')
+        def handler_two(self, msg):
+            method_called(msg)
 
     container = container_factory(Service, rabbit_config)
 
-    # remove the rpc entrypoint on "method" and the once on "remote_method"
-    remove_entrypoints(container, (rpc, "method"), (once, "remote_method"))
+    # remove the once entrypoint on "handler_one"
+    remove_entrypoints(container, "handler_one")
 
     container.start()
 
-    # verify that the rpc entrypoint on "method" is disabled
+    # dispatch an event to handler_two
     msg = "msg"
-    with standalone_rpc_proxy("service", rabbit_config) as service_proxy:
-        with pytest.raises(RemoteError) as exc_info:
-            service_proxy.method(msg)
-        assert exc_info.value.exc_type == "MethodNotFound"
-
-    # verify that the event_handler entrypoint on "method" is still active
     with event_dispatcher('srcservice', rabbit_config) as dispatch:
         dispatch(ExampleEvent(msg))
 
-    # remote_method_called should have exactly one call,
-    # derived from the event handler and not from the disabled @once entrypoint
-    with wait_for_call(1, remote_method_called):
-        remote_method_called.assert_called_once_with(msg)
+    # method_called should have exactly one call, derived from the event
+    # handler and not from the disabled @once entrypoint
+    with wait_for_call(1, method_called):
+        method_called.assert_called_once_with(msg)
+
+    print "DONE"
