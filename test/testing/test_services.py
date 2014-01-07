@@ -276,5 +276,3 @@ def test_remove_entrypoints(container_factory, rabbit_config):
     # handler and not from the disabled @once entrypoint
     with wait_for_call(1, method_called):
         method_called.assert_called_once_with(msg)
-
-    print "DONE"
