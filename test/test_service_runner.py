@@ -1,5 +1,10 @@
+import eventlet
 import pytest
 
+from nameko.events import event_handler, Event, BROADCAST
+from nameko.standalone.events import event_dispatcher
+from nameko.standalone.rpc import rpc_proxy
+from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, ContextualServiceRunner
 
 
@@ -9,6 +14,27 @@ class TestService1(object):
 
 class TestService2(object):
     name = 'foobar_2'
+
+
+received = []
+
+
+@pytest.fixture(autouse=True)
+def reset_mock():
+    del received[:]
+
+
+class TestEvent(Event):
+    type = "testevent"
+
+
+class Service(object):
+
+    @rpc
+    @event_handler("srcservice", TestEvent.type, handler_type=BROADCAST,
+                   reliable_delivery=False)
+    def handle(self, msg):
+        received.append(msg)
 
 
 def test_runner_lifecycle():
@@ -167,3 +193,85 @@ def test_runner_waits_raises_error():
     with pytest.raises(Exception) as exc_info:
         runner.wait()
     assert exc_info.value.args == ('error in container',)
+
+
+def test_multiple_runners_coexist(runner_factory, rabbit_config,
+                                  rabbit_manager):
+
+    runner1 = runner_factory(rabbit_config, Service)
+    runner1.start()
+
+    runner2 = runner_factory(rabbit_config, Service)
+    runner2.start()
+
+    # verify there are two event queues with a single consumer each
+    eventlet.sleep(1)  # rabbit's management API seems to lag
+    vhost = rabbit_config['vhost']
+    event_queues = [queue for queue in rabbit_manager.get_queues(vhost)
+                    if queue['name'].startswith('evt-srcservice-testevent')]
+    assert len(event_queues) == 2
+    for queue in event_queues:
+        assert queue['consumers'] == 1
+
+    # test events (both services will receive if in "broadcast" mode)
+    event_data = "msg"
+    with event_dispatcher('srcservice', rabbit_config) as dispatch:
+        dispatch(TestEvent(event_data))
+
+    with eventlet.Timeout(1):
+        while len(received) < 2:
+            eventlet.sleep()
+
+        assert received == [event_data, event_data]
+
+    # verify there are two consumers on the rpc queue
+    rpc_queue = rabbit_manager.get_queue(vhost, 'rpc-service')
+    assert rpc_queue['consumers'] == 2
+
+    # test rpc (only one service will respond)
+    del received[:]
+    arg = "msg"
+    with rpc_proxy('service', rabbit_config) as proxy:
+        proxy.handle(arg)
+
+    with eventlet.Timeout(1):
+        while len(received) == 0:
+            eventlet.sleep()
+
+        assert received == [arg]
+
+
+def test_runner_with_duplicate_services(runner_factory, rabbit_config):
+
+    # host Service multiple times
+    runner = runner_factory(rabbit_config)
+    runner.add_service(Service)
+    runner.add_service(Service)  # no-op
+    runner.start()
+
+    # it should only be hosted once
+    assert len(runner.containers) == 1
+
+    # test events (only one service is hosted)
+    event_data = "msg"
+    with event_dispatcher('srcservice', rabbit_config) as dispatch:
+        dispatch(TestEvent(event_data))
+
+    with eventlet.Timeout(1):
+        while len(received) == 0:
+            eventlet.sleep()
+
+        assert received == [event_data]
+
+    # test rpc
+    arg = "msg"
+    del received[:]
+
+    with rpc_proxy("service", rabbit_config) as proxy:
+        proxy.handle(arg)
+
+    with eventlet.Timeout(1):
+        while len(received) == 0:
+            eventlet.sleep()
+
+        assert received == [arg]

@@ -49,11 +49,11 @@ def test_event_handler_decorator():
     assert descr.dep_cls is EventHandler
 
 
-def test_event_dispatcher():
+def test_event_dispatcher(empty_config):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
-    container.config = Mock()
+    container.config = empty_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, "dispatch")
@@ -241,8 +241,7 @@ def service_factory(prefix, base):
 
 
 @pytest.fixture
-def start_containers(request, container_factory,
-                     rabbit_config, reset_rabbit, reset_state):
+def start_containers(request, container_factory, rabbit_config, reset_state):
     def make(base, prefixes):
         """ Use ``service_factory`` to create a service type inheriting from
         ``base`` using the given prefixes, and start a container for that

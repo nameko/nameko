@@ -1,28 +1,13 @@
-import inspect
+"""
+Common testing utilities.
+"""
 from contextlib import contextmanager
 from functools import partial
 
 import eventlet
 from mock import Mock
 
-from nameko.dependencies import DependencyFactory, InjectionProvider
-
-
-def instance_factory(service_cls, **injections):
-    """ Return an instance of ``service_cls`` with its injected dependencies
-    replaced with Mock objects, or as given in ``injections``.
-    """
-    service = service_cls()
-    for name, attr in inspect.getmembers(service):
-        if isinstance(attr, DependencyFactory):
-            factory = attr
-            if issubclass(factory.dep_cls, InjectionProvider):
-                try:
-                    injection = injections[name]
-                except KeyError:
-                    injection = Mock()
-                setattr(service, name, injection)
-    return service
+from nameko.containers import WorkerContextBase
 
 
 def get_dependency(container, dependency_cls, **match_attrs):
@@ -41,6 +26,15 @@ def get_dependency(container, dependency_cls, **match_attrs):
             if all([has_attribute(name, value)
                     for name, value in match_attrs.items()]):
                 return dep
+
+
+def get_container(runner, service_cls):
+    """ Inspect ``runner.containers`` and return the first item that is
+    hosting an instance of ``service_cls``.
+    """
+    for container in runner.containers:
+        if container.service_cls == service_cls:
+            return container
 
 
 @contextmanager
@@ -84,3 +78,21 @@ class AnyInstanceOf(object):
 
 
 ANY_PARTIAL = AnyInstanceOf(partial)
+
+
+def worker_context_factory(*keys):
+    class CustomWorkerContext(WorkerContextBase):
+        context_keys = keys
+
+        def __init__(self, container=None, service=None, method_name=None,
+                     **kwargs):
+            container_mock = Mock()
+            container_mock.config = {}
+            super(CustomWorkerContext, self).__init__(
+                container or container_mock,
+                service or Mock(),
+                method_name or Mock(),
+                **kwargs
+            )
+
+    return CustomWorkerContext

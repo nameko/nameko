@@ -4,7 +4,7 @@ from eventlet.event import Event
 import greenlet
 import pytest
 
-from nameko.containers import ServiceContainer, MAX_WOKERS_KEY, WorkerContext
+from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
 
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
@@ -224,7 +224,7 @@ def test_container_doesnt_exhaust_max_workers(container):
 
     container = ServiceContainer(service_cls=Service,
                                  worker_ctx_cls=WorkerContext,
-                                 config={MAX_WOKERS_KEY: 1})
+                                 config={MAX_WORKERS_KEY: 1})
 
     dep = next(iter(container.dependencies))
 

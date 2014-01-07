@@ -1,4 +1,6 @@
 import eventlet
+import pytest
+
 from kombu import Exchange, Queue
 from mock import patch, Mock
 
@@ -6,9 +8,9 @@ from nameko.dependencies import DependencyFactory
 from nameko.messaging import (
     PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
 from nameko.containers import (
-    WorkerContext, WorkerContextBase, NAMEKO_DATA_KEYS, ServiceContainer)
+    WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS, ServiceContainer)
 from nameko.testing.utils import (
-    wait_for_call, as_context_manager, ANY_PARTIAL)
+    wait_for_call, as_context_manager, ANY_PARTIAL, worker_context_factory)
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -17,15 +19,15 @@ CONSUME_TIMEOUT = 1
 
 
 class CustomWorkerContext(WorkerContextBase):
-    data_keys = NAMEKO_DATA_KEYS + ('customheader',)
+    context_keys = NAMEKO_CONTEXT_KEYS + ('customheader',)
 
 
-def test_consume_provider():
+def test_consume_provider(empty_config):
 
     container = Mock(spec=ServiceContainer)
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
-    container.config = Mock()
+    container.config = empty_config
 
     worker_ctx = WorkerContext(container, None, None)
 
@@ -75,11 +77,11 @@ def test_consume_provider():
     queue_consumer.requeue_message.assert_called_once_with(message)
 
 
-def test_publish_to_exchange():
-
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_publish_to_exchange(empty_config):
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
-    container.config = Mock()
+    container.config = empty_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, "publish")
@@ -105,18 +107,23 @@ def test_publish_to_exchange():
         msg = "msg"
         publisher.inject(worker_ctx)
         service.publish(msg)
-        producer.publish.assert_called_once_with(msg, headers={},
+        headers = {
+            'nameko.call_id_stack': ['srcservice.publish.0']
+        }
+        producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
 
 
-def test_publish_to_queue():
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_publish_to_queue(empty_config):
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
-    container.config = Mock()
+    container.config = empty_config
 
     ctx_data = {'language': 'en'}
     service = Mock()
-    worker_ctx = WorkerContext(container, service, "publish", data=ctx_data)
+    worker_ctx = WorkerContext(
+        container, service, "publish", data=ctx_data)
 
     publisher = PublishProvider(queue=foobar_queue)
     publisher.bind("publish", container)
@@ -137,22 +144,27 @@ def test_publish_to_queue():
 
         # test publish
         msg = "msg"
-        headers = {'nameko.language': 'en'}
+        headers = {
+            'nameko.language': 'en',
+            'nameko.call_id_stack': ['srcservice.publish.0'],
+        }
         publisher.inject(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
 
 
-def test_publish_custom_headers():
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_publish_custom_headers(empty_config):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
-    container.config = Mock()
+    container.config = empty_config
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
-    worker_ctx = CustomWorkerContext(container, service, None, data=ctx_data)
+    worker_ctx = CustomWorkerContext(container, service, 'method',
+                                     data=ctx_data)
 
     publisher = PublishProvider(queue=foobar_queue)
     publisher.bind("publish", container)
@@ -174,14 +186,15 @@ def test_publish_custom_headers():
         # test publish
         msg = "msg"
         headers = {'nameko.language': 'en',
-                   'nameko.customheader': 'customvalue'}
+                   'nameko.customheader': 'customvalue',
+                   'nameko.call_id_stack': ['srcservice.method.0']}
         publisher.inject(worker_ctx)
         service.publish(msg)
         producer.publish.assert_called_once_with(msg, headers=headers,
                                                  exchange=foobar_ex)
 
 
-def test_header_encoder():
+def test_header_encoder(empty_config):
 
     context_data = {
         'foo': 'FOO',
@@ -192,10 +205,13 @@ def test_header_encoder():
     encoder = HeaderEncoder()
     with patch.object(encoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx = Mock(data_keys=("foo", "bar", "xxx"), data=context_data)
+        worker_ctx_cls = worker_context_factory('foo', 'bar', 'xxx')
+        worker_ctx = worker_ctx_cls(data=context_data)
+        worker_ctx.call_id_stack = ['x']
 
         res = encoder.get_message_headers(worker_ctx)
-        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR'}
+        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR',
+                       'testprefix.call_id_stack': ['x']}
 
 
 def test_header_decoder():
@@ -204,24 +220,29 @@ def test_header_decoder():
         'testprefix.foo': 'FOO',
         'testprefix.bar': 'BAR',
         'testprefix.baz': 'BAZ',
-        'bogusprefix.foo': 'XXX'
+        'bogusprefix.foo': 'XXX',
+        'testprefix.call_id_stack': ['a', 'b', 'c'],
     }
 
     decoder = HeaderDecoder()
     with patch.object(decoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx_cls = Mock(data_keys=("foo", "bar"))
+        worker_ctx_cls = worker_context_factory("foo", "bar", "call_id_stack")
         message = Mock(headers=headers)
 
         res = decoder.unpack_message_headers(worker_ctx_cls, message)
-        assert res == {'foo': 'FOO', 'bar': 'BAR'}
+        assert res == {
+            'foo': 'FOO',
+            'bar': 'BAR',
+            'call_id_stack': ['a', 'b', 'c'],
+        }
 
 
 #==============================================================================
 # INTEGRATION TESTS
 #==============================================================================
 
-
+@pytest.mark.usefixtures("reset_rabbit", "predictable_call_ids")
 def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
@@ -233,7 +254,8 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
-    worker_ctx = CustomWorkerContext(container, service, None, data=ctx_data)
+    worker_ctx = CustomWorkerContext(container, service, 'method',
+                                     data=ctx_data)
 
     publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
     publisher.bind("publish", container)
@@ -259,7 +281,8 @@ def test_publish_to_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     # test message headers
     assert messages[0]['properties']['headers'] == {
         'nameko.language': 'en',
-        'nameko.customheader': 'customvalue'
+        'nameko.customheader': 'customvalue',
+        'nameko.call_id_stack': ['service.method.0'],
     }
 
 
@@ -302,7 +325,10 @@ def test_consume_from_rabbit(reset_rabbit, rabbit_manager, rabbit_config):
     rabbit_manager.publish(
         vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
-    ctx_data = {'language': 'en', 'customheader': 'customvalue'}
+    ctx_data = {
+        'language': 'en',
+        'customheader': 'customvalue',
+    }
     with wait_for_call(CONSUME_TIMEOUT, container.spawn_worker) as method:
         method.assert_called_once_with(consumer, ('msg',), {},
                                        context_data=ctx_data,
