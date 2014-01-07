@@ -93,9 +93,8 @@ def test_contextual_lifecycle():
     runner = ContextualServiceRunner(config, container_cls=Container)
 
     runner.add_service(TestService1)
-    runner.add_service(TestService2)
 
-    with runner.stop():
+    with runner.stop(TestService2):
         # Ensure the services were started
         assert sorted(events) == [
             ('start', 'foobar_1', TestService1),
@@ -111,7 +110,7 @@ def test_contextual_lifecycle():
     ]
 
     events = []
-    with runner.kill(Exception('die')):
+    with runner.kill(Exception('die'), TestService2):
         # Ensure the services were started
         print events
         assert sorted(events) == [
@@ -128,7 +127,7 @@ def test_contextual_lifecycle():
     ]
 
     events = []
-    with runner.wait():
+    with runner.wait(TestService2):
         # Ensure the services were started
         assert sorted(events) == [
             ('start', 'foobar_1', TestService1),

@@ -107,47 +107,71 @@ class ContextualServiceRunner(ServiceRunner):
     Example::
 
         runner = ContextualServiceRunner(config)
-        runner.add_service('foobar', Foobar)
-        runner.add_service('spam', Spam)
-
-        add_sig_term_handler(runner.kill)
-
-        with runner.wait():
+        with runner.wait(Foobar, Spam):
             # interact with services and wait for them to stop
+
+
+    Services can still be configured in the same way as
+    :class:``ServiceRunner`` if a custom worker context is required, however,
+    these services are not treated as contextual and will be configured for
+    the lifetime of the runner instead of the context block::
+
+        runner = ContextualServiceRunner(config)
+        runner.add_service(Spam, CustomWorkerContext)
+        with runner.wait(Foobar):
+            # interact with services and wait for them to stop
+            # Foobar and Spam are configured here
+
+        # Only Spam is configured here
+
+
     """
 
     @contextmanager
-    def stop(self):
+    def _contextual_services(self, services):
+        original_service_map = self.service_map
+
+        for service in services:
+            self.add_service(service)
+
+        yield
+
+        self.service_map = original_service_map
+        self.containers = []
+
+
+    @contextmanager
+    def stop(self, *services):
         """ Stops all running containers concurrently on exiting.
 
         The method blocks exiting the context block until all containers have
         stopped.
         """
-        self.start()
-        yield
-        super(ContextualServiceRunner, self).stop()
-        self.containers = []
+        with self._contextual_services(services):
+            self.start()
+            yield
+            super(ContextualServiceRunner, self).stop()
 
     @contextmanager
-    def kill(self, exc):
+    def kill(self, exc, *services):
         """ Kills all running containers concurrently on exiting.
 
         The method blocks exiting the context block until all containers have
         stopped.
         """
-        self.start()
-        yield
-        super(ContextualServiceRunner, self).kill(exc)
-        self.containers = []
+        with self._contextual_services(services):
+            self.start()
+            yield
+            super(ContextualServiceRunner, self).kill(exc)
 
     @contextmanager
-    def wait(self):
+    def wait(self, *services):
         """ Wait for all running containers to stop.
 
         The method blocks exiting the context block until all containers have
         stopped.
         """
-        self.start()
-        yield
-        super(ContextualServiceRunner, self).wait()
-        self.containers = []
+        with self._contextual_services(services):
+            self.start()
+            yield
+            super(ContextualServiceRunner, self).wait()
