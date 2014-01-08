@@ -7,6 +7,7 @@ from nameko.standalone.rpc import rpc_proxy
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import assert_stops_raising
+from nameko.utils import Signal
 
 
 class TestService1(object):
@@ -46,6 +47,7 @@ def test_runner_lifecycle():
             self.service_name = service_cls.__name__
             self.service_cls = service_cls
             self.worker_ctx_cls = worker_ctx_cls
+            self.killed = Signal()
 
         def start(self):
             events.append(('start', self.service_cls.name, self.service_cls))
@@ -97,7 +99,7 @@ def test_runner_lifecycle():
 def test_runner_waits_raises_error():
     class Container(object):
         def __init__(self, service_cls, worker_ctx_cls, config):
-            pass
+            self.killed = Signal()
 
         def start(self):
             pass

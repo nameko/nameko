@@ -57,12 +57,18 @@ class ServiceRunner(object):
         A new container is created for each service using the container
         class provided in the __init__ method.
 
-        All containers are started concurently and the method will block
+        All containers are started concurrently and the method will block
         until all have completed their startup routine.
+
+        If any single container is killed, the runner will stop all other
+        containers.
         """
         _log.info('starting services: %s', self.service_names)
 
         SpawningProxy(self.containers).start()
+
+        for c in self.containers:
+            c.killed.connect(lambda exc: self.stop())
 
         _log.info('services started: %s', self.service_names)
 

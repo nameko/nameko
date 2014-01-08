@@ -38,6 +38,12 @@ class ExampleService(object):
         getattr(self.rpcproxy, method)(*args)
 
 
+class SecondService(object):
+    @rpc
+    def task(self):
+        return "task_result"
+
+
 def test_error_in_worker(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
@@ -117,13 +123,10 @@ def test_dependency_call_lifecycle_errors(
             assert exc_info.value.message == err
 
 
-def test_runner_catches_container_errors(runner_factory, rabbit_config):
-
-    runner = runner_factory(rabbit_config, ExampleService)
-    runner.start()
-
+def _runner_with_container_error(rabbit_config, runner):
+    # Ensures the ExampleService container will be killed, and confirms that
+    # runner propogates this exception when calling wait
     container = get_container(runner, ExampleService)
-
     rpc_consumer = get_dependency(container, RpcConsumer)
     with patch.object(rpc_consumer, 'handle_result') as handle_result:
         exception = Exception("error")
@@ -144,3 +147,21 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         with pytest.raises(Exception) as exc_info:
             runner.wait()
         assert exc_info.value == exception
+
+
+def test_runner_catches_container_errors(runner_factory, rabbit_config):
+
+    runner = runner_factory(rabbit_config, ExampleService)
+    runner.start()
+
+    _runner_with_container_error(rabbit_config, runner)
+
+
+def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
+    # Note that there are two services -- the second one doesn't block
+    # runner.wait() because runner is set up to observe the failing containers
+    # death, and kills any peer containers.
+    runner = runner_factory(rabbit_config, SecondService, ExampleService)
+    runner.start()
+
+    _runner_with_container_error(rabbit_config, runner)
