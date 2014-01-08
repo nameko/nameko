@@ -204,20 +204,22 @@ class ManagedThreadContainer(object):
         return self._died.wait()
 
     def spawn_managed_thread(self, run_method, protected=False):
-        """ Spawn a lifecycle-managed thread, which calls the ``run_method``
-        once it has been started.
+        """ Spawn a managed thread to run ``run_method``.
 
-        Any errors raised inside the ``run_method`` cause the container to be
+        Threads can be marked as ``protected``, which means the container will
+        not forcibly kill them until after all dependencies have been killed.
+        Dependencies that require a managed thread to complete their kill
+        procedure should ensure to mark them as ``protected``.
+
+        Any uncaught errors inside ``run_method`` cause the container to be
         killed.
 
-        It is the entrypoint provider's responsibility to react to ``stop()``
-        calls and terminate it's spawned threads.
+        It is the caller's responsibility to terminate their spawned threads.
+        Threads are killed automatically if they are still running after
+        all dependencies are stopped during :meth:`ServiceContainer.stop`.
 
-        Threads are killed automatically by the container if they are
-        still running after all their providers have been stopped.
-
-        Entrypoints may only create separate threads using this method,
-        to ensure they are life-cycle managed.
+        Entrypoints are forbidden to spawn threads through any mechanism other
+        than this method.
         """
         gt = eventlet.spawn(run_method)
         if not protected:
