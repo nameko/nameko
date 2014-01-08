@@ -178,13 +178,13 @@ class InjectionProvider(DependencyProvider):
 
 class ProviderCollector(object):
     def __init__(self, *args, **kwargs):
-        self._had_providers = False
         self._providers = set()
+        self._providers_registered = False
         self._last_provider_unregistered = Event()
         super(ProviderCollector, self).__init__(*args, **kwargs)
 
     def register_provider(self, provider):
-        self._had_providers = True
+        self._providers_registered = True
         _log.debug('registering provider %s for %s', provider, self)
         self._providers.add(provider)
 
@@ -203,7 +203,7 @@ class ProviderCollector(object):
 
         Returns immediately if no providers were ever registered.
         """
-        if self._had_providers:
+        if self._providers_registered:
             _log.debug('waiting for providers to unregister %s', self)
             self._last_provider_unregistered.wait()
             _log.debug('all providers unregistered %s', self)

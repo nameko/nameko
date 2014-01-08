@@ -66,7 +66,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         we should unregister ourself from the QueueConsumer as soon as we're
         asked to stop.
         """
-        if not self._had_providers:
+        if not self._providers_registered:
             self.queue_consumer.unregister_provider(self)
             self._unregistered_from_queue_consumer.send(True)
 
