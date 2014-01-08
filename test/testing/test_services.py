@@ -252,6 +252,7 @@ def test_remove_entrypoints(container_factory, rabbit_config):
 
     class Service(object):
 
+        @rpc
         @once("assert not seen")
         def handler_one(self, arg):
             method_called(arg)
@@ -264,7 +265,6 @@ def test_remove_entrypoints(container_factory, rabbit_config):
 
     # remove the once entrypoint on "handler_one"
     remove_entrypoints(container, "handler_one")
-
     container.start()
 
     # dispatch an event to handler_two

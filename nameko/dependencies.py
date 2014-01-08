@@ -178,11 +178,13 @@ class InjectionProvider(DependencyProvider):
 
 class ProviderCollector(object):
     def __init__(self, *args, **kwargs):
+        self._had_providers = False
         self._providers = set()
         self._last_provider_unregistered = Event()
         super(ProviderCollector, self).__init__(*args, **kwargs)
 
     def register_provider(self, provider):
+        self._had_providers = True
         _log.debug('registering provider %s for %s', provider, self)
         self._providers.add(provider)
 
@@ -192,19 +194,25 @@ class ProviderCollector(object):
 
         providers.remove(provider)
         if len(providers) == 0:
-            self.last_provider_unregistered()
+            _log.debug('last provider unregistered for %s', self)
+            self._last_provider_unregistered.send()
 
-    def last_provider_unregistered(self):
-        _log.debug('last provider unregistered for %s', self)
-        self._last_provider_unregistered.send()
+    def wait_for_providers(self):
+        """ Wait for any providers registered with the collector to have
+        unregistered.
+
+        Returns immediately if no providers were ever registered.
+        """
+        if self._had_providers:
+            _log.debug('waiting for providers to unregister %s', self)
+            self._last_provider_unregistered.wait()
+            _log.debug('all providers unregistered %s', self)
 
     def stop(self):
         """ Default `:meth:DependencyProvider.stop()` implementation for
         subclasses using `ProviderCollector` as a mixin.
         """
-        _log.debug('waiting for providers to unregister %s', self)
-        self._last_provider_unregistered.wait()
-        _log.debug('all providers unregistered %s', self)
+        self.wait_for_providers()
 
 
 class DependencySet(SpawningSet):
