@@ -21,6 +21,12 @@ class ConsumeEvent(object):
     def wait(self):
         """ Makes a blocking call to its queue_consumer until the message
         with the given correlation_id has been processed.
+
+        By the time the blocking call exits, self.send() will have been called
+        with the body of the received message
+        (see :class:nameko.rpc.ReplyListener.handle_message).
+
+        Exceptions are raised directly.
         """
         self.queue_consumer.poll_messages(self.correlation_id)
         return self.body
@@ -34,13 +40,13 @@ class PollingQueueConsumer(object):
     """
     def register_provider(self, provider):
         self.provider = provider
-        conn = Connection(provider.container.config['AMQP_URI'])
-        self.channel = conn.channel()
+        self.connection = Connection(provider.container.config['AMQP_URI'])
+        self.channel = self.connection.channel()
         self.queue = provider.queue
         maybe_declare(self.queue, self.channel)
 
     def unregister_provider(self, provider):
-        pass
+        self.connection.close()
 
     def ack_message(self, msg):
         msg.ack()
@@ -48,6 +54,7 @@ class PollingQueueConsumer(object):
     def poll_messages(self, correlation_id):
         channel = self.channel
         conn = channel.connection
+
         for body, msg in itermessages(conn, channel, self.queue, limit=None):
             if correlation_id == msg.properties.get('correlation_id'):
                 self.provider.handle_message(body, msg)
@@ -70,7 +77,8 @@ class SingleThreadedReplyListener(ReplyListener):
 
 
 @contextmanager
-def rpc_proxy(container_service_name, nameko_config):
+def rpc_proxy(container_service_name, nameko_config, context_data=None,
+              worker_ctx_cls=WorkerContext):
     """
     Yield a single-threaded RPC proxy to a named service. Method calls to the
     proxy are converted into RPC calls, with responses returned directly.
@@ -84,14 +92,15 @@ def rpc_proxy(container_service_name, nameko_config):
         :class:`~containers.ServiceContainer` to be used by the subclasses
         and rpc imports in this module.
         """
-        service_name = container_service_name
+        service_name = "standalone_rpc_proxy"
 
         def __init__(self, config):
             self.config = config
 
     container = ProxyContainer(nameko_config)
 
-    worker_ctx = WorkerContext(container, service=None, method_name=None)
+    worker_ctx = worker_ctx_cls(container, service=None, method_name="call",
+                                data=context_data)
 
     reply_listener = SingleThreadedReplyListener()
 

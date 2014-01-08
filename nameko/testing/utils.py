@@ -1,29 +1,13 @@
-import inspect
+"""
+Common testing utilities.
+"""
 from contextlib import contextmanager
 from functools import partial
 
 import eventlet
 from mock import Mock
+
 from nameko.containers import WorkerContextBase
-
-from nameko.dependencies import DependencyFactory, InjectionProvider
-
-
-def instance_factory(service_cls, **injections):
-    """ Return an instance of ``service_cls`` with its injected dependencies
-    replaced with Mock objects, or as given in ``injections``.
-    """
-    service = service_cls()
-    for name, attr in inspect.getmembers(service):
-        if isinstance(attr, DependencyFactory):
-            factory = attr
-            if issubclass(factory.dep_cls, InjectionProvider):
-                try:
-                    injection = injections[name]
-                except KeyError:
-                    injection = Mock()
-                setattr(service, name, injection)
-    return service
 
 
 def get_dependency(container, dependency_cls, **match_attrs):
@@ -44,6 +28,15 @@ def get_dependency(container, dependency_cls, **match_attrs):
                 return dep
 
 
+def get_container(runner, service_cls):
+    """ Inspect ``runner.containers`` and return the first item that is
+    hosting an instance of ``service_cls``.
+    """
+    for container in runner.containers:
+        if container.service_cls == service_cls:
+            return container
+
+
 @contextmanager
 def wait_for_call(timeout, mock_method):
     """ Return a context manager that waits ``timeout`` seconds for
@@ -56,6 +49,26 @@ def wait_for_call(timeout, mock_method):
         while not mock_method.called:
             eventlet.sleep()
     yield mock_method
+
+
+def assert_stops_raising(fn, exception_type=Exception, timeout=10,
+                         interval=0.1):
+    """Assert that ``fn`` returns succesfully within ``timeout``
+       seconds, trying every ``interval`` seconds.
+
+       If ``exception_type`` is provided, fail unless the exception thrown is
+       an instance of ``exception_type``. If not specified, any
+       `:class:`Exception` instance is allowed.
+    """
+    with eventlet.Timeout(timeout):
+        while True:
+            try:
+                fn()
+            except exception_type:
+                pass
+            else:
+                return
+            eventlet.sleep(interval)
 
 
 @contextmanager

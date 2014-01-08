@@ -20,13 +20,13 @@ def timer(interval=None, config_key=None):
     If the `config_key` is given the value for that key in the config will be
     used as the interval otherwise the `interval` provided will be used.
 
-    Example:
+    Example::
 
-    class Foobar(object):
+        class Foobar(object):
 
-        @timer(interval=5, config_key='foobar_interval')
-        def handle_timer(self):
-            self.shrub(body)
+            @timer(interval=5, config_key='foobar_interval')
+            def handle_timer(self):
+                self.shrub(body)
     '''
     return DependencyFactory(TimerProvider, interval, config_key)
 

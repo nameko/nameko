@@ -3,23 +3,16 @@ import itertools
 from mock import patch
 
 eventlet.monkey_patch()
-import sys
-import uuid
-
 
 import logging
+import sys
 from urlparse import urlparse
 
 from pyrabbit.api import Client
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
-from nameko.dependencies import DependencyFactory
-from nameko.rpc import RpcProxyProvider
-
-
-running_services = []
-all_containers = []
+from nameko.runners import ServiceRunner
 
 
 def pytest_addoption(parser):
@@ -74,18 +67,6 @@ def empty_config(request):
     return {}
 
 
-@pytest.fixture
-def rabbit_config(request):
-    amqp_uri = request.config.getoption('AMQP_URI')
-
-    conf = {'AMQP_URI': amqp_uri}
-
-    uri = urlparse(amqp_uri)
-    conf['vhost'] = uri.path[1:].replace('/', '%2F')
-    conf['username'] = uri.username
-    return conf
-
-
 @pytest.fixture(scope='session')
 def rabbit_manager(request):
     config = request.config
@@ -99,10 +80,18 @@ def rabbit_manager(request):
     return rabbit
 
 
-@pytest.fixture  # TODO: consider making this autouse=True
-def reset_rabbit(request, rabbit_manager, rabbit_config):
-    vhost = rabbit_config['vhost']
-    username = rabbit_config['username']
+@pytest.yield_fixture
+def rabbit_config(request, rabbit_manager):
+    amqp_uri = request.config.getoption('AMQP_URI')
+
+    conf = {'AMQP_URI': amqp_uri}
+
+    uri = urlparse(amqp_uri)
+    vhost = uri.path[1:].replace('/', '%2F')
+    username = uri.username
+
+    conf['vhost'] = vhost
+    conf['username'] = username
 
     def del_vhost():
         try:
@@ -110,16 +99,19 @@ def reset_rabbit(request, rabbit_manager, rabbit_config):
         except:
             pass
 
-    request.addfinalizer(del_vhost)
-
     del_vhost()
-
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
+    yield conf
 
-@pytest.fixture
-def container_factory(request, reset_rabbit):
+    del_vhost()
+
+
+@pytest.yield_fixture
+def container_factory(rabbit_config):
+
+    all_containers = []
 
     def make_container(service_cls, config, worker_ctx_cls=None):
         if worker_ctx_cls is None:
@@ -129,38 +121,34 @@ def container_factory(request, reset_rabbit):
         all_containers.append(container)
         return container
 
-    def stop_all_containers():
-        for c in all_containers:
-            try:
-                c.stop()
-            except:
-                pass
-        del all_containers[:]
+    yield make_container
 
-    request.addfinalizer(stop_all_containers)
-    return make_container
+    for c in all_containers:
+        try:
+            c.stop()
+        except:
+            pass
 
 
-@pytest.fixture
-def service_proxy_factory(request):
-    def make_proxy(container, service_name, worker_ctx=None):
-        if worker_ctx is None:
-            worker_ctx_cls = container.worker_ctx_cls
-            worker_ctx = worker_ctx_cls(container, None, None, data={})
+@pytest.yield_fixture
+def runner_factory(rabbit_config):
 
-        factory = DependencyFactory(RpcProxyProvider, service_name)
-        bind_name = uuid.uuid4().hex
-        service_proxy = factory.create_and_bind_instance(bind_name, container)
+    all_runners = []
 
-        # manually add proxy and its nested dependencies to get lifecycle
-        # management
-        container.dependencies.add(service_proxy)
-        container.dependencies.update(service_proxy.nested_dependencies)
+    def make_runner(config, *service_classes):
+        runner = ServiceRunner(config)
+        for service_cls in service_classes:
+            runner.add_service(service_cls)
+        all_runners.append(runner)
+        return runner
 
-        proxy = service_proxy.acquire_injection(worker_ctx)
-        return proxy
+    yield make_runner
 
-    return make_proxy
+    for r in all_runners:
+        try:
+            r.stop()
+        except:
+            pass
 
 
 @pytest.yield_fixture

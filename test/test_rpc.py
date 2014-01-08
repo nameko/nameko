@@ -8,14 +8,16 @@ from eventlet.event import Event
 from kombu import Connection
 from mock import patch, Mock, call
 
+from nameko.containers import (
+    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import RemoteError, MethodNotFound
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
-from nameko.containers import (
-    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
+from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
+from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_dependency
 
 
@@ -253,48 +255,40 @@ def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
     assert len(consumer_connection_names) == 1
 
 
-def test_rpc_args_kwargs(container_factory, rabbit_config,
-                         service_proxy_factory):
+def test_rpc_args_kwargs(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    assert proxy.echo() == [[], {}]
-    assert proxy.echo("a", "b") == [["a", "b"], {}]
-    assert proxy.echo(foo="bar") == [[], {'foo': 'bar'}]
-    assert proxy.echo("arg", kwarg="kwarg") == [["arg"], {'kwarg': 'kwarg'}]
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo() == ((), {})
+        assert echo("a", "b") == (("a", "b"), {})
+        assert echo(foo="bar") == ((), {'foo': 'bar'})
+        assert echo("arg", kwarg="kwarg") == (("arg",), {'kwarg': 'kwarg'})
 
 
-def test_rpc_context_data(container_factory, rabbit_config,
-                          service_proxy_factory):
+def test_rpc_context_data(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
+    container.start()
 
     context_data = {
         'language': 'en',
         'auth_token': '123456789'
     }
 
-    worker_ctx = WorkerContext(container, None, None,
-                               data=context_data.copy())
-    en_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
+    with entrypoint_hook(container, 'say_hello', context_data) as say_hello:
+        assert say_hello() == "hello"
 
     context_data['language'] = 'fr'
 
-    worker_ctx = WorkerContext(container, None, None,
-                               data=context_data.copy())
-    fr_proxy = service_proxy_factory(container, "exampleservice", worker_ctx)
-
-    container.start()
-
-    assert en_proxy.say_hello() == "hello"
-    assert fr_proxy.say_hello() == "bonjour"
+    with entrypoint_hook(container, 'say_hello', context_data) as say_hello:
+        assert say_hello() == "bonjour"
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_rpc_headers(container_factory, rabbit_config,
-                     service_proxy_factory):
+def test_rpc_headers(container_factory, rabbit_config):
+
     container = container_factory(ExampleService, rabbit_config)
 
     context_data = {
@@ -312,24 +306,22 @@ def test_rpc_headers(container_factory, rabbit_config,
             return handle_message(body, message)
 
         patched_handler.side_effect = side_effect
-
-        worker_ctx = WorkerContext(container, None, 'method',
-                                   data=context_data.copy())
-        proxy = service_proxy_factory(
-            container, "exampleservice", worker_ctx)
         container.start()
 
-    assert proxy.say_hello() == "hello"
+    # use a standalone rpc proxy to call exampleservice.say_hello()
+    with standalone_rpc_proxy(
+            "exampleservice", rabbit_config, context_data) as proxy:
+        proxy.say_hello()
+
     # bogus_header dropped
     assert headers == {
         'nameko.language': 'en',
-        'nameko.call_id_stack': ['exampleservice.method.0'],
+        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0'],
     }
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_rpc_custom_headers(container_factory, rabbit_config,
-                            service_proxy_factory):
+def test_rpc_custom_headers(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
 
     context_data = {
@@ -348,62 +340,58 @@ def test_rpc_custom_headers(container_factory, rabbit_config,
             return handle_message(body, message)
 
         patched_handler.side_effect = side_effect
-
-        worker_ctx = CustomWorkerContext(container, None, 'method',
-                                         data=context_data.copy())
-        proxy = service_proxy_factory(
-            container, "exampleservice", worker_ctx)
         container.start()
 
-    assert proxy.say_hello() == "hello"
+    # use a standalone rpc proxy to call exampleservice.say_hello(),
+    # with a worker context that enables "custom_header"
+    with standalone_rpc_proxy("exampleservice", rabbit_config,
+                              context_data, CustomWorkerContext) as proxy:
+        proxy.say_hello()
+
     # bogus_header dropped, custom_header present
     assert headers == {
         'nameko.language': 'en',
         'nameko.custom_header': 'specialvalue',
-        'nameko.call_id_stack': ['exampleservice.method.0']
+        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0']
     }
 
 
-def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager,
-                             service_proxy_factory):
+def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    assert proxy.task_a() == "result_a"
-    assert proxy.task_b() == "result_b"
+    with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+        assert proxy.task_a() == "result_a"
+        assert proxy.task_b() == "result_b"
 
 
-def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager,
-                            service_proxy_factory):
+def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    with pytest.raises(RemoteError) as exc_info:
-        proxy.task_c()
+    with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+        with pytest.raises(RemoteError) as exc_info:
+            proxy.task_c()
     assert exc_info.value.exc_type == "MethodNotFound"
 
 
-def test_rpc_broken_method(container_factory, rabbit_config,
-                           rabbit_manager, service_proxy_factory):
+def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
-    with pytest.raises(RemoteError) as exc_info:
-        proxy.broken()
+    with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+        with pytest.raises(RemoteError) as exc_info:
+            proxy.broken()
     assert exc_info.value.exc_type == "ExampleError"
 
 
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,
-                                    rabbit_manager, service_proxy_factory):
+                                    rabbit_manager):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
     uri = container.config[AMQP_URI_CONFIG_KEY]
@@ -412,15 +400,15 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
     with patch("kombu.connection.ConnectionPool.new") as new_connection:
         new_connection.return_value = conn
 
-        assert proxy.task_a() == "result_a"
+        with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+            assert proxy.task_a() == "result_a"
         assert conn.failure_count == 2
 
 
 def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
-                                        rabbit_manager, service_proxy_factory):
+                                        rabbit_manager):
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
     uri = container.config[AMQP_URI_CONFIG_KEY]
@@ -429,7 +417,9 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
     with patch("kombu.connection.ConnectionPool.new") as new_connection:
         new_connection.return_value = conn
 
-        eventlet.spawn(proxy.task_a)
+        with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+            eventlet.spawn(proxy.task_a)
+
         with eventlet.Timeout(10):
             with pytest.raises(Exception) as exc_info:
                 container.wait()
@@ -439,14 +429,13 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
 
 
 def test_rpc_consumer_sharing(container_factory, rabbit_config,
-                              rabbit_manager, service_proxy_factory):
+                              rabbit_manager):
     """ Verify that the RpcConsumer unregisters from the queueconsumer when
     the first provider unregisters itself. Otherwise it keeps consuming
     messages for the unregistered provider, raising MethodNotFound.
     """
 
     container = container_factory(ExampleService, rabbit_config)
-    proxy = service_proxy_factory(container, "exampleservice")
     container.start()
 
     task_a = get_dependency(container, RpcProvider, name="task_a")
@@ -475,9 +464,10 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
         # try to call task_a.
         # should timeout, rather than raising MethodNotFound
-        with pytest.raises(eventlet.Timeout):
-            with eventlet.Timeout(1):
-                proxy.task_a()
+        with standalone_rpc_proxy("exampleservice", rabbit_config) as proxy:
+            with pytest.raises(eventlet.Timeout):
+                with eventlet.Timeout(1):
+                    proxy.task_a()
 
     # kill the container so we don't have to wait for task_b to stop
     container.kill(Exception('test stopped'))
