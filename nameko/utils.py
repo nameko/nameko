@@ -48,3 +48,20 @@ def try_wraps(func):
             return inner
 
     return try_to_wrap
+
+
+class Signal(object):
+    def __init__(self):
+        """ Tracks observer functions to call when the signal is fired. """
+        self._handlers = []
+
+    def connect(self, handler):
+        """ Connect an additional handler to this signal. """
+        self._handlers.append(handler)
+
+    def fire(self, *args, **kwargs):
+        """ Fires the signal, calling all registered handlers with the
+        arguments provided.
+        """
+        for handler in self._handlers:
+            handler(*args, **kwargs)

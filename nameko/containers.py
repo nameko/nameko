@@ -12,6 +12,7 @@ import greenlet
 from nameko.dependencies import get_dependencies, DependencySet
 from nameko.exceptions import RemoteError
 from nameko.logging import log_time
+from nameko.utils import Signal
 
 WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
 
@@ -135,6 +136,7 @@ class ManagedThreadContainer(object):
         self._active_threads = set()
         self._being_killed = False
         self._died = Event()
+        self.killed = Signal()
 
     def stop(self):
         """ Stop the container gracefully.
@@ -187,6 +189,10 @@ class ManagedThreadContainer(object):
 
         self._kill_active_threads()
         self._died.send_exception(exc)
+
+        # We've killed the container now.
+        self._being_killed = False
+        self.killed.fire(exc)
 
     def wait(self):
         """ Block until the container has been stopped.
