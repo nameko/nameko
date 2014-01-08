@@ -1,14 +1,12 @@
-from eventlet import Timeout
-from eventlet.event import Event as EventletEvent
 from mock import Mock, call
 import pytest
 
 from nameko.containers import WorkerContext, PARENT_CALLS_KEY
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
 from nameko.rpc import rpc, rpc_proxy
-from nameko.runners import ServiceRunner
-from nameko.testing.once import once
-from nameko.testing.utils import wait_for_call, worker_context_factory
+from nameko.testing.utils import (
+    get_container, wait_for_call, worker_context_factory)
+from nameko.testing.services import entrypoint_hook
 
 
 def get_logging_worker_context(stack_request):
@@ -69,10 +67,7 @@ def test_short_call_stack(container_factory):
     assert context.call_id_stack == ['99', 'baz.long.0']
 
 
-@pytest.mark.usefixtures("reset_rabbit")
-def test_call_id_stack(rabbit_config, predictable_call_ids):
-    wait_for_services_start = EventletEvent()
-    wait_for_responses = EventletEvent()
+def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
     child_do_called = Mock()
 
     stack_request = Mock()
@@ -91,28 +86,24 @@ def test_call_id_stack(rabbit_config, predictable_call_ids):
 
         @rpc
         def parent_do(self):
-            r = self.child_service.child_do()
-            return r
+            return self.child_service.child_do()
 
     class Grandparent(object):
         parent_service = rpc_proxy('parent')
 
-        @once()
+        @rpc
         def grandparent_do(self):
-            wait_for_services_start.wait()
-            r = self.parent_service.parent_do()
-            wait_for_responses.send(True)
-            return r
+            return self.parent_service.parent_do()
 
-    runner = ServiceRunner(config=rabbit_config)
+    runner = runner_factory(rabbit_config)
     runner.add_service(Child, LoggingWorkerContext)
     runner.add_service(Parent, LoggingWorkerContext)
     runner.add_service(Grandparent, LoggingWorkerContext)
-    wait_for_services_start.send(runner.start())
+    runner.start()
 
-    with Timeout(5):
-        wait_for_responses.wait()
-    runner.stop()
+    container = get_container(runner, Grandparent)
+    with entrypoint_hook(container, "grandparent_do") as grandparent_do:
+        assert grandparent_do() == 1
 
     # Check child is called
     child_do_called.assert_called_with()
@@ -129,11 +120,10 @@ def test_call_id_stack(rabbit_config, predictable_call_ids):
     ])
 
 
-@pytest.mark.usefixtures("reset_rabbit")
-def test_call_id_over_events(rabbit_config, predictable_call_ids):
+def test_call_id_over_events(rabbit_config, predictable_call_ids,
+                             runner_factory):
     one_called = Mock()
     two_called = Mock()
-    wait_to_go = EventletEvent()
 
     stack_request = Mock()
     LoggingWorkerContext = get_logging_worker_context(stack_request)
@@ -155,23 +145,25 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids):
         name = "event_raiser"
         dispatch = event_dispatcher()
 
-        @once()
+        @rpc
         def say_hello(self):
-            wait_to_go.wait()
             self.dispatch(HelloEvent(self.name))
 
-    runner = ServiceRunner(config=rabbit_config)
+    runner = runner_factory(rabbit_config)
     runner.add_service(EventListeningServiceOne, LoggingWorkerContext)
     runner.add_service(EventListeningServiceTwo, LoggingWorkerContext)
     runner.add_service(EventRaisingService, LoggingWorkerContext)
-    wait_to_go.send(runner.start())
+    runner.start()
+
+    container = get_container(runner, EventRaisingService)
+    with entrypoint_hook(container, "say_hello") as say_hello:
+        say_hello()
 
     with wait_for_call(5, one_called), wait_for_call(5, two_called):
-        runner.stop()
 
-    assert predictable_call_ids.call_count == 3
-    stack_request.assert_has_calls([
-        call(None),
-        call(['event_raiser.say_hello.0']),
-        call(['event_raiser.say_hello.0']),
-    ])
+        assert predictable_call_ids.call_count == 3
+        stack_request.assert_has_calls([
+            call(None),
+            call(['event_raiser.say_hello.0']),
+            call(['event_raiser.say_hello.0']),
+        ])

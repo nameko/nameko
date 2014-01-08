@@ -67,18 +67,6 @@ def empty_config(request):
     return {}
 
 
-@pytest.fixture
-def rabbit_config(request):
-    amqp_uri = request.config.getoption('AMQP_URI')
-
-    conf = {'AMQP_URI': amqp_uri}
-
-    uri = urlparse(amqp_uri)
-    conf['vhost'] = uri.path[1:].replace('/', '%2F')
-    conf['username'] = uri.username
-    return conf
-
-
 @pytest.fixture(scope='session')
 def rabbit_manager(request):
     config = request.config
@@ -93,9 +81,17 @@ def rabbit_manager(request):
 
 
 @pytest.yield_fixture
-def reset_rabbit(rabbit_manager, rabbit_config):
-    vhost = rabbit_config['vhost']
-    username = rabbit_config['username']
+def rabbit_config(request, rabbit_manager):
+    amqp_uri = request.config.getoption('AMQP_URI')
+
+    conf = {'AMQP_URI': amqp_uri}
+
+    uri = urlparse(amqp_uri)
+    vhost = uri.path[1:].replace('/', '%2F')
+    username = uri.username
+
+    conf['vhost'] = vhost
+    conf['username'] = username
 
     def del_vhost():
         try:
@@ -107,13 +103,13 @@ def reset_rabbit(rabbit_manager, rabbit_config):
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
-    yield
+    yield conf
 
     del_vhost()
 
 
 @pytest.yield_fixture
-def container_factory(reset_rabbit):
+def container_factory(rabbit_config):
 
     all_containers = []
 
@@ -135,7 +131,7 @@ def container_factory(reset_rabbit):
 
 
 @pytest.yield_fixture
-def runner_factory(reset_rabbit):
+def runner_factory(rabbit_config):
 
     all_runners = []
 

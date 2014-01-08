@@ -51,6 +51,26 @@ def wait_for_call(timeout, mock_method):
     yield mock_method
 
 
+def assert_stops_raising(fn, exception_type=Exception, timeout=10,
+                         interval=0.1):
+    """Assert that ``fn`` returns succesfully within ``timeout``
+       seconds, trying every ``interval`` seconds.
+
+       If ``exception_type`` is provided, fail unless the exception thrown is
+       an instance of ``exception_type``. If not specified, any
+       `:class:`Exception` instance is allowed.
+    """
+    with eventlet.Timeout(timeout):
+        while True:
+            try:
+                fn()
+            except exception_type:
+                pass
+            else:
+                return
+            eventlet.sleep(interval)
+
+
 @contextmanager
 def as_context_manager(obj):
     """ Return a context manager that provides ``obj`` on enter.

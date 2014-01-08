@@ -1,6 +1,7 @@
 """ Service unit testing best practice, with a provided injection.
 """
 
+import pytest
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -32,15 +33,22 @@ class Service(object):
 # Begin test
 #==============================================================================
 
-# create sqlite database and session
-engine = create_engine('sqlite:///:memory:')
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
-session = Session()
+@pytest.fixture
+def session():
 
-# create instance, providing the real session for the ``db`` injection
-service = instance_factory(Service, db=session)
+    # create sqlite database and session
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    return session
 
-# verify ``save`` logic by querying the real database
-service.save("helloworld")
-assert session.query(Result.value).all() == [("helloworld",)]
+
+def test_service(session):
+
+    # create instance, providing the real session for the ``db`` injection
+    service = instance_factory(Service, db=session)
+
+    # verify ``save`` logic by querying the real database
+    service.save("helloworld")
+    assert session.query(Result.value).all() == [("helloworld",)]

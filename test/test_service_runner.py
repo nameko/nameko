@@ -6,6 +6,7 @@ from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import rpc_proxy
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner
+from nameko.testing.utils import assert_stops_raising
 
 
 class TestService1(object):
@@ -128,14 +129,18 @@ def test_multiple_runners_coexist(runner_factory, rabbit_config,
     runner2 = runner_factory(rabbit_config, Service)
     runner2.start()
 
-    # verify there are two event queues with a single consumer each
-    eventlet.sleep(1)  # rabbit's management API seems to lag
     vhost = rabbit_config['vhost']
-    event_queues = [queue for queue in rabbit_manager.get_queues(vhost)
-                    if queue['name'].startswith('evt-srcservice-testevent')]
-    assert len(event_queues) == 2
-    for queue in event_queues:
-        assert queue['consumers'] == 1
+
+    # verify there are two event queues with a single consumer each
+    def check_consumers():
+        evt_queues = [queue for queue in rabbit_manager.get_queues(vhost)
+                      if queue['name'].startswith('evt-srcservice-testevent')]
+        assert len(evt_queues) == 2
+        for queue in evt_queues:
+            assert queue['consumers'] == 1
+
+    # rabbit's management API seems to lag
+    assert_stops_raising(check_consumers)
 
     # test events (both services will receive if in "broadcast" mode)
     event_data = "msg"
