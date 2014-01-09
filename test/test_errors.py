@@ -38,6 +38,12 @@ class ExampleService(object):
         getattr(self.rpcproxy, method)(*args)
 
 
+class SecondService(object):
+    @rpc
+    def task(self):
+        return 'task_result'
+
+
 def test_error_in_worker(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
@@ -144,3 +150,40 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         with pytest.raises(Exception) as exc_info:
             runner.wait()
         assert exc_info.value == exception
+
+
+def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
+
+    runner = runner_factory(rabbit_config, ExampleService, SecondService)
+    runner.start()
+
+    container = get_container(runner, ExampleService)
+    second_container = get_container(runner, SecondService)
+    original_stop = second_container.stop
+    with patch.object(second_container, 'stop', wraps=original_stop) as stop:
+        rpc_consumer = get_dependency(container, RpcConsumer)
+        with patch.object(rpc_consumer, 'handle_result') as handle_result:
+            exception = Exception("error")
+            handle_result.side_effect = exception
+
+            # use a standalone rpc proxy to call exampleservice.task()
+            with standalone_rpc_proxy("exampleservice", rabbit_config) \
+                    as proxy:
+                # proxy.task() will hang forever because it generates an error
+                # in the remote container (so never receives a response).
+                # generate and then swallow a timeout as soon as the thread
+                # yields
+                try:
+                    with eventlet.Timeout(0):
+                        proxy.task()
+                except eventlet.Timeout:
+                    pass
+
+            # verify that the error bubbles up to runner.wait()
+            with pytest.raises(Exception) as exc_info:
+                runner.wait()
+            assert exc_info.value == exception
+
+            # Check that the second service was stopped due to the first
+            # service being killed
+            stop.assert_called_once_with()
