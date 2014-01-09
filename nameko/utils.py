@@ -11,7 +11,7 @@ def fail_fast_imap(pool, call, items):
     If any function raises an exception, all other ongoing threads are killed,
     and the exception is raised to the caller.
 
-    This function is similar to :method:`~eventlet.greenpool.GreenPool.imap`.
+    This function is similar to :meth:`~eventlet.greenpool.GreenPool.imap`.
 
     :param pool: Pool to spawn function threads from
     :type pool: eventlet.greenpool.GreenPool
