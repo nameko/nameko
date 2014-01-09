@@ -158,7 +158,8 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self.container.spawn_managed_thread(self.run)
+            self._gt = self.container.spawn_managed_thread(
+                self.run, protected=True)
         try:
             _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()

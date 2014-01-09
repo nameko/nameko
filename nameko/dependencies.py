@@ -59,9 +59,13 @@ class DependencyProvider(object):
         """ Called to stop this dependency without grace. The exception
         causing the kill may be provided.
 
-        DependencyProviders should urgently shut down here. This method must
-        return within ``nameko.containers.KILL_TIMEOUT`` seconds, otherwise it
-        may be forcibly stopped.
+        DependencyProviders should urgently shut down here. This means
+        stopping as soon as possible with ommiting important cleanup.
+        This may be distinct from ``stop()`` for certain dependencies.
+
+        For example, :class:`~messaging.QueueConsumer` tracks messages being
+        processed and pending message acks. Its ``kill`` implementation
+        discards these and disconnects from rabbit as soon as possible.
         """
 
     def worker_setup(self, worker_ctx):
@@ -222,16 +226,16 @@ class DependencySet(SpawningSet):
         """ A ``SpawningSet`` of just the ``InjectionProvider`` instances in
         this set.
         """
-        return SpawningSet([item for item in self
-                           if is_injection_provider(item)])
+        return SpawningSet(item for item in self
+                           if is_injection_provider(item))
 
     @property
     def entrypoints(self):
         """ A ``SpawningSet`` of just the ``EntrypointProvider`` instances in
         this set.
         """
-        return SpawningSet([item for item in self
-                            if is_entrypoint_provider(item)])
+        return SpawningSet(item for item in self
+                           if is_entrypoint_provider(item))
 
     @property
     def nested(self):
