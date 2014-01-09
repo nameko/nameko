@@ -89,4 +89,10 @@ class ServiceRunner(object):
     def wait(self):
         """ Wait for all running containers to stop.
         """
-        SpawningProxy(self.containers).wait()
+        try:
+            SpawningProxy(self.containers, abort_on_error=True).wait()
+        except Exception as e:
+            # If a single container failed, stop its peers and re-raise the
+            # exception
+            self.stop()
+            raise e
