@@ -59,7 +59,8 @@ class DependencyProvider(object):
         """ Called to stop this dependency without grace. The exception
         causing the kill may be provided.
 
-        DependencyProviders should urgently shut down here.
+        DependencyProviders should urgently shut down here. This means
+        stopping as soon as possible without leaving state behind.
         """
 
     def worker_setup(self, worker_ctx):

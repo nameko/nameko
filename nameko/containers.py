@@ -219,8 +219,8 @@ class ManagedThreadContainer(object):
         Threads are killed automatically if they are still running after
         all dependencies are stopped during :meth:`ServiceContainer.stop`.
 
-        Entrypoints are forbidden to spawn threads through any mechanism other
-        than this method.
+        Entrypoints may only create separate threads using this method,
+        to ensure they are life-cycle managed.
         """
         gt = eventlet.spawn(run_method)
         if not protected:
