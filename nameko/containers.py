@@ -276,10 +276,8 @@ class ManagedThreadContainer(object):
                 gt.kill()
 
     def _handle_thread_exited(self, gt):
-        if gt in self._active_threads:
-            self._active_threads.remove(gt)
-        else:
-            self._protected_threads.remove(gt)
+        self._active_threads.discard(gt)
+        self._protected_threads.discard(gt)
 
         try:
             gt.wait()

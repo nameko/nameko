@@ -60,7 +60,12 @@ class DependencyProvider(object):
         causing the kill may be provided.
 
         DependencyProviders should urgently shut down here. This means
-        stopping as soon as possible without leaving state behind.
+        stopping as soon as possible with ommiting important cleanup.
+        This may be distinct from ``stop()`` for certain dependencies.
+
+        For example, :class:`~messaging.QueueConsumer` tracks messages being
+        processed and pending message acks. Its ``kill`` implementation
+        discards these and disconnects from rabbit as soon as possible.
         """
 
     def worker_setup(self, worker_ctx):
