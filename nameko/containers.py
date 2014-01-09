@@ -186,6 +186,7 @@ class ManagedThreadContainer(object):
 
         _log.info('killing %s due to "%s"', self, exc)
 
+        self._kill_entrypoints(exc)
         self._kill_active_threads()
         self._handle_container_kill(exc)
         self._kill_protected_threads()
@@ -231,6 +232,11 @@ class ManagedThreadContainer(object):
 
     def _handle_container_stop(self):
         """ Called when a container is gracefully stopped.
+        """
+        return
+
+    def _kill_entrypoints(self, exc):
+        """ Called when a container is killed.
         """
         return
 
@@ -377,6 +383,9 @@ class ServiceContainer(ManagedThreadContainer):
 
         # finally, stop nested dependencies
         dependencies.nested.all.stop()
+
+    def _kill_entrypoints(self, exc):
+        self.dependencies.entrypoints.all.kill(exc)
 
     def _handle_container_kill(self, exc):
         self.dependencies.all.kill(exc)
