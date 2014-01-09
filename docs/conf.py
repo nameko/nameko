@@ -34,6 +34,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -262,4 +263,9 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 # texinfo_no_detailmenu = False
+
+intersphinx_mapping = {
+  'python': ('http://docs.python.org/2.7', None),
+  'eventlet': ('http://eventlet.net/doc', None),
+}
 autoclass_content = 'both'
