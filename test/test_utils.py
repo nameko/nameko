@@ -1,4 +1,4 @@
-from eventlet import GreenPool, Timeout, sleep
+from eventlet import GreenPool, sleep
 from eventlet.event import Event
 import pytest
 from nameko.utils import fail_fast_imap
