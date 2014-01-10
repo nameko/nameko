@@ -5,7 +5,7 @@ from nameko.events import event_handler, Event, BROADCAST
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import rpc_proxy
 from nameko.rpc import rpc
-from nameko.runners import ServiceRunner, ContextualServiceRunner
+from nameko.runners import ServiceRunner, contextual_runner
 
 
 class TestService1(object):
@@ -116,11 +116,9 @@ def test_contextual_lifecycle():
             events.append(('wait', self.service_cls.name, self.service_cls))
 
     config = {}
-    runner = ContextualServiceRunner(config, container_cls=Container)
 
-    runner.add_service(TestService1)
-
-    with runner.stop(TestService2):
+    with contextual_runner(config, TestService1, TestService2,
+                           container_cls=Container):
         # Ensure the services were started
         assert sorted(events) == [
             ('start', 'foobar_1', TestService1),
@@ -136,9 +134,9 @@ def test_contextual_lifecycle():
     ]
 
     events = []
-    with runner.kill(Exception('die'), TestService2):
+    with contextual_runner(config, TestService1, TestService2,
+                           container_cls=Container, kill_on_exit=True):
         # Ensure the services were started
-        print events
         assert sorted(events) == [
             ('start', 'foobar_1', TestService1),
             ('start', 'foobar_2', TestService2),
@@ -150,22 +148,6 @@ def test_contextual_lifecycle():
         ('kill', 'foobar_2', TestService2),
         ('start', 'foobar_1', TestService1),
         ('start', 'foobar_2', TestService2),
-    ]
-
-    events = []
-    with runner.wait(TestService2):
-        # Ensure the services were started
-        assert sorted(events) == [
-            ('start', 'foobar_1', TestService1),
-            ('start', 'foobar_2', TestService2),
-        ]
-
-    # ...and that they were waited for
-    assert sorted(events) == [
-        ('start', 'foobar_1', TestService1),
-        ('start', 'foobar_2', TestService2),
-        ('wait', 'foobar_1', TestService1),
-        ('wait', 'foobar_2', TestService2),
     ]
 
 
