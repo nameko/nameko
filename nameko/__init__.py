@@ -196,9 +196,24 @@ API - reference
 Examples
 --------
 
+**Services**
+
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 2
 
     examples/index
+
+**Testing**
+
+The examples below demonstrate techniques and best practices for testing
+services written with nameko.
+
+The tests are intended to be run with `pytest <http://pytest.org/>`_. A
+minimal :ref:`conftest` is included in the same directory as the test files.
+
+.. toctree::
+    :maxdepth: 2
+
+    examples/testing/index
 
 """

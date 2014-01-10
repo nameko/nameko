@@ -59,9 +59,13 @@ class DependencyProvider(object):
         """ Called to stop this dependency without grace. The exception
         causing the kill may be provided.
 
-        DependencyProviders should urgently shut down here. This method must
-        return within ``nameko.containers.KILL_TIMEOUT`` seconds, otherwise it
-        may be forcibly stopped.
+        DependencyProviders should urgently shut down here. This means
+        stopping as soon as possible with ommiting important cleanup.
+        This may be distinct from ``stop()`` for certain dependencies.
+
+        For example, :class:`~messaging.QueueConsumer` tracks messages being
+        processed and pending message acks. Its ``kill`` implementation
+        discards these and disconnects from rabbit as soon as possible.
         """
 
     def worker_setup(self, worker_ctx):
@@ -179,10 +183,12 @@ class InjectionProvider(DependencyProvider):
 class ProviderCollector(object):
     def __init__(self, *args, **kwargs):
         self._providers = set()
+        self._providers_registered = False
         self._last_provider_unregistered = Event()
         super(ProviderCollector, self).__init__(*args, **kwargs)
 
     def register_provider(self, provider):
+        self._providers_registered = True
         _log.debug('registering provider %s for %s', provider, self)
         self._providers.add(provider)
 
@@ -192,19 +198,25 @@ class ProviderCollector(object):
 
         providers.remove(provider)
         if len(providers) == 0:
-            self.last_provider_unregistered()
+            _log.debug('last provider unregistered for %s', self)
+            self._last_provider_unregistered.send()
 
-    def last_provider_unregistered(self):
-        _log.debug('last provider unregistered for %s', self)
-        self._last_provider_unregistered.send()
+    def wait_for_providers(self):
+        """ Wait for any providers registered with the collector to have
+        unregistered.
+
+        Returns immediately if no providers were ever registered.
+        """
+        if self._providers_registered:
+            _log.debug('waiting for providers to unregister %s', self)
+            self._last_provider_unregistered.wait()
+            _log.debug('all providers unregistered %s', self)
 
     def stop(self):
         """ Default `:meth:DependencyProvider.stop()` implementation for
         subclasses using `ProviderCollector` as a mixin.
         """
-        _log.debug('waiting for providers to unregister %s', self)
-        self._last_provider_unregistered.wait()
-        _log.debug('all providers unregistered %s', self)
+        self.wait_for_providers()
 
 
 class DependencySet(SpawningSet):
@@ -214,16 +226,16 @@ class DependencySet(SpawningSet):
         """ A ``SpawningSet`` of just the ``InjectionProvider`` instances in
         this set.
         """
-        return SpawningSet([item for item in self
-                           if is_injection_provider(item)])
+        return SpawningSet(item for item in self
+                           if is_injection_provider(item))
 
     @property
     def entrypoints(self):
         """ A ``SpawningSet`` of just the ``EntrypointProvider`` instances in
         this set.
         """
-        return SpawningSet([item for item in self
-                            if is_entrypoint_provider(item)])
+        return SpawningSet(item for item in self
+                           if is_entrypoint_provider(item))
 
     @property
     def nested(self):
@@ -267,6 +279,9 @@ class DependencyFactory(object):
         self.args = init_args
         self.kwargs = init_kwargs
 
+        # keep a reference to every created instance
+        self.instances = WeakSet()
+
     @property
     def key(self):
         return (self.dep_cls, str(self.args), str(self.kwargs))
@@ -295,6 +310,7 @@ class DependencyFactory(object):
                 prov = attr.create_and_bind_instance(name, container)
                 setattr(instance, name, prov)
 
+        self.instances.add(instance)
         return instance
 
 
@@ -304,6 +320,12 @@ def entrypoint(decorator_func):
 
     The callable must return a DependencyFactory that creates the
     EntrypointProvider instance.
+
+    The returned ``wrapper`` function has a ``provider_cls`` attribute that
+    references the EntrypointProvider subclass returned by its factory. This
+    helps separate the ``@entrypoint`` decorated methods from the class
+    that implements the dependency - users only need to refer to the method
+    and nameko can determine the implementing class.
 
     e.g::
 
@@ -318,12 +340,19 @@ def entrypoint(decorator_func):
                 pass
 
     """
-    def registering_decorator(fn, args, kwargs):
+    def registering_decorator(wrapper, fn, args, kwargs):
+        """ Verify that ``decorator_func`` returns a DependencyFactory and
+        register ``fn`` as an entrypoint.
+
+        Save a reference to the provider class of the factory onto
+        the ``wrapper`` function that wraps ``decorator_func``.
+        """
         factory = decorator_func(*args, **kwargs)
         if not isinstance(factory, DependencyFactory):
             raise DependencyTypeError('Arguments to `entrypoint` must return '
                                       'DependencyFactory instances')
         register_entrypoint(fn, factory)
+        wrapper.provider_cls = factory.dep_cls
         return fn
 
     @wraps(decorator_func)
@@ -333,13 +362,14 @@ def entrypoint(decorator_func):
             # @foobar
             # def spam():
             #     pass
-            return registering_decorator(args[0], tuple(), {})
+            return registering_decorator(wrapper, args[0], tuple(), {})
         else:
             # usage with arguments to the decorator:
             # @foobar('shrub', ...)
             # def spam():
             #     pass
-            return partial(registering_decorator, args=args, kwargs=kwargs)
+            return partial(registering_decorator,
+                           wrapper, args=args, kwargs=kwargs)
 
     return wrapper
 
@@ -350,6 +380,12 @@ def injection(fn):
 
     The callable must return a DependencyFactory that creates the
     InjectionProvider instance.
+
+    The returned ``wrapped`` function has a ``provider_cls`` attribute that
+    references the InjectionProvider subclass returned by the factory. This
+    helps separate the ``@injection`` decorated methods from the class
+    that implements the dependency - users only need to refer to the method
+    and nameko can determine the implementing class.
 
     e.g::
 
@@ -368,6 +404,7 @@ def injection(fn):
             raise DependencyTypeError('Arguments to `injection` must return '
                                       'DependencyFactory instances')
         register_injection(factory)
+        wrapped.provider_cls = factory.dep_cls
         return factory
     return wrapped
 

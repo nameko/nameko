@@ -20,20 +20,20 @@ def close_connections():
     connections[:]
 
 
-@pytest.fixture
-def connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('AMQP_URI')
+@pytest.yield_fixture
+def connection(rabbit_config):
+    amqp_uri = rabbit_config['AMQP_URI']
 
-    request.addfinalizer(close_connections)
-    return _get_connection(amqp_uri)
+    yield _get_connection(amqp_uri)
+    close_connections()
 
 
-@pytest.fixture
-def get_connection(request, reset_rabbit):
-    amqp_uri = request.config.getoption('AMQP_URI')
+@pytest.yield_fixture
+def get_connection(rabbit_config):
+    amqp_uri = rabbit_config['AMQP_URI']
 
-    request.addfinalizer(close_connections)
-    return partial(_get_connection, amqp_uri)
+    yield partial(_get_connection, amqp_uri)
+    close_connections()
 
 
 @pytest.fixture(autouse=True)

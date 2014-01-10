@@ -1,11 +1,10 @@
-from mock import patch, call
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
 import greenlet
+from mock import patch, call
 import pytest
 
 from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
-
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyFactory)
@@ -150,7 +149,7 @@ def test_stops_dependencies(container):
         ]
 
 
-def test_stops_decdeps_before_attrdeps(container):
+def test_stops_entrypoints_before_injections(container):
     container.stop()
 
     dependencies = container.dependencies
@@ -260,52 +259,55 @@ def test_stop_already_stopped(container):
         assert logger.debug.call_args == call("already stopped %s", container)
 
 
-def test_kill_already_stopped(container):
+def test_kill_already_stopped(container, logger):
 
     assert not container._died.ready()
     container.stop()
     assert container._died.ready()
 
-    with patch('nameko.containers._log') as logger:
-        container.kill(Exception("kill"))
-        assert logger.debug.call_args == call("already stopped %s", container)
+    container.kill(Exception("kill"))
+    assert logger.debug.call_args == call("already stopped %s", container)
 
 
-def test_kill_misbehaving_dependency(container, logger):
-    """ Break a dependency by making its ``kill`` method hang. The container
-    should still exit.
+def test_kill_container_with_active_threads(container):
+    """ Start a thread that's not managed by dependencies. Ensure it is killed
+    when the container is.
     """
-    dep = next(iter(container.dependencies))
-
-    def sleep_forever(*args):
+    def sleep_forever():
         while True:
             sleep()
+
+    container.spawn_managed_thread(sleep_forever)
+
+    assert len(container._active_threads) == 1
+    (worker_gt,) = container._active_threads
 
     class Killed(Exception):
         pass
     exc = Killed("kill")
 
-    with patch.object(dep, 'kill', sleep_forever):
-        with patch('nameko.containers.KILL_TIMEOUT', 0):  # reduce kill timeout
-            container.kill(exc)
-            assert logger.warning.called
-            assert logger.warning.call_args == call(
-                "timeout waiting for dependencies.kill %s", container)
+    container.kill(exc)
 
     with Timeout(1):
         with pytest.raises(Killed):
             container._died.wait()
 
+        with pytest.raises(greenlet.GreenletExit):
+            worker_gt.wait()
 
-def test_kill_container_with_active_workers(container):
-    """ Start a worker that's not managed by dependencies. Ensure it is killed
-    when the container is.
+
+def test_kill_container_with_protected_threads(container):
+    """ Start a protected thread that's not managed by dependencies. Ensure it
+    is killed when the container is.
     """
-    dep = next(iter(container.dependencies))
-    container.spawn_worker(dep, ['sleep'], {})
+    def sleep_forever():
+        while True:
+            sleep()
 
-    assert len(container._active_threads) == 1
-    (worker_gt,) = container._active_threads
+    container.spawn_managed_thread(sleep_forever, protected=True)
+
+    assert len(container._protected_threads) == 1
+    (worker_gt,) = container._protected_threads
 
     class Killed(Exception):
         pass
@@ -377,17 +379,76 @@ def test_container_only_killed_once(container):
     def raise_error():
         raise exc
 
-    with patch.object(container, '_kill_dependencies',
-                      side_effect=container._kill_dependencies) as kill_deps:
-        container.start()
-        # Any exception in a managed thread will cause the container
-        # to be killed. Two threads raising an exception,
-        # will cause the container's handle_thread_exit() method to
-        # kill the container twice.
-        container.spawn_managed_thread(raise_error)
-        container.spawn_managed_thread(raise_error)
+    orig = container._handle_container_kill
+    with patch.object(container, '_handle_container_kill',
+                      wraps=orig) as _handle_container_kill:
 
-        with pytest.raises(Exception):
-            container.wait()
+        with patch.object(container, 'kill', wraps=container.kill) as kill:
+            # insert an eventlet yield into the kill process, otherwise
+            # the container dies before the second exception gets raised
+            kill.side_effect = lambda e: sleep()
 
-        kill_deps.assert_called_once_with(exc)
+            container.start()
+
+            # any exception in a managed thread will cause the container
+            # to be killed. Two threads raising an exception will cause
+            # the container's handle_thread_exit() method to kill the
+            # container twice.
+            container.spawn_managed_thread(raise_error)
+            container.spawn_managed_thread(raise_error)
+
+            # container should die with an exception
+            with pytest.raises(Exception):
+                container.wait()
+
+            # container.kill should have been called twice
+            assert kill.call_args_list == [call(exc), call(exc)]
+
+            # only the first kill results in any cleanup
+            _handle_container_kill.assert_called_once_with(exc)
+
+
+def test_container_stop_kills_remaining_managed_threads(container, logger):
+    """ Verify any remaining managed threads are killed when a container
+    is stopped.
+    """
+    def sleep_forever():
+        while True:
+            sleep()
+
+    container.start()
+
+    container.spawn_managed_thread(sleep_forever)
+    container.spawn_managed_thread(sleep_forever, protected=True)
+
+    container.stop()
+
+    assert logger.warning.call_args_list == [
+        call("killing %s active thread(s)", 1),
+        call("%s thread killed by container", container),
+        call("killing %s protected thread(s)", 1),
+        call("%s thread killed by container", container),
+    ]
+
+
+def test_container_kill_kills_remaining_managed_threads(container, logger):
+    """ Verify any remaining managed threads are killed when a container
+    is killed.
+    """
+    def sleep_forever():
+        while True:
+            sleep()
+
+    container.start()
+
+    container.spawn_managed_thread(sleep_forever)
+    container.spawn_managed_thread(sleep_forever, protected=True)
+
+    container.kill(Exception("killed"))
+
+    assert logger.warning.call_args_list == [
+        call("killing %s active thread(s)", 1),
+        call("%s thread killed by container", container),
+        call("killing %s protected thread(s)", 1),
+        call("%s thread killed by container", container),
+    ]

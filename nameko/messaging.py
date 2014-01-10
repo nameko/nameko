@@ -158,7 +158,8 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self.container.spawn_managed_thread(self.run)
+            self._gt = self.container.spawn_managed_thread(
+                self.run, protected=True)
         try:
             _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()
@@ -188,9 +189,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             # so we send the same exceptions
             self._consumers_ready.send_exception(stop_exc)
 
-        _log.debug('waiting for providers to unregister %s', self)
-        self._last_provider_unregistered.wait()
-        _log.debug('all providers unregistered %s', self)
+        self.wait_for_providers()
 
         try:
             _log.debug('waiting for consumer death %s', self)
@@ -229,7 +228,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             # want to remove a consumer at the same time
             # TODO: With the upcomming error handling mechanism, this needs
             # TODO: to be thought through again.
-            self.last_provider_unregistered()
+            self._last_provider_unregistered.send()
             return
 
         removed_event = Event()

@@ -29,12 +29,16 @@ class MessageHandler(object):
         return self.handle_message_called.wait()
 
 
-def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
+def spawn_thread(method, protected):
+    return eventlet.spawn(method)
+
+
+def test_lifecycle(rabbit_manager, rabbit_config):
 
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 3
-    container.spawn_managed_thread.side_effect = eventlet.spawn
+    container.spawn_managed_thread.side_effect = spawn_thread
 
     queue_consumer = QueueConsumer()
     queue_consumer.bind("queue_consumer", container)
@@ -46,7 +50,7 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
     queue_consumer.start()
 
     # making sure the QueueConsumer uses the container to spawn threads
-    container.spawn_managed_thread.assert_called_once_with(ANY)
+    container.spawn_managed_thread.assert_called_once_with(ANY, protected=True)
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub')
@@ -76,11 +80,11 @@ def test_lifecycle(reset_rabbit, rabbit_manager, rabbit_config):
     assert ['ni'] == [msg['payload'] for msg in messages]
 
 
-def test_reentrant_start_stops(reset_rabbit, rabbit_config):
+def test_reentrant_start_stops(rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 3
-    container.spawn_managed_thread = eventlet.spawn
+    container.spawn_managed_thread = spawn_thread
 
     queue_consumer = QueueConsumer()
     queue_consumer.bind("queue_consumer", container)
@@ -99,7 +103,7 @@ def test_stop_while_starting():
     container = Mock()
     container.config = {AMQP_URI_CONFIG_KEY: None}
     container.max_workers = 3
-    container.spawn_managed_thread = eventlet.spawn
+    container.spawn_managed_thread = spawn_thread
 
     class BrokenConnConsumer(QueueConsumer):
         def consume(self, *args, **kwargs):
@@ -144,7 +148,7 @@ def test_error_stops_consumer_thread():
     container = Mock()
     container.config = {AMQP_URI_CONFIG_KEY: None}
     container.max_workers = 3
-    container.spawn_managed_thread = eventlet.spawn
+    container.spawn_managed_thread = spawn_thread
 
     queue_consumer = QueueConsumer()
     queue_consumer.bind("queue_consumer", container)
@@ -167,7 +171,7 @@ def test_socket_error_kills_consumer():
     container = Mock()
     container.config = {AMQP_URI_CONFIG_KEY: None}
     container.max_workers = 1
-    container.spawn_managed_thread = eventlet.spawn
+    container.spawn_managed_thread = spawn_thread
 
     queue_consumer = QueueConsumer()
 
@@ -185,11 +189,11 @@ def test_socket_error_kills_consumer():
             queue_consumer._gt.wait()
 
 
-def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
+def test_prefetch_count(rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 1
-    container.spawn_managed_thread = eventlet.spawn
+    container.spawn_managed_thread = spawn_thread
 
     queue_consumer1 = QueueConsumer()
     queue_consumer1.bind("queue_consumer", container)
@@ -248,11 +252,11 @@ def test_prefetch_count(reset_rabbit, rabbit_manager, rabbit_config):
     queue_consumer2.unregister_provider(handler2)
 
 
-def test_kill_closes_connections(reset_rabbit, rabbit_manager, rabbit_config):
+def test_kill_closes_connections(rabbit_manager, rabbit_config):
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 1
-    container.spawn_managed_thread = eventlet.spawn
+    container.spawn_managed_thread = spawn_thread
 
     queue_consumer = QueueConsumer()
     queue_consumer.bind("queue_consumer", container)
