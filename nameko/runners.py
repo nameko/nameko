@@ -130,9 +130,9 @@ def contextual_runner(config, *services, **kwargs):
             Configuration to instantiate the service containers with
         services : service definitions
             Services to be served for the contextual block
-        container_cls : container class (default = :class:`ServiceContainer`)
+        container_cls : container class (default=:class:`ServiceContainer`)
             The container class for hosting the specified ``services``
-        worker_ctx_cls : worker context class (default = :class:`WorkerContext`)
+        worker_ctx_cls : worker context class (default=:class:`WorkerContext`)
             The constructor for creating a worker context within a service
             container
         kill_on_exit : bool (default=False)
