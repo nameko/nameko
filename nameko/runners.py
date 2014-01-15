@@ -100,7 +100,7 @@ class ServiceRunner(object):
 
 
 @contextmanager
-def contextual_runner(config, *services, **kwargs):
+def run_services(config, *services, **kwargs):
     """ Serves a number of services for a contextual block.
     The caller can specify a number of service classes then serve them either
     stopping (default) or killing them on exiting the contextual block.
@@ -108,7 +108,7 @@ def contextual_runner(config, *services, **kwargs):
 
     Example::
 
-        with contextual_runner(config, Foobar, Spam) as runner:
+        with run_services(config, Foobar, Spam) as runner:
             # interact with services and stop them on exiting the block
 
         # services stopped
@@ -117,7 +117,7 @@ def contextual_runner(config, *services, **kwargs):
     Additional configuration available to :class:``ServiceRunner`` instances
     can be specified through keyword arguments::
 
-        with contextual_runner(config, Foobar, Spam,
+        with run_services(config, Foobar, Spam,
                                container_cls=CustomServiceContainer,
                                worker_ctx_cls=CustomWorkerContext,
                                kill_on_exit=True):

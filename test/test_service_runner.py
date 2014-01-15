@@ -5,7 +5,7 @@ from nameko.events import event_handler, Event, BROADCAST
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import rpc_proxy
 from nameko.rpc import rpc
-from nameko.runners import ServiceRunner, contextual_runner
+from nameko.runners import ServiceRunner, run_services
 from nameko.testing.utils import assert_stops_raising
 
 
@@ -118,7 +118,7 @@ def test_contextual_lifecycle():
 
     config = {}
 
-    with contextual_runner(config, TestService1, TestService2,
+    with run_services(config, TestService1, TestService2,
                            container_cls=Container):
         # Ensure the services were started
         assert sorted(events) == [
@@ -135,7 +135,7 @@ def test_contextual_lifecycle():
     ]
 
     events = []
-    with contextual_runner(config, TestService1, TestService2,
+    with run_services(config, TestService1, TestService2,
                            container_cls=Container, kill_on_exit=True):
         # Ensure the services were started
         assert sorted(events) == [
