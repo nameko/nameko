@@ -104,7 +104,6 @@ def test_contextual_lifecycle():
             self.worker_ctx_cls = worker_ctx_cls
 
         def start(self):
-            print 'appending start event to: ', self.service_cls.name, events
             events.append(('start', self.service_cls.name, self.service_cls))
 
         def stop(self):
