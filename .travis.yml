@@ -19,4 +19,7 @@ script:
 
 notifications:
   email: false
-  webhooks: http://finebot.herokuapp.com/hubot/travis/?room=30565_platform@conf.hipchat.com
+  webhooks:
+    - http://finebot.herokuapp.com/hubot/travis/?room=30565_platform@conf.hipchat.com
+    - http://readthedocs.org/build/nameko
+	
