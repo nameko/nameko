@@ -119,7 +119,7 @@ def test_contextual_lifecycle():
     config = {}
 
     with run_services(config, TestService1, TestService2,
-                           container_cls=Container):
+                      container_cls=Container):
         # Ensure the services were started
         assert sorted(events) == [
             ('start', 'foobar_1', TestService1),
@@ -136,7 +136,7 @@ def test_contextual_lifecycle():
 
     events = []
     with run_services(config, TestService1, TestService2,
-                           container_cls=Container, kill_on_exit=True):
+                      container_cls=Container, kill_on_exit=True):
         # Ensure the services were started
         assert sorted(events) == [
             ('start', 'foobar_1', TestService1),
