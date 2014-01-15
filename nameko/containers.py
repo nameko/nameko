@@ -418,14 +418,6 @@ class ServiceContainer(ManagedThreadContainer):
                 log_worker_exception(worker_ctx, e)
                 exc = e
 
-            if handle_result is not None:
-                _log.debug('handling result for %s', worker_ctx,
-                           extra=worker_ctx.extra_for_logging)
-
-                with log_time(_log.debug, 'handled result for %s in %0.3fsec',
-                              worker_ctx):
-                    handle_result(worker_ctx, result, exc)
-
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):
 
@@ -438,6 +430,14 @@ class ServiceContainer(ManagedThreadContainer):
                            extra=worker_ctx.extra_for_logging)
                 self.dependencies.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
+
+            if handle_result is not None:
+                _log.debug('handling result for %s', worker_ctx,
+                           extra=worker_ctx.extra_for_logging)
+
+                with log_time(_log.debug, 'handled result for %s in %0.3fsec',
+                              worker_ctx):
+                    handle_result(worker_ctx, result, exc)
 
     def __str__(self):
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
