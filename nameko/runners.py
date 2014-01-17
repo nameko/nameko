@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from contextlib import contextmanager
 from logging import getLogger
 
 from nameko.utils import SpawningProxy
@@ -20,8 +21,8 @@ class ServiceRunner(object):
     Example::
 
         runner = ServiceRunner(config)
-        runner.add_service('foobar', Foobar)
-        runner.add_service('spam', Spam)
+        runner.add_service(Foobar)
+        runner.add_service(Spam, CustomWorkerContext)
 
         add_sig_term_handler(runner.kill)
 
@@ -96,3 +97,66 @@ class ServiceRunner(object):
             # exception
             self.stop()
             raise e
+
+
+@contextmanager
+def run_services(config, *services, **kwargs):
+    """ Serves a number of services for a contextual block.
+    The caller can specify a number of service classes then serve them either
+    stopping (default) or killing them on exiting the contextual block.
+
+
+    Example::
+
+        with run_services(config, Foobar, Spam) as runner:
+            # interact with services and stop them on exiting the block
+
+        # services stopped
+
+
+    Additional configuration available to :class:``ServiceRunner`` instances
+    can be specified through keyword arguments::
+
+        with run_services(config, Foobar, Spam,
+                               container_cls=CustomServiceContainer,
+                               worker_ctx_cls=CustomWorkerContext,
+                               kill_on_exit=True):
+            # interact with services
+
+        # services killed
+
+    :Parameters:
+        config : dict
+            Configuration to instantiate the service containers with
+        services : service definitions
+            Services to be served for the contextual block
+        container_cls : container class (default=:class:`ServiceContainer`)
+            The container class for hosting the specified ``services``
+        worker_ctx_cls : worker context class (default=:class:`WorkerContext`)
+            The constructor for creating a worker context within a service
+            container
+        kill_on_exit : bool (default=False)
+            If ``True``, run ``kill()`` on the service containers when exiting
+            the contextual block. Otherwise ``stop()`` will be called on the
+            service containers on exiting the block.
+
+    :Returns: The configured :class:`ServiceRunner` instance
+
+    """
+
+    container_cls = kwargs.pop('container_cls', ServiceContainer)
+    worker_ctx_cls = kwargs.pop('worker_ctx_cls', WorkerContext)
+    kill_on_exit = kwargs.pop('kill_on_exit', False)
+
+    runner = ServiceRunner(config, container_cls=container_cls)
+    for service in services:
+        runner.add_service(service, worker_ctx_cls=worker_ctx_cls)
+
+    runner.start()
+
+    yield runner
+
+    if kill_on_exit:
+        runner.kill(Exception('killed by contextual service runner'))
+    else:
+        runner.stop()
