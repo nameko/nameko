@@ -39,7 +39,7 @@ class Service(object):
 
 
 def test_runner_lifecycle():
-    events = []
+    events = set()
 
     class Container(object):
         def __init__(self, service_cls, worker_ctx_cls, config):
@@ -48,16 +48,16 @@ def test_runner_lifecycle():
             self.worker_ctx_cls = worker_ctx_cls
 
         def start(self):
-            events.append(('start', self.service_cls.name, self.service_cls))
+            events.add(('start', self.service_cls.name, self.service_cls))
 
         def stop(self):
-            events.append(('stop', self.service_cls.name, self.service_cls))
+            events.add(('stop', self.service_cls.name, self.service_cls))
 
         def kill(self, exc):
-            events.append(('kill', self.service_cls.name, self.service_cls))
+            events.add(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
-            events.append(('wait', self.service_cls.name, self.service_cls))
+            events.add(('wait', self.service_cls.name, self.service_cls))
 
     config = {}
     runner = ServiceRunner(config, container_cls=Container)
@@ -67,35 +67,35 @@ def test_runner_lifecycle():
 
     runner.start()
 
-    assert sorted(events) == [
+    assert events == {
         ('start', 'foobar_1', TestService1),
         ('start', 'foobar_2', TestService2),
-    ]
+    }
 
-    events = []
+    events = set()
     runner.stop()
-    assert sorted(events) == [
+    assert events == {
         ('stop', 'foobar_1', TestService1),
         ('stop', 'foobar_2', TestService2),
-    ]
+    }
 
-    events = []
+    events = set()
     runner.kill(Exception('die'))
-    assert sorted(events) == [
+    assert events == {
         ('kill', 'foobar_1', TestService1),
         ('kill', 'foobar_2', TestService2),
-    ]
+    }
 
-    events = []
+    events = set()
     runner.wait()
-    assert sorted(events) == [
+    assert events == {
         ('wait', 'foobar_1', TestService1),
         ('wait', 'foobar_2', TestService2),
-    ]
+    }
 
 
 def test_contextual_lifecycle():
-    events = []
+    events = set()
 
     class Container(object):
         def __init__(self, service_cls, worker_ctx_cls, config):
@@ -104,51 +104,51 @@ def test_contextual_lifecycle():
             self.worker_ctx_cls = worker_ctx_cls
 
         def start(self):
-            events.append(('start', self.service_cls.name, self.service_cls))
+            events.add(('start', self.service_cls.name, self.service_cls))
 
         def stop(self):
-            events.append(('stop', self.service_cls.name, self.service_cls))
+            events.add(('stop', self.service_cls.name, self.service_cls))
 
         def kill(self, exc):
-            events.append(('kill', self.service_cls.name, self.service_cls))
+            events.add(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
-            events.append(('wait', self.service_cls.name, self.service_cls))
+            events.add(('wait', self.service_cls.name, self.service_cls))
 
     config = {}
 
     with run_services(config, TestService1, TestService2,
                       container_cls=Container):
         # Ensure the services were started
-        assert sorted(events) == [
+        assert events == {
             ('start', 'foobar_1', TestService1),
             ('start', 'foobar_2', TestService2),
-        ]
+        }
 
     # ...and that they were stopped
-    assert sorted(events) == [
+    assert events == {
         ('start', 'foobar_1', TestService1),
         ('start', 'foobar_2', TestService2),
         ('stop', 'foobar_1', TestService1),
         ('stop', 'foobar_2', TestService2),
-    ]
+    }
 
-    events = []
+    events = set()
     with run_services(config, TestService1, TestService2,
                       container_cls=Container, kill_on_exit=True):
         # Ensure the services were started
-        assert sorted(events) == [
+        assert events == {
             ('start', 'foobar_1', TestService1),
             ('start', 'foobar_2', TestService2),
-        ]
+        }
 
     # ...and that they were killed
-    assert sorted(events) == [
+    assert events == {
         ('kill', 'foobar_1', TestService1),
         ('kill', 'foobar_2', TestService2),
         ('start', 'foobar_1', TestService1),
         ('start', 'foobar_2', TestService2),
-    ]
+    }
 
 
 def test_runner_waits_raises_error():
