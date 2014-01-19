@@ -11,6 +11,7 @@ import greenlet
 
 from nameko.dependencies import get_dependencies, DependencySet
 from nameko.exceptions import RemoteError
+from nameko.messaging import AMQP_URI_CONFIG_KEY
 from nameko.logging import log_time
 
 WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
@@ -349,6 +350,29 @@ class ServiceContainer(ManagedThreadContainer):
         self._active_threads.add(gt)
         gt.link(self._handle_thread_exited)
         return worker_ctx
+
+    def report_stats(self):
+        conn = Connection(self.config[AMQP_URI_CONFIG_KEY])
+        with connections[conn].acquire(block=True) as connection:
+            manager = connection.manager
+            vhost = urlencode(manager.virtual_host)
+            queue_details = manager.get_queue(
+                vhost=vhost,
+                qname=self.service_name
+            )
+
+            active_consumers = []
+            for consumer in queue_details['consumer_details']:
+                connection_name = consumer['channel_details']['connection_name']
+                active_consumers.append(connection_name)
+
+            stats = {
+                'active_consumers': active_consumers,
+                'message_backlog': queue_details['messages'],
+                'idle_since': queue_details['idle_since'],
+            }
+
+        return stats
 
     def _handle_container_stop(self):
         """ Stop the container gracefully.
