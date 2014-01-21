@@ -244,6 +244,19 @@ def test_replace_non_injection(container_factory, rabbit_config):
         replace_injections(container, "method")
 
 
+def test_replace_injections_container_already_started(container_factory,
+                                                      rabbit_config):
+
+    class Service(object):
+        proxy = rpc_proxy("foo_service")
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with pytest.raises(RuntimeError):
+        replace_injections(container, "proxy")
+
+
 def test_restrict_entrypoints(container_factory, rabbit_config):
 
     method_called = Mock()

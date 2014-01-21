@@ -171,6 +171,10 @@ def replace_injections(container, *injections):
         math.divide.assert_called_once_with(100, 2.54)
 
     """
+    if container.started:
+        raise RuntimeError('You must replace injections before the '
+                           'container is started.')
+
     injection_deps = list(container.injections)
     injection_names = {dep.name for dep in injection_deps}
 
