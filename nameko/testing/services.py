@@ -11,7 +11,7 @@ from mock import Mock
 
 from nameko.dependencies import (
     get_entrypoint_providers, DependencyFactory, InjectionProvider,
-    ENTRYPOINT_PROVIDERS_ATTR, is_injection_provider)
+    is_injection_provider)
 from nameko.exceptions import DependencyNotFound
 from nameko.testing.utils import get_dependency
 
@@ -197,9 +197,11 @@ def replace_injections(container, *names):
     return injections
 
 
-def disable_entrypoints(container, exclusions=None):
-    """ Disable the entrypoints on ``container`` unless their name is in
-    ``exclusions``.
+def restrict_entrypoints(container, *entrypoints):
+    """ Restrict the entrypoints on ``container`` to those named in
+    ``entrypoints``.
+
+    This method must be called before the container is started.
 
     **Usage**
 
@@ -220,25 +222,27 @@ def disable_entrypoints(container, exclusions=None):
 
     To disable the entrypoints other than on "foo"::
 
-        disable_entrypoints(container, exclusions=["foo"])
+        restrict_entrypoints(container, "foo")
 
     To maintain both the rpc and the event_handler entrypoints on "bar"::
 
-        disable_entrypoints(container, exclusions=["bar"])
+        restrict_entrypoints(container, "bar")
 
     Note that it is not possible to identify entrypoints individually.
     """
-    dependencies = []
+    if container.started:
+        raise RuntimeError('You must restrict entrypoints before the '
+                           'container is started.')
 
-    service_cls = container.service_cls
-    for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
-        if name in exclusions:
-            continue
-        entrypoint_factories = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
-        for factory in entrypoint_factories:
-            dependency = get_dependency(container, factory.dep_cls,
-                                        name=name)
-            dependencies.append(dependency)
+    entrypoint_deps = list(container.entrypoints)
+    entrypoint_names = {dep.name for dep in entrypoint_deps}
 
-    for dependency in dependencies:
-        container.dependencies.remove(dependency)
+    entrypoints = set(entrypoints)
+    if not entrypoints.issubset(entrypoint_names):
+        missing = entrypoints - entrypoint_names
+        raise DependencyNotFound("Entrypoint(s) '{}' not found on {}.".format(
+            missing, container))
+
+    for dependency in entrypoint_deps:
+        if dependency.name not in entrypoints:
+            container.dependencies.remove(dependency)

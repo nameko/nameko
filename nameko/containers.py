@@ -9,7 +9,9 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 import greenlet
 
-from nameko.dependencies import get_dependencies, DependencySet
+from nameko.dependencies import (
+    get_dependencies, DependencySet, is_entrypoint_provider,
+    is_injection_provider)
 from nameko.exceptions import RemoteError
 from nameko.logging import log_time
 
@@ -159,6 +161,7 @@ class ManagedThreadContainer(object):
             self._kill_active_threads()
             self._kill_protected_threads()
 
+            self.started = False
             self._died.send(None)
 
     def kill(self, exc):
@@ -191,6 +194,7 @@ class ManagedThreadContainer(object):
         self._handle_container_kill(exc)
         self._kill_protected_threads()
 
+        self.started = False
         self._died.send_exception(exc)
 
     def wait(self):
@@ -313,12 +317,24 @@ class ServiceContainer(ManagedThreadContainer):
         for dep in get_dependencies(self):
             self.dependencies.add(dep)
 
+        self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
+
+    @property
+    def entrypoints(self):
+        return [dependency for dependency in self.dependencies
+                if is_entrypoint_provider(dependency)]
+
+    @property
+    def injections(self):
+        return [dependency for dependency in self.dependencies
+                if is_injection_provider(dependency)]
 
     def start(self):
         """ Start a container by starting all the dependency providers.
         """
         _log.debug('starting %s', self)
+        self.started = True
 
         with log_time(_log.debug, 'started %s in %0.3f sec', self):
             self.dependencies.all.prepare()
