@@ -5,7 +5,7 @@ from nameko.events import event_handler, Event, BROADCAST
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import rpc_proxy
 from nameko.rpc import rpc
-from nameko.runners import ServiceRunner
+from nameko.runners import ServiceRunner, run_services
 from nameko.testing.utils import assert_stops_raising
 
 
@@ -39,7 +39,7 @@ class Service(object):
 
 
 def test_runner_lifecycle():
-    events = []
+    events = set()
 
     class Container(object):
         def __init__(self, service_cls, worker_ctx_cls, config):
@@ -48,16 +48,16 @@ def test_runner_lifecycle():
             self.worker_ctx_cls = worker_ctx_cls
 
         def start(self):
-            events.append(('start', self.service_cls.name, self.service_cls))
+            events.add(('start', self.service_cls.name, self.service_cls))
 
         def stop(self):
-            events.append(('stop', self.service_cls.name, self.service_cls))
+            events.add(('stop', self.service_cls.name, self.service_cls))
 
         def kill(self, exc):
-            events.append(('kill', self.service_cls.name, self.service_cls))
+            events.add(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
-            events.append(('wait', self.service_cls.name, self.service_cls))
+            events.add(('wait', self.service_cls.name, self.service_cls))
 
     config = {}
     runner = ServiceRunner(config, container_cls=Container)
@@ -67,31 +67,88 @@ def test_runner_lifecycle():
 
     runner.start()
 
-    assert sorted(events) == [
+    assert events == {
         ('start', 'foobar_1', TestService1),
         ('start', 'foobar_2', TestService2),
-    ]
+    }
 
-    events = []
+    events = set()
     runner.stop()
-    assert sorted(events) == [
+    assert events == {
         ('stop', 'foobar_1', TestService1),
         ('stop', 'foobar_2', TestService2),
-    ]
+    }
 
-    events = []
+    events = set()
     runner.kill(Exception('die'))
-    assert sorted(events) == [
+    assert events == {
         ('kill', 'foobar_1', TestService1),
         ('kill', 'foobar_2', TestService2),
-    ]
+    }
 
-    events = []
+    events = set()
     runner.wait()
-    assert sorted(events) == [
+    assert events == {
         ('wait', 'foobar_1', TestService1),
         ('wait', 'foobar_2', TestService2),
-    ]
+    }
+
+
+def test_contextual_lifecycle():
+    events = set()
+
+    class Container(object):
+        def __init__(self, service_cls, worker_ctx_cls, config):
+            self.service_name = service_cls.__name__
+            self.service_cls = service_cls
+            self.worker_ctx_cls = worker_ctx_cls
+
+        def start(self):
+            events.add(('start', self.service_cls.name, self.service_cls))
+
+        def stop(self):
+            events.add(('stop', self.service_cls.name, self.service_cls))
+
+        def kill(self, exc):
+            events.add(('kill', self.service_cls.name, self.service_cls))
+
+        def wait(self):
+            events.add(('wait', self.service_cls.name, self.service_cls))
+
+    config = {}
+
+    with run_services(config, TestService1, TestService2,
+                      container_cls=Container):
+        # Ensure the services were started
+        assert events == {
+            ('start', 'foobar_1', TestService1),
+            ('start', 'foobar_2', TestService2),
+        }
+
+    # ...and that they were stopped
+    assert events == {
+        ('start', 'foobar_1', TestService1),
+        ('start', 'foobar_2', TestService2),
+        ('stop', 'foobar_1', TestService1),
+        ('stop', 'foobar_2', TestService2),
+    }
+
+    events = set()
+    with run_services(config, TestService1, TestService2,
+                      container_cls=Container, kill_on_exit=True):
+        # Ensure the services were started
+        assert events == {
+            ('start', 'foobar_1', TestService1),
+            ('start', 'foobar_2', TestService2),
+        }
+
+    # ...and that they were killed
+    assert events == {
+        ('kill', 'foobar_1', TestService1),
+        ('kill', 'foobar_2', TestService2),
+        ('start', 'foobar_1', TestService1),
+        ('start', 'foobar_2', TestService2),
+    }
 
 
 def test_runner_waits_raises_error():

@@ -20,4 +20,3 @@ script:
 notifications:
   email: false
   webhooks: http://finebot.herokuapp.com/hubot/travis/?room=30565_platform@conf.hipchat.com
-	
