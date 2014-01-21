@@ -9,10 +9,8 @@ import inspect
 from eventlet import event
 from mock import Mock
 
-from nameko.dependencies import (
-    DependencyFactory, InjectionProvider, is_injection_provider)
+from nameko.dependencies import DependencyFactory, InjectionProvider
 from nameko.exceptions import DependencyNotFound
-from nameko.testing.utils import get_dependency
 
 
 @contextmanager
