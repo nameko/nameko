@@ -2,7 +2,6 @@ from greenlet import GreenletExit
 import eventlet
 from mock import Mock, MagicMock
 import pytest
-from nameko.dependencies import get_injection_providers
 from nameko.parallel import (
     ParallelExecutor, parallel_provider, ParallelProvider,
     ParallelProxyFactory, ProxySettingUnsupportedException)
@@ -122,7 +121,7 @@ def test_parallel_executor_injection():
     config = Mock()
     container = ServiceContainer(ExampleService, WorkerContext, config)
 
-    providers = list(get_injection_providers(container))
+    providers = container.injections
     assert len(providers) == 1
     provider = providers[0]
 

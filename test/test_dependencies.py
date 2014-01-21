@@ -3,8 +3,8 @@ from mock import Mock, patch
 import pytest
 
 from nameko.dependencies import (
-    entrypoint, EntrypointProvider, get_entrypoint_providers,
-    injection, InjectionProvider, get_injection_providers,
+    entrypoint, EntrypointProvider, prepare_entrypoint_providers,
+    injection, InjectionProvider, prepare_injection_providers,
     DependencyFactory, DependencyTypeError, dependency,
     DependencyProvider, PROCESS_SHARED, CONTAINER_SHARED, ProviderCollector)
 from nameko.containers import ServiceContainer, WorkerContext
@@ -84,12 +84,12 @@ def test_dependency_decorator():
     assert decorated_foo is foo
 
 
-def test_get_entrypoint_providers():
+def test_prepare_entrypoint_providers():
 
     config = Mock()
     container = ServiceContainer(ExampleService, WorkerContext, config)
 
-    providers = list(get_entrypoint_providers(container))
+    providers = list(prepare_entrypoint_providers(container))
     assert len(providers) == 1
     provider = providers[0]
 
@@ -98,7 +98,7 @@ def test_get_entrypoint_providers():
     assert provider.args == ("arg",)
     assert provider.kwargs == {"kwarg": "kwarg"}
 
-    including_nested = list(get_entrypoint_providers(
+    including_nested = list(prepare_entrypoint_providers(
         container, include_dependencies=True))
     assert len(including_nested) == 2
 
@@ -106,12 +106,12 @@ def test_get_entrypoint_providers():
         [FooProvider, SharedProvider])
 
 
-def test_get_injection_providers():
+def test_prepare_injection_providers():
 
     config = Mock()
     container = ServiceContainer(ExampleService, WorkerContext, config)
 
-    providers = list(get_injection_providers(container))
+    providers = list(prepare_injection_providers(container))
     assert len(providers) == 1
     provider = providers[0]
 
@@ -120,7 +120,7 @@ def test_get_injection_providers():
     assert provider.args == ("arg",)
     assert provider.kwargs == {"kwarg": "kwarg"}
 
-    including_nested = list(get_injection_providers(
+    including_nested = list(prepare_injection_providers(
         container, include_dependencies=True))
     assert len(including_nested) == 3
 

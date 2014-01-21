@@ -10,7 +10,7 @@ from eventlet.greenpool import GreenPool
 import greenlet
 
 from nameko.dependencies import (
-    get_dependencies, DependencySet, is_entrypoint_provider,
+    prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
 from nameko.exceptions import RemoteError
 from nameko.logging import log_time
@@ -314,7 +314,7 @@ class ServiceContainer(ManagedThreadContainer):
         self.max_workers = config.get(MAX_WORKERS_KEY, 10) or 10
 
         self.dependencies = DependencySet()
-        for dep in get_dependencies(self):
+        for dep in prepare_dependencies(self):
             self.dependencies.add(dep)
 
         self.started = False

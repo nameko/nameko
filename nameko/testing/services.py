@@ -10,8 +10,7 @@ from eventlet import event
 from mock import Mock
 
 from nameko.dependencies import (
-    get_entrypoint_providers, DependencyFactory, InjectionProvider,
-    is_injection_provider)
+    DependencyFactory, InjectionProvider, is_injection_provider)
 from nameko.exceptions import DependencyNotFound
 from nameko.testing.utils import get_dependency
 
@@ -32,8 +31,8 @@ def entrypoint_hook(container, name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = next((prov for prov in get_entrypoint_providers(container)
-                    if prov.name == name), None)
+    provider = next((entrypoint for entrypoint in container.entrypoints
+                     if entrypoint.name == name), None)
 
     if provider is None:
         raise DependencyNotFound("No entrypoint called '{}' found "
@@ -131,9 +130,9 @@ class MockInjection(InjectionProvider):
         return self.injection
 
 
-def replace_injections(container, *names):
+def replace_injections(container, *injections):
     """ Replace the injections on ``container`` with :class:`MockInjection`
-    objects if their name is in ``names``.
+    objects if they are named in ``injections``.
 
     Return the :attr:`MockInjection.injection` of the replacements, so that
     calls to the replaced injections can be inspected. Return a single object
@@ -174,15 +173,21 @@ def replace_injections(container, *names):
         math.divide.assert_called_once_with(100, 2.54)
 
     """
+    injection_deps = list(container.injections)
+    injection_names = {dep.name for dep in injection_deps}
+
+    injection_set = set(injections)
+    if not injection_set.issubset(injection_names):
+        missing = injection_set - injection_names
+        raise DependencyNotFound("Injections(s) '{}' not found on {}.".format(
+            missing, container))
+
     replacements = OrderedDict()
 
-    for name in names:
-        maybe_factory = getattr(container.service_cls, name, None)
-        if isinstance(maybe_factory, DependencyFactory):
-            factory = maybe_factory
-            dependency = get_dependency(container, factory.dep_cls, name=name)
-            if is_injection_provider(dependency):
-                replacements[dependency] = MockInjection(name)
+    for name in injections:
+        dependency = next((dependency for dependency in container.injections
+                           if dependency.name == name))
+        replacements[dependency] = MockInjection(name)
 
     for dependency, replacement in replacements.items():
         container.dependencies.remove(dependency)
@@ -190,11 +195,10 @@ def replace_injections(container, *names):
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
-    injections = (replacement.injection
-                  for replacement in replacements.values())
-    if len(names) == 1:
-        return next(injections, None)
-    return injections
+    res = (replacement.injection for replacement in replacements.values())
+    if len(injections) == 1:
+        return next(res, None)
+    return res
 
 
 def restrict_entrypoints(container, *entrypoints):
