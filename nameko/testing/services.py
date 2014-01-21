@@ -197,9 +197,9 @@ def replace_injections(container, *names):
     return injections
 
 
-def remove_entrypoints(container, *names):
-    """ Remove the entrypoints from ``container`` if if their name is in
-    ``names``.
+def disable_entrypoints(container, exclusions=None):
+    """ Disable the entrypoints on ``container`` unless their name is in
+    ``exclusions``.
 
     **Usage**
 
@@ -218,22 +218,23 @@ def remove_entrypoints(container, *names):
 
         container = container_factory(Service, config)
 
-    To remove the rpc entrypoint from "foo"::
+    To disable the entrypoints other than on "foo"::
 
-        remove_entrypoints(container, "foo")
+        disable_entrypoints(container, exclusions=["foo"])
 
-    To remove both the rpc and the event_handler entrypoints from "bar"::
+    To maintain both the rpc and the event_handler entrypoints on "bar"::
 
-        remove_entrypoints(container, "bar")
+        disable_entrypoints(container, exclusions=["bar"])
 
-    Note that it is not possible to remove entrypoints individually.
+    Note that it is not possible to identify entrypoints individually.
     """
     dependencies = []
 
-    for name in names:
-        entrypoint_method = getattr(container.service_cls, name, None)
-        entrypoint_factories = getattr(
-            entrypoint_method, ENTRYPOINT_PROVIDERS_ATTR, tuple())
+    service_cls = container.service_cls
+    for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
+        if name in exclusions:
+            continue
+        entrypoint_factories = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
         for factory in entrypoint_factories:
             dependency = get_dependency(container, factory.dep_cls,
                                         name=name)
