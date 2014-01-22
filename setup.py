@@ -31,7 +31,7 @@ requirements, dependency_links = parse_requirements(
 
 setup(
     name='nameko',
-    version='1.2.4',
+    version='1.2.5',
     description='service framework supporting multiple'
                 'messaging and RPC implementations',
     author='onefinestay',
