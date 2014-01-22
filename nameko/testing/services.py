@@ -178,9 +178,8 @@ def replace_injections(container, *injections):
     injection_deps = list(container.injections)
     injection_names = {dep.name for dep in injection_deps}
 
-    injection_set = set(injections)
-    if not injection_set.issubset(injection_names):
-        missing = injection_set - injection_names
+    missing = set(injections) - injection_names
+    if missing:
         raise DependencyNotFound("Injections(s) '{}' not found on {}.".format(
             missing, container))
 
@@ -242,9 +241,8 @@ def restrict_entrypoints(container, *entrypoints):
     entrypoint_deps = list(container.entrypoints)
     entrypoint_names = {dep.name for dep in entrypoint_deps}
 
-    entrypoints = set(entrypoints)
-    if not entrypoints.issubset(entrypoint_names):
-        missing = entrypoints - entrypoint_names
+    missing = set(entrypoints) - entrypoint_names
+    if missing:
         raise DependencyNotFound("Entrypoint(s) '{}' not found on {}.".format(
             missing, container))
 
