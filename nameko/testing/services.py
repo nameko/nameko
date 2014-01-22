@@ -9,11 +9,8 @@ import inspect
 from eventlet import event
 from mock import Mock
 
-from nameko.dependencies import (
-    get_entrypoint_providers, DependencyFactory, InjectionProvider,
-    ENTRYPOINT_PROVIDERS_ATTR, is_injection_provider)
+from nameko.dependencies import DependencyFactory, InjectionProvider
 from nameko.exceptions import DependencyNotFound
-from nameko.testing.utils import get_dependency
 
 
 @contextmanager
@@ -32,8 +29,8 @@ def entrypoint_hook(container, name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = next((prov for prov in get_entrypoint_providers(container)
-                    if prov.name == name), None)
+    provider = next((entrypoint for entrypoint in container.entrypoints
+                     if entrypoint.name == name), None)
 
     if provider is None:
         raise DependencyNotFound("No entrypoint called '{}' found "
@@ -131,9 +128,9 @@ class MockInjection(InjectionProvider):
         return self.injection
 
 
-def replace_injections(container, *names):
+def replace_injections(container, *injections):
     """ Replace the injections on ``container`` with :class:`MockInjection`
-    objects if their name is in ``names``.
+    objects if they are named in ``injections``.
 
     Return the :attr:`MockInjection.injection` of the replacements, so that
     calls to the replaced injections can be inspected. Return a single object
@@ -174,32 +171,42 @@ def replace_injections(container, *names):
         math.divide.assert_called_once_with(100, 2.54)
 
     """
+    if container.started:
+        raise RuntimeError('You must replace injections before the '
+                           'container is started.')
+
+    injection_deps = list(container.injections)
+    injection_names = {dep.name for dep in injection_deps}
+
+    missing = set(injections) - injection_names
+    if missing:
+        raise DependencyNotFound("Injections(s) '{}' not found on {}.".format(
+            missing, container))
+
     replacements = OrderedDict()
 
-    for name in names:
-        maybe_factory = getattr(container.service_cls, name, None)
-        if isinstance(maybe_factory, DependencyFactory):
-            factory = maybe_factory
-            dependency = get_dependency(container, factory.dep_cls, name=name)
-            if is_injection_provider(dependency):
-                replacements[dependency] = MockInjection(name)
-
-    for dependency, replacement in replacements.items():
+    named_injections = {dep.name: dep for dep in container.injections
+                        if dep.name in injections}
+    for name in injections:
+        dependency = named_injections[name]
+        replacement = MockInjection(name)
+        replacements[dependency] = replacement
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
-    injections = (replacement.injection
-                  for replacement in replacements.values())
-    if len(names) == 1:
-        return next(injections, None)
-    return injections
+    res = (replacement.injection for replacement in replacements.values())
+    if len(injections) == 1:
+        return next(res)
+    return res
 
 
-def remove_entrypoints(container, *names):
-    """ Remove the entrypoints from ``container`` if if their name is in
-    ``names``.
+def restrict_entrypoints(container, *entrypoints):
+    """ Restrict the entrypoints on ``container`` to those named in
+    ``entrypoints``.
+
+    This method must be called before the container is started.
 
     **Usage**
 
@@ -218,26 +225,28 @@ def remove_entrypoints(container, *names):
 
         container = container_factory(Service, config)
 
-    To remove the rpc entrypoint from "foo"::
+    To disable the entrypoints other than on "foo"::
 
-        remove_entrypoints(container, "foo")
+        restrict_entrypoints(container, "foo")
 
-    To remove both the rpc and the event_handler entrypoints from "bar"::
+    To maintain both the rpc and the event_handler entrypoints on "bar"::
 
-        remove_entrypoints(container, "bar")
+        restrict_entrypoints(container, "bar")
 
-    Note that it is not possible to remove entrypoints individually.
+    Note that it is not possible to identify entrypoints individually.
     """
-    dependencies = []
+    if container.started:
+        raise RuntimeError('You must restrict entrypoints before the '
+                           'container is started.')
 
-    for name in names:
-        entrypoint_method = getattr(container.service_cls, name, None)
-        entrypoint_factories = getattr(
-            entrypoint_method, ENTRYPOINT_PROVIDERS_ATTR, tuple())
-        for factory in entrypoint_factories:
-            dependency = get_dependency(container, factory.dep_cls,
-                                        name=name)
-            dependencies.append(dependency)
+    entrypoint_deps = list(container.entrypoints)
+    entrypoint_names = {dep.name for dep in entrypoint_deps}
 
-    for dependency in dependencies:
-        container.dependencies.remove(dependency)
+    missing = set(entrypoints) - entrypoint_names
+    if missing:
+        raise DependencyNotFound("Entrypoint(s) '{}' not found on {}.".format(
+            missing, container))
+
+    for dependency in entrypoint_deps:
+        if dependency.name not in entrypoints:
+            container.dependencies.remove(dependency)

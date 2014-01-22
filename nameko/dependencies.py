@@ -432,7 +432,7 @@ def is_entrypoint_provider(obj):
     return isinstance(obj, EntrypointProvider)
 
 
-def get_injection_providers(container, include_dependencies=False):
+def prepare_injection_providers(container, include_dependencies=False):
     service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls):
         if attr in registered_injections:
@@ -444,7 +444,7 @@ def get_injection_providers(container, include_dependencies=False):
                     yield dependency
 
 
-def get_entrypoint_providers(container, include_dependencies=False):
+def prepare_entrypoint_providers(container, include_dependencies=False):
     service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
         factories = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
@@ -456,7 +456,7 @@ def get_entrypoint_providers(container, include_dependencies=False):
                     yield dependency
 
 
-def get_dependencies(container):
+def prepare_dependencies(container):
     return chain(
-        get_injection_providers(container, include_dependencies=True),
-        get_entrypoint_providers(container, include_dependencies=True))
+        prepare_injection_providers(container, include_dependencies=True),
+        prepare_entrypoint_providers(container, include_dependencies=True))

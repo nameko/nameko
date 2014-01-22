@@ -5,12 +5,13 @@ from nameko.dependencies import (
     injection, entrypoint, InjectionProvider, EntrypointProvider,
     DependencyFactory)
 from nameko.events import Event, event_handler
-from nameko.exceptions import DependencyNotFound
+from nameko.exceptions import DependencyNotFound, RemoteError
 from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
 from nameko.testing.services import (
-    entrypoint_hook, instance_factory, replace_injections, remove_entrypoints)
+    entrypoint_hook, instance_factory,
+    replace_injections, restrict_entrypoints)
 from nameko.testing.utils import get_container, wait_for_call
 
 
@@ -213,11 +214,6 @@ def test_replace_injections(container_factory, rabbit_config):
     assert all([not isinstance(dependency, rpc_proxy.provider_cls)
                 for dependency in container.dependencies])
 
-    # verify that entrypoints aren't replaced
-    replace_injections(container, "rpc")
-    assert any([isinstance(dependency, rpc.provider_cls)
-                for dependency in container.dependencies])
-
     container.start()
 
     # verify that the mock injection collects calls
@@ -228,7 +224,40 @@ def test_replace_injections(container_factory, rabbit_config):
     foo_proxy.remote_method.assert_called_once_with(msg)
 
 
-def test_remove_entrypoints(container_factory, rabbit_config):
+def test_replace_non_injection(container_factory, rabbit_config):
+
+    class Service(object):
+        proxy = rpc_proxy("foo_service")
+
+        @rpc
+        def method(self):
+            pass
+
+    container = container_factory(Service, rabbit_config)
+
+    # error if dependency doesn't exit
+    with pytest.raises(DependencyNotFound):
+        replace_injections(container, "nonexist")
+
+    # error if dependency is not an injection
+    with pytest.raises(DependencyNotFound):
+        replace_injections(container, "method")
+
+
+def test_replace_injections_container_already_started(container_factory,
+                                                      rabbit_config):
+
+    class Service(object):
+        proxy = rpc_proxy("foo_service")
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with pytest.raises(RuntimeError):
+        replace_injections(container, "proxy")
+
+
+def test_restrict_entrypoints(container_factory, rabbit_config):
 
     method_called = Mock()
 
@@ -263,9 +292,15 @@ def test_remove_entrypoints(container_factory, rabbit_config):
 
     container = container_factory(Service, rabbit_config)
 
-    # remove the once entrypoint on "handler_one"
-    remove_entrypoints(container, "handler_one")
+    # disable the entrypoints on handler_one
+    restrict_entrypoints(container, "handler_two")
     container.start()
+
+    # verify the rpc entrypoint on handler_one is disabled
+    with standalone_rpc_proxy("service", rabbit_config) as service_proxy:
+        with pytest.raises(RemoteError) as exc_info:
+            service_proxy.handler_one("msg")
+        assert exc_info.value.exc_type == "MethodNotFound"
 
     # dispatch an event to handler_two
     msg = "msg"
@@ -276,3 +311,31 @@ def test_remove_entrypoints(container_factory, rabbit_config):
     # handler and not from the disabled @once entrypoint
     with wait_for_call(1, method_called):
         method_called.assert_called_once_with(msg)
+
+
+def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
+
+    class Service(object):
+        @rpc
+        def method(self, arg):
+            pass
+
+    container = container_factory(Service, rabbit_config)
+
+    with pytest.raises(DependencyNotFound):
+        restrict_entrypoints(container, "nonexist")
+
+
+def test_restrict_entrypoint_container_already_started(container_factory,
+                                                       rabbit_config):
+
+    class Service(object):
+        @rpc
+        def method(self, arg):
+            pass
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with pytest.raises(RuntimeError):
+        restrict_entrypoints(container, "method")

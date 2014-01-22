@@ -8,6 +8,7 @@ from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyFactory)
+from nameko.testing.utils import AnyInstanceOf
 
 
 class CallCollectorMixin(object):
@@ -452,3 +453,15 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
         call("killing %s protected thread(s)", 1),
         call("%s thread killed by container", container),
     ]
+
+
+def test_container_entrypoint_property(container):
+    entrypoints = container.entrypoints
+    assert {dep.name for dep in entrypoints} == {'wait', 'ham', 'egg'}
+    assert entrypoints == 3 * [AnyInstanceOf(CallCollectingEntrypointProvider)]
+
+
+def test_container_injection_property(container):
+    injections = container.injections
+    assert {dep.name for dep in injections} == {'spam'}
+    assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]
