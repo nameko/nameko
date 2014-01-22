@@ -185,9 +185,10 @@ def replace_injections(container, *injections):
 
     replacements = OrderedDict()
 
+    named_injections = {dep.name: dep for dep in container.injections
+                        if dep.name in injections}
     for name in injections:
-        dependency = next((dependency for dependency in container.injections
-                           if dependency.name == name))
+        dependency = named_injections[name]
         replacement = MockInjection(name)
         replacements[dependency] = replacement
         container.dependencies.remove(dependency)
