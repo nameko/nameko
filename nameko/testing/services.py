@@ -189,9 +189,8 @@ def replace_injections(container, *injections):
     for name in injections:
         dependency = next((dependency for dependency in container.injections
                            if dependency.name == name))
-        replacements[dependency] = MockInjection(name)
-
-    for dependency, replacement in replacements.items():
+        replacement = MockInjection(name)
+        replacements[dependency] = replacement
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
 
@@ -199,7 +198,7 @@ def replace_injections(container, *injections):
     # otherwise return a generator
     res = (replacement.injection for replacement in replacements.values())
     if len(injections) == 1:
-        return next(res, None)
+        return next(res)
     return res
 
 
