@@ -8,7 +8,7 @@ from nameko.events import Event, event_handler
 from nameko.exceptions import DependencyNotFound, RemoteError
 from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
+from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import (
     entrypoint_hook, instance_factory,
     replace_injections, restrict_entrypoints)
@@ -218,7 +218,7 @@ def test_replace_injections(container_factory, rabbit_config):
 
     # verify that the mock injection collects calls
     msg = "msg"
-    with standalone_rpc_proxy("service", rabbit_config) as service_proxy:
+    with RpcProxy("service", rabbit_config) as service_proxy:
         service_proxy.method(msg)
 
     foo_proxy.remote_method.assert_called_once_with(msg)
@@ -297,7 +297,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     container.start()
 
     # verify the rpc entrypoint on handler_one is disabled
-    with standalone_rpc_proxy("service", rabbit_config) as service_proxy:
+    with RpcProxy("service", rabbit_config) as service_proxy:
         with pytest.raises(RemoteError) as exc_info:
             service_proxy.handler_one("msg")
         assert exc_info.value.exc_type == "MethodNotFound"

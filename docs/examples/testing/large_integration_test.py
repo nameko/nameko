@@ -24,8 +24,8 @@ from nameko.events import event_dispatcher, Event, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
-from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
-from nameko.testing.services import replace_injections, remove_entrypoints
+from nameko.standalone.rpc import RpcProxy
+from nameko.testing.services import replace_injections, restrict_entrypoints
 from nameko.testing.utils import get_container
 from nameko.timer import timer
 
@@ -304,21 +304,21 @@ def runner_factory(rabbit_config):
 def rpc_proxy_factory(rabbit_config):
     """ Factory fixture for standalone RPC proxies.
 
-    Unrolls the ``standalone_rpc_proxy`` contextmanager so proxies can be used
-    in tests without a ``with`` statement. All created proxies exit at the
-    end of the test, when this fixture closes.
+    Proxies are started automatically so they can be used without a ``with``
+    statement. All created proxies are stopped at the end of the test, when
+    this fixture closes.
     """
     all_proxies = []
 
     def make_proxy(service_name, **kwargs):
-        proxy = standalone_rpc_proxy(service_name, rabbit_config, **kwargs)
+        proxy = RpcProxy(service_name, rabbit_config, **kwargs)
         all_proxies.append(proxy)
-        return proxy.__enter__()
+        return proxy.start()
 
     yield make_proxy
 
     for proxy in all_proxies:
-        proxy.__exit__(None, None, None)
+        proxy.stop()
 
 
 def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
@@ -344,9 +344,9 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     fire_event, payment_service = replace_injections(
         shop_container, "fire_event", "payment_service")
 
-    # remove ``monitor_stock`` entrypoints on StockService
+    # restrict entrypoints on StockService
     stock_container = get_container(runner, StockService)
-    remove_entrypoints(stock_container, "monitor_stock")
+    restrict_entrypoints(stock_container, "check_price", "check_stock")
 
     runner.start()
 

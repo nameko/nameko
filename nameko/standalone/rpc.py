@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from contextlib import contextmanager
 
 from kombu import Connection
 from kombu.common import itermessages, maybe_declare
@@ -76,18 +75,32 @@ class SingleThreadedReplyListener(ReplyListener):
         return reply_event
 
 
-@contextmanager
-def rpc_proxy(container_service_name, nameko_config, context_data=None,
-              worker_ctx_cls=WorkerContext):
+class RpcProxy(object):
     """
-    Yield a single-threaded RPC proxy to a named service. Method calls to the
-    proxy are converted into RPC calls, with responses returned directly.
+    A single-threaded RPC proxy to a named service. Method calls on the
+    proxy are converted into RPC calls to the service, with responses
+    returned directly.
 
     Enables services not hosted by nameko to make RPC requests to a nameko
-    cluster.
-    """
+    cluster. It is commonly used as a context manager but may also be manually
+    started and stopped.
 
-    class ProxyContainer(object):
+    *Usage*
+
+    As a context manager::
+
+        with RpcProxy('targetservice') as proxy:
+            proxy.method()
+
+    The equivalent call, manually starting and stopping::
+
+        targetservice_proxy = RpcProxy('targetservice')
+        proxy = targetservice_proxy.start()
+        proxy.method()
+        targetservice_proxy.stop()
+
+    """
+    class ServiceContainer(object):
         """ Implements a minimum interface of the
         :class:`~containers.ServiceContainer` to be used by the subclasses
         and rpc imports in this module.
@@ -97,19 +110,32 @@ def rpc_proxy(container_service_name, nameko_config, context_data=None,
         def __init__(self, config):
             self.config = config
 
-    container = ProxyContainer(nameko_config)
+    def __init__(self, container_service_name, config, context_data=None,
+                 worker_ctx_cls=WorkerContext):
 
-    worker_ctx = worker_ctx_cls(container, service=None, method_name="call",
-                                data=context_data)
+        container = RpcProxy.ServiceContainer(config)
 
-    reply_listener = SingleThreadedReplyListener()
+        reply_listener = SingleThreadedReplyListener()
+        reply_listener.container = container
 
-    reply_listener.container = container
-    reply_listener.prepare()
+        worker_ctx = worker_ctx_cls(
+            container, service=None, method_name="call", data=context_data)
+        service_proxy = ServiceProxy(worker_ctx, container_service_name,
+                                     reply_listener)
 
-    service_proxy = ServiceProxy(worker_ctx, container_service_name,
-                                 reply_listener)
+        self._reply_listener = reply_listener
+        self._service_proxy = service_proxy
 
-    yield service_proxy
+    def __enter__(self):
+        self.start()
+        return self._service_proxy
 
-    reply_listener.stop()
+    def __exit__(self, tpe, value, traceback):
+        self.stop()
+
+    def start(self):
+        self._reply_listener.prepare()
+        return self._service_proxy
+
+    def stop(self):
+        self._reply_listener.stop()
