@@ -99,6 +99,8 @@ class RpcProxy(object):
         proxy.method()
         targetservice_proxy.stop()
 
+    If you call ``start()`` you must eventually call ``stop()`` to close the
+    connection to the broker.
     """
     class ServiceContainer(object):
         """ Implements a minimum interface of the

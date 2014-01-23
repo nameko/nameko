@@ -59,6 +59,7 @@ def test_proxy(container_factory, rabbit_config):
 
     with RpcProxy('foobar', rabbit_config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
+        assert foo.spam(ham='eggs') == 'eggs'  # test re-use
 
 
 def test_proxy_manual_start_stop(container_factory, rabbit_config):
@@ -69,6 +70,7 @@ def test_proxy_manual_start_stop(container_factory, rabbit_config):
     foobar_proxy = RpcProxy('foobar', rabbit_config)
     foo = foobar_proxy.start()
     assert foo.spam(ham='eggs') == 'eggs'
+    assert foo.spam(ham='eggs') == 'eggs'  # test re-use
     foobar_proxy.stop()
 
 
