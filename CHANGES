@@ -1,0 +1,5 @@
+Version 1.3.0
+-------------
+
+Standalone RPC proxy interface changed to class with contextmanager interface
+and manual start() and stop() methods.
