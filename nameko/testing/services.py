@@ -146,7 +146,7 @@ def replace_injections(container, *injections):
     ::
 
         from nameko.rpc import rpc_proxy, rpc
-        from nameko.standalone.rpc import rpc_proxy as standalone_rpc_proxy
+        from nameko.standalone.rpc import RpcProxy
 
         class ConversionService(object):
             math = rpc_proxy("math_service")
@@ -164,7 +164,7 @@ def replace_injections(container, *injections):
 
         container.start()
 
-        with standalone_rpc_proxy('conversionservice', config) as proxy:
+        with RpcProxy('conversionservice', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the injection was called as expected

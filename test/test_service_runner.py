@@ -3,7 +3,7 @@ import pytest
 
 from nameko.events import event_handler, Event, BROADCAST
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import rpc_proxy
+from nameko.standalone.rpc import RpcProxy
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
 from nameko.testing.utils import assert_stops_raising
@@ -217,7 +217,7 @@ def test_multiple_runners_coexist(runner_factory, rabbit_config,
     # test rpc (only one service will respond)
     del received[:]
     arg = "msg"
-    with rpc_proxy('service', rabbit_config) as proxy:
+    with RpcProxy('service', rabbit_config) as proxy:
         proxy.handle(arg)
 
     with eventlet.Timeout(1):
@@ -253,7 +253,7 @@ def test_runner_with_duplicate_services(runner_factory, rabbit_config):
     arg = "msg"
     del received[:]
 
-    with rpc_proxy("service", rabbit_config) as proxy:
+    with RpcProxy("service", rabbit_config) as proxy:
         proxy.handle(arg)
 
     with eventlet.Timeout(1):
