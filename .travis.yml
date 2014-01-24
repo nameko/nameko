@@ -19,4 +19,10 @@ script:
 
 notifications:
   email: false
-  webhooks: http://finebot.herokuapp.com/hubot/travis/?room=30565_platform@conf.hipchat.com
+  hipchat:
+    rooms:
+      secure: HdQuYHfBbCnuw0mgj1tJOdlXRhF+b9Ena6JVp1nPdCjP5WX8iCpDAtR4vlTry4X6eNXodb0xsdhWmN9Zq+iDvR0FQvvtRkFUxNpxsqGPLClvUIthTNqjGLgl2lMtbZcHRT1dj/wrKY/yAVdGs/FF/Ghz0MQZgiWtGA5hnb3kZAI=
+    format: html
+    template:
+      - '%{repository}#%{build_number} (%{branch} - %{commit} : %{author}): %{message} (<a href="%{build_url}">Details</a>/<a href="%{compare_url}">Diff</a>)'
+
