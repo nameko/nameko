@@ -279,8 +279,8 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
     # of other EventHandler implementation
 
     return get_event_handler(
-        service_name, event_type, handler_type=SERVICE_POOL,
-        reliable_delivery=True, requeue_on_error=False)
+        service_name, event_type, handler_type, reliable_delivery,
+        requeue_on_error)
 
 
 def get_event_handler(service_name, event_type, handler_type=SERVICE_POOL,
