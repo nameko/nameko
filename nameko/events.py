@@ -283,7 +283,8 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
         requeue_on_error)
 
 
-def get_event_handler(service_name, event_type, handler_type=SERVICE_POOL,
+def get_event_handler(
+    service_name, event_type, handler_type=SERVICE_POOL,
         reliable_delivery=True, requeue_on_error=False,
         event_handler_cls=EventHandler):
 
