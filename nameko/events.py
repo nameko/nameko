@@ -218,7 +218,8 @@ class EventHandler(ConsumeProvider):
 
 @entrypoint
 def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
-                  reliable_delivery=True, requeue_on_error=False):
+                  reliable_delivery=True, requeue_on_error=False,
+                  event_handler_cls=EventHandler):
     r"""
     Decorate a method as a handler of ``event_type`` events on the service
     called ``service_name``. ``event_type`` must be either a subclass of
@@ -271,26 +272,11 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
     If ``reliable_delivery``, events will be kept in the queue until there is
     a handler to consume them. Defaults to ``True``.
 
+    ``event_handler_cls`` may be specified to use a different EventHandler
+        (sub)class for custom behaviour.
+
     Raises an ``EventHandlerConfigurationError`` if the ``handler_type``
     is set to ``BROADCAST`` and ``reliable_delivery`` is set to ``True``.
-    """
-
-    # the work is delegated to an undecorated function, to enable th use
-    # of other EventHandler implementation
-
-    return get_event_handler(
-        service_name, event_type, handler_type, reliable_delivery,
-        requeue_on_error)
-
-
-def get_event_handler(
-    service_name, event_type, handler_type=SERVICE_POOL,
-        reliable_delivery=True, requeue_on_error=False,
-        event_handler_cls=EventHandler):
-
-    """
-    The main work for ``event_handler``, but with an extra kwarg to switch
-    out the EventHandler class
     """
 
     if reliable_delivery and handler_type is BROADCAST:
