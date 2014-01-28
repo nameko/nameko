@@ -4,12 +4,13 @@ from collections import defaultdict
 
 from mock import Mock, patch
 
+from nameko.containers import WorkerContext, ServiceContainer
+from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
 from nameko.events import (
     EventDispatcher, Event, EventTypeTooLong, EventTypeMissing,
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
-from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
-from nameko.containers import WorkerContext, ServiceContainer
+from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.testing.utils import as_context_manager
 
 
@@ -162,6 +163,19 @@ class ExampleEvent(Event):
     type = "eventtype"
 
 
+class CustomEventHandler(EventHandler):
+    _calls = []
+
+    def __init__(self, *args, **kwargs):
+        super(CustomEventHandler, self).__init__(*args, **kwargs)
+        self._calls[:] = []
+
+    def handle_result(self, message, worker_ctx, result=None, exc=None):
+        super(CustomEventHandler, self).handle_result(
+            message, worker_ctx, result, exc)
+        self._calls.append(message)
+
+
 class HandlerService(object):
     """ Generic service that handles events.
     """
@@ -220,6 +234,13 @@ class UnreliableHandler(HandlerService):
     @event_handler('srcservice', 'eventtype', reliable_delivery=False)
     def handle(self, evt):
         super(UnreliableHandler, self).handle(evt)
+
+
+class CustomHandler(HandlerService):
+    @event_handler('srcservice', 'eventtype',
+                   event_handler_cls=CustomEventHandler)
+    def handle(self, evt):
+        super(CustomHandler, self).handle(evt)
 
 
 def service_factory(prefix, base):
@@ -559,6 +580,22 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert len(services['unreliable']) == 2
     assert services['unreliable'][0].events == ["msg_1"]
     assert services['unreliable'][1].events == ["msg_3"]
+
+
+def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
+    """Uses a custom handler subclass for the event_handler entrypoint"""
+
+    (container,) = start_containers(CustomHandler, ('custom-events',))
+
+    payload = {'custom': 'data'}
+    with standalone_dispatcher('srcservice', rabbit_config) as dispatch:
+        dispatch(ExampleEvent(payload))
+
+    # wait for it to arrive
+    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
+        while len(CustomEventHandler._calls) < 1:
+            eventlet.sleep()
+    assert CustomEventHandler._calls[0].payload == payload
 
 
 def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):

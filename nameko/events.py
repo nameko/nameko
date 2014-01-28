@@ -172,9 +172,54 @@ def event_dispatcher():
     return DependencyFactory(EventDispatcher)
 
 
+class EventHandler(ConsumeProvider):
+
+    def __init__(self, service_name, event_type, handler_type,
+                 reliable_delivery, requeue_on_error):
+
+        self.service_name = service_name
+        self.event_type = event_type
+        self.handler_type = handler_type
+        self.reliable_delivery = reliable_delivery
+
+        super(EventHandler, self).__init__(
+            queue=None, requeue_on_error=requeue_on_error)
+
+    def prepare(self):
+        _log.debug('starting handler for %s', self.container)
+
+        # handler_type determines queue name
+        service_name = self.container.service_name
+        if self.handler_type is SERVICE_POOL:
+            queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
+                                                   self.event_type,
+                                                   service_name,
+                                                   self.name)
+        elif self.handler_type is SINGLETON:
+            queue_name = "evt-{}-{}".format(self.service_name,
+                                            self.event_type)
+        elif self.handler_type is BROADCAST:
+            queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
+                                                      self.event_type,
+                                                      service_name,
+                                                      self.name,
+                                                      uuid.uuid4().hex)
+
+        exchange = get_event_exchange(self.service_name)
+
+        # auto-delete queues if events are not reliably delivered
+        auto_delete = not self.reliable_delivery
+        self.queue = Queue(
+            queue_name, exchange=exchange, routing_key=self.event_type,
+            durable=True, auto_delete=auto_delete)
+
+        super(EventHandler, self).prepare()
+
+
 @entrypoint
 def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
-                  reliable_delivery=True, requeue_on_error=False):
+                  reliable_delivery=True, requeue_on_error=False,
+                  event_handler_cls=EventHandler):
     r"""
     Decorate a method as a handler of ``event_type`` events on the service
     called ``service_name``. ``event_type`` must be either a subclass of
@@ -227,9 +272,13 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
     If ``reliable_delivery``, events will be kept in the queue until there is
     a handler to consume them. Defaults to ``True``.
 
+    ``event_handler_cls`` may be specified to use a different EventHandler
+        (sub)class for custom behaviour.
+
     Raises an ``EventHandlerConfigurationError`` if the ``handler_type``
     is set to ``BROADCAST`` and ``reliable_delivery`` is set to ``True``.
     """
+
     if reliable_delivery and handler_type is BROADCAST:
         raise EventHandlerConfigurationError(
             "Broadcast event handlers cannot be configured with reliable "
@@ -243,49 +292,5 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
             'string a string matching the Event.type value. '
             'Got {}'.format(type(event_type).__name__))
 
-    return DependencyFactory(EventHandler, service_name, event_type,
+    return DependencyFactory(event_handler_cls, service_name, event_type,
                              handler_type, reliable_delivery, requeue_on_error)
-
-
-class EventHandler(ConsumeProvider):
-
-    def __init__(self, service_name, event_type, handler_type,
-                 reliable_delivery, requeue_on_error):
-
-        self.service_name = service_name
-        self.event_type = event_type
-        self.handler_type = handler_type
-        self.reliable_delivery = reliable_delivery
-
-        super(EventHandler, self).__init__(
-            queue=None, requeue_on_error=requeue_on_error)
-
-    def prepare(self):
-        _log.debug('starting handler for %s', self.container)
-
-        # handler_type determines queue name
-        service_name = self.container.service_name
-        if self.handler_type is SERVICE_POOL:
-            queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
-                                                   self.event_type,
-                                                   service_name,
-                                                   self.name)
-        elif self.handler_type is SINGLETON:
-            queue_name = "evt-{}-{}".format(self.service_name,
-                                            self.event_type)
-        elif self.handler_type is BROADCAST:
-            queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
-                                                      self.event_type,
-                                                      service_name,
-                                                      self.name,
-                                                      uuid.uuid4().hex)
-
-        exchange = get_event_exchange(self.service_name)
-
-        # auto-delete queues if events are not reliably delivered
-        auto_delete = not self.reliable_delivery
-        self.queue = Queue(
-            queue_name, exchange=exchange, routing_key=self.event_type,
-            durable=True, auto_delete=auto_delete)
-
-        super(EventHandler, self).prepare()
