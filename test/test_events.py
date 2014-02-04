@@ -236,6 +236,13 @@ class UnreliableHandler(HandlerService):
         super(UnreliableHandler, self).handle(evt)
 
 
+class ReliableHandler(HandlerService):
+
+    @event_handler('srcservice', 'eventtype', reliable_delivery=True)
+    def handle(self, evt):
+        super(ReliableHandler, self).handle(evt)
+
+
 class CustomHandler(HandlerService):
     @event_handler('srcservice', 'eventtype',
                    event_handler_cls=CustomEventHandler)
@@ -477,10 +484,10 @@ def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
     """
     vhost = rabbit_config['vhost']
 
-    (container,) = start_containers(ServicePoolHandler, ('service-pool',))
+    (container,) = start_containers(ReliableHandler, ('reliable',))
 
     # test queue created, with one consumer
-    queue_name = "evt-srcservice-eventtype--service-pool.handle"
+    queue_name = "evt-srcservice-eventtype--reliable.handle"
     queue = rabbit_manager.get_queue(vhost, queue_name)
     assert len(queue['consumer_details']) == 1
 
@@ -509,7 +516,7 @@ def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert ['msg_2'] == [msg['payload'] for msg in messages]
 
     # start another container
-    (container,) = start_containers(ServicePoolHandler, ('service-pool',))
+    (container,) = start_containers(ReliableHandler, ('reliable',))
 
     # wait for the service to collect the pending event
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -585,7 +592,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
     """Uses a custom handler subclass for the event_handler entrypoint"""
 
-    (container,) = start_containers(CustomHandler, ('custom-events',))
+    start_containers(CustomHandler, ('custom-events',))
 
     payload = {'custom': 'data'}
     with standalone_dispatcher('srcservice', rabbit_config) as dispatch:
