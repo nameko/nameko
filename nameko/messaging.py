@@ -36,16 +36,17 @@ class HeaderEncoder(object):
         return "{}.{}".format(self.header_prefix, key)
 
     def get_message_headers(self, worker_ctx):
-        headers = {}
-        for key, value in worker_ctx.context_data.items():
-            if value is None:
-                _log.warn(
-                    'Attempted to publish unserialisable header value. '
-                    'The header will be dropped from the payload. {}={}'.format(
-                        key, value))
-                continue
+        data = worker_ctx.context_data
 
-            headers[self._get_header_name(key)] = value
+        if None in data.values():
+            _log.warn(
+                'Attempted to publish unserialisable header value. '
+                'Headers with a value of `None` will be dropped from '
+                'the payload. {}'.format(data))
+
+        headers = {self._get_header_name(key): value
+                   for key, value in data.items()
+                   if value is not None}
         return headers
 
 
