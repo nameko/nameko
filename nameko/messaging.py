@@ -28,16 +28,6 @@ HEADER_PREFIX = "nameko"
 AMQP_URI_CONFIG_KEY = 'AMQP_URI'
 
 
-def _is_serialisable(key, value):
-    if value is None:
-        _log.warn(
-            'Attempted to publish unserialisable header value. '
-            'The header will be dropped from the payload. {}={}'.format(
-                key, value))
-        return False
-    return True
-
-
 class HeaderEncoder(object):
 
     header_prefix = HEADER_PREFIX
@@ -46,9 +36,16 @@ class HeaderEncoder(object):
         return "{}.{}".format(self.header_prefix, key)
 
     def get_message_headers(self, worker_ctx):
-        headers = {self._get_header_name(key): value
-                   for key, value in worker_ctx.context_data.items()
-                   if _is_serialisable(key, value)}
+        headers = {}
+        for key, value in worker_ctx.context_data.items():
+            if value is None:
+                _log.warn(
+                    'Attempted to publish unserialisable header value. '
+                    'The header will be dropped from the payload. {}={}'.format(
+                        key, value))
+                continue
+
+            headers[self._get_header_name(key)] = value
         return headers
 
 
