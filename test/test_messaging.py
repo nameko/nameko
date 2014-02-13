@@ -199,7 +199,9 @@ def test_header_encoder(empty_config):
     context_data = {
         'foo': 'FOO',
         'bar': 'BAR',
-        'baz': 'BAZ'
+        'baz': 'BAZ',
+        # unserialisable, shouldn't be included in the processed headers
+        'none': None,
     }
 
     encoder = HeaderEncoder()
@@ -283,6 +285,38 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
         'nameko.language': 'en',
         'nameko.customheader': 'customvalue',
         'nameko.call_id_stack': ['service.method.0'],
+    }
+
+
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_unserialisable_headers(rabbit_manager, rabbit_config):
+
+    vhost = rabbit_config['vhost']
+
+    container = Mock(spec=ServiceContainer)
+    container.service_name = "service"
+    container.config = rabbit_config
+    container.spawn_managed_thread = eventlet.spawn
+
+    ctx_data = {'language': 'en', 'customheader': None}
+    service = Mock()
+    worker_ctx = CustomWorkerContext(container, service, 'method',
+                                     data=ctx_data)
+
+    publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
+    publisher.bind("publish", container)
+
+    publisher.prepare()
+    publisher.start()
+
+    publisher.inject(worker_ctx)
+    service.publish("msg")
+    messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
+
+    assert messages[0]['properties']['headers'] == {
+        'nameko.language': 'en',
+        'nameko.call_id_stack': ['service.method.0'],
+        # no `customheader`
     }
 
 
