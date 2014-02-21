@@ -1,5 +1,3 @@
-import socket
-
 import eventlet
 from eventlet.event import Event
 from kombu import Queue, Exchange, Connection
