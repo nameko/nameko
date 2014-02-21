@@ -292,14 +292,17 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
     @property
     def connection(self):
-        """ kombu requirement """
+        """ Kombu requirement """
         if self._connection is None:
             self._connection = Connection(self._amqp_uri)
 
         return self._connection
 
     def get_consumers(self, Consumer, channel):
-        """ kombu callback to set up consumers """
+        """ Kombu callback to set up consumers.
+
+        Called after any (re)connection to the broker.
+        """
         _log.debug('setting up consumers %s', self)
 
         for provider in self._providers:
@@ -313,7 +316,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         return self._consumers.values()
 
     def on_iteration(self):
-        """ kombu callback for each drain_events loop iteration."""
+        """ Kombu callback for each `drain_events` loop iteration."""
         self._cancel_consumers_if_requested()
 
         self._process_pending_message_acks()
@@ -325,14 +328,22 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             _log.debug('requesting stop after iteration')
             self.should_stop = True
 
-    def on_consume_ready(self, connection, channel, consumers, **kwargs):
-        """ kombu callback when consumers have been set up and before the
-        first message is consumed """
+    def on_connection_error(self, exc, interval):
+        _log.warn('broker connection error: {}. '
+                  'Retrying in {} seconds.'.format(exc, interval))
 
-        _log.debug('consumer started %s', self)
-        self._consumers_ready.send(None)
+    def on_consume_ready(self, connection, channel, consumers, **kwargs):
+        """ Kombu callback when consumers are ready to accept messages.
+
+        Called after any (re)connection to the broker.
+        """
+        if not self._consumers_ready.ready():
+            _log.debug('consumer started %s', self)
+            self._consumers_ready.send(None)
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
+        """ Lifted from Kombu
+        """
         elapsed = 0
         with self.consumer_context(**kwargs) as (conn, channel, consumers):
             for i in limit and range(limit) or count():
@@ -363,7 +374,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
 @entrypoint
 def consume(queue, requeue_on_error=False):
-    '''
+    """
     Decorates a method as a message consumer.
 
     Messages from the queue will be deserialized depending on their content
@@ -385,7 +396,7 @@ def consume(queue, requeue_on_error=False):
 
     Args:
         queue: The queue to consume from.
-    '''
+    """
     return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
 
 
