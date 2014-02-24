@@ -1,12 +1,15 @@
+import socket
+
 import eventlet
 from eventlet.event import Event
 from kombu import Queue, Exchange, Connection
 from kombu.exceptions import TimeoutError
 from mock import patch, Mock, ANY
+import pytest
 
 from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
+from nameko.testing.utils import assert_stops_raising
 
-import pytest
 
 TIMEOUT = 5
 
@@ -163,6 +166,31 @@ def test_error_stops_consumer_thread():
         queue_consumer._gt.wait()
 
     assert exc_info.value.args == ('test',)
+
+
+def test_reconnect_on_socket_error():
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.max_workers = 1
+    container.spawn_managed_thread = spawn_thread
+
+    connection_revived = Mock()
+
+    queue_consumer = QueueConsumer()
+    queue_consumer.on_connection_revived = connection_revived
+
+    queue_consumer.bind("queue_consumer", container)
+
+    handler = MessageHandler()
+    queue_consumer.register_provider(handler)
+    queue_consumer.start()
+
+    with patch.object(Connection, 'drain_events') as drain_events:
+        drain_events.side_effect = socket.error('test-error')
+
+        def assert_reconnection():
+            assert connection_revived.call_count > 1
+        assert_stops_raising(assert_reconnection)
 
 
 def test_prefetch_count(rabbit_manager, rabbit_config):
