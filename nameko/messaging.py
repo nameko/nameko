@@ -162,6 +162,16 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
     def _prefetch_count(self):
         return self.container.max_workers
 
+    def _handle_thread_exited(self, gt):
+        exc = None
+        try:
+            gt.wait()
+        except Exception as e:
+            exc = e
+
+        if not self._consumers_ready.ready():
+            self._consumers_ready.send_exception(exc)
+
     def start(self):
         if not self._starting:
             self._starting = True
@@ -169,11 +179,14 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             _log.debug('starting %s', self)
             self._gt = self.container.spawn_managed_thread(
                 self.run, protected=True)
+            self._gt.link(self._handle_thread_exited)
         try:
             _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()
         except QueueConsumerStopped:
             _log.debug('consumer was stopped before it started %s', self)
+        except Exception as exc:
+            _log.debug('consumer failed to start %s (%s)', self, exc)
         else:
             _log.debug('started %s', self)
 
@@ -193,10 +206,6 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             # killing the consumer thread as we don't have a way to hook
             # into the pre-consumption startup process
             self._gt.kill(stop_exc)
-            # we also want to let the start method know that we died.
-            # it is waiting for the consumer to be ready
-            # so we send the same exceptions
-            self._consumers_ready.send_exception(stop_exc)
 
         self.wait_for_providers()
 

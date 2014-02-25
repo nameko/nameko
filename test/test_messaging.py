@@ -331,7 +331,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
     container.max_workers = 10
 
     def spawn_thread(method, protected):
-        eventlet.spawn(method)
+        return eventlet.spawn(method)
     container.spawn_managed_thread = spawn_thread
 
     worker_ctx = CustomWorkerContext(container, None, None)
