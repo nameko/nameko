@@ -23,7 +23,7 @@ def test_delegation_to_send_rpc():
     exchange = 'spam_exchange'
     options = {'CONTROL_EXCHANGE': exchange}
 
-    with mock.patch('nameko.legacy.nova.send_rpc') as send_rpc:
+    with mock.patch('nameko.legacy.nova.send_rpc', autospec=True) as send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout, options=options)
@@ -45,7 +45,7 @@ def test_delegation_to_send_rpc_default_exchange():
     timeout = 123
     exchange = 'rpc'
 
-    with mock.patch('nameko.legacy.nova.send_rpc') as send_rpc:
+    with mock.patch('nameko.legacy.nova.send_rpc', autospec=True) as send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout)

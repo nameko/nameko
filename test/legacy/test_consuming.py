@@ -5,7 +5,7 @@ from nameko import exceptions
 from nameko.legacy import consuming
 
 
-@patch('nameko.legacy.consuming.itermessages')
+@patch('nameko.legacy.consuming.itermessages', autospec=True)
 class TestQueueIteratorTimeout(object):
 
     def test_no_timeout(self, itermessages):

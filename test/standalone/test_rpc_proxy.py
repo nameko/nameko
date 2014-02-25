@@ -120,8 +120,8 @@ def test_proxy_connection_error(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    queue_consumer_cls = 'nameko.standalone.rpc.PollingQueueConsumer'
-    with patch("{}.poll_messages".format(queue_consumer_cls)) as poll_messages:
+    path = 'nameko.standalone.rpc.PollingQueueConsumer.poll_messages'
+    with patch(path, autospec=True) as poll_messages:
         poll_messages.side_effect = socket.error
 
         with RpcProxy("foobar", rabbit_config) as proxy:

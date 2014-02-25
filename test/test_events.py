@@ -62,19 +62,21 @@ def test_event_dispatcher(empty_config):
     event_dispatcher = EventDispatcher()
     event_dispatcher.bind("dispatch", container)
 
-    with patch('nameko.messaging.PublishProvider.prepare') as prepare:
+    path = 'nameko.messaging.PublishProvider.prepare'
+    with patch(path, autospec=True) as prepare:
 
         # test start method
         event_dispatcher.prepare()
         assert event_dispatcher.exchange.name == "srcservice.events"
-        prepare.assert_called_once_with()
+        assert prepare.called
 
     evt = Mock(type="eventtype", data="msg")
     event_dispatcher.inject(worker_ctx)
 
     producer = Mock()
 
-    with patch.object(event_dispatcher, 'get_producer') as get_producer:
+    with patch.object(
+            event_dispatcher, 'get_producer', autospec=True) as get_producer:
         get_producer.return_value = as_context_manager(producer)
 
         # test dispatch

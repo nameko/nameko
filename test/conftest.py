@@ -153,6 +153,6 @@ def runner_factory(rabbit_config):
 
 @pytest.yield_fixture
 def predictable_call_ids(request):
-    with patch('nameko.containers.new_call_id') as get_id:
+    with patch('nameko.containers.new_call_id', autospec=True) as get_id:
         get_id.side_effect = (str(i) for i in itertools.count())
         yield get_id
