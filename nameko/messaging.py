@@ -342,19 +342,17 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send(None)
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted from Kombu
+        """ Lifted from Kombu.
+
+        We switch the order of the `break` and `self.on_iteration()` to
+        avoid waiting on a drain_events timeout before breaking the loop.
         """
         elapsed = 0
         with self.consumer_context(**kwargs) as (conn, channel, consumers):
             for i in limit and range(limit) or count():
-                # moved from after the following `should_stop` condition to
-                # avoid waiting on a drain_events timeout before breaking
-                # the loop.
                 self.on_iteration()
-
                 if self.should_stop:
                     break
-
                 try:
                     conn.drain_events(timeout=safety_interval)
                 except socket.timeout:
