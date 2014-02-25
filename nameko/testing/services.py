@@ -9,7 +9,8 @@ import inspect
 from eventlet import event
 from mock import Mock
 
-from nameko.dependencies import DependencyFactory, InjectionProvider
+from nameko.dependencies import (
+    DependencyFactory, InjectionProvider, EntrypointProvider, entrypoint)
 from nameko.exceptions import DependencyNotFound
 
 
@@ -250,3 +251,12 @@ def restrict_entrypoints(container, *entrypoints):
     for dependency in entrypoint_deps:
         if dependency.name not in entrypoints:
             container.dependencies.remove(dependency)
+
+
+class DummyEntrypoint(EntrypointProvider):
+    pass
+
+
+@entrypoint
+def dummy():
+    return DependencyFactory(DummyEntrypoint)
