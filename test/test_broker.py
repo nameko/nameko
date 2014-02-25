@@ -31,7 +31,7 @@ def reset():
 
 @pytest.yield_fixture
 def logger():
-    with patch('nameko.rpc._log') as patched:
+    with patch('nameko.rpc._log', autospec=True) as patched:
         yield patched
 
 
