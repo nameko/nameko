@@ -167,6 +167,27 @@ def test_error_stops_consumer_thread():
     assert exc_info.value.args == ('test',)
 
 
+def test_on_consume_error_kills_consumer():
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.max_workers = 1
+    container.spawn_managed_thread = spawn_thread
+
+    queue_consumer = QueueConsumer()
+
+    queue_consumer.bind("queue_consumer", container)
+
+    handler = MessageHandler()
+    queue_consumer.register_provider(handler)
+
+    with patch.object(queue_consumer, 'on_consume_ready') as on_consume_ready:
+        on_consume_ready.side_effect = Exception('err')
+        queue_consumer.start()
+
+        with pytest.raises(Exception):
+            queue_consumer._gt.wait()
+
+
 def test_socket_error_kills_consumer():
     container = Mock()
     container.config = {AMQP_URI_CONFIG_KEY: None}
