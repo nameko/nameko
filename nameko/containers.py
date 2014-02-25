@@ -141,7 +141,7 @@ class ServiceContainer(object):
         self.service_name = get_service_name(service_cls)
 
         self.config = config
-        self.max_workers = config.get(MAX_WORKERS_KEY, 10) or 10
+        self.max_workers = config.get(MAX_WORKERS_KEY) or 10
 
         self.dependencies = DependencySet()
         for dep in prepare_dependencies(self):
@@ -164,6 +164,16 @@ class ServiceContainer(object):
     def injections(self):
         return [dependency for dependency in self.dependencies
                 if is_injection_provider(dependency)]
+
+    def start(self):
+        """ Start a container by starting all the dependency providers.
+        """
+        _log.debug('starting %s', self)
+        self.started = True
+
+        with log_time(_log.debug, 'started %s in %0.3f sec', self):
+            self.dependencies.all.prepare()
+            self.dependencies.all.start()
 
     def stop(self):
         """ Stop the container gracefully.
@@ -214,16 +224,6 @@ class ServiceContainer(object):
 
             self.started = False
             self._died.send(None)
-
-    def start(self):
-        """ Start a container by starting all the dependency providers.
-        """
-        _log.debug('starting %s', self)
-        self.started = True
-
-        with log_time(_log.debug, 'started %s in %0.3f sec', self):
-            self.dependencies.all.prepare()
-            self.dependencies.all.start()
 
     def kill(self, exc):
         """ Kill the container in a semi-graceful way.
