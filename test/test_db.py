@@ -4,6 +4,7 @@ from sqlalchemy.orm.session import Session
 
 from nameko.contrib.sqlalchemy import orm_session, ORM_DB_URIS_KEY
 from nameko.containers import WorkerContext
+from nameko.testing.utils import MockProvider
 
 
 DeclBase = declarative_base(name='spam_base')
@@ -32,7 +33,7 @@ def test_db(container_factory):
 
     # fake instance creation and provider injection
     service = FooService()
-    worker_ctx = WorkerContext(container, service, None)
+    worker_ctx = WorkerContext(container, service, MockProvider())
     provider.inject(worker_ctx)
 
     assert isinstance(service.session, Session)

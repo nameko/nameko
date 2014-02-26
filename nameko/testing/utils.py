@@ -100,18 +100,23 @@ class AnyInstanceOf(object):
 ANY_PARTIAL = AnyInstanceOf(partial)
 
 
+class MockProvider(object):
+    def __init__(self, name=None):
+        self.name = name
+
+
 def worker_context_factory(*keys):
     class CustomWorkerContext(WorkerContextBase):
         context_keys = keys
 
-        def __init__(self, container=None, service=None, method_name=None,
+        def __init__(self, container=None, service=None, provider=None,
                      **kwargs):
             container_mock = Mock()
             container_mock.config = {}
             super(CustomWorkerContext, self).__init__(
                 container or container_mock,
                 service or Mock(),
-                method_name or Mock(),
+                provider or Mock(),
                 **kwargs
             )
 

@@ -11,7 +11,7 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
     SERVICE_POOL, EventHandler)
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
-from nameko.testing.utils import as_context_manager
+from nameko.testing.utils import as_context_manager, MockProvider
 
 
 EVENTS_TIMEOUT = 5
@@ -57,7 +57,7 @@ def test_event_dispatcher(empty_config):
     container.config = empty_config
 
     service = Mock()
-    worker_ctx = WorkerContext(container, service, "dispatch")
+    worker_ctx = WorkerContext(container, service, MockProvider("dispatch"))
 
     event_dispatcher = EventDispatcher()
     event_dispatcher.bind("dispatch", container)
@@ -607,7 +607,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     container.config = rabbit_config
 
     service = Mock()
-    worker_ctx = WorkerContext(container, service, None)
+    worker_ctx = WorkerContext(container, service, MockProvider())
 
     dispatcher = EventDispatcher()
     dispatcher.bind("dispatch", container)
