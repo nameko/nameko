@@ -1,4 +1,5 @@
 eventlet==0.14.0
+futures==2.1.4
 iso8601==0.1.8
 kombu==3.0.4
-futures==2.1.4
+mock==1.0.1
