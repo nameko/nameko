@@ -100,7 +100,7 @@ class AnyInstanceOf(object):
 ANY_PARTIAL = AnyInstanceOf(partial)
 
 
-class MockProvider(object):
+class DummyProvider(object):
     def __init__(self, name=None):
         self.name = name
 
