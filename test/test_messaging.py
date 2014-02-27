@@ -164,8 +164,8 @@ def test_publish_custom_headers(empty_config):
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
-    worker_ctx = CustomWorkerContext(container, service, DummyProvider('method'),
-                                     data=ctx_data)
+    worker_ctx = CustomWorkerContext(container, service,
+                                     DummyProvider('method'), data=ctx_data)
 
     publisher = PublishProvider(queue=foobar_queue)
     publisher.bind("publish", container)
