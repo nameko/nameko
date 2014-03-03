@@ -23,6 +23,9 @@ _log = getLogger(__name__)
 MAX_WORKERS_KEY = 'max_workers'
 PARENT_CALLS_KEY = 'parent_calls_tracked'
 
+DEFAULT_MAX_WORKERS = 10
+DEFAULT_PARENT_CALLS_TRACKED = 10
+
 NAMEKO_CONTEXT_KEYS = (
     'language',
     'user_id',
@@ -51,15 +54,13 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
-    DEFAULT_PARENT_CALLS_TRACKED = 10
-
     def __init__(self, container, service, method_name, args=None, kwargs=None,
                  data=None):
         self.container = container
         self.config = container.config  # TODO: remove?
 
         self.parent_calls_tracked = self.config.get(
-            PARENT_CALLS_KEY, self.DEFAULT_PARENT_CALLS_TRACKED)
+            PARENT_CALLS_KEY, DEFAULT_PARENT_CALLS_TRACKED)
 
         self.service = service
         self.method_name = method_name
@@ -141,7 +142,7 @@ class ServiceContainer(object):
         self.service_name = get_service_name(service_cls)
 
         self.config = config
-        self.max_workers = config.get(MAX_WORKERS_KEY) or 10
+        self.max_workers = config.get(MAX_WORKERS_KEY) or DEFAULT_MAX_WORKERS
 
         self.dependencies = DependencySet()
         for dep in prepare_dependencies(self):
@@ -157,13 +158,11 @@ class ServiceContainer(object):
 
     @property
     def entrypoints(self):
-        return [dependency for dependency in self.dependencies
-                if is_entrypoint_provider(dependency)]
+        return filter(is_entrypoint_provider, self.dependencies)
 
     @property
     def injections(self):
-        return [dependency for dependency in self.dependencies
-                if is_injection_provider(dependency)]
+        return filter(is_injection_provider, self.dependencies)
 
     def start(self):
         """ Start a container by starting all the dependency providers.
