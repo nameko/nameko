@@ -162,6 +162,16 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
     def _prefetch_count(self):
         return self.container.max_workers
 
+    def _handle_thread_exited(self, gt):
+        exc = None
+        try:
+            gt.wait()
+        except Exception as e:
+            exc = e
+
+        if not self._consumers_ready.ready():
+            self._consumers_ready.send_exception(exc)
+
     def start(self):
         if not self._starting:
             self._starting = True
@@ -169,11 +179,14 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             _log.debug('starting %s', self)
             self._gt = self.container.spawn_managed_thread(
                 self.run, protected=True)
+            self._gt.link(self._handle_thread_exited)
         try:
             _log.debug('waiting for consumer ready %s', self)
             self._consumers_ready.wait()
         except QueueConsumerStopped:
             _log.debug('consumer was stopped before it started %s', self)
+        except Exception as exc:
+            _log.debug('consumer failed to start %s (%s)', self, exc)
         else:
             _log.debug('started %s', self)
 
@@ -193,10 +206,6 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             # killing the consumer thread as we don't have a way to hook
             # into the pre-consumption startup process
             self._gt.kill(stop_exc)
-            # we also want to let the start method know that we died.
-            # it is waiting for the consumer to be ready
-            # so we send the same exceptions
-            self._consumers_ready.send_exception(stop_exc)
 
         self.wait_for_providers()
 
@@ -292,14 +301,17 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
     @property
     def connection(self):
-        """ kombu requirement """
+        """ Kombu requirement """
         if self._connection is None:
             self._connection = Connection(self._amqp_uri)
 
         return self._connection
 
     def get_consumers(self, Consumer, channel):
-        """ kombu callback to set up consumers """
+        """ Kombu callback to set up consumers.
+
+        Called after any (re)connection to the broker.
+        """
         _log.debug('setting up consumers %s', self)
 
         for provider in self._providers:
@@ -313,7 +325,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         return self._consumers.values()
 
     def on_iteration(self):
-        """ kombu callback for each drain_events loop iteration."""
+        """ Kombu callback for each `drain_events` loop iteration."""
         self._cancel_consumers_if_requested()
 
         self._process_pending_message_acks()
@@ -325,25 +337,31 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             _log.debug('requesting stop after iteration')
             self.should_stop = True
 
-    def on_consume_ready(self, connection, channel, consumers, **kwargs):
-        """ kombu callback when consumers have been set up and before the
-        first message is consumed """
+    def on_connection_error(self, exc, interval):
+        _log.warn('broker connection error: {}. '
+                  'Retrying in {} seconds.'.format(exc, interval))
 
-        _log.debug('consumer started %s', self)
-        self._consumers_ready.send(None)
+    def on_consume_ready(self, connection, channel, consumers, **kwargs):
+        """ Kombu callback when consumers are ready to accept messages.
+
+        Called after any (re)connection to the broker.
+        """
+        if not self._consumers_ready.ready():
+            _log.debug('consumer started %s', self)
+            self._consumers_ready.send(None)
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
+        """ Lifted from Kombu.
+
+        We switch the order of the `break` and `self.on_iteration()` to
+        avoid waiting on a drain_events timeout before breaking the loop.
+        """
         elapsed = 0
         with self.consumer_context(**kwargs) as (conn, channel, consumers):
             for i in limit and range(limit) or count():
-                # moved from after the following `should_stop` condition to
-                # avoid waiting on a drain_events timeout before breaking
-                # the loop.
                 self.on_iteration()
-
                 if self.should_stop:
                     break
-
                 try:
                     conn.drain_events(timeout=safety_interval)
                 except socket.timeout:
@@ -363,7 +381,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
 
 @entrypoint
 def consume(queue, requeue_on_error=False):
-    '''
+    """
     Decorates a method as a message consumer.
 
     Messages from the queue will be deserialized depending on their content
@@ -385,7 +403,7 @@ def consume(queue, requeue_on_error=False):
 
     Args:
         queue: The queue to consume from.
-    '''
+    """
     return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
 
 

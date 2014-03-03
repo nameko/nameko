@@ -379,14 +379,13 @@ def test_container_only_killed_once(container):
     def raise_error():
         raise exc
 
-    orig = container._handle_container_kill
-    with patch.object(container, '_handle_container_kill', autospec=True,
-                      wraps=orig) as _handle_container_kill:
+    with patch.object(
+            container, '_kill_active_threads', autospec=True) as kill_threads:
 
         with patch.object(container, 'kill', wraps=container.kill) as kill:
             # insert an eventlet yield into the kill process, otherwise
             # the container dies before the second exception gets raised
-            kill.side_effect = lambda e: sleep()
+            kill.side_effect = lambda exc: sleep()
 
             container.start()
 
@@ -405,7 +404,7 @@ def test_container_only_killed_once(container):
             assert kill.call_args_list == [call(exc), call(exc)]
 
             # only the first kill results in any cleanup
-            _handle_container_kill.assert_called_once_with(exc)
+            assert kill_threads.call_count == 1
 
 
 def test_container_stop_kills_remaining_managed_threads(container, logger):

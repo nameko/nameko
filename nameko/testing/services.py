@@ -7,9 +7,10 @@ from contextlib import contextmanager
 import inspect
 
 from eventlet import event
-from mock import Mock
+from mock import MagicMock
 
-from nameko.dependencies import DependencyFactory, InjectionProvider
+from nameko.dependencies import (
+    DependencyFactory, InjectionProvider, EntrypointProvider, entrypoint)
 from nameko.exceptions import DependencyNotFound
 
 
@@ -114,7 +115,7 @@ def instance_factory(service_cls, **injections):
                 try:
                     injection = injections[name]
                 except KeyError:
-                    injection = Mock()
+                    injection = MagicMock()
                 setattr(service, name, injection)
     return service
 
@@ -122,7 +123,7 @@ def instance_factory(service_cls, **injections):
 class MockInjection(InjectionProvider):
     def __init__(self, name):
         self.name = name
-        self.injection = Mock()
+        self.injection = MagicMock()
 
     def acquire_injection(self, worker_ctx):
         return self.injection
@@ -250,3 +251,12 @@ def restrict_entrypoints(container, *entrypoints):
     for dependency in entrypoint_deps:
         if dependency.name not in entrypoints:
             container.dependencies.remove(dependency)
+
+
+class DummyEntrypoint(EntrypointProvider):
+    pass
+
+
+@entrypoint
+def dummy():
+    return DependencyFactory(DummyEntrypoint)

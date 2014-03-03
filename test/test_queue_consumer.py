@@ -5,10 +5,11 @@ from eventlet.event import Event
 from kombu import Queue, Exchange, Connection
 from kombu.exceptions import TimeoutError
 from mock import patch, Mock, ANY
+import pytest
 
 from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
+from nameko.testing.utils import assert_stops_raising
 
-import pytest
 
 TIMEOUT = 5
 
@@ -168,7 +169,7 @@ def test_error_stops_consumer_thread():
     assert exc_info.value.args == ('test',)
 
 
-def test_socket_error_kills_consumer():
+def test_on_consume_error_kills_consumer():
     container = Mock()
     container.config = {AMQP_URI_CONFIG_KEY: None}
     container.max_workers = 1
@@ -180,15 +181,40 @@ def test_socket_error_kills_consumer():
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
+
+    with patch.object(queue_consumer, 'on_consume_ready') as on_consume_ready:
+        on_consume_ready.side_effect = Exception('err')
+        queue_consumer.start()
+
+        with pytest.raises(Exception):
+            queue_consumer._gt.wait()
+
+
+def test_reconnect_on_socket_error():
+
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.max_workers = 1
+    container.spawn_managed_thread = spawn_thread
+
+    connection_revived = Mock()
+
+    queue_consumer = QueueConsumer()
+    queue_consumer.on_connection_revived = connection_revived
+
+    queue_consumer.bind("queue_consumer", container)
+
+    handler = MessageHandler()
+    queue_consumer.register_provider(handler)
     queue_consumer.start()
 
     with patch.object(
             Connection, 'drain_events', autospec=True) as drain_events:
         drain_events.side_effect = socket.error('test-error')
-        # for now we are happy with socket errors to just kill the consumer
-        # in the future we want retries to work
-        with pytest.raises(Exception):
-            queue_consumer._gt.wait()
+
+        def assert_reconnection():
+            assert connection_revived.call_count > 1
+        assert_stops_raising(assert_reconnection)
 
 
 def test_prefetch_count(rabbit_manager, rabbit_config):

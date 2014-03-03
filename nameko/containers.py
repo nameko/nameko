@@ -23,6 +23,9 @@ _log = getLogger(__name__)
 MAX_WORKERS_KEY = 'max_workers'
 PARENT_CALLS_KEY = 'parent_calls_tracked'
 
+DEFAULT_MAX_WORKERS = 10
+DEFAULT_PARENT_CALLS_TRACKED = 10
+
 NAMEKO_CONTEXT_KEYS = (
     'language',
     'user_id',
@@ -51,15 +54,13 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
-    DEFAULT_PARENT_CALLS_TRACKED = 10
-
     def __init__(self, container, service, method_name, args=None, kwargs=None,
                  data=None):
         self.container = container
         self.config = container.config  # TODO: remove?
 
         self.parent_calls_tracked = self.config.get(
-            PARENT_CALLS_KEY, self.DEFAULT_PARENT_CALLS_TRACKED)
+            PARENT_CALLS_KEY, DEFAULT_PARENT_CALLS_TRACKED)
 
         self.service = service
         self.method_name = method_name
@@ -131,18 +132,62 @@ class WorkerContext(WorkerContextBase):
     context_keys = NAMEKO_CONTEXT_KEYS
 
 
-class ManagedThreadContainer(object):
-    def __init__(self):
+class ServiceContainer(object):
+
+    def __init__(self, service_cls, worker_ctx_cls, config):
+
+        self.service_cls = service_cls
+        self.worker_ctx_cls = worker_ctx_cls
+
+        self.service_name = get_service_name(service_cls)
+
+        self.config = config
+        self.max_workers = config.get(MAX_WORKERS_KEY) or DEFAULT_MAX_WORKERS
+
+        self.dependencies = DependencySet()
+        for dep in prepare_dependencies(self):
+            self.dependencies.add(dep)
+
+        self.started = False
+        self._worker_pool = GreenPool(size=self.max_workers)
+
         self._active_threads = set()
         self._protected_threads = set()
         self._being_killed = False
         self._died = Event()
 
+    @property
+    def entrypoints(self):
+        return filter(is_entrypoint_provider, self.dependencies)
+
+    @property
+    def injections(self):
+        return filter(is_injection_provider, self.dependencies)
+
+    def start(self):
+        """ Start a container by starting all the dependency providers.
+        """
+        _log.debug('starting %s', self)
+        self.started = True
+
+        with log_time(_log.debug, 'started %s in %0.3f sec', self):
+            self.dependencies.all.prepare()
+            self.dependencies.all.start()
+
     def stop(self):
         """ Stop the container gracefully.
 
-        `_handle_container_stop` is called to give sub-classes an opportunity
-        to clean up dependencies.
+        First all entrypoints are asked to ``stop()``.
+        This ensures that no new worker threads are started.
+
+        It is the providers' responsibility to gracefully shut down when
+        ``stop()`` is called on them and only return when they have stopped.
+
+        After all entrypoints have stopped the container waits for any
+        active workers to complete.
+
+        After all active workers have stopped the container stops all
+        injections.
 
         At this point there should be no more managed threads. In case there
         are any managed threads, they are killed by the container.
@@ -154,7 +199,22 @@ class ManagedThreadContainer(object):
         _log.debug('stopping %s', self)
 
         with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
-            self._handle_container_stop()
+            dependencies = self.dependencies
+
+            # entrypoint deps have to be stopped before injection deps
+            # to ensure that running workers can successfully complete
+            dependencies.entrypoints.all.stop()
+
+            # there might still be some running workers, which we have to
+            # wait for to complete before we can stop injection dependencies
+            self._worker_pool.waitall()
+
+            # it should be safe now to stop any injection as there is no
+            # active worker which could be using it
+            dependencies.injections.all.stop()
+
+            # finally, stop nested dependencies
+            dependencies.nested.all.stop()
 
             # just in case there was a provider not taking care of its workers,
             # or a dependency not taking care of its protected threads
@@ -189,9 +249,9 @@ class ManagedThreadContainer(object):
 
         _log.info('killing %s due to "%s"', self, exc)
 
-        self._kill_entrypoints(exc)
+        self.dependencies.entrypoints.all.kill(exc)
         self._kill_active_threads()
-        self._handle_container_kill(exc)
+        self.dependencies.all.kill(exc)
         self._kill_protected_threads()
 
         self.started = False
@@ -207,138 +267,6 @@ class ManagedThreadContainer(object):
         ``kill()``ed, which causes an exception to be raised from ``wait()``.
         """
         return self._died.wait()
-
-    def spawn_managed_thread(self, run_method, protected=False):
-        """ Spawn a managed thread to run ``run_method``.
-
-        Threads can be marked as ``protected``, which means the container will
-        not forcibly kill them until after all dependencies have been killed.
-        Dependencies that require a managed thread to complete their kill
-        procedure should ensure to mark them as ``protected``.
-
-        Any uncaught errors inside ``run_method`` cause the container to be
-        killed.
-
-        It is the caller's responsibility to terminate their spawned threads.
-        Threads are killed automatically if they are still running after
-        all dependencies are stopped during :meth:`ServiceContainer.stop`.
-
-        Entrypoints may only create separate threads using this method,
-        to ensure they are life-cycle managed.
-        """
-        gt = eventlet.spawn(run_method)
-        if not protected:
-            self._active_threads.add(gt)
-        else:
-            self._protected_threads.add(gt)
-        gt.link(self._handle_thread_exited)
-        return gt
-
-    def _handle_container_stop(self):
-        """ Called when a container is gracefully stopped.
-        """
-        return
-
-    def _kill_entrypoints(self, exc):
-        """ Called when a container is killed.
-        """
-        return
-
-    def _handle_container_kill(self, exc):
-        """ Called when a container is killed.
-        """
-        return
-
-    def _kill_active_threads(self):
-        """ Kill all managed threads that were not marked as "protected" when
-        they were spawned.
-
-        This set will include all worker threads generated by
-        :meth:`ServiceContainer.spawn_worker`.
-
-        See :meth:`ManagedThreadContainer.spawn_managed_thread`
-        """
-        num_active_threads = len(self._active_threads)
-
-        if num_active_threads:
-            _log.warning('killing %s active thread(s)', num_active_threads)
-            for gt in list(self._active_threads):
-                gt.kill()
-
-    def _kill_protected_threads(self):
-        """ Kill any managed threads marked as protected when they were
-        spawned.
-
-        See :meth:`ManagedThreadContainer.spawn_managed_thread`
-        """
-        num_protected_threads = len(self._protected_threads)
-
-        if num_protected_threads:
-            _log.warning('killing %s protected thread(s)',
-                         num_protected_threads)
-            for gt in list(self._protected_threads):
-                gt.kill()
-
-    def _handle_thread_exited(self, gt):
-        self._active_threads.discard(gt)
-        self._protected_threads.discard(gt)
-
-        try:
-            gt.wait()
-
-        except greenlet.GreenletExit:
-            # we don't care much about threads killed by the container
-            # this can happen in stop() and kill() if providers
-            # don't properly take care of their threads
-            _log.warning('%s thread killed by container', self)
-
-        except Exception as exc:
-            _log.error('%s thread exited with error', self,
-                       exc_info=True)
-            # any error raised inside an active thread is unexpected behavior
-            # and probably a bug in the providers or container
-            # to be safe we kill the container
-            self.kill(exc)
-
-
-class ServiceContainer(ManagedThreadContainer):
-
-    def __init__(self, service_cls, worker_ctx_cls, config):
-        super(ServiceContainer, self).__init__()
-        self.service_cls = service_cls
-        self.worker_ctx_cls = worker_ctx_cls
-
-        self.service_name = get_service_name(service_cls)
-
-        self.config = config
-        self.max_workers = config.get(MAX_WORKERS_KEY, 10) or 10
-
-        self.dependencies = DependencySet()
-        for dep in prepare_dependencies(self):
-            self.dependencies.add(dep)
-
-        self.started = False
-        self._worker_pool = GreenPool(size=self.max_workers)
-
-    @property
-    def entrypoints(self):
-        return [dependency for dependency in self.dependencies
-                if is_entrypoint_provider(dependency)]
-
-    @property
-    def injections(self):
-        return [dependency for dependency in self.dependencies
-                if is_injection_provider(dependency)]
-
-    def start(self):
-        """ Start a container by starting all the dependency providers.
-        """
-        _log.debug('starting %s', self)
-        self.started = True
-
-        with log_time(_log.debug, 'started %s in %0.3f sec', self):
-            self.dependencies.all.prepare()
-            self.dependencies.all.start()
 
     def spawn_worker(self, provider, args, kwargs,
                      context_data=None, handle_result=None):
@@ -366,43 +294,31 @@ class ServiceContainer(ManagedThreadContainer):
         gt.link(self._handle_thread_exited)
         return worker_ctx
 
-    def _handle_container_stop(self):
-        """ Stop the container gracefully.
+    def spawn_managed_thread(self, run_method, protected=False):
+        """ Spawn a managed thread to run ``run_method``.
 
-        First all entrypoints are asked to ``stop()``.
-        This ensures that no new worker threads are started.
+        Threads can be marked as ``protected``, which means the container will
+        not forcibly kill them until after all dependencies have been killed.
+        Dependencies that require a managed thread to complete their kill
+        procedure should ensure to mark them as ``protected``.
 
-        It is the providers' responsibility to gracefully shut down when
-        ``stop()`` is called on them and only return when they have stopped.
+        Any uncaught errors inside ``run_method`` cause the container to be
+        killed.
 
-        After all entrypoints have stopped the container waits for any
-        active workers to complete.
+        It is the caller's responsibility to terminate their spawned threads.
+        Threads are killed automatically if they are still running after
+        all dependencies are stopped during :meth:`ServiceContainer.stop`.
 
-        After all active workers have stopped the container stops all
-        injections.
+        Entrypoints may only create separate threads using this method,
+        to ensure they are life-cycle managed.
         """
-        dependencies = self.dependencies
-
-        # entrypoint deps have to be stopped before injection deps
-        # to ensure that running workers can successfully complete
-        dependencies.entrypoints.all.stop()
-
-        # there might still be some running workers, which we have to
-        # wait for to complete before we can stop injection dependencies
-        self._worker_pool.waitall()
-
-        # it should be safe now to stop any injection as there is no
-        # active worker which could be using it
-        dependencies.injections.all.stop()
-
-        # finally, stop nested dependencies
-        dependencies.nested.all.stop()
-
-    def _kill_entrypoints(self, exc):
-        self.dependencies.entrypoints.all.kill(exc)
-
-    def _handle_container_kill(self, exc):
-        self.dependencies.all.kill(exc)
+        gt = eventlet.spawn(run_method)
+        if not protected:
+            self._active_threads.add(gt)
+        else:
+            self._protected_threads.add(gt)
+        gt.link(self._handle_thread_exited)
+        return gt
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx,
@@ -454,6 +370,57 @@ class ServiceContainer(ManagedThreadContainer):
                 with log_time(_log.debug, 'handled result for %s in %0.3fsec',
                               worker_ctx):
                     handle_result(worker_ctx, result, exc)
+
+    def _kill_active_threads(self):
+        """ Kill all managed threads that were not marked as "protected" when
+        they were spawned.
+
+        This set will include all worker threads generated by
+        :meth:`ServiceContainer.spawn_worker`.
+
+        See :meth:`ServiceContainer.spawn_managed_thread`
+        """
+        num_active_threads = len(self._active_threads)
+
+        if num_active_threads:
+            _log.warning('killing %s active thread(s)', num_active_threads)
+            for gt in list(self._active_threads):
+                gt.kill()
+
+    def _kill_protected_threads(self):
+        """ Kill any managed threads marked as protected when they were
+        spawned.
+
+        See :meth:`ServiceContainer.spawn_managed_thread`
+        """
+        num_protected_threads = len(self._protected_threads)
+
+        if num_protected_threads:
+            _log.warning('killing %s protected thread(s)',
+                         num_protected_threads)
+            for gt in list(self._protected_threads):
+                gt.kill()
+
+    def _handle_thread_exited(self, gt):
+        self._active_threads.discard(gt)
+        self._protected_threads.discard(gt)
+
+        try:
+            gt.wait()
+
+        except greenlet.GreenletExit:
+            # we don't care much about threads killed by the container
+            # this can happen in stop() and kill() if providers
+            # don't properly take care of their threads
+            _log.warning('%s thread killed by container', self)
+
+        except Exception as exc:
+            _log.error('%s thread exited with error', self,
+                       exc_info=True)
+            # any error raised inside an active thread is unexpected behavior
+            # and probably a bug in the providers or container
+            # to be safe we kill the container
+            self.kill(exc)
 
     def __str__(self):
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
