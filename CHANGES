@@ -1,3 +1,9 @@
+Version 1.3.5
+-------------
+
+* Increased test resilience. Force-closing existing connections on rabbit
+  reset
+
 Version 1.3.4
 -------------
 
