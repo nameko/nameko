@@ -116,7 +116,7 @@ class FailingConnection(Connection):
 
 @pytest.yield_fixture
 def get_rpc_exchange():
-    with patch('nameko.rpc.get_rpc_exchange') as patched:
+    with patch('nameko.rpc.get_rpc_exchange', autospec=True) as patched:
         yield patched
 
 
@@ -182,7 +182,7 @@ def test_reply_listener(get_rpc_exchange):
 
     forced_uuid = uuid.uuid4().hex
 
-    with patch('nameko.rpc.uuid') as patched_uuid:
+    with patch('nameko.rpc.uuid', autospec=True) as patched_uuid:
         patched_uuid.uuid4.return_value = forced_uuid
 
         reply_listener.prepare()
@@ -210,7 +210,7 @@ def test_reply_listener(get_rpc_exchange):
 
     assert reply_listener._reply_events == {}
 
-    with patch('nameko.rpc._log') as log:
+    with patch('nameko.rpc._log', autospec=True) as log:
         reply_listener.handle_message("msg", message)
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
@@ -300,7 +300,8 @@ def test_rpc_headers(container_factory, rabbit_config):
     rpc_consumer = get_dependency(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
-    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+    with patch.object(
+            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
         def side_effect(body, message):
             headers.update(message.headers)  # extract message headers
             return handle_message(body, message)
@@ -333,7 +334,8 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     rpc_consumer = get_dependency(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
-    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+    with patch.object(
+            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
         def side_effect(body, message):
             headers.update(message.headers)  # extract message headers
             return handle_message(body, message)
@@ -396,7 +398,8 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
     uri = container.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri, max_failure_count=2)
 
-    with patch("kombu.connection.ConnectionPool.new") as new_connection:
+    path = "kombu.connection.ConnectionPool.new"
+    with patch(path, autospec=True) as new_connection:
         new_connection.return_value = conn
 
         with RpcProxy("exampleservice", rabbit_config) as proxy:
@@ -413,7 +416,8 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
     uri = container.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri)
 
-    with patch("kombu.connection.ConnectionPool.new") as new_connection:
+    path = "kombu.connection.ConnectionPool.new"
+    with patch(path, autospec=True) as new_connection:
         new_connection.return_value = conn
 
         with RpcProxy("exampleservice", rabbit_config) as proxy:

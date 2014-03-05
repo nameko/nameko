@@ -122,7 +122,7 @@ def test_stop_while_starting():
     queue_consumer.register_provider(handler)
 
     with eventlet.Timeout(TIMEOUT):
-        with patch.object(Connection, 'connect') as connect:
+        with patch.object(Connection, 'connect', autospec=True) as connect:
             # patch connection to raise an error
             connect.side_effect = TimeoutError('test')
             # try to start the queue consumer
@@ -158,7 +158,8 @@ def test_error_stops_consumer_thread():
     queue_consumer.register_provider(handler)
 
     with eventlet.Timeout(TIMEOUT):
-        with patch.object(Connection, 'drain_events') as drain_events:
+        with patch.object(
+                Connection, 'drain_events', autospec=True) as drain_events:
             drain_events.side_effect = Exception('test')
             queue_consumer.start()
 
@@ -207,7 +208,8 @@ def test_reconnect_on_socket_error():
     queue_consumer.register_provider(handler)
     queue_consumer.start()
 
-    with patch.object(Connection, 'drain_events') as drain_events:
+    with patch.object(
+            Connection, 'drain_events', autospec=True) as drain_events:
         drain_events.side_effect = socket.error('test-error')
 
         def assert_reconnection():

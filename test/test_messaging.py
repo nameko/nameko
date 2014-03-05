@@ -22,6 +22,30 @@ class CustomWorkerContext(WorkerContextBase):
     context_keys = NAMEKO_CONTEXT_KEYS + ('customheader',)
 
 
+@pytest.yield_fixture
+def patch_publisher():
+
+    patchers = []
+
+    def apply_patches(publisher):
+        p1 = patch.object(publisher, 'get_connection', autospec=True)
+        p2 = patch.object(publisher, 'get_producer', autospec=True)
+        patchers.extend((p1, p2))
+
+        return p1.start(), p2.start()
+
+    yield apply_patches
+
+    for patcher in patchers:
+        patcher.stop()
+
+
+@pytest.yield_fixture
+def maybe_declare():
+    with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
+        yield patched
+
+
 def test_consume_provider(empty_config):
 
     container = Mock(spec=ServiceContainer)
@@ -78,7 +102,7 @@ def test_consume_provider(empty_config):
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_exchange(empty_config):
+def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
     container.config = empty_config
@@ -92,30 +116,28 @@ def test_publish_to_exchange(empty_config):
     producer = Mock()
     connection = Mock()
 
-    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-            patch.object(publisher, 'get_connection') as get_connection, \
-            patch.object(publisher, 'get_producer') as get_producer:
+    get_connection, get_producer = patch_publisher(publisher)
 
-        get_connection.return_value = as_context_manager(connection)
-        get_producer.return_value = as_context_manager(producer)
+    get_connection.return_value = as_context_manager(connection)
+    get_producer.return_value = as_context_manager(producer)
 
-        # test declarations
-        publisher.prepare()
-        maybe_declare.assert_called_once_with(foobar_ex, connection)
+    # test declarations
+    publisher.prepare()
+    maybe_declare.assert_called_once_with(foobar_ex, connection)
 
-        # test publish
-        msg = "msg"
-        publisher.inject(worker_ctx)
-        service.publish(msg)
-        headers = {
-            'nameko.call_id_stack': ['srcservice.publish.0']
-        }
-        producer.publish.assert_called_once_with(msg, headers=headers,
-                                                 exchange=foobar_ex)
+    # test publish
+    msg = "msg"
+    publisher.inject(worker_ctx)
+    service.publish(msg)
+    headers = {
+        'nameko.call_id_stack': ['srcservice.publish.0']
+    }
+    producer.publish.assert_called_once_with(
+        msg, headers=headers, exchange=foobar_ex)
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_queue(empty_config):
+def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
     container.config = empty_config
@@ -131,31 +153,29 @@ def test_publish_to_queue(empty_config):
     producer = Mock()
     connection = Mock()
 
-    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-            patch.object(publisher, 'get_connection') as get_connection, \
-            patch.object(publisher, 'get_producer') as get_producer:
+    get_connection, get_producer = patch_publisher(publisher)
 
-        get_connection.return_value = as_context_manager(connection)
-        get_producer.return_value = as_context_manager(producer)
+    get_connection.return_value = as_context_manager(connection)
+    get_producer.return_value = as_context_manager(producer)
 
-        # test declarations
-        publisher.prepare()
-        maybe_declare.assert_called_once_with(foobar_queue, connection)
+    # test declarations
+    publisher.prepare()
+    maybe_declare.assert_called_once_with(foobar_queue, connection)
 
-        # test publish
-        msg = "msg"
-        headers = {
-            'nameko.language': 'en',
-            'nameko.call_id_stack': ['srcservice.publish.0'],
-        }
-        publisher.inject(worker_ctx)
-        service.publish(msg)
-        producer.publish.assert_called_once_with(msg, headers=headers,
-                                                 exchange=foobar_ex)
+    # test publish
+    msg = "msg"
+    headers = {
+        'nameko.language': 'en',
+        'nameko.call_id_stack': ['srcservice.publish.0'],
+    }
+    publisher.inject(worker_ctx)
+    service.publish(msg)
+    producer.publish.assert_called_once_with(msg, headers=headers,
+                                             exchange=foobar_ex)
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_custom_headers(empty_config):
+def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "srcservice"
@@ -172,26 +192,24 @@ def test_publish_custom_headers(empty_config):
     producer = Mock()
     connection = Mock()
 
-    with patch('nameko.messaging.maybe_declare') as maybe_declare, \
-            patch.object(publisher, 'get_connection') as get_connection, \
-            patch.object(publisher, 'get_producer') as get_producer:
+    get_connection, get_producer = patch_publisher(publisher)
 
-        get_connection.return_value = as_context_manager(connection)
-        get_producer.return_value = as_context_manager(producer)
+    get_connection.return_value = as_context_manager(connection)
+    get_producer.return_value = as_context_manager(producer)
 
-        # test declarations
-        publisher.prepare()
-        maybe_declare.assert_called_once_with(foobar_queue, connection)
+    # test declarations
+    publisher.prepare()
+    maybe_declare.assert_called_once_with(foobar_queue, connection)
 
-        # test publish
-        msg = "msg"
-        headers = {'nameko.language': 'en',
-                   'nameko.customheader': 'customvalue',
-                   'nameko.call_id_stack': ['srcservice.method.0']}
-        publisher.inject(worker_ctx)
-        service.publish(msg)
-        producer.publish.assert_called_once_with(msg, headers=headers,
-                                                 exchange=foobar_ex)
+    # test publish
+    msg = "msg"
+    headers = {'nameko.language': 'en',
+               'nameko.customheader': 'customvalue',
+               'nameko.call_id_stack': ['srcservice.method.0']}
+    publisher.inject(worker_ctx)
+    service.publish(msg)
+    producer.publish.assert_called_once_with(msg, headers=headers,
+                                             exchange=foobar_ex)
 
 
 def test_header_encoder(empty_config):

@@ -73,7 +73,8 @@ def test_handle_result_error(container_factory, rabbit_config):
     container.start()
 
     rpc_consumer = get_dependency(container, RpcConsumer)
-    with patch.object(rpc_consumer, 'handle_result') as handle_result:
+    with patch.object(
+            rpc_consumer, 'handle_result', autospec=True) as handle_result:
         err = "error in handle_result"
         handle_result.side_effect = Exception(err)
 
@@ -101,7 +102,7 @@ def test_dependency_call_lifecycle_errors(
     container.start()
 
     dependency = get_dependency(container, EventDispatcher)
-    with patch.object(dependency, method_name) as method:
+    with patch.object(dependency, method_name, autospec=True) as method:
         err = "error in {}".format(method_name)
         method.side_effect = Exception(err)
 
@@ -131,7 +132,8 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
     container = get_container(runner, ExampleService)
 
     rpc_consumer = get_dependency(container, RpcConsumer)
-    with patch.object(rpc_consumer, 'handle_result') as handle_result:
+    with patch.object(
+            rpc_consumer, 'handle_result', autospec=True) as handle_result:
         exception = Exception("error")
         handle_result.side_effect = exception
 
@@ -160,9 +162,11 @@ def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
     container = get_container(runner, ExampleService)
     second_container = get_container(runner, SecondService)
     original_stop = second_container.stop
-    with patch.object(second_container, 'stop', wraps=original_stop) as stop:
+    with patch.object(second_container, 'stop', autospec=True,
+                      wraps=original_stop) as stop:
         rpc_consumer = get_dependency(container, RpcConsumer)
-        with patch.object(rpc_consumer, 'handle_result') as handle_result:
+        with patch.object(
+                rpc_consumer, 'handle_result', autospec=True) as handle_result:
             exception = Exception("error")
             handle_result.side_effect = exception
 

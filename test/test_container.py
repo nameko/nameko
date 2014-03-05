@@ -116,7 +116,7 @@ def container():
 
 @pytest.yield_fixture
 def logger():
-    with patch('nameko.containers._log') as patched:
+    with patch('nameko.containers._log', autospec=True) as patched:
         yield patched
 
 
@@ -249,15 +249,14 @@ def test_container_doesnt_exhaust_max_workers(container):
         assert gt.dead
 
 
-def test_stop_already_stopped(container):
+def test_stop_already_stopped(container, logger):
 
     assert not container._died.ready()
     container.stop()
     assert container._died.ready()
 
-    with patch('nameko.containers._log') as logger:
-        container.stop()
-        assert logger.debug.call_args == call("already stopped %s", container)
+    container.stop()
+    assert logger.debug.call_args == call("already stopped %s", container)
 
 
 def test_kill_already_stopped(container, logger):
@@ -380,12 +379,13 @@ def test_container_only_killed_once(container):
     def raise_error():
         raise exc
 
-    with patch.object(container, '_kill_active_threads') as kill_threads:
+    with patch.object(
+            container, '_kill_active_threads', autospec=True) as kill_threads:
 
         with patch.object(container, 'kill', wraps=container.kill) as kill:
             # insert an eventlet yield into the kill process, otherwise
             # the container dies before the second exception gets raised
-            kill.side_effect = lambda e: sleep()
+            kill.side_effect = lambda exc: sleep()
 
             container.start()
 
