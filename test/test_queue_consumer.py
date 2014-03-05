@@ -212,9 +212,9 @@ def test_reconnect_on_socket_error():
             Connection, 'drain_events', autospec=True) as drain_events:
         drain_events.side_effect = socket.error('test-error')
 
-        def assert_reconnection():
+        def check_reconnected():
             assert connection_revived.call_count > 1
-        assert_stops_raising(assert_reconnection)
+        assert_stops_raising(check_reconnected)
 
 
 def test_prefetch_count(rabbit_manager, rabbit_config):
