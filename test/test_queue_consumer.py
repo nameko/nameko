@@ -210,9 +210,9 @@ def test_reconnect_on_socket_error():
     with patch.object(Connection, 'drain_events') as drain_events:
         drain_events.side_effect = socket.error('test-error')
 
-        def assert_reconnection():
+        def check_reconnected():
             assert connection_revived.call_count > 1
-        assert_stops_raising(assert_reconnection)
+        assert_stops_raising(check_reconnected)
 
 
 def test_prefetch_count(rabbit_manager, rabbit_config):
@@ -299,7 +299,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
     # kill should close all connections
     queue_consumer.kill(Exception('test-kill'))
 
-    def assert_connections_closed():
+    def check_connections_closed():
         connections = rabbit_manager.get_connections()
         assert connections is None
-    assert_stops_raising(assert_connections_closed)
+    assert_stops_raising(check_connections_closed)

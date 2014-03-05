@@ -97,9 +97,9 @@ def test_send_rpc(get_connection):
 
         assert resp == {'foo': 'bar', }
 
-    def assert_greenthread_dead():
+    def check_greenthread_dead():
         assert not g
-    assert_stops_raising(assert_greenthread_dead)
+    assert_stops_raising(check_greenthread_dead)
 
 
 def test_send_rpc_errors(get_connection):
@@ -145,9 +145,9 @@ def test_send_rpc_errors(get_connection):
                 args={'foo': 'bar', },
                 timeout=3)
 
-    def assert_greenthread_dead():
+    def check_greenthread_dead():
         assert not g
-    assert_stops_raising(assert_greenthread_dead)
+    assert_stops_raising(check_greenthread_dead)
 
 
 def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
@@ -199,6 +199,6 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
         assert resp == {'spam': 'shrub', }
     eventlet.sleep()
 
-    def assert_greenthread_dead():
+    def check_greenthread_dead():
         assert not g
-    assert_stops_raising(assert_greenthread_dead)
+    assert_stops_raising(check_greenthread_dead)
