@@ -11,43 +11,9 @@ from nameko.rpc import RpcProvider
 log = logging.getLogger(__name__)
 
 
-def ast_visitor_factory(**handlers):
-    fn_dict = {
-        'visit_{}'.format(handler_type): handler_fn
-        for handler_type, handler_fn in handlers.items()
-    }
-    visitor = type('Visitor', (ast.NodeVisitor,), fn_dict)
-    return visitor
-
-
-def get_package_root_module_from_containing_folder(source_path, package_name):
-    # package_name is a package directly inside source_path
-    importer = pkgutil.get_importer(source_path)
-    loader = importer.find_module(package_name)
-    module = loader.load_module(package_name)
-    return module
-
-
-def get_module_from_containing_folder(source_path, module_name):
-    # module_name is a module directly inside source_path
-    module = imp.load_source(module_name, source_path)
-    return module
-
-
-def _tree_from_package_root_module(module):
-    try:
-        source = inspect.getsource(module)
-    except IOError:
-        # If the module is empty (e.g. __init__.py), this happen
-        tree = ast.parse('')
-    else:
-        tree = ast.parse(source)
-    return tree
-
-
 def get_parsed_root_for_package(containing_folder, package_name):
-    module = get_package_root_module_from_containing_folder(containing_folder,
-                                                            package_name)
+    module = _get_package_root_module_from_containing_folder(containing_folder,
+                                                             package_name)
     tree = _tree_from_package_root_module(module)
     return module, tree
 
@@ -64,18 +30,52 @@ def get_parsed_root_for_loaded_package(fq_name):
 
 def get_parsed_module_from_file(source_path, module_name):
     source = source_path.text()
-    module = get_module_from_containing_folder(source_path, module_name)
+    module = _get_module_from_containing_folder(source_path, module_name)
     tree = ast.parse(source)
     return module, tree
 
 
-def get_decorator_call_name(decorator, node):
+def _ast_visitor_factory(**handlers):
+    fn_dict = {
+        'visit_{}'.format(handler_type): handler_fn
+        for handler_type, handler_fn in handlers.items()
+    }
+    visitor = type('Visitor', (ast.NodeVisitor,), fn_dict)
+    return visitor
+
+
+def _get_package_root_module_from_containing_folder(source_path, package_name):
+    # package_name is a package directly inside source_path
+    importer = pkgutil.get_importer(source_path)
+    loader = importer.find_module(package_name)
+    module = loader.load_module(package_name)
+    return module
+
+
+def _get_module_from_containing_folder(source_path, module_name):
+    # module_name is a module directly inside source_path
+    module = imp.load_source(module_name, source_path)
+    return module
+
+
+def _tree_from_package_root_module(module):
+    try:
+        source = inspect.getsource(module)
+    except IOError:
+        # If the module is empty (e.g. __init__.py), this happen
+        tree = ast.parse('')
+    else:
+        tree = ast.parse(source)
+    return tree
+
+
+def _get_decorator_call_name(decorator, node):
     if hasattr(decorator, 'id'):
         return decorator.id
     elif hasattr(decorator, 'attr'):
         return decorator.attr
     elif hasattr(decorator, 'func'):
-        return get_decorator_call_name(decorator.func, node)
+        return _get_decorator_call_name(decorator.func, node)
 
 
 class AstDecoratorBasedInterpreter(object):
@@ -166,7 +166,7 @@ class AstDecoratorBasedInterpreter(object):
         def handler(_, node):
             decorator_names = []
             for decorator in node.decorator_list:
-                call_name = get_decorator_call_name(decorator, node)
+                call_name = _get_decorator_call_name(decorator, node)
                 if call_name in matching_names:
                     decorator_names.append(matching_names[call_name])
 
@@ -180,7 +180,7 @@ class AstDecoratorBasedInterpreter(object):
         handlers = {
             'ClassDef' if is_class else 'FunctionDef': handler
         }
-        searcher_cls = ast_visitor_factory(**handlers)
+        searcher_cls = _ast_visitor_factory(**handlers)
         searcher_cls().visit(tree)
         return res
 
@@ -195,6 +195,6 @@ class AstDecoratorBasedInterpreter(object):
                 if alias.name in base_names:
                     imported_names[alias.asname or alias.name] = alias.name
 
-        visitor_cls = ast_visitor_factory(ImportFrom=handler)
+        visitor_cls = _ast_visitor_factory(ImportFrom=handler)
         visitor_cls().visit(tree)
         return imported_names

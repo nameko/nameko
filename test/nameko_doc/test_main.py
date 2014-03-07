@@ -128,5 +128,3 @@ title: Service Method''')
             mock_cls = m.import_module('foo').Class
             # Called with no config
             mock_cls.assert_called_with(empty, None)
-
-    # TODO Features: Event handler meths, Events

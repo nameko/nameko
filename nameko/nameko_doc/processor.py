@@ -46,8 +46,7 @@ class Processor(object):
         with extractor:
             collection = extractor.extract()
 
-        # TODO configurable renderer
-        renderer = RstDirectoryRenderer(
+        renderer = self._get_renderer_cls()(
             self.output,
             config_parser,
         )
@@ -73,3 +72,6 @@ class Processor(object):
         mod_name, cls_name = self.extractor_class_path.rsplit('.', 1)
         mod = importlib.import_module(mod_name)
         return getattr(mod, cls_name)
+
+    def _get_renderer_cls(self):
+        return RstDirectoryRenderer

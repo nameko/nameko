@@ -43,6 +43,47 @@ class AstExtractor(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.path = self._original_sys_path
 
+    def get_service_name(self, fq_name):
+        fq_name_parts = fq_name.split('.')
+        if 'services' in fq_name_parts:
+            service_name = fq_name_parts[fq_name_parts.index('services') + 1]
+        else:
+            service_name = fq_name_parts[-1]
+        return service_name
+
+    def extract(self):
+        interpreter = self._get_interpreter()
+        self.before_loading()
+
+        packages = self.get_all_packages()
+        services = []
+        for fq_name in packages:
+            module, tree = get_parsed_root_for_loaded_package(
+                fq_name
+            )
+
+            processed = interpreter.process_services(module, tree)
+
+            if processed:
+                service_name = self.get_service_name(fq_name)
+
+                service = self._to_service(
+                    service_name,
+                    fq_name,
+                    processed
+                )
+                services.append(service)
+
+        return entities.ServiceCollection(
+            services=services
+        )
+
+    def before_loading(self):
+        pass
+
+    def get_all_packages(self):
+        return self._yield_package(self.source)
+
     def _process_config(self, config_parser):
         self.service_class_triggers = self._get_trigger_names(
             config_parser.get(CONFIG_SECTION, CONFIG_CLASS_SECTIONS),
@@ -85,47 +126,6 @@ class AstExtractor(object):
             service_method_decorators=self.service_method_triggers,
         )
         return interpreter
-
-    def get_service_name(self, fq_name):
-        fq_name_parts = fq_name.split('.')
-        if 'services' in fq_name_parts:
-            service_name = fq_name_parts[fq_name_parts.index('services') + 1]
-        else:
-            service_name = fq_name_parts[-1]
-        return service_name
-
-    def extract(self):
-        interpreter = self._get_interpreter()
-        self.before_loading()
-
-        packages = self.get_all_packages()
-        services = []
-        for fq_name in packages:
-            module, tree = get_parsed_root_for_loaded_package(
-                fq_name
-            )
-
-            processed = interpreter.process_services(module, tree)
-
-            if processed:
-                service_name = self.get_service_name(fq_name)
-
-                service = self._to_service(
-                    service_name,
-                    fq_name,
-                    processed
-                )
-                services.append(service)
-
-        return entities.ServiceCollection(
-            services=services
-        )
-
-    def before_loading(self):
-        pass
-
-    def get_all_packages(self):
-        return self._yield_package(self.source)
 
     def _yield_package(self, search_path):
         for importer, fq_name, is_pkg in walk_packages([search_path]):
