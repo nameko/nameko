@@ -10,6 +10,7 @@ Subpackages
     nameko.legacy
     nameko.standalone
     nameko.testing
+    nameko.nameko_doc
 
 Submodules
 ----------
@@ -22,6 +23,7 @@ Submodules
    nameko.exceptions
    nameko.logging
    nameko.messaging
+   nameko.metadata
    nameko.parallel
    nameko.rpc
    nameko.runners

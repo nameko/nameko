@@ -217,3 +217,10 @@ minimal :ref:`conftest` is included in the same directory as the test files.
     examples/testing/index
 
 """
+from nameko import metadata
+
+
+__version__ = metadata.version
+__author__ = metadata.authors[0]
+__license__ = metadata.license
+__copyright__ = metadata.copyright
