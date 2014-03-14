@@ -103,7 +103,7 @@ class RpcProxy(object):
     connection to the broker.
 
     You may also supply ``context_data``, a dictionary of data to be
-    serialised into the AMQP message headers, and specifty custom worker
+    serialised into the AMQP message headers, and specify custom worker
     context class to serialise them.
     """
     class ServiceContainer(object):
