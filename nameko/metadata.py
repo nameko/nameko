@@ -2,7 +2,7 @@
 package = 'nameko'
 project = "Nameko"
 project_no_spaces = project.replace(' ', '')
-version = '1.3.6'
+version = '1.3.5'
 description = 'service framework supporting multiple messaging and RPC ' \
               'implementations'
 authors = ['onefinestay']
