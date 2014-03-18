@@ -3,6 +3,7 @@ from logging import getLogger
 
 from kombu import Producer, Exchange, Queue
 
+from nameko.exceptions import UnknownService
 from nameko.legacy import consuming, responses
 from nameko.legacy.context import Context
 from nameko.legacy.channelhandler import ChannelHandler
@@ -80,8 +81,13 @@ def _send_topic(connection, exchange, topic, data):
         producer = Producer(
             ch.channel,
             exchange=exchange,
-            routing_key=topic)
-        ch.ensure(producer.publish)(data, declare=[exchange])
+            routing_key=topic,
+            )
+        ch.ensure(producer.publish)(data, declare=[exchange], mandatory=True)
+
+        # see comment in rpc.MethodProxy.__call__, after publish()
+        if not producer.channel.returned_messages.empty():
+            raise UnknownService(topic)
 
 
 def parse_message(message_body):
