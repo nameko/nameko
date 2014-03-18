@@ -7,7 +7,7 @@ from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.exceptions import MethodNotFound, RemoteErrorWrapper
+from nameko.exceptions import MethodNotFound, RemoteErrorWrapper, UnknownService
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -294,7 +294,11 @@ class MethodProxy(HeaderEncoder):
 
         msg = {'args': args, 'kwargs': kwargs}
 
-        conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(
+            container.config[AMQP_URI_CONFIG_KEY],
+            transport_options={'confirm_publish': True}
+        )
+
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         exchange = get_rpc_exchange(container)
@@ -314,10 +318,26 @@ class MethodProxy(HeaderEncoder):
                 msg,
                 exchange=exchange,
                 routing_key=routing_key,
+                mandatory=True,
                 reply_to=reply_to_routing_key,
                 headers=headers,
                 correlation_id=correlation_id,
             )
+
+            # basic.return is sent asynchronously and conditionally, so we
+            # can't wait() for it (will block forever on successful delivery)
+            # we make use of a side-effect of confirm_publish:
+
+            # confirm_publish above (https://www.rabbitmq.com/confirms.html)
+            # sends a confirmation if either
+            #   1) no queues are bound to the exchange, or
+            #   2) the message has reached all routed queues
+            #
+            # in the first case, basic.return is sent first, so at this point
+            # we can reliably check for returned_messages
+
+            if not producer.channel.returned_messages.empty():
+                raise UnknownService(self.service_name)
 
         _log.debug('Waiting for RPC reply event %s', self,
                    extra=worker_ctx.extra_for_logging)

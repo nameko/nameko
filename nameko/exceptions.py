@@ -14,6 +14,15 @@ class RemoteError(Exception):
         super(RemoteError, self).__init__(message)
 
 
+class UnknownService(Exception):
+    def __init__(self, service_name):
+        self._service_name = service_name
+        super(UnknownService, self).__init__(service_name)
+
+    def __str__(self):
+        return "Unknown service `{}`".format(self._service_name)
+
+
 class RemoteErrorWrapper(object):
     def __init__(self, exc):
         self.exc = exc
