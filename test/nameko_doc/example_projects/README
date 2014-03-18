@@ -1,5 +1,0 @@
-Watch out!
-
-This tool by its nature will be performing a lot of importing -- to avoid
-getting bitten by Python's module import cache when testing, try to ensure
-any example packages have unique names.

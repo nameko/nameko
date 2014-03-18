@@ -1,33 +1,33 @@
-import ConfigParser
-import importlib
 import logging
 from path import path
-from nameko.nameko_doc.renderers.rst import RstDirectoryRenderer
-
-
-DEFAULT_EXTRACTOR_CLS_PATH = 'nameko.nameko_doc.extractors.AstExtractor'
+from .method_extractor import MethodExtractor
+from .rst_render import RstDirectoryRenderer
 
 
 log = logging.getLogger(__name__)
 
 
+def get_function_from_path(function_path):
+    pieces = function_path.split('.')
+    mod_path = '.'.join(pieces[:-1])
+    function = __import__(mod_path)
+    for fetch in pieces[1:]:
+        function = getattr(function, fetch)
+    return function
+
+
 class Processor(object):
-    def __init__(self, source=None, output=None,
-                 config_file=None,
-                 extractor_class_path=None):
-        self.source = path(source) if source else source
+    def __init__(self, output=None, service_loader_function=None):
         self.output = path(output) if output else output
-        self._config_file = config_file
-        self.extractor_class_path = (extractor_class_path or
-                                     DEFAULT_EXTRACTOR_CLS_PATH)
+        self.service_loader_function = get_function_from_path(
+            service_loader_function
+        ) if service_loader_function else None
 
     @classmethod
     def from_parsed_args(cls, parsed):
         return cls(
-            source=parsed.source,
             output=parsed.output,
-            config_file=parsed.config_file,
-            extractor_class_path=parsed.extractor_class,
+            service_loader_function=parsed.service_loader,
         )
 
     def extract_docs(self):
@@ -37,41 +37,14 @@ class Processor(object):
             self.output.rmtree()
             self.output.mkdir()
 
-        extractor_cls = self._get_extractor_cls()
-        config_parser = self._config_parser()
-        extractor = extractor_cls(
-            self.source,
-            config_parser
+        extractor = MethodExtractor(
+            self.service_loader_function
         )
-        with extractor:
-            collection = extractor.extract()
+        collection = extractor.extract()
 
-        renderer = self._get_renderer_cls()(
-            self.output,
-            config_parser,
+        renderer = RstDirectoryRenderer(
+            self.output
         )
         with renderer:
             log.debug(collection.services)
             collection.render(renderer)
-
-    def _config_parser(self):
-        potentials = (
-            self._config_file,
-            'setup.cfg',
-        )
-        for potential in potentials:
-            if potential and path(potential).exists():
-                config = ConfigParser.SafeConfigParser()
-                config.read(potential)
-                return config
-
-        # The extractor class might not need a config anyway.
-        return None
-
-    def _get_extractor_cls(self):
-        mod_name, cls_name = self.extractor_class_path.rsplit('.', 1)
-        mod = importlib.import_module(mod_name)
-        return getattr(mod, cls_name)
-
-    def _get_renderer_cls(self):
-        return RstDirectoryRenderer

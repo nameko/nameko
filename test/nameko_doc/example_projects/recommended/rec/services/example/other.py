@@ -1,2 +1,0 @@
-class Ignore(object):
-    pass

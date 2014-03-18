@@ -1,11 +1,11 @@
 from mock import Mock, patch, MagicMock, call
 import pytest
-from nameko.nameko_doc.renderers.rst import RstDirectoryRenderer
+from nameko.nameko_doc.rst_render import RstDirectoryRenderer
 
 
 @pytest.fixture
 def renderer():
-    return RstDirectoryRenderer(Mock(), Mock())
+    return RstDirectoryRenderer(Mock())
 
 
 def test_render_see_also(renderer):
@@ -113,7 +113,7 @@ def test_render_page(renderer):
 
 @pytest.yield_fixture
 def mock_write():
-    with patch('nameko.nameko_doc.renderers.rst.open', create=True) as m:
+    with patch('nameko.nameko_doc.rst_render.open', create=True) as m:
         m.return_value = MagicMock(spec=file)
         yield m, m.return_value.__enter__.return_value
 

@@ -1,6 +1,6 @@
 from mock import Mock, call
 import pytest
-from nameko.nameko_doc.extractors import entities
+from nameko.nameko_doc import entities
 
 
 @pytest.fixture

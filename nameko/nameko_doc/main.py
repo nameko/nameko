@@ -42,13 +42,6 @@ URL: <{url}>
         action='version',
         version='Nameko Service Doc {0}'.format(metadata.version))
     arg_parser.add_argument(
-        '-s', '--source',
-        action='store',
-        dest='source',
-        required=True,
-        help='Directory containing services to find.'
-    )
-    arg_parser.add_argument(
         '-o', '--output',
         action='store',
         dest='output',
@@ -56,16 +49,12 @@ URL: <{url}>
         help='Location to output rendered content.'
     )
     arg_parser.add_argument(
-        '-c', '--config',
+        '-s', '--service-loader',
         action='store',
-        dest='config_file',
-        help='By default, `setup.cfg` will be used.'
-    )
-    arg_parser.add_argument(
-        '--extractor',
-        action='store',
-        dest='extractor_class',
-        help='Dotted import path to class used for extracting content.'
+        dest='service_loader',
+        required=True,
+        help='Dotted path to function returning service name, module path and '
+             'service classes.'
     )
 
     parsed = arg_parser.parse_args(args=argv[1:])

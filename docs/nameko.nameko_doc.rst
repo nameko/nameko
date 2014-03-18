@@ -13,24 +13,17 @@ Usage
 
 .. code-block:: bash
 
-    nameko_doc -s <source_dir> -o <output_dir>
+    nameko_doc -s <service_listing_function> -o <output_dir>
 
-The above command will work with packages inside ``<source_dir>``, producing
-output as Sphinx source .rst files in ``<output_dir>``. Or, use
-``nameko_doc --help`` for further options.
-
-Pre-requisites
---------------
-
-``nameko_doc`` uses configuration from a ``setup.cfg`` file -- you'll either
-need to have one of pass in an alternative file through the ``--config``
-option. An example file is included.
+The above command will call the function specified by the dotted path in
+``<service_listing_function>``, producing output as Sphinx source .rst files
+in ``<output_dir>``. Or, use ``nameko_doc --help`` for further options.
 
 How does this compare to ``sphinx-apidoc``?
 -------------------------------------------
 
 ``sphinx-apidoc`` will attempt to produce ``.rst`` files for an entire module
-path; ``nameko_doc`` performs introspection to produce ``.rst`` files for just
+path; ``nameko_doc`` uses a call to produce ``.rst`` files for just
 service related content. At onefinestay, we use the two together -- standard
 API docs are consumed by the service engineers, and ``nameko_doc`` docs are used
 by front-end developers.
@@ -38,45 +31,27 @@ by front-end developers.
 Identifying Services
 --------------------
 
-``nameko_doc`` provides a default 'Extractor' that will be able to find service
-classes and methods in a typical usage scenario -- note, you can pass in an
-alternative extractor class through ``--extractor``. You're encouraged to use
-this if your code organisation doesn't match up with the default expectations.
+The function passed in to ``nameko_doc`` should return a list of tuples, where
+each pair gives the service name and the corresponding service class.
 
-Default Extractor
-~~~~~~~~~~~~~~~~~
-
-Firstly, the default extractor will only look for service classes defined in
-two locations:
-
-#. The root of a package
-#. ``controller.py`` within a package.
-
-To identify service methods, `nameko_doc` attempts two approaches:
-
-#. If the method has been marked with nameko's built-in ``@rpc``, or something
-   that inherits from it, it's a service method.
-#. Otherwise, we look at the name of any decorators applied to a method and
-   match it against a list of names supplied in the config.
-
-To find service classes, we just check for matching decorator names. The
-example config file shows how to use ``class_instructions``,
-``method_instructions`` and ``trigger_names`` to configure name matching.
-
+From there, ``nameko_doc`` will check for any methods in each service class
+that have been marked with nameko's built in ``@rpc`` or something that
+inherits from it.
 
 nameko.nameko_doc package
 =========================
 
-Subpackages
------------
-
-.. toctree::
-
-    nameko.nameko_doc.extractors
-    nameko.nameko_doc.renderers
-
 Submodules
 ----------
+
+nameko.nameko_doc.entities module
+---------------------------------
+
+.. automodule:: nameko.nameko_doc.entities
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 nameko.nameko_doc.main module
 -----------------------------
@@ -87,10 +62,28 @@ nameko.nameko_doc.main module
     :show-inheritance:
 
 
+nameko.nameko_doc.method_extractor module
+-----------------------------------------
+
+.. automodule:: nameko.nameko_doc.method_extractor
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 nameko.nameko_doc.processor module
 ----------------------------------
 
 .. automodule:: nameko.nameko_doc.processor
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+nameko.nameko_doc.rst_render module
+-----------------------------------
+
+.. automodule:: nameko.nameko_doc.rst_render
     :members:
     :undoc-members:
     :show-inheritance:
