@@ -297,7 +297,7 @@ class MethodProxy(HeaderEncoder):
 
         conn = Connection(
             container.config[AMQP_URI_CONFIG_KEY],
-            transport_options={'confirm_publish': True}
+            transport_options={'confirm_publish': True},
         )
 
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
