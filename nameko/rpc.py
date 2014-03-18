@@ -7,7 +7,8 @@ from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.exceptions import MethodNotFound, RemoteErrorWrapper, UnknownService
+from nameko.exceptions import (
+    MethodNotFound, RemoteErrorWrapper, UnknownService)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
