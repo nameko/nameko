@@ -300,6 +300,21 @@ class MethodProxy(HeaderEncoder):
             transport_options={'confirm_publish': True},
         )
 
+        # We use the `mandatory` flag in `producer.publish` below to catch rpc
+        # calls to non-existent services, which would otherwise wait forever
+        # for a reply that will never arrive.
+        #
+        # However, the basic.return ("no one is listening for topic") is sent
+        # asynchronously and conditionally, so we can't wait() on the channel
+        # for it (will wait forever on successful delivery).
+        #
+        # Instead, we use (the rabbitmq extension) confirm_publish
+        # (https://www.rabbitmq.com/confirms.html), which _always_ sends a
+        # reply down the channel. Moreover, in the case where no queues are
+        # bound to the exchange (service unknown), the basic.return is sent
+        # first, so by the time kombu returns (after waiting for the confim)
+        # we can reliably check for returned messages.
+
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         exchange = get_rpc_exchange(container)
@@ -324,18 +339,6 @@ class MethodProxy(HeaderEncoder):
                 headers=headers,
                 correlation_id=correlation_id,
             )
-
-            # basic.return is sent asynchronously and conditionally, so we
-            # can't wait() for it (will block forever on successful delivery)
-            # we make use of a side-effect of confirm_publish:
-
-            # confirm_publish above (https://www.rabbitmq.com/confirms.html)
-            # sends a confirmation if either
-            #   1) no queues are bound to the exchange, or
-            #   2) the message has reached all routed queues
-            #
-            # in the first case, basic.return is sent first, so at this point
-            # we can reliably check for returned_messages
 
             if not producer.channel.returned_messages.empty():
                 raise UnknownService(self.service_name)
