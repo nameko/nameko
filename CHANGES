@@ -2,9 +2,9 @@ Version 1.4.0
 -------------
 
 * Trying to make rpc calls to non-existent services (no queues bound to the rpc
-    exchange) will raise an exception instead of hanging indefinitely. (Rpc
-    calls to existing, but not-running services will not raise, but wait for
-    service to come online, as before.)
+  exchange) will raise an exception instead of hanging indefinitely. (Rpc calls
+  to existing, but not-running services will not raise, but wait for service to
+  come online, as before.)
 
 
 Version 1.3.5
