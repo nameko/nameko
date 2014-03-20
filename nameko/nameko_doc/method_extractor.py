@@ -16,13 +16,15 @@ class MethodExtractor(object):
         descriptions = []
 
         services = self.service_loader_function()
-        for service_name, service_cls in services:
+        for service_cls in services:
+            service_name = service_cls.name  # e.g. 'foo'
+            service_class_name = service_cls.__name__  # e.g. 'FooService'
             module_path = service_cls.__module__
             methods = self._service_methods_from_class(service_cls)
             description = self._create_service_description(
                 service_name,
                 module_path,
-                service_cls.__name__,
+                service_class_name,
                 methods,
             )
             descriptions.append(description)

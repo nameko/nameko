@@ -15,8 +15,7 @@ Using the library
 To use the library, construct an instance of
 :class:`nameko.nameko_doc.processor.ServiceDocProcessor`, providing a location
 to store generated ``.rst`` files, and a function which will return a list of
-tuples, where each pair gives the service name and the corresponding service
-class.
+service classes.
 
 From there, we will check for any methods in each service class
 that have been marked with nameko's built in ``@rpc`` or something that

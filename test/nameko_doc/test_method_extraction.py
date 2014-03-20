@@ -8,8 +8,7 @@ class TestMethodExtraction(object):
     def test_process_from_nameko(self):
         def service_loader():
             return [
-                ('nameko_example',
-                 ExampleService)
+                ExampleService,
             ]
 
         e = MethodExtractor(service_loader)
