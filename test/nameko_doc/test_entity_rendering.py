@@ -9,6 +9,13 @@ def renderer():
     return Mock()
 
 
+def test_entity_equality():
+    one = entities.ExtraInstruction('foo', 'bar')
+    two = entities.ExtraInstruction('foo', 'bar')
+    assert one == two
+    assert not (one != two)
+
+
 def test_render_service_collection(renderer):
     service_collection = entities.ServiceCollection(services=[
         entities.ServiceDescription(
