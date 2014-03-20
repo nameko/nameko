@@ -36,14 +36,13 @@ class MethodExtractor(object):
 
         cls_method_data = inspect.getmembers(class_obj, inspect.ismethod)
         for method_name, method in cls_method_data:
-            match_data = self._handle_as_service_method(
-                method_name, method)
-            if match_data:
-                service_methods.append(match_data)
+            is_service_method = self._check_if_service_method(method)
+            if is_service_method:
+                service_methods.append(method_name)
 
         return service_methods
 
-    def _handle_as_service_method(self, method_name, method):
+    def _check_if_service_method(self, method):
         if hasattr(method, 'nameko_entrypoints'):
             entrypoint_dep_classes = {
                 factory.dep_cls for factory in method.nameko_entrypoints
@@ -51,12 +50,9 @@ class MethodExtractor(object):
             if any(issubclass(dep_cls, RpcProvider)
                    for dep_cls in entrypoint_dep_classes):
                 # It's an RPC method
-                match_data = {
-                    'assigned_name': method_name,
-                }
-                return match_data
+                return True
 
-        return None
+        return False
 
     def _create_service_description(self, service_name, module_path,
                                     service_cls_name, methods):
@@ -72,16 +68,12 @@ class MethodExtractor(object):
             )
         ]
 
-        method_names = [
-            method_tree['assigned_name'] for method_tree in methods
-        ]
-
         method_sections = [entities.Section(
             'RPC',
             contents=[
                 entities.SingleMethod(
                     assigned_name
-                ) for assigned_name in method_names
+                ) for assigned_name in methods
             ]
         )]
 
