@@ -9,7 +9,7 @@ connections = []
 
 
 def _get_connection(uri):
-    conn = Connection(uri)
+    conn = Connection(uri, transport_options={'confirm_publish': True})
     connections.append(conn)
     return conn
 

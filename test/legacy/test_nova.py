@@ -4,7 +4,7 @@ from kombu import Producer
 import mock
 import pytest
 
-from nameko.exceptions import RemoteError
+from nameko.exceptions import RemoteError, UnknownService
 from nameko.legacy import context
 from nameko.legacy import nova
 from nameko.legacy.consuming import queue_iterator
@@ -100,6 +100,21 @@ def test_send_rpc(get_connection):
     def check_greenthread_dead():
         assert not g
     assert_stops_raising(check_greenthread_dead)
+
+
+def test_send_rpc_unknown_service(get_connection):
+    with get_connection() as conn:
+        ctx = context.get_admin_context()
+
+        with pytest.raises(UnknownService):
+            nova.send_rpc(
+                conn,
+                context=ctx,
+                exchange='test_rpc',
+                topic='test',
+                method='test_method',
+                args={'foo': 'bar', },
+                timeout=3)
 
 
 def test_send_rpc_errors(get_connection):
