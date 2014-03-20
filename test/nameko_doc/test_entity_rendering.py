@@ -1,6 +1,7 @@
 from mock import Mock, call
 import pytest
 from nameko.nameko_doc import entities
+from nameko.nameko_doc.rst_render import RenderedPage
 
 
 @pytest.fixture
@@ -41,56 +42,35 @@ def test_render_service_collection(renderer):
         )
     ])
     service_collection.render(renderer)
+
+    expected_content = '\n'.join([
+        '``example``',
+        '===========',
+        '',
+        '.. automodule:: foo.services.example',
+        '',
+        'Service Methods',
+        '---------------',
+        '',
+        '.. automethod:: foo.services.example.ExampleService.method',
+        '    :noindex:',
+        '    ',
+        '    :Foo: Bar',
+        '',
+        '.. seealso::',
+        '',
+        '    Service Class',
+        '        :class:`blah.ServiceClass`',
+        '    ',
+        '',
+    ])
+
     assert renderer.mock_calls == [
-        # The method call
-        call.instruction(
-            name='Foo', content='Bar'
-        ),
-        call.include_method(
-            path='foo.services.example.ExampleService.method',
-            no_index=True,
-            extras=[renderer.instruction.return_value]
-        ),
-        call.title(
-            text='Service Methods', level=2
-        ),
-        call.section(
-            contents=[
-                renderer.title.return_value,
-                renderer.include_method.return_value
-            ]
-        ),
-        # The see also section
-        call.class_reference(
-            path='blah.ServiceClass'
-        ),
-        call.definition(
-            term='Service Class',
-            description=renderer.class_reference.return_value,
-        ),
-        call.definition_list(
-            contents=[renderer.definition.return_value]
-        ),
-        call.see_also_section(
-            contents=[renderer.definition_list.return_value]
-        ),
-        # Page and title
-        call.title(
-            text='example', as_code=True, level=1
-        ),
-        call.include_module(
-            path='foo.services.example'
-        ),
-        call.page(
-            name='example',
-            parts=[
-                renderer.title.return_value,
-                renderer.include_module.return_value,
-                renderer.section.return_value,
-                renderer.see_also_section.return_value,
-            ]
-        ),
         call.add_page(
-            renderer.page.return_value
+            RenderedPage(
+                filename='example.rst',
+                title='example',
+                content=expected_content,
+            )
         )
     ]

@@ -1,7 +1,7 @@
 import logging
 from path import path
 from .method_extractor import MethodExtractor
-from .rst_render import RstDirectoryRenderer
+from .rst_render import RstPagePrinter
 
 
 log = logging.getLogger(__name__)
@@ -42,9 +42,9 @@ class Processor(object):
         )
         collection = extractor.extract()
 
-        renderer = RstDirectoryRenderer(
+        printer = RstPagePrinter(
             self.output
         )
-        with renderer:
+        with printer:
             log.debug(collection.services)
-            collection.render(renderer)
+            collection.render(printer)

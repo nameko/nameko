@@ -1,4 +1,4 @@
-from abc import ABCMeta, abstractmethod
+import rst_render as rst
 
 
 class ServiceCollection(object):
@@ -8,11 +8,11 @@ class ServiceCollection(object):
     def __eq__(self, other):
         return self.services == other.services
 
-    def render(self, r):
+    def render(self, rst_page_printer):
         """ Render this service collection out """
         for service in self.services:
-            page = service.render_page(r)
-            r.add_page(page)
+            page = service.render_page()
+            rst_page_printer.add_page(page)
 
 
 class ServiceDescription(object):
@@ -30,50 +30,41 @@ class ServiceDescription(object):
             self.sections == other.sections
         )
 
-    def render_page(self, r):
+    def render_page(self):
         """ Render a service into a page """
         section_parts = [
-            section.render_section(r, self, 2) for section in self.sections
+            section.render_section(self, 2) for section in self.sections
         ]
 
-        page = r.page(
+        page = rst.render_page(
             name=self.name,
             parts=[
-                r.title(
+                rst.render_title(
                     text=self.name,
                     as_code=True,
                     level=1,
                 ),
-                r.include_module(
+                rst.render_include_module(
                     path=self.module_path,
-                ),
-            ] + section_parts,
+                )
+            ] + section_parts
         )
         return page
 
 
-class BaseSection(object):
-    __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def render_section(self, r, service_description, this_level=1):
-        """ Render a section out, providing the containing service, and the
-        level the section is rendered at, for nested titles """
-
-
-class ReferenceSection(BaseSection):
+class ReferenceSection(object):
     def __init__(self, references=None):
         self.references = references or []
 
     def __eq__(self, other):
         return self.references == other.references
 
-    def render_section(self, r, service_description, this_level=1):
-        aside = r.see_also_section(
+    def render_section(self, service_description, this_level=1):
+        aside = rst.render_see_also_section(
             contents=[
-                r.definition_list(
+                rst.render_definition_list(
                     contents=[
-                        ref.render_reference(r)
+                        ref.render_reference()
                         for ref in self.references
                     ]
                 )
@@ -93,17 +84,17 @@ class ClassReference(object):
             self.reference_path == other.reference_path
         )
 
-    def render_reference(self, r):
+    def render_reference(self):
         """ Render a reference to a class under a given category/title """
-        return r.definition(
+        return rst.render_definition(
             term=self.title,
-            description=r.class_reference(
+            description=rst.render_class_reference(
                 path=self.reference_path
-            ),
+            )
         )
 
 
-class Section(BaseSection):
+class Section(object):
     def __init__(self, title, contents=None):
         self.title = title
         self.contents = contents or []
@@ -114,23 +105,23 @@ class Section(BaseSection):
             self.contents == other.contents
         )
 
-    def render_section(self, r, service_description, this_level=1):
+    def render_section(self, service_description, this_level=1):
         sub_section_contents = [
-            content.render_section(r, service_description, this_level + 1)
+            content.render_section(service_description, this_level + 1)
             for content in self.contents
         ]
-        section = r.section(
+        section = rst.render_section(
             contents=[
-                r.title(
+                rst.render_title(
                     text=self.title,
                     level=this_level,
-                ),
+                )
             ] + sub_section_contents
         )
         return section
 
 
-class SingleMethod(BaseSection):
+class SingleMethod(object):
     def __init__(self, method_name, extras=None):
         self.method_name = method_name
         self.extras = extras or []
@@ -141,19 +132,21 @@ class SingleMethod(BaseSection):
             self.extras == other.extras
         )
 
-    def render_section(self, r, service_description, this_level=1):
+    def render_section(self, service_description, this_level=1):
         method_path = '{}.{}.{}'.format(
             service_description.module_path,
             service_description.class_name,
             self.method_name
         )
-        method_ref = r.include_method(
+
+        method_ref = rst.render_include_method(
             path=method_path,
             no_index=True,
             extras=[
-                extra.render_extra(r) for extra in self.extras
+                extra.render_extra() for extra in self.extras
             ]
         )
+
         return method_ref
 
 
@@ -162,9 +155,5 @@ class ExtraInstruction(object):
         self.title = title
         self.content = content
 
-    def render_extra(self, r):
-        """ Render an extra instruction """
-        return r.instruction(
-            name=self.title,
-            content=self.content
-        )
+    def render_extra(self):
+        return rst.render_instruction(self.title, self.content)

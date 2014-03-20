@@ -1,25 +1,25 @@
 from mock import Mock, patch, MagicMock, call
 import pytest
-from nameko.nameko_doc.rst_render import RstDirectoryRenderer
+from nameko.nameko_doc import rst_render as rst
 
 
 @pytest.fixture
 def renderer():
-    return RstDirectoryRenderer(Mock())
+    return rst.RstPagePrinter(Mock())
 
 
-def test_render_see_also(renderer):
-    res = renderer.see_also_section(
+def test_render_see_also():
+    res = rst.render_see_also_section(
         contents=[
-            renderer.definition_list(
+            rst.render_definition_list(
                 contents=[
-                    renderer.definition(
+                    rst.render_definition(
                         term='Foo',
                         description='Bar'
                     ),
-                    renderer.definition(
+                    rst.render_definition(
                         term='Service Class',
-                        description=renderer.class_reference(
+                        description=rst.render_class_reference(
                             'nameko_doc.example_service.BarService',
                         )
                     )
@@ -36,12 +36,12 @@ def test_render_see_also(renderer):
         :class:`nameko_doc.example_service.BarService`""".strip()
 
 
-def test_render_method(renderer):
-    res = renderer.include_method(
+def test_render_method():
+    res = rst.render_include_method(
         path='foo.BarClass.method_name',
         no_index=True,
         extras=[
-            renderer.instruction(
+            rst.render_instruction(
                 name='Listens to',
                 content='a.thing',
             )
@@ -57,14 +57,14 @@ def test_render_method(renderer):
     assert res == expected
 
 
-def test_render_section(renderer):
-    res = renderer.section(
+def test_render_section():
+    res = rst.render_section(
         contents=[
-            renderer.title('Hello', level=1, as_code=True),
-            renderer.section(
+            rst.render_title('Hello', level=1, as_code=True),
+            rst.render_section(
                 contents=[
-                    renderer.title('Bye', level=2),
-                    renderer.include_module(
+                    rst.render_title('Bye', level=2),
+                    rst.render_include_module(
                         path='hello.world',
                     ),
                     'Some Content',
@@ -85,12 +85,12 @@ Some Content""".strip()
     assert res == expected
 
 
-def test_render_page(renderer):
-    res = renderer.page(
+def test_render_page():
+    res = rst.render_page(
         name='foo',
         parts=[
-            renderer.title('Three', level=3),
-            renderer.include_method(
+            rst.render_title('Three', level=3),
+            rst.render_include_method(
                 path='foo.BarClass.baz'
             )
         ]
@@ -104,11 +104,14 @@ def test_render_page(renderer):
         '',
     ]
     expected_content = '\n'.join(expected_content_lines)
-    assert res == {
-        'filename': 'foo.rst',
-        'content': expected_content,
-        'title': 'foo',
-    }
+
+    expected = rst.RenderedPage(
+        filename='foo.rst',
+        content=expected_content,
+        title='foo'
+    )
+
+    assert res == expected
 
 
 @pytest.yield_fixture
@@ -124,11 +127,18 @@ def test_render_multiple_pages(renderer, mock_write):
 
     with renderer:
         renderer.add_page(
-            {'filename': 'foo.rst', 'content': 'Hello, World', 'title': 'foo'}
+            rst.RenderedPage(
+                filename='foo.rst',
+                content='Hello, World',
+                title='foo',
+            )
         )
         renderer.add_page(
-            {'filename': 'bar.rst', 'content': 'Goodbye, World',
-             'title': 'bar'},
+            rst.RenderedPage(
+                filename='bar.rst',
+                content='Goodbye, World',
+                title='bar',
+            )
         )
 
     assert mock_open.call_args_list == [
