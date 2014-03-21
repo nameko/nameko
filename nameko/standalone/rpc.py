@@ -89,18 +89,22 @@ class RpcProxy(object):
 
     As a context manager::
 
-        with RpcProxy('targetservice') as proxy:
+        with RpcProxy('targetservice', config) as proxy:
             proxy.method()
 
     The equivalent call, manually starting and stopping::
 
-        targetservice_proxy = RpcProxy('targetservice')
+        targetservice_proxy = RpcProxy('targetservice', config)
         proxy = targetservice_proxy.start()
         proxy.method()
         targetservice_proxy.stop()
 
     If you call ``start()`` you must eventually call ``stop()`` to close the
     connection to the broker.
+
+    You may also supply ``context_data``, a dictionary of data to be
+    serialised into the AMQP message headers, and specify custom worker
+    context class to serialise them.
     """
     class ServiceContainer(object):
         """ Implements a minimum interface of the
