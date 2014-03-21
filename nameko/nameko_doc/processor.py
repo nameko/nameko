@@ -12,7 +12,7 @@ class ServiceDocProcessor(object):
         self.output = path(output)
         self.service_loader_function = service_loader_function
 
-    def extract_docs(self):
+    def write_docs(self):
         if not self.output.exists():
             self.output.mkdir_p()
         elif self.output.files():

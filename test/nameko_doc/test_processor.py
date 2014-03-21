@@ -12,7 +12,7 @@ class TestProcessor(object):
         output_folder = temp_folder_factory(reserve_only=True)
 
         processor = ServiceDocProcessor(output_folder, empty_loader)
-        processor.extract_docs()
+        processor.write_docs()
 
         assert output_folder.exists()
         assert output_folder.files() == []
@@ -28,5 +28,5 @@ class TestProcessor(object):
         processor = ServiceDocProcessor(output_folder, empty_loader)
 
         with pytest.raises(ValueError):
-            processor.extract_docs()
+            processor.write_docs()
         assert len(output_folder.files()) == 1
