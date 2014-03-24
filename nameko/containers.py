@@ -224,7 +224,7 @@ class ServiceContainer(object):
             self.started = False
             self._died.send(None)
 
-    def kill(self, exc):
+    def kill(self, exc=None):
         """ Kill the container in a semi-graceful way.
 
         All non-protected managed threads are killed first. This includes
@@ -232,7 +232,7 @@ class ServiceContainer(object):
         Next, dependencies are killed. Finally, any remaining protected threads
         are killed.
 
-        The container dies with the given ``exc``.
+        If ``exc`` is provided, it will be raised by :meth:`~wait``.
         """
         if self._being_killed:
             # this happens if a managed thread exits with an exception
@@ -247,7 +247,10 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        _log.info('killing %s due to "%s"', self, exc)
+        if exc is not None:
+            _log.info('killing %s due to "%s"', self, exc)
+        else:
+            _log.info('killing %s', self)
 
         self.dependencies.entrypoints.all.kill(exc)
         self._kill_active_threads()
@@ -255,13 +258,14 @@ class ServiceContainer(object):
         self._kill_protected_threads()
 
         self.started = False
-        self._died.send_exception(exc)
+        self._died.send(None, exc)
 
     def wait(self):
         """ Block until the container has been stopped.
 
-        If the container was stopped using ``kill(exc)``,
-        ``wait()`` raises ``exc``.
+        If the container was stopped using ``kill(exc)``, ``wait()``
+        raises ``exc``.
+
         Any unhandled exception raised in a managed thread or in the
         life-cycle management code also causes the container to be
         ``kill()``ed, which causes an exception to be raised from ``wait()``.
@@ -418,8 +422,8 @@ class ServiceContainer(object):
             _log.error('%s thread exited with error', self,
                        exc_info=True)
             # any error raised inside an active thread is unexpected behavior
-            # and probably a bug in the providers or container
-            # to be safe we kill the container
+            # and probably a bug in the providers or container.
+            # to be safe we kill the container and pass exc to be raised later
             self.kill(exc)
 
     def __str__(self):

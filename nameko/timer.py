@@ -56,7 +56,7 @@ class TimerProvider(EntrypointProvider):
         self.should_stop.send(True)
         self.gt.wait()
 
-    def kill(self, exc):
+    def kill(self, exc=None):
         _log.debug('killing %s', self)
         self.gt.kill()
 

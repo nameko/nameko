@@ -53,7 +53,7 @@ def test_runner_lifecycle():
         def stop(self):
             events.add(('stop', self.service_cls.name, self.service_cls))
 
-        def kill(self, exc):
+        def kill(self):
             events.add(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
@@ -80,7 +80,7 @@ def test_runner_lifecycle():
     }
 
     events = set()
-    runner.kill(Exception('die'))
+    runner.kill()
     assert events == {
         ('kill', 'foobar_1', TestService1),
         ('kill', 'foobar_2', TestService2),
@@ -109,7 +109,7 @@ def test_contextual_lifecycle():
         def stop(self):
             events.add(('stop', self.service_cls.name, self.service_cls))
 
-        def kill(self, exc):
+        def kill(self, exc=None):
             events.add(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):

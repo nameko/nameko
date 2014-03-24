@@ -77,9 +77,11 @@ class ServiceRunner(object):
 
         _log.info('services stopped: %s', self.service_names)
 
-    def kill(self, exc):
+    def kill(self, exc=None):
         """ Kill all running containers concurrently.
         The method will block until all containers have stopped.
+
+        If `exc` is provided, it will be raised by :meth:`wait()`.
         """
         _log.info('killing services: %s', self.service_names)
 
@@ -157,6 +159,6 @@ def run_services(config, *services, **kwargs):
     yield runner
 
     if kill_on_exit:
-        runner.kill(Exception('killed by contextual service runner'))
+        runner.kill()
     else:
         runner.stop()

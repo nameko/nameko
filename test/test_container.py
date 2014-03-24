@@ -265,7 +265,7 @@ def test_kill_already_stopped(container, logger):
     container.stop()
     assert container._died.ready()
 
-    container.kill(Exception("kill"))
+    container.kill()
     assert logger.debug.call_args == call("already stopped %s", container)
 
 
