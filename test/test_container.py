@@ -1,3 +1,4 @@
+import eventlet
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
 import greenlet
@@ -458,6 +459,25 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
         call("killing %s protected thread(s)", 1),
         call("%s thread killed by container", container),
     ]
+
+
+def test_stop_during_kill(container, logger):
+    """ Verify we handle the race condition when a runner tries to stop
+    a container while it is being killed.
+    """
+    with patch.object(
+            container, '_kill_active_threads', autospec=True) as kill_threads:
+
+        # force eventlet yield during kill() so stop() will be scheduled
+        kill_threads.side_effect = eventlet.sleep
+
+        eventlet.spawn(container.kill)
+        eventlet.spawn(container.stop)
+
+        container.wait()
+        assert logger.debug.call_args_list == [
+            call("already being killed %s", container),
+        ]
 
 
 def test_container_entrypoint_property(container):

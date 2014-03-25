@@ -197,6 +197,18 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
+        if self._being_killed:
+            # this race condition can happen when a container is hosted by a
+            # runner and yields during its kill method; if it's unlucky in
+            # scheduling the runner will try to stop() it before self._died
+            # has a result
+            _log.debug('already being killed %s', self)
+            try:
+                self._died.wait()
+            except:
+                pass  # don't re-raise if we died with an exception
+            return
+
         _log.debug('stopping %s', self)
 
         with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
@@ -237,10 +249,14 @@ class ServiceContainer(object):
         """
         if self._being_killed:
             # this happens if a managed thread exits with an exception
-            # while the container is being killed or another caller
-            # behaves in a similar manner
+            # while the container is being killed or if multiple errors
+            # happen simultaneously
             _log.debug('already killing %s ... waiting for death', self)
-            self._died.wait()
+            try:
+                self._died.wait()
+            except:
+                pass  # don't re-raise if we died with an exception
+            return
 
         self._being_killed = True
 
