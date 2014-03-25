@@ -92,11 +92,11 @@ class ServiceRunner(object):
         """
         try:
             SpawningProxy(self.containers, abort_on_error=True).wait()
-        except Exception as e:
+        except Exception:
             # If a single container failed, stop its peers and re-raise the
             # exception
             self.stop()
-            raise e
+            raise
 
 
 @contextmanager

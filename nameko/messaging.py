@@ -226,7 +226,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         asked to terminate as soon as possible.
         """
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
-        if not self._gt.dead:
+        if self._gt and not self._gt.dead:
             # we can't just kill the thread because we have to give
             # ConsumerMixin a chance to close the sockets properly.
             self._providers = set()

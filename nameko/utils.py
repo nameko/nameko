@@ -1,4 +1,6 @@
 import functools
+import sys
+
 import eventlet
 from eventlet.queue import LightQueue
 
@@ -26,9 +28,9 @@ def fail_fast_imap(pool, call, items):
             thread_result = finished_thread.wait()
             spawned_threads.remove(finished_thread)
             result_queue.put((thread_result, None))
-        except Exception as e:
+        except Exception:
             spawned_threads.remove(finished_thread)
-            result_queue.put((None, e))
+            result_queue.put((None, sys.exc_info()))
 
     for item in items:
         gt = pool.spawn(call, item)
@@ -36,12 +38,12 @@ def fail_fast_imap(pool, call, items):
         gt.link(handle_result)
 
     while spawned_threads:
-        result, raised_exc = result_queue.get()
-        if raised_exc is not None:
+        result, exc_info = result_queue.get()
+        if exc_info is not None:
             # Kill all other ongoing threads
             for ongoing_thread in spawned_threads:
                 ongoing_thread.kill()
-            raise raised_exc
+            eventlet.getcurrent().throw(*exc_info)
         yield result
 
 

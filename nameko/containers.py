@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from abc import ABCMeta, abstractproperty
 from logging import getLogger
+import sys
 import uuid
 
 import eventlet
@@ -247,7 +248,10 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        _log.info('killing %s', self)
+        if exc is not None:
+            _log.info('killing %s due to %s', self, exc)
+        else:
+            _log.info('killing %s', self)
 
         self.dependencies.entrypoints.all.kill()
         self._kill_active_threads()
@@ -415,12 +419,12 @@ class ServiceContainer(object):
             # don't properly take care of their threads
             _log.warning('%s thread killed by container', self)
 
-        except Exception as exc:
+        except Exception:
             _log.error('%s thread exited with error', self, exc_info=True)
             # any error raised inside an active thread is unexpected behavior
             # and probably a bug in the providers or container.
             # to be safe we kill the container and pass exc to be raised later
-            self.kill(exc)
+            self.kill(sys.exc_info())
 
     def __str__(self):
         return '<ServiceContainer [{}] at 0x{:x}>'.format(

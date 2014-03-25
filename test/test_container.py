@@ -1,7 +1,7 @@
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
 import greenlet
-from mock import patch, call
+from mock import patch, call, ANY
 import pytest
 
 from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
@@ -374,7 +374,11 @@ def test_spawned_thread_causes_container_to_kill_other_thread(container):
 
 
 def test_container_only_killed_once(container):
-    exc = Exception('foobar')
+
+    class Broken(Exception):
+        pass
+
+    exc = Broken('foobar')
 
     def raise_error():
         raise exc
@@ -397,11 +401,14 @@ def test_container_only_killed_once(container):
             container.spawn_managed_thread(raise_error)
 
             # container should die with an exception
-            with pytest.raises(Exception):
+            with pytest.raises(Broken):
                 container.wait()
 
             # container.kill should have been called twice
-            assert kill.call_args_list == [call(exc), call(exc)]
+            assert kill.call_args_list == [
+                call((Broken, exc, ANY)),
+                call((Broken, exc, ANY))
+            ]
 
             # only the first kill results in any cleanup
             assert kill_threads.call_count == 1
@@ -463,3 +470,17 @@ def test_container_injection_property(container):
     injections = container.injections
     assert {dep.name for dep in injections} == {'spam'}
     assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]
+
+
+def test_container_catches_managed_thread_errors(container):
+
+    class Broken(Exception):
+        pass
+
+    def raises():
+        raise Broken('error')
+
+    container.spawn_managed_thread(raises)
+
+    with pytest.raises(Broken):
+        container.wait()
