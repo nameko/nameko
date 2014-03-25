@@ -39,7 +39,7 @@ class CallCollectorMixin(object):
         self._log_call(('stop'))
         super(CallCollectorMixin, self).stop()
 
-    def kill(self, exc):
+    def kill(self, exc=None):
         self._log_call(('kill'))
         super(CallCollectorMixin, self).stop()
 

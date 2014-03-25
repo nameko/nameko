@@ -85,7 +85,7 @@ def test_kill_stops_timer():
     timer.start()
 
     with wait_for_call(1, container.spawn_worker):
-        timer.kill(Exception('time'))
+        timer.kill()
 
     # unless the timer is dead, the following nap would cause a timer
     # to trigger

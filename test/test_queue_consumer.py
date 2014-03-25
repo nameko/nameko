@@ -299,7 +299,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
     queue_consumer.start()
 
     # kill should close all connections
-    queue_consumer.kill(Exception('test-kill'))
+    queue_consumer.kill()
 
     connections = rabbit_manager.get_connections()
     assert connections is None

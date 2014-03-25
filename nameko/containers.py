@@ -247,14 +247,11 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        if exc is not None:
-            _log.info('killing %s due to "%s"', self, exc)
-        else:
-            _log.info('killing %s', self)
+        _log.info('killing %s', self)
 
-        self.dependencies.entrypoints.all.kill(exc)
+        self.dependencies.entrypoints.all.kill()
         self._kill_active_threads()
-        self.dependencies.all.kill(exc)
+        self.dependencies.all.kill()
         self._kill_protected_threads()
 
         self.started = False
@@ -263,8 +260,8 @@ class ServiceContainer(object):
     def wait(self):
         """ Block until the container has been stopped.
 
-        If the container was stopped using ``kill(exc)``, ``wait()``
-        raises ``exc``.
+        If the container was stopped due to an exception, ``wait()`` will
+        raise it.
 
         Any unhandled exception raised in a managed thread or in the
         life-cycle management code also causes the container to be
@@ -419,8 +416,7 @@ class ServiceContainer(object):
             _log.warning('%s thread killed by container', self)
 
         except Exception as exc:
-            _log.error('%s thread exited with error', self,
-                       exc_info=True)
+            _log.error('%s thread exited with error', self, exc_info=True)
             # any error raised inside an active thread is unexpected behavior
             # and probably a bug in the providers or container.
             # to be safe we kill the container and pass exc to be raised later

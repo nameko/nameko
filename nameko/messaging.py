@@ -218,7 +218,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         super(QueueConsumer, self).stop()
         _log.debug('stopped %s', self)
 
-    def kill(self, exc):
+    def kill(self):
         """ Kill the queue-consumer.
 
         Unlike `stop()` any pending message ack or requeue-requests,
@@ -237,7 +237,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self.should_stop = True
             self._gt.wait()
 
-            super(QueueConsumer, self).kill(exc)
+            super(QueueConsumer, self).kill()
             _log.debug('killed %s', self)
 
     def unregister_provider(self, provider):

@@ -77,15 +77,13 @@ class ServiceRunner(object):
 
         _log.info('services stopped: %s', self.service_names)
 
-    def kill(self, exc=None):
+    def kill(self):
         """ Kill all running containers concurrently.
         The method will block until all containers have stopped.
-
-        If `exc` is provided, it will be raised by :meth:`wait()`.
         """
         _log.info('killing services: %s', self.service_names)
 
-        SpawningProxy(self.containers).kill(exc)
+        SpawningProxy(self.containers).kill()
 
         _log.info('services killed: %s ', self.service_names)
 
