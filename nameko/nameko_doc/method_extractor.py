@@ -8,6 +8,19 @@ from nameko.rpc import RpcProvider
 log = logging.getLogger(__name__)
 
 
+def is_rpc_method(method):
+    if inspect.ismethod(method) and hasattr(method, 'nameko_entrypoints'):
+        entrypoint_dep_classes = {
+            factory.dep_cls for factory in method.nameko_entrypoints
+        }
+        if any(issubclass(dep_cls, RpcProvider)
+               for dep_cls in entrypoint_dep_classes):
+            # It's an RPC method
+            return True
+
+    return False
+
+
 class MethodExtractor(object):
     def __init__(self, service_loader_function):
         self.service_loader_function = service_loader_function
@@ -20,12 +33,12 @@ class MethodExtractor(object):
             service_name = service_cls.name  # e.g. 'foo'
             service_class_name = service_cls.__name__  # e.g. 'FooService'
             module_path = service_cls.__module__
-            methods = self._service_methods_from_class(service_cls)
+            method_names = self._get_service_method_names(service_cls)
             description = self._create_service_description(
                 service_name,
                 module_path,
                 service_class_name,
-                methods,
+                method_names,
             )
             descriptions.append(description)
 
@@ -33,28 +46,12 @@ class MethodExtractor(object):
             services=descriptions
         )
 
-    def _service_methods_from_class(self, class_obj):
-        service_methods = []
-
-        cls_method_data = inspect.getmembers(class_obj, inspect.ismethod)
-        for method_name, method in cls_method_data:
-            is_service_method = self._check_if_service_method(method)
-            if is_service_method:
-                service_methods.append(method_name)
-
-        return service_methods
-
-    def _check_if_service_method(self, method):
-        if hasattr(method, 'nameko_entrypoints'):
-            entrypoint_dep_classes = {
-                factory.dep_cls for factory in method.nameko_entrypoints
-            }
-            if any(issubclass(dep_cls, RpcProvider)
-                   for dep_cls in entrypoint_dep_classes):
-                # It's an RPC method
-                return True
-
-        return False
+    def _get_service_method_names(self, service_cls):
+        service_method_names = [
+            name for (name, _) in
+            inspect.getmembers(service_cls, is_rpc_method)
+        ]
+        return service_method_names
 
     def _create_service_description(self, service_name, module_path,
                                     service_cls_name, methods):
