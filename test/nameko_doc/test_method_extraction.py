@@ -23,7 +23,7 @@ class TestMethodExtraction(object):
                         'RPC',
                         contents=[
                             entities.SingleMethod(
-                                'method'
+                                'method', extras=[]
                             )
                         ]
                     ),

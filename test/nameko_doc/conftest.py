@@ -19,3 +19,8 @@ def temp_folder_factory():
 
     for to_delete in created:
         path(to_delete).rmtree(ignore_errors=True)
+
+
+def assert_entities_equal(entity, other):
+    assert isinstance(other, type(entity))
+    assert entity.__dict__ == other.__dict__

@@ -71,7 +71,8 @@ class MethodExtractor(object):
             'RPC',
             contents=[
                 entities.SingleMethod(
-                    assigned_name
+                    assigned_name,
+                    extras=[]
                 ) for assigned_name in methods
             ]
         )]

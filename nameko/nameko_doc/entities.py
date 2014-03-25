@@ -1,21 +1,13 @@
+from collections import namedtuple
 import rst_render as rst
 
 
 TITLE_LEVEL_FOR_SUBSECTIONS = 2
 
 
-class EquatableMixin(object):
-    def __eq__(self, other):
-        return self.__dict__ == other.__dict__
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-
-class ServiceCollection(EquatableMixin):
-    def __init__(self, services=None):
-        self.services = services or []
-
+class ServiceCollection(namedtuple('ServiceCollection', [
+    'services',
+])):
     def render(self, rst_page_printer):
         """ Render this service collection out """
         for service in self.services:
@@ -23,13 +15,9 @@ class ServiceCollection(EquatableMixin):
             rst_page_printer.add_page(page)
 
 
-class ServiceDescription(EquatableMixin):
-    def __init__(self, name, module_path, class_name, sections=None):
-        self.name = name
-        self.module_path = module_path
-        self.class_name = class_name
-        self.sections = sections or []
-
+class ServiceDescription(namedtuple('ServiceDescription', [
+    'name', 'module_path', 'class_name', 'sections',
+])):
     def render_page(self):
         """ Render a service into a page """
         section_parts = [
@@ -53,10 +41,9 @@ class ServiceDescription(EquatableMixin):
         return page
 
 
-class ReferenceSection(EquatableMixin):
-    def __init__(self, references=None):
-        self.references = references or []
-
+class ReferenceSection(namedtuple('ReferenceSection', [
+    'references',
+])):
     def render_section(self, service_description, this_level=1):
         aside = rst.render_see_also_section(
             contents=[
@@ -71,11 +58,9 @@ class ReferenceSection(EquatableMixin):
         return aside
 
 
-class ClassReference(EquatableMixin):
-    def __init__(self, title, reference_path):
-        self.title = title
-        self.reference_path = reference_path
-
+class ClassReference(namedtuple('ClassReference', [
+    'title', 'reference_path',
+])):
     def render_reference(self):
         """ Render a reference to a class under a given category/title """
         return rst.render_definition(
@@ -86,11 +71,9 @@ class ClassReference(EquatableMixin):
         )
 
 
-class Section(EquatableMixin):
-    def __init__(self, title, contents=None):
-        self.title = title
-        self.contents = contents or []
-
+class Section(namedtuple('Section', [
+    'title', 'contents',
+])):
     def render_section(self, service_description, this_level=1):
         sub_section_contents = [
             content.render_section(service_description, this_level + 1)
@@ -107,11 +90,9 @@ class Section(EquatableMixin):
         return section
 
 
-class SingleMethod(EquatableMixin):
-    def __init__(self, method_name, extras=None):
-        self.method_name = method_name
-        self.extras = extras or []
-
+class SingleMethod(namedtuple('SingleMethod', [
+    'method_name', 'extras',
+])):
     def render_section(self, service_description, this_level=1):
         method_path = '{}.{}.{}'.format(
             service_description.module_path,
@@ -130,10 +111,8 @@ class SingleMethod(EquatableMixin):
         return method_ref
 
 
-class ExtraInstruction(EquatableMixin):
-    def __init__(self, title, content):
-        self.title = title
-        self.content = content
-
+class ExtraInstruction(namedtuple('ExtraInstruction', [
+    'title', 'content'
+])):
     def render_extra(self):
         return rst.render_instruction(self.title, self.content)
