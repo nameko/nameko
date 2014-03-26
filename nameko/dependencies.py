@@ -192,14 +192,16 @@ class ProviderCollector(object):
         self._providers.add(provider)
 
     def unregister_provider(self, provider):
-        _log.debug('unregistering provider %s for %s', provider, self)
         providers = self._providers
+        if provider not in self._providers:
+            return
 
-        providers.discard(provider)
+        _log.debug('unregistering provider %s for %s', provider, self)
+
+        providers.remove(provider)
         if len(providers) == 0:
-            if not self._last_provider_unregistered.ready():
-                _log.debug('last provider unregistered for %s', self)
-                self._last_provider_unregistered.send()
+            _log.debug('last provider unregistered for %s', self)
+            self._last_provider_unregistered.send()
 
     def wait_for_providers(self):
         """ Wait for any providers registered with the collector to have

@@ -43,6 +43,9 @@ def fail_fast_imap(pool, call, items):
             # Kill all other ongoing threads
             for ongoing_thread in spawned_threads:
                 ongoing_thread.kill()
+            # simply raising here (even raising a full exc_info) isn't
+            # sufficient to preserve the original stack trace.
+            # greenlet.throw() achieves this.
             eventlet.getcurrent().throw(*exc_info)
         yield result
 
