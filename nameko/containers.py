@@ -440,7 +440,8 @@ class ServiceContainer(object):
             _log.error('%s thread exited with error', self, exc_info=True)
             # any error raised inside an active thread is unexpected behavior
             # and probably a bug in the providers or container.
-            # to be safe we kill the container and pass exc to be raised later
+            # to be safe we call self.kill() to kill our dependencies and
+            # provide the exception info to be raised in self.wait().
             self.kill(sys.exc_info())
 
     def __str__(self):
