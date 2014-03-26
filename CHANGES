@@ -1,3 +1,10 @@
+Version 1.4.1
+-------------
+
+* Adds the `nameko_doc` package, for easing the creation of service-oriented
+  documentation.
+
+
 Version 1.4.0
 -------------
 
