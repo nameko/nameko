@@ -1,3 +1,5 @@
+import sys
+
 import eventlet
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
@@ -283,15 +285,10 @@ def test_kill_container_with_active_threads(container):
     assert len(container._active_threads) == 1
     (worker_gt,) = container._active_threads
 
-    class Killed(Exception):
-        pass
-    exc = Killed("kill")
-
-    container.kill(exc)
+    container.kill()
 
     with Timeout(1):
-        with pytest.raises(Killed):
-            container._died.wait()
+        container._died.wait()
 
         with pytest.raises(greenlet.GreenletExit):
             worker_gt.wait()
@@ -310,15 +307,10 @@ def test_kill_container_with_protected_threads(container):
     assert len(container._protected_threads) == 1
     (worker_gt,) = container._protected_threads
 
-    class Killed(Exception):
-        pass
-    exc = Killed("kill")
-
-    container.kill(exc)
+    container.kill()
 
     with Timeout(1):
-        with pytest.raises(Killed):
-            container._died.wait()
+        container._died.wait()
 
         with pytest.raises(greenlet.GreenletExit):
             worker_gt.wait()
@@ -451,7 +443,7 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
     container.spawn_managed_thread(sleep_forever)
     container.spawn_managed_thread(sleep_forever, protected=True)
 
-    container.kill(Exception("killed"))
+    container.kill()
 
     assert logger.warning.call_args_list == [
         call("killing %s active thread(s)", 1),
@@ -471,10 +463,18 @@ def test_stop_during_kill(container, logger):
         # force eventlet yield during kill() so stop() will be scheduled
         kill_threads.side_effect = eventlet.sleep
 
-        eventlet.spawn(container.kill)
+        # manufacture an exc_info to kill with
+        try:
+            raise Exception('error')
+        except:
+            pass
+        exc_info = sys.exc_info()
+
+        eventlet.spawn(container.kill, exc_info)
         eventlet.spawn(container.stop)
 
-        container.wait()
+        with pytest.raises(Exception):
+            container.wait()
         assert logger.debug.call_args_list == [
             call("already being killed %s", container),
         ]

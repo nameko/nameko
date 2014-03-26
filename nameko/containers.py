@@ -237,7 +237,7 @@ class ServiceContainer(object):
             self.started = False
             self._died.send(None)
 
-    def kill(self, exc=None):
+    def kill(self, exc_info=None):
         """ Kill the container in a semi-graceful way.
 
         All non-protected managed threads are killed first. This includes
@@ -245,7 +245,8 @@ class ServiceContainer(object):
         Next, dependencies are killed. Finally, any remaining protected threads
         are killed.
 
-        If ``exc`` is provided, it will be raised by :meth:`~wait``.
+        If ``exc_info`` is provided, the exception will be raised by
+        :meth:`~wait``.
         """
         if self._being_killed:
             # this happens if a managed thread exits with an exception
@@ -264,8 +265,8 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        if exc is not None:
-            _log.info('killing %s due to %s', self, exc)
+        if exc_info is not None:
+            _log.info('killing %s due to %s', self, exc_info[1])
         else:
             _log.info('killing %s', self)
 
@@ -275,7 +276,7 @@ class ServiceContainer(object):
         self._kill_protected_threads()
 
         self.started = False
-        self._died.send(None, exc)
+        self._died.send(None, exc_info)
 
     def wait(self):
         """ Block until the container has been stopped.
