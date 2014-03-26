@@ -150,4 +150,4 @@ def test_busy_check_on_teardown():
     sr.start()
     sr.kill()
     with wait_for_call(5, kill_called) as kill_called_waited:
-        kill_called_waited.assert_called_once_with()
+        assert kill_called_waited.call_count == 1
