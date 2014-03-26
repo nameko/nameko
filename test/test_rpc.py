@@ -215,9 +215,9 @@ def test_reply_listener(get_rpc_exchange):
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
 
-#==============================================================================
+# =============================================================================
 # INTEGRATION TESTS
-#==============================================================================
+# =============================================================================
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
