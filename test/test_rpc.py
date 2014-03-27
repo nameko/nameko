@@ -12,7 +12,7 @@ from nameko.containers import (
     ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
-from nameko.exceptions import RemoteError, MethodNotFound
+from nameko.exceptions import RemoteError, MethodNotFound, UnknownService
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
@@ -54,7 +54,8 @@ class ExampleService(object):
     name = 'exampleservice'
 
     translate = translator()
-    rpc_proxy = rpc_proxy('exampleservice')
+    example_rpc = rpc_proxy('exampleservice')
+    unknown_rpc = rpc_proxy('unknown_service')
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -69,6 +70,10 @@ class ExampleService(object):
     @rpc
     def broken(self):
         raise ExampleError("broken")
+
+    @rpc
+    def call_unknown(self):
+        return self.unknown_rpc.any_method()
 
     @rpc
     def echo(self, *args, **kwargs):
@@ -387,6 +392,30 @@ def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
         with pytest.raises(RemoteError) as exc_info:
             proxy.broken()
     assert exc_info.value.exc_type == "ExampleError"
+
+
+def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with RpcProxy("exampleservice", rabbit_config) as proxy:
+        # success
+        assert proxy.task_a()
+
+        # failure
+        with pytest.raises(RemoteError) as exc_info:
+            proxy.call_unknown()
+
+    assert exc_info.value.exc_type == "UnknownService"
+
+
+def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
+
+    with RpcProxy("unknown_service", rabbit_config) as proxy:
+        with pytest.raises(UnknownService) as exc_info:
+            proxy.anything()
+
+    assert exc_info.value._service_name == 'unknown_service'
 
 
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,

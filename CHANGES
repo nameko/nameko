@@ -1,4 +1,5 @@
-Version 1.4.0
+
+Version 1.5.0
 -------------
 
 * Improvements to kill() enabling better tracebacks and cleaner teardown.
@@ -7,11 +8,29 @@ Version 1.4.0
     conditions.
   - No longer requiring exc in ServiceContainer.kill()
 
+Version 1.4.1
+-------------
+
+* Adds the `nameko_doc` package, for easing the creation of service-oriented
+  documentation.
+
+
+Version 1.4.0
+-------------
+
+* RPC calls to non-existent services (no queues bound to the RPC exchange with
+  the appropriate routing key) now raise an exception instead of hanging
+  indefinitely. Note that calls to existing but non-running services (where the
+  queue exists but has no consumer) behave as before.
+
+>>>>>>> origin/master
+
 Version 1.3.5
 -------------
 
 * Increased test resilience. Force-closing existing connections on rabbit
   reset
+
 
 Version 1.3.4
 -------------
