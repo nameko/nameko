@@ -12,7 +12,7 @@ import greenlet
 from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
-from nameko.exceptions import RemoteError, IncorrectSignature
+from nameko.exceptions import IncorrectSignature
 from nameko.logging import log_time
 
 WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
