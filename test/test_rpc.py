@@ -220,9 +220,9 @@ def test_reply_listener(get_rpc_exchange):
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
 
-#==============================================================================
+# =============================================================================
 # INTEGRATION TESTS
-#==============================================================================
+# =============================================================================
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
@@ -502,7 +502,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
                     proxy.task_a()
 
     # kill the container so we don't have to wait for task_b to stop
-    container.kill(Exception('test stopped'))
+    container.kill()
 
 
 def test_rpc_consumer_cannot_exit_with_providers(
@@ -523,4 +523,4 @@ def test_rpc_consumer_cannot_exit_with_providers(
                 container.stop()
 
     # kill off task_a's misbehaving rpc provider
-    container.kill(Exception('test-end'))
+    container.kill()

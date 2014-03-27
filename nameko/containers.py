@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from abc import ABCMeta, abstractproperty
 from logging import getLogger
+import sys
 import uuid
 
 import eventlet
@@ -196,6 +197,18 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
+        if self._being_killed:
+            # this race condition can happen when a container is hosted by a
+            # runner and yields during its kill method; if it's unlucky in
+            # scheduling the runner will try to stop() it before self._died
+            # has a result
+            _log.debug('already being killed %s', self)
+            try:
+                self._died.wait()
+            except:
+                pass  # don't re-raise if we died with an exception
+            return
+
         _log.debug('stopping %s', self)
 
         with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
@@ -224,7 +237,7 @@ class ServiceContainer(object):
             self.started = False
             self._died.send(None)
 
-    def kill(self, exc):
+    def kill(self, exc_info=None):
         """ Kill the container in a semi-graceful way.
 
         All non-protected managed threads are killed first. This includes
@@ -232,14 +245,19 @@ class ServiceContainer(object):
         Next, dependencies are killed. Finally, any remaining protected threads
         are killed.
 
-        The container dies with the given ``exc``.
+        If ``exc_info`` is provided, the exception will be raised by
+        :meth:`~wait``.
         """
         if self._being_killed:
             # this happens if a managed thread exits with an exception
-            # while the container is being killed or another caller
-            # behaves in a similar manner
+            # while the container is being killed or if multiple errors
+            # happen simultaneously
             _log.debug('already killing %s ... waiting for death', self)
-            self._died.wait()
+            try:
+                self._died.wait()
+            except:
+                pass  # don't re-raise if we died with an exception
+            return
 
         self._being_killed = True
 
@@ -247,21 +265,25 @@ class ServiceContainer(object):
             _log.debug('already stopped %s', self)
             return
 
-        _log.info('killing %s due to "%s"', self, exc)
+        if exc_info is not None:
+            _log.info('killing %s due to %s', self, exc_info[1])
+        else:
+            _log.info('killing %s', self)
 
-        self.dependencies.entrypoints.all.kill(exc)
+        self.dependencies.entrypoints.all.kill()
         self._kill_active_threads()
-        self.dependencies.all.kill(exc)
+        self.dependencies.all.kill()
         self._kill_protected_threads()
 
         self.started = False
-        self._died.send_exception(exc)
+        self._died.send(None, exc_info)
 
     def wait(self):
         """ Block until the container has been stopped.
 
-        If the container was stopped using ``kill(exc)``,
-        ``wait()`` raises ``exc``.
+        If the container was stopped due to an exception, ``wait()`` will
+        raise it.
+
         Any unhandled exception raised in a managed thread or in the
         life-cycle management code also causes the container to be
         ``kill()``ed, which causes an exception to be raised from ``wait()``.
@@ -414,13 +436,13 @@ class ServiceContainer(object):
             # don't properly take care of their threads
             _log.warning('%s thread killed by container', self)
 
-        except Exception as exc:
-            _log.error('%s thread exited with error', self,
-                       exc_info=True)
+        except Exception:
+            _log.error('%s thread exited with error', self, exc_info=True)
             # any error raised inside an active thread is unexpected behavior
-            # and probably a bug in the providers or container
-            # to be safe we kill the container
-            self.kill(exc)
+            # and probably a bug in the providers or container.
+            # to be safe we call self.kill() to kill our dependencies and
+            # provide the exception info to be raised in self.wait().
+            self.kill(sys.exc_info())
 
     def __str__(self):
         return '<ServiceContainer [{}] at 0x{:x}>'.format(

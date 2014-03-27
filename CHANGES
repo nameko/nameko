@@ -1,3 +1,13 @@
+
+Version 1.5.0
+-------------
+
+* Improvements to kill() enabling better tracebacks and cleaner teardown.
+  - Using sys.exc_info to preserve tracebacks
+  - No longer passing exc into DependencyProvider.kill(), removing race
+    conditions.
+  - No longer requiring exc in ServiceContainer.kill()
+
 Version 1.4.1
 -------------
 
@@ -13,6 +23,7 @@ Version 1.4.0
   indefinitely. Note that calls to existing but non-running services (where the
   queue exists but has no consumer) behave as before.
 
+>>>>>>> origin/master
 
 Version 1.3.5
 -------------
