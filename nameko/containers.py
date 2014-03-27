@@ -12,7 +12,7 @@ import greenlet
 from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
-from nameko.exceptions import RemoteError
+from nameko.exceptions import RemoteError, IncorrectSignature
 from nameko.logging import log_time
 
 WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
@@ -39,10 +39,16 @@ def get_service_name(service_cls):
 
 
 def log_worker_exception(worker_ctx, exc):
-    if isinstance(exc, RemoteError):
-        exc = "RemoteError"
     _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True,
                extra=worker_ctx.extra_for_logging)
+
+
+def check_signature(method, args, kwargs):
+    try:
+        method.shadow(*args, **kwargs)
+    except TypeError as e:
+        msg = str(e.message).replace('<lambda>', method.__name__)
+        raise IncorrectSignature(msg)
 
 
 def new_call_id():
@@ -338,10 +344,11 @@ class ServiceContainer(object):
 
             result = exc = None
             try:
+                method = getattr(worker_ctx.service, worker_ctx.method_name)
+                check_signature(method, worker_ctx.args, worker_ctx.kwargs)
+
                 _log.debug('calling handler for %s', worker_ctx,
                            extra=worker_ctx.extra_for_logging)
-
-                method = getattr(worker_ctx.service, worker_ctx.method_name)
 
                 with log_time(_log.debug, 'ran handler for %s in %0.3fsec',
                               worker_ctx):

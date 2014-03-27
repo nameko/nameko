@@ -109,15 +109,8 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
             self.handle_result(message, self.container, None, exc)
 
     def handle_result(self, message, container, result, exc):
-        error = None
-        if exc is not None:
-            # TODO: this is helpful for debug, but shouldn't be used in
-            # production (since it exposes the callee's internals).
-            # Replace this when we can correlate exceptions properly.
-            error = RemoteErrorWrapper(exc)
-
         responder = Responder(message)
-        responder.send_response(container, result, error)
+        responder.send_response(container, result, exc)
 
         self.queue_consumer.ack_message(message)
 
@@ -170,14 +163,14 @@ class Responder(object):
             retry_policy = {'max_retries': 3}
         self.retry_policy = retry_policy
 
-    def send_response(self, container, result, error_wrapper):
+    def send_response(self, container, result, exc):
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
         # assumes result is json-serializable
         error = None
-        if error_wrapper is not None:
-            error = error_wrapper.serialize()
+        if exc is not None:
+            error = RemoteErrorWrapper(exc).serialize()
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
 

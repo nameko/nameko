@@ -12,7 +12,8 @@ from nameko.containers import (
     ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
-from nameko.exceptions import RemoteError, MethodNotFound, UnknownService
+from nameko.exceptions import (
+    RemoteError, MethodNotFound, UnknownService, IncorrectSignature)
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
@@ -362,7 +363,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     }
 
 
-def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_existing_method(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -372,15 +373,28 @@ def test_rpc_existing_method(container_factory, rabbit_config, rabbit_manager):
         assert proxy.task_b() == "result_b"
 
 
+def test_rpc_incorrect_signature(container_factory, rabbit_config,
+                                 rabbit_manager):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with RpcProxy("exampleservice", rabbit_config) as proxy:
+        with pytest.raises(IncorrectSignature) as exc_info:
+            proxy.say_hello("bad arg")
+        assert exc_info.value.message == (
+            "say_hello() takes no arguments (1 given)")
+
+
 def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
     with RpcProxy("exampleservice", rabbit_config) as proxy:
-        with pytest.raises(RemoteError) as exc_info:
+        with pytest.raises(MethodNotFound) as exc_info:
             proxy.task_c()
-    assert exc_info.value.exc_type == "MethodNotFound"
+    assert exc_info.value.message == "task_c"
 
 
 def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):

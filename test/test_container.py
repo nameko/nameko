@@ -8,7 +8,9 @@ from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyFactory)
+from nameko.exceptions import IncorrectSignature
 from nameko.testing.utils import AnyInstanceOf
+from nameko.testing.services import entrypoint_hook
 
 
 class CallCollectorMixin(object):
@@ -463,3 +465,13 @@ def test_container_injection_property(container):
     injections = container.injections
     assert {dep.name for dep in injections} == {'spam'}
     assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]
+
+
+def test_check_arguments(container_factory, rabbit_config):
+
+    container = container_factory(Service, rabbit_config)
+
+    with entrypoint_hook(container, "wait") as entrypoint:
+        with pytest.raises(IncorrectSignature) as exc_info:
+            entrypoint('too many args')
+        assert exc_info.value.message == "wait() takes no arguments (1 given)"
