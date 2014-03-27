@@ -55,9 +55,8 @@ class DependencyProvider(object):
         DependencyProviders should do any graceful shutdown here.
         """
 
-    def kill(self, exc=None):
-        """ Called to stop this dependency without grace. The exception
-        causing the kill may be provided.
+    def kill(self):
+        """ Called to stop this dependency without grace.
 
         DependencyProviders should urgently shut down here. This means
         stopping as soon as possible with ommiting important cleanup.
@@ -193,8 +192,11 @@ class ProviderCollector(object):
         self._providers.add(provider)
 
     def unregister_provider(self, provider):
-        _log.debug('unregistering provider %s for %s', provider, self)
         providers = self._providers
+        if provider not in self._providers:
+            return
+
+        _log.debug('unregistering provider %s for %s', provider, self)
 
         providers.remove(provider)
         if len(providers) == 0:

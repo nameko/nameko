@@ -218,7 +218,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         super(QueueConsumer, self).stop()
         _log.debug('stopped %s', self)
 
-    def kill(self, exc):
+    def kill(self):
         """ Kill the queue-consumer.
 
         Unlike `stop()` any pending message ack or requeue-requests,
@@ -226,7 +226,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         asked to terminate as soon as possible.
         """
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
-        if not self._gt.dead:
+        if self._gt and not self._gt.dead:
             # we can't just kill the thread because we have to give
             # ConsumerMixin a chance to close the sockets properly.
             self._providers = set()
@@ -237,7 +237,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self.should_stop = True
             self._gt.wait()
 
-            super(QueueConsumer, self).kill(exc)
+            super(QueueConsumer, self).kill()
             _log.debug('killed %s', self)
 
     def unregister_provider(self, provider):

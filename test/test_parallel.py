@@ -75,7 +75,7 @@ def test_kill_managed_container(container):
     pe = ParallelExecutor(container)
     with pe as execution_context:
         f = execution_context.submit(everlasting_call)
-        container.kill(Exception())
+        container.kill()
         with pytest.raises(GreenletExit):
             f.result()
 
@@ -141,13 +141,13 @@ def test_busy_check_on_teardown():
     kill_called = Mock()
 
     class MockedContainer(ServiceContainer):
-        def kill(self, exc):
-            kill_called(type(exc))
-            super(MockedContainer, self).kill(exc)
+        def kill(self):
+            kill_called()
+            super(MockedContainer, self).kill()
 
     sr = ServiceRunner(config, container_cls=MockedContainer)
     sr.add_service(ExampleService)
     sr.start()
-    sr.kill(Exception())
+    sr.kill()
     with wait_for_call(5, kill_called) as kill_called_waited:
-        kill_called_waited.assert_called_with(Exception)
+        assert kill_called_waited.call_count == 1

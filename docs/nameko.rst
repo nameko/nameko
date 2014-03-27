@@ -10,6 +10,7 @@ Subpackages
     nameko.legacy
     nameko.standalone
     nameko.testing
+    nameko.nameko_doc
 
 Submodules
 ----------

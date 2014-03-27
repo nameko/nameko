@@ -1,1 +1,12 @@
-include readme.rst LICENSE requirements.txt dev_requirements.txt contrib_requirements.txt
+include readme.rst
+include LICENSE
+include requirements.txt
+include dev_requirements.txt
+include contrib_requirements.txt
+include pylintrc
+
+graft docs
+prune docs/build
+
+graft test
+global-exclude *.pyc
