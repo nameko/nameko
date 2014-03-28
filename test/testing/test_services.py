@@ -339,4 +339,3 @@ def test_restrict_entrypoint_container_already_started(container_factory,
 
     with pytest.raises(RuntimeError):
         restrict_entrypoints(container, "method")
-
