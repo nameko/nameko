@@ -9,7 +9,7 @@ from kombu import Connection
 from mock import patch, Mock, call
 
 from nameko.containers import (
-    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
+    ServiceContainer, WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import (
@@ -373,17 +373,88 @@ def test_rpc_existing_method(container_factory, rabbit_config):
         assert proxy.task_b() == "result_b"
 
 
-def test_rpc_incorrect_signature(container_factory, rabbit_config,
-                                 rabbit_manager):
+@pytest.yield_fixture(scope='module')
+def argtest_container(rabbit_config):
 
-    container = container_factory(ExampleService, rabbit_config)
+    class Service(object):
+
+        @rpc
+        def no_args(self):
+            pass
+
+        @rpc
+        def args_only(self, a):
+            pass
+
+        @rpc
+        def kwargs_only(self, a=None):
+            pass
+
+        @rpc
+        def star_args(self, *args):
+            pass
+
+        @rpc
+        def star_kwargs(self, **kwargs):
+            pass
+
+        @rpc
+        def args_star_args(self, a, *args):
+            pass
+
+        @rpc
+        def args_star_kwargs(self, a, **kwargs):
+            pass
+
+    container = ServiceContainer(Service, WorkerContext, rabbit_config)
     container.start()
+    yield container
+    container.kill()
 
-    with RpcProxy("exampleservice", rabbit_config) as proxy:
-        with pytest.raises(IncorrectSignature) as exc_info:
-            proxy.say_hello("bad arg")
-        assert exc_info.value.message == (
-            "say_hello() takes no arguments (1 given)")
+
+@pytest.mark.parametrize('signature, expected_error', [
+    (('no_args', (), {}), None),
+    (('no_args', ('bad arg',), {}),
+        "no_args() takes no arguments (1 given)"),
+    (('args_only', ('arg',), {}), None),
+    (('args_only', (), {'a':'arg'}), None),
+    (('args_only', (), {'arg':'arg'}),
+        "args_only() got an unexpected keyword argument 'arg'"),
+    (('kwargs_only', ('a',), {}), None),
+    (('kwargs_only', (), {'a':'arg'}), None),
+    (('kwargs_only', (), {'arg':'arg'}),
+        "kwargs_only() got an unexpected keyword argument 'arg'"),
+    (('star_args', ('a', 'b'), {}), None),
+    (('star_args', (), {'c':'c'}),
+        "star_args() got an unexpected keyword argument 'c'"),
+    (('args_star_args', ('a',), {}), None),
+    (('args_star_args', ('a', 'b'), {}), None),
+    (('args_star_args', (), {}),
+        "args_star_args() takes at least 1 argument (0 given)"),
+    (('args_star_args', (), {'c':'c'}),
+        "args_star_args() got an unexpected keyword argument 'c'"),
+    (('args_star_kwargs', ('a',), {}), None),
+    (('args_star_kwargs', ('a', 'b'), {}),
+        "args_star_kwargs() takes exactly 1 argument (2 given)"),
+    (('args_star_kwargs', ('a', 'b'), {'c':'c'}),
+        "args_star_kwargs() takes exactly 1 argument (3 given)"),
+    (('args_star_kwargs', (), {}),
+        "args_star_kwargs() takes exactly 1 argument (0 given)"),
+])
+def test_rpc_incorrect_signature(
+        signature, expected_error, argtest_container, rabbit_config):
+
+    method_name, args, kwargs = signature
+
+    with RpcProxy("service", rabbit_config) as proxy:
+        method = getattr(proxy, method_name)
+
+        if expected_error:
+            with pytest.raises(IncorrectSignature) as exc_info:
+                method(*args, **kwargs)
+            assert exc_info.value.message == expected_error
+        else:
+            method(*args, **kwargs)  # no raise
 
 
 def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):

@@ -494,16 +494,6 @@ def test_container_injection_property(container):
     assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]
 
 
-def test_check_arguments(container_factory, rabbit_config):
-
-    container = container_factory(Service, rabbit_config)
-
-    with entrypoint_hook(container, "wait") as entrypoint:
-        with pytest.raises(IncorrectSignature) as exc_info:
-            entrypoint('too many args')
-        assert exc_info.value.message == "wait() takes no arguments (1 given)"
-
-
 def test_container_catches_managed_thread_errors(container):
 
     class Broken(Exception):
