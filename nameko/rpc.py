@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from functools import partial
+import inspect
 from logging import getLogger
 import uuid
 
@@ -15,6 +16,7 @@ from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
     CONTAINER_SHARED)
+from nameko.exceptions import IncorrectSignature
 
 _log = getLogger(__name__)
 
@@ -105,7 +107,8 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         try:
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except MethodNotFound as exc:
+        except (MethodNotFound, IncorrectSignature) as exc:
+            print "REPLY", routing_key
             self.handle_result(message, self.container, None, exc)
 
     def handle_result(self, message, container, result, exc):
@@ -123,6 +126,7 @@ def rpc_consumer():
 # pylint: disable=E1101,E1123
 class RpcProvider(EntrypointProvider, HeaderDecoder):
 
+    _shadow = None
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
     def prepare(self):
@@ -132,9 +136,32 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         self.rpc_consumer.unregister_provider(self)
         super(RpcProvider, self).stop()
 
+    def bind(self, name, container):
+        super(RpcProvider, self).bind(name, container)
+
+        # Generate a 'shadow' lambda that can be used to verify
+        # invocation args against our method signature without running the
+        # actual entrypoint - see :meth:`RpcProvider.check_signature`.
+        fn = getattr(self.container.service_cls, self.name)
+        argspec = inspect.getargspec(fn)
+        argspec.args[:1] = []  # remove self
+        signature = inspect.formatargspec(*argspec)[1:-1]  # remove parens
+
+        src = "lambda {}: None".format(signature)
+        self.shadow = eval(src)
+
+    def check_signature(self, args, kwargs):
+        try:
+            self.shadow(*args, **kwargs)
+        except TypeError as exc:
+            msg = str(exc).replace('<lambda>', self.name)
+            raise IncorrectSignature(msg)
+
     def handle_message(self, body, message):
         args = body['args']
         kwargs = body['kwargs']
+
+        self.check_signature(args, kwargs)
 
         worker_ctx_cls = self.container.worker_ctx_cls
         context_data = self.unpack_message_headers(worker_ctx_cls, message)

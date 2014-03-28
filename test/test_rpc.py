@@ -373,7 +373,7 @@ def test_rpc_existing_method(container_factory, rabbit_config):
         assert proxy.task_b() == "result_b"
 
 
-@pytest.yield_fixture(scope='module')
+@pytest.yield_fixture  # TODO: scope='module'
 def argtest_container(rabbit_config):
 
     class Service(object):
@@ -409,7 +409,7 @@ def argtest_container(rabbit_config):
     container = ServiceContainer(Service, WorkerContext, rabbit_config)
     container.start()
     yield container
-    container.kill()
+    container.stop()
 
 
 @pytest.mark.parametrize('signature, expected_error', [

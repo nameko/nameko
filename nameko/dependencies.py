@@ -348,10 +348,6 @@ def entrypoint(decorator_func):
 
         Saves a reference to the provider class of the factory onto
         the ``wrapper`` function that wraps ``decorator_func``.
-
-        Generates a 'shadow' lambda on ``fn`` that can be used to verify
-        invocation args against its signature without running the actual
-        function - see :func:`nameko.containers.check_signature`.
         """
         factory = decorator_func(*args, **kwargs)
         if not isinstance(factory, DependencyFactory):
@@ -359,13 +355,6 @@ def entrypoint(decorator_func):
                                       'DependencyFactory instances')
         register_entrypoint(fn, factory)
         wrapper.provider_cls = factory.dep_cls
-
-        argspec = inspect.getargspec(fn)
-        argspec.args[:1] = []  # remove self
-        signature = inspect.formatargspec(*argspec)[1:-1]  # remove parenthesis
-
-        src = "lambda {}: None".format(signature)
-        fn.shadow = eval(src)
 
         return fn
 
