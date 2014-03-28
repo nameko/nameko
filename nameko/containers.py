@@ -47,8 +47,8 @@ def log_worker_exception(worker_ctx, exc):
 def check_signature(method, args, kwargs):
     try:
         method.shadow(*args, **kwargs)
-    except TypeError as e:
-        msg = str(e.message).replace('<lambda>', method.__name__)
+    except TypeError as exc:
+        msg = str(exc).replace('<lambda>', method.__name__)
         raise IncorrectSignature(msg)
 
 

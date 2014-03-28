@@ -360,12 +360,11 @@ def entrypoint(decorator_func):
         register_entrypoint(fn, factory)
         wrapper.provider_cls = factory.dep_cls
 
-        regargs, varargs, varkwargs, defaults = inspect.getargspec(fn)
-        regargs = regargs[1:]  # remove 'self'
-        signature = inspect.formatargspec(
-            regargs, varargs, varkwargs, defaults, formatvalue=lambda val: "")
+        argspec = inspect.getargspec(fn)
+        argspec.args[:1] = []  # remove self
+        signature = inspect.formatargspec(*argspec)[1:-1]  # remove parenthesis
 
-        src = "lambda %s: None" % signature[1:-1]
+        src = "lambda {}: None".format(signature)
         fn.shadow = eval(src)
 
         return fn

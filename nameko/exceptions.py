@@ -1,3 +1,6 @@
+import inspect
+
+
 class DependencyNotFound(AttributeError):
     pass
 
@@ -9,8 +12,20 @@ class WaiterTimeout(Exception):
 registry = {}
 
 
+def get_module_path(exc_class):
+    """ Return the dotted module path of `exc_class`
+    """
+    module = inspect.getmodule(exc_class)
+    return "{}.{}".format(module.__name__, exc_class.__name__)
+
+
 def deserializable(exc_class):
-    registry[exc_class.__name__] = exc_class
+    """ Decorator that registers `exc_class` as deserializable back into a
+    class instance, rather than a :class:`RemoteError`.
+    See :meth:`RemoteErrorWrapper.deserialize`.
+    """
+    key = get_module_path(exc_class)
+    registry[key] = exc_class
     return exc_class
 
 
@@ -47,7 +62,8 @@ class RemoteErrorWrapper(object):
         """ Serialize `self.exc` into a data dictionary representing it.
         """
         return {
-            'exc_type': self.exc.__class__.__name__,
+            'exc_type': type(self.exc).__name__,
+            'exc_path': get_module_path(type(self.exc)),
             'value': self.exc.message,
             'args': self.exc.args,
         }
@@ -56,16 +72,18 @@ class RemoteErrorWrapper(object):
     def deserialize(cls, data):
         """ Deserialize `data` to an exception instance.
 
-        If the `exc_type` key matches an exception registered as
+        If the `exc_path` value matches an exception registered as
         ``deserializable``, return an instance of that exception type.
         Otherwise, return a `RemoteError` instance describing the exception
         that occured.
         """
-        exc_type_name = data['exc_type']
-        if exc_type_name in registry:
-            return registry[exc_type_name](*data['args'])
+        key = data['exc_path']
+        if key in registry:
+            return registry[key](*data['args'])
 
-        return RemoteError(**data)
+        args = data.copy()
+        del args['exc_path']
+        return RemoteError(**args)
 
 
 class UnknownService(Exception):
