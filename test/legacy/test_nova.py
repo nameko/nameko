@@ -4,7 +4,7 @@ from kombu import Producer
 import mock
 import pytest
 
-from nameko.exceptions import RemoteError, UnknownService, RemoteErrorWrapper
+from nameko.exceptions import RemoteError, UnknownService, serialize
 from nameko.legacy import context
 from nameko.legacy import nova
 from nameko.legacy.consuming import queue_iterator
@@ -135,7 +135,7 @@ def test_send_rpc_errors(get_connection):
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
 
                 exc = Exception('error')
-                failure = RemoteErrorWrapper(exc).serialize()
+                failure = serialize(exc)
 
                 msg = {'result': None, 'failure': failure, 'ending': False}
                 producer.publish(msg)

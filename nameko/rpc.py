@@ -8,7 +8,7 @@ from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
 from nameko.exceptions import (
-    MethodNotFound, RemoteErrorWrapper, UnknownService)
+    MethodNotFound, serialize, deserialize, UnknownService)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -170,7 +170,7 @@ class Responder(object):
         # assumes result is json-serializable
         error = None
         if exc is not None:
-            error = RemoteErrorWrapper(exc).serialize()
+            error = serialize(exc)
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
 
@@ -344,7 +344,7 @@ class MethodProxy(HeaderEncoder):
 
         error = resp_body.get('error')
         if error:
-            raise RemoteErrorWrapper.deserialize(error)
+            raise deserialize(error)
         return resp_body['result']
 
     def __str__(self):
