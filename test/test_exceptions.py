@@ -78,4 +78,3 @@ def test_exception_name_clash():
     assert type(deserialized) == NamekoMethodNotFound
     assert deserialized.message == "missing"
     assert deserialized.args == ("missing",)
-

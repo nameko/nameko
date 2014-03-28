@@ -11,9 +11,7 @@ from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyFactory)
-from nameko.exceptions import IncorrectSignature
 from nameko.testing.utils import AnyInstanceOf
-from nameko.testing.services import entrypoint_hook
 
 
 class CallCollectorMixin(object):

@@ -130,6 +130,7 @@ def test_rpc_consumer(get_rpc_exchange):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "exampleservice"
+    container.service_cls = Mock(rpcmethod=lambda: None)
 
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
@@ -417,26 +418,26 @@ def argtest_container(rabbit_config):
     (('no_args', ('bad arg',), {}),
         "no_args() takes no arguments (1 given)"),
     (('args_only', ('arg',), {}), None),
-    (('args_only', (), {'a':'arg'}), None),
-    (('args_only', (), {'arg':'arg'}),
+    (('args_only', (), {'a': 'arg'}), None),
+    (('args_only', (), {'arg': 'arg'}),
         "args_only() got an unexpected keyword argument 'arg'"),
     (('kwargs_only', ('a',), {}), None),
-    (('kwargs_only', (), {'a':'arg'}), None),
-    (('kwargs_only', (), {'arg':'arg'}),
+    (('kwargs_only', (), {'a': 'arg'}), None),
+    (('kwargs_only', (), {'arg': 'arg'}),
         "kwargs_only() got an unexpected keyword argument 'arg'"),
     (('star_args', ('a', 'b'), {}), None),
-    (('star_args', (), {'c':'c'}),
+    (('star_args', (), {'c': 'c'}),
         "star_args() got an unexpected keyword argument 'c'"),
     (('args_star_args', ('a',), {}), None),
     (('args_star_args', ('a', 'b'), {}), None),
     (('args_star_args', (), {}),
         "args_star_args() takes at least 1 argument (0 given)"),
-    (('args_star_args', (), {'c':'c'}),
+    (('args_star_args', (), {'c': 'c'}),
         "args_star_args() got an unexpected keyword argument 'c'"),
     (('args_star_kwargs', ('a',), {}), None),
     (('args_star_kwargs', ('a', 'b'), {}),
         "args_star_kwargs() takes exactly 1 argument (2 given)"),
-    (('args_star_kwargs', ('a', 'b'), {'c':'c'}),
+    (('args_star_kwargs', ('a', 'b'), {'c': 'c'}),
         "args_star_kwargs() takes exactly 1 argument (3 given)"),
     (('args_star_kwargs', (), {}),
         "args_star_kwargs() takes exactly 1 argument (0 given)"),

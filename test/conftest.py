@@ -80,7 +80,7 @@ def rabbit_manager(request):
     return rabbit
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.yield_fixture
 def rabbit_config(request, rabbit_manager):
     amqp_uri = request.config.getoption('AMQP_URI')
 
