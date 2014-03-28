@@ -2,7 +2,7 @@
 """
 
 from nameko.rpc import rpc_proxy, rpc
-from nameko.testing.services import instance_factory
+from nameko.testing.services import worker_factory
 
 
 class ConversionService(object):
@@ -16,15 +16,16 @@ class ConversionService(object):
     def cms_to_inches(self, cms):
         return self.math.divide(cms, 2.54)
 
-#==============================================================================
+# =============================================================================
 # Begin test
-#==============================================================================
+# =============================================================================
+
 
 def test_conversion_service():
     # create instance
     # dependencies are replaced with mocks unless otherwise given - see
-    # :class:`nameko.testing.services.instance_factory`
-    service = instance_factory(ConversionService)
+    # :class:`nameko.testing.services.worker_factory`
+    service = worker_factory(ConversionService)
 
     # replace "math" service
     service.math.multiply.side_effect = lambda x, y: x * y
