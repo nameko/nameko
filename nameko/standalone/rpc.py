@@ -116,6 +116,9 @@ class RpcProxy(object):
         def __init__(self, config):
             self.config = config
 
+    class DummyProvider(object):
+        name = "call"
+
     def __init__(self, container_service_name, config, context_data=None,
                  worker_ctx_cls=WorkerContext):
 
@@ -125,7 +128,8 @@ class RpcProxy(object):
         reply_listener.container = container
 
         worker_ctx = worker_ctx_cls(
-            container, service=None, method_name="call", data=context_data)
+            container, service=None, provider=self.DummyProvider,
+            data=context_data)
         service_proxy = ServiceProxy(worker_ctx, container_service_name,
                                      reply_listener)
 
