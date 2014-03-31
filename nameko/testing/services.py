@@ -51,7 +51,7 @@ def entrypoint_hook(container, name, context_data=None):
     yield hook
 
 
-def instance_factory(service_cls, **injections):
+def worker_factory(service_cls, **injections):
     """ Return an instance of ``service_cls`` with its injected dependencies
     replaced with Mock objects, or as given in ``injections``.
 
@@ -73,18 +73,18 @@ def instance_factory(service_cls, **injections):
             def cm_to_inches(self, cms):
                 return self.math.divide(cms, 2.54)
 
-    Use the ``instance_factory`` to create an unhosted instance of
+    Use the ``worker_factory`` to create an unhosted instance of
     ``ConversionService`` with its injections replaced by Mock objects::
 
-        service = instance_factory(ConversionService)
+        service = worker_factory(ConversionService)
 
     Nameko's entrypoints do not modify the service methods, so they can be
     called directly on an unhosted instance. The injection Mocks can be used
     as any other Mock object, so a complete unit test for Service may look
     like this::
 
-        # create instance
-        service = instance_factory(Service)
+        # create worker instance
+        service = worker_factory(Service)
 
         # replace "math" service
         service.math.multiply.side_effect = lambda x, y: x * y
@@ -100,7 +100,7 @@ def instance_factory(service_cls, **injections):
 
     *Providing Injections*
 
-    The ``**injections`` kwargs to ``instance_factory`` can be used to provide
+    The ``**injections`` kwargs to ``worker_factory`` can be used to provide
     a replacement injection instead of a Mock. For example, to unit test a
     service against a real database:
 

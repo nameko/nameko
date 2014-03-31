@@ -16,7 +16,7 @@ def patch_injection_provider(provider):
     .. admonition:: Deprecated
 
         ``patch_injection_provider`` is deprecated in favour of
-        :meth:`nameko.testing.services.instance_factory`
+        :meth:`nameko.testing.services.worker_factory`
     """
     injection = Mock()
 

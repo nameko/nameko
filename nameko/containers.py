@@ -52,7 +52,7 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
-    def __init__(self, container, service, method_name, args=None, kwargs=None,
+    def __init__(self, container, service, provider, args=None, kwargs=None,
                  data=None):
         self.container = container
         self.config = container.config  # TODO: remove?
@@ -61,7 +61,7 @@ class WorkerContextBase(object):
             PARENT_CALLS_KEY, DEFAULT_PARENT_CALLS_TRACKED)
 
         self.service = service
-        self.method_name = method_name
+        self.provider = provider
         self.service_name = self.container.service_name
 
         self.args = args if args is not None else ()
@@ -71,7 +71,7 @@ class WorkerContextBase(object):
 
         self.parent_call_stack, self.unique_id = self._init_call_id()
         self.call_id = '{}.{}.{}'.format(
-            self.service_name, self.method_name, self.unique_id
+            self.service_name, self.provider.name, self.unique_id
         )
         n = -self.parent_calls_tracked
         self.call_id_stack = self.parent_call_stack[n:]
@@ -116,7 +116,7 @@ class WorkerContextBase(object):
     def __str__(self):
         cls_name = type(self).__name__
         return '<{} {}.{} at 0x{:x}>'.format(
-            cls_name, self.service_name, self.method_name, id(self))
+            cls_name, self.service_name, self.provider.name, id(self))
 
     def _init_call_id(self):
         parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
@@ -303,7 +303,7 @@ class ServiceContainer(object):
         """
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
-            self, service, provider.name, args, kwargs, data=context_data)
+            self, service, provider, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx,
                    extra=worker_ctx.extra_for_logging)
@@ -356,8 +356,8 @@ class ServiceContainer(object):
             self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc = None
+            method = getattr(worker_ctx.service, worker_ctx.method_name)
             try:
-                method = getattr(worker_ctx.service, worker_ctx.method_name)
 
                 _log.debug('calling handler for %s', worker_ctx,
                            extra=worker_ctx.extra_for_logging)

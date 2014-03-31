@@ -42,7 +42,7 @@ class HeaderEncoder(object):
             _log.warn(
                 'Attempted to publish unserialisable header value. '
                 'Headers with a value of `None` will be dropped from '
-                'the payload. {}'.format(data))
+                'the payload. %s', data)
 
         headers = {self._get_header_name(key): value
                    for key, value in data.items()
