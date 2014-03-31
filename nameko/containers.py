@@ -356,7 +356,7 @@ class ServiceContainer(object):
             self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc = None
-            method = getattr(worker_ctx.service, worker_ctx.method_name)
+            method = getattr(worker_ctx.service, worker_ctx.provider.name)
             try:
 
                 _log.debug('calling handler for %s', worker_ctx,
