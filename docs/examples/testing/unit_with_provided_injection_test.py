@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from nameko.rpc import rpc
 from nameko.contrib.sqlalchemy import orm_session
-from nameko.testing.services import instance_factory
+from nameko.testing.services import worker_factory
 
 
 Base = declarative_base()
@@ -29,9 +29,10 @@ class Service(object):
         self.db.add(result)
         self.db.commit()
 
-#==============================================================================
+# =============================================================================
 # Begin test
-#==============================================================================
+# =============================================================================
+
 
 @pytest.fixture
 def session():
@@ -47,7 +48,7 @@ def session():
 def test_service(session):
 
     # create instance, providing the real session for the ``db`` injection
-    service = instance_factory(Service, db=session)
+    service = worker_factory(Service, db=session)
 
     # verify ``save`` logic by querying the real database
     service.save("helloworld")

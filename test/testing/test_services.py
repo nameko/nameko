@@ -10,7 +10,7 @@ from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import (
-    entrypoint_hook, instance_factory,
+    entrypoint_hook, worker_factory,
     replace_injections, restrict_entrypoints)
 from nameko.testing.utils import get_container, wait_for_call
 
@@ -152,7 +152,7 @@ def test_entrypoint_hook_dependency_not_found(container_factory,
             pass
 
 
-def test_instance_factory():
+def test_worker_factory():
 
     class Service(object):
         foo_proxy = rpc_proxy("foo_service")
@@ -162,24 +162,24 @@ def test_instance_factory():
         pass
 
     # simplest case, no overrides
-    instance = instance_factory(Service)
+    instance = worker_factory(Service)
     assert isinstance(instance, Service)
     assert isinstance(instance.foo_proxy, Mock)
     assert isinstance(instance.bar_proxy, Mock)
 
     # no injections to replace
-    instance = instance_factory(OtherService)
+    instance = worker_factory(OtherService)
     assert isinstance(instance, OtherService)
 
     # override specific injection
     bar_injection = object()
-    instance = instance_factory(Service, bar_proxy=bar_injection)
+    instance = worker_factory(Service, bar_proxy=bar_injection)
     assert isinstance(instance, Service)
     assert isinstance(instance.foo_proxy, Mock)
     assert instance.bar_proxy is bar_injection
 
     # non-applicable injection
-    instance = instance_factory(Service, nonexist=object())
+    instance = worker_factory(Service, nonexist=object())
     assert isinstance(instance, Service)
     assert isinstance(instance.foo_proxy, Mock)
     assert isinstance(instance.bar_proxy, Mock)
