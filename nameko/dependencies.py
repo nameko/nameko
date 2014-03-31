@@ -346,7 +346,7 @@ def entrypoint(decorator_func):
         """ Verify that ``decorator_func`` returns a DependencyFactory and
         register ``fn`` as an entrypoint.
 
-        Save a reference to the provider class of the factory onto
+        Saves a reference to the provider class of the factory onto
         the ``wrapper`` function that wraps ``decorator_func``.
         """
         factory = decorator_func(*args, **kwargs)
@@ -355,6 +355,7 @@ def entrypoint(decorator_func):
                                       'DependencyFactory instances')
         register_entrypoint(fn, factory)
         wrapper.provider_cls = factory.dep_cls
+
         return fn
 
     @wraps(decorator_func)

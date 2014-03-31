@@ -91,11 +91,11 @@ def _send_topic(connection, exchange, topic, data):
 
 
 def parse_message(message_body):
-    method = message_body.pop('method')
-    args = message_body.pop('args')
-    msg_id = message_body.pop('_msg_id', None)
+    method = message_body.get('method')
+    args = message_body.get('args')
+    msg_id = message_body.get('_msg_id', None)
     context_dict = dict(
-        (k[9:], message_body.pop(k))
+        (k[9:], message_body.get(k))
         for k in message_body.keys() if k.startswith('_context_')
     )
     context = Context(**context_dict)

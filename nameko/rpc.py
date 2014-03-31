@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from functools import partial
+import inspect
 from logging import getLogger
 import uuid
 
@@ -8,13 +9,14 @@ from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
 from nameko.exceptions import (
-    MethodNotFound, RemoteErrorWrapper, UnknownService)
+    MethodNotFound, serialize, deserialize, UnknownService)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
     CONTAINER_SHARED)
+from nameko.exceptions import IncorrectSignature
 
 _log = getLogger(__name__)
 
@@ -105,19 +107,12 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         try:
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except MethodNotFound as exc:
+        except (MethodNotFound, IncorrectSignature) as exc:
             self.handle_result(message, self.container, None, exc)
 
     def handle_result(self, message, container, result, exc):
-        error = None
-        if exc is not None:
-            # TODO: this is helpful for debug, but shouldn't be used in
-            # production (since it exposes the callee's internals).
-            # Replace this when we can correlate exceptions properly.
-            error = RemoteErrorWrapper(exc)
-
         responder = Responder(message)
-        responder.send_response(container, result, error)
+        responder.send_response(container, result, exc)
 
         self.queue_consumer.ack_message(message)
 
@@ -130,6 +125,7 @@ def rpc_consumer():
 # pylint: disable=E1101,E1123
 class RpcProvider(EntrypointProvider, HeaderDecoder):
 
+    _shadow = None
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
     def prepare(self):
@@ -139,9 +135,32 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         self.rpc_consumer.unregister_provider(self)
         super(RpcProvider, self).stop()
 
+    def bind(self, name, container):
+        super(RpcProvider, self).bind(name, container)
+
+        # Generate a 'shadow' lambda that can be used to verify
+        # invocation args against our method signature without running the
+        # actual entrypoint - see :meth:`RpcProvider.check_signature`.
+        fn = getattr(self.container.service_cls, self.name)
+        argspec = inspect.getargspec(fn)
+        argspec.args[:1] = []  # remove self
+        signature = inspect.formatargspec(*argspec)[1:-1]  # remove parens
+
+        src = "lambda {}: None".format(signature)
+        self.shadow = eval(src)
+
+    def check_signature(self, args, kwargs):
+        try:
+            self.shadow(*args, **kwargs)
+        except TypeError as exc:
+            msg = str(exc).replace('<lambda>', self.name)
+            raise IncorrectSignature(msg)
+
     def handle_message(self, body, message):
         args = body['args']
         kwargs = body['kwargs']
+
+        self.check_signature(args, kwargs)
 
         worker_ctx_cls = self.container.worker_ctx_cls
         context_data = self.unpack_message_headers(worker_ctx_cls, message)
@@ -170,14 +189,14 @@ class Responder(object):
             retry_policy = {'max_retries': 3}
         self.retry_policy = retry_policy
 
-    def send_response(self, container, result, error_wrapper):
+    def send_response(self, container, result, exc):
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
         # assumes result is json-serializable
         error = None
-        if error_wrapper is not None:
-            error = error_wrapper.serialize()
+        if exc is not None:
+            error = serialize(exc)
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
 
@@ -351,7 +370,7 @@ class MethodProxy(HeaderEncoder):
 
         error = resp_body.get('error')
         if error:
-            raise RemoteErrorWrapper.deserialize(error)
+            raise deserialize(error)
         return resp_body['result']
 
     def __str__(self):

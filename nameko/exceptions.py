@@ -1,4 +1,7 @@
-class MethodNotFound(AttributeError):
+import inspect
+
+
+class DependencyNotFound(AttributeError):
     pass
 
 
@@ -6,12 +9,79 @@ class WaiterTimeout(Exception):
     pass
 
 
+registry = {}
+
+
+def get_module_path(exc_type):
+    """ Return the dotted module path of `exc_type`, including the class name.
+
+    e.g.::
+
+        >>> get_module_class(MethodNotFound)
+        >>> "nameko.exceptions.MethodNotFound"
+
+    """
+    module = inspect.getmodule(exc_type)
+    return "{}.{}".format(module.__name__, exc_type.__name__)
+
+
 class RemoteError(Exception):
-    def __init__(self, exc_type=None, value=None):
+    """ Exception to raise at the caller if an exception occured in the
+    remote worker.
+    """
+    def __init__(self, exc_type=None, value="", args=()):
         self.exc_type = exc_type
         self.value = value
+        self.args = args
         message = '{} {}'.format(exc_type, value)
         super(RemoteError, self).__init__(message)
+
+
+def serialize(exc):
+    """ Serialize `self.exc` into a data dictionary representing it.
+    """
+    return {
+        'exc_type': type(exc).__name__,
+        'exc_path': get_module_path(type(exc)),
+        'value': exc.message,
+        'args': exc.args,
+    }
+
+
+def deserialize(data):
+    """ Deserialize `data` to an exception instance.
+
+    If the `exc_path` value matches an exception registered as
+    ``deserializable``, return an instance of that exception type.
+    Otherwise, return a `RemoteError` instance describing the exception
+    that occured.
+    """
+    key = data['exc_path']
+    if key in registry:
+        return registry[key](*data['args'])
+
+    args = data.copy()
+    del args['exc_path']
+    return RemoteError(**args)
+
+
+def deserialize_to_instance(exc_type):
+    """ Decorator that registers `exc_type` as deserializable back into an
+    instance, rather than a :class:`RemoteError`. See :func:`deserialize`.
+    """
+    key = get_module_path(exc_type)
+    registry[key] = exc_type
+    return exc_type
+
+
+@deserialize_to_instance
+class MethodNotFound(Exception):
+    pass
+
+
+@deserialize_to_instance
+class IncorrectSignature(Exception):
+    pass
 
 
 class UnknownService(Exception):
@@ -21,22 +91,3 @@ class UnknownService(Exception):
 
     def __str__(self):
         return "Unknown service `{}`".format(self._service_name)
-
-
-class RemoteErrorWrapper(object):
-    def __init__(self, exc):
-        self.exc = exc
-
-    def serialize(self):
-        return {
-            'exc_type': self.exc.__class__.__name__,
-            'value': self.exc.message,
-        }
-
-    @classmethod
-    def deserialize(cls, data):
-        return RemoteError(**data)
-
-
-class DependencyNotFound(AttributeError):
-    pass

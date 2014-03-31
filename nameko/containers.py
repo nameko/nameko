@@ -13,7 +13,6 @@ import greenlet
 from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
-from nameko.exceptions import RemoteError
 from nameko.logging import log_time
 
 WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
@@ -40,8 +39,6 @@ def get_service_name(service_cls):
 
 
 def log_worker_exception(worker_ctx, exc):
-    if isinstance(exc, RemoteError):
-        exc = "RemoteError"
     _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True,
                extra=worker_ctx.extra_for_logging)
 
@@ -359,11 +356,11 @@ class ServiceContainer(object):
             self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc = None
+            method = getattr(worker_ctx.service, worker_ctx.provider.name)
             try:
+
                 _log.debug('calling handler for %s', worker_ctx,
                            extra=worker_ctx.extra_for_logging)
-
-                method = getattr(worker_ctx.service, worker_ctx.provider.name)
 
                 with log_time(_log.debug, 'ran handler for %s in %0.3fsec',
                               worker_ctx):

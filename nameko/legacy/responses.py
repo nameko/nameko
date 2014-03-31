@@ -1,4 +1,4 @@
-from nameko.exceptions import RemoteError
+from nameko.exceptions import deserialize
 
 
 def ifirst(iter_):
@@ -25,7 +25,7 @@ def iter_rpcresponses(iter_):
         data = msg.payload
         if data['failure']:
             msg.ack()
-            raise RemoteError(*data['failure'])
+            raise deserialize(data['failure'])
         elif data.get('ending', False):
             msg.ack()
             return

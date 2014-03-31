@@ -5,7 +5,7 @@ from nameko.dependencies import (
     injection, entrypoint, InjectionProvider, EntrypointProvider,
     DependencyFactory)
 from nameko.events import Event, event_handler
-from nameko.exceptions import DependencyNotFound, RemoteError
+from nameko.exceptions import DependencyNotFound, MethodNotFound
 from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import RpcProxy
@@ -298,9 +298,9 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
 
     # verify the rpc entrypoint on handler_one is disabled
     with RpcProxy("service", rabbit_config) as service_proxy:
-        with pytest.raises(RemoteError) as exc_info:
+        with pytest.raises(MethodNotFound) as exc_info:
             service_proxy.handler_one("msg")
-        assert exc_info.value.exc_type == "MethodNotFound"
+        assert exc_info.value.message == "handler_one"
 
     # dispatch an event to handler_two
     msg = "msg"
