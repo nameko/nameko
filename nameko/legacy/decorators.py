@@ -18,7 +18,5 @@ def ensure(func):
     @functools.wraps(func)
     def wrapped(connection, *args, **kwargs):
         with ChannelHandler(connection, create_channel=False) as ch:
-            #return connection.ensure(ch, func, errback=None)(connection,
-            #    *args, **kwargs)
             return ch((ch, func), connection, *args, **kwargs)
     return wrapped

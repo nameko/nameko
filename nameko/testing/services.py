@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import inspect
 
 from eventlet import event
-from mock import Mock
+from mock import MagicMock
 
 from nameko.dependencies import (
     DependencyFactory, InjectionProvider, EntrypointProvider, entrypoint)
@@ -115,7 +115,7 @@ def instance_factory(service_cls, **injections):
                 try:
                     injection = injections[name]
                 except KeyError:
-                    injection = Mock()
+                    injection = MagicMock()
                 setattr(service, name, injection)
     return service
 
@@ -123,7 +123,7 @@ def instance_factory(service_cls, **injections):
 class MockInjection(InjectionProvider):
     def __init__(self, name):
         self.name = name
-        self.injection = Mock()
+        self.injection = MagicMock()
 
     def acquire_injection(self, worker_ctx):
         return self.injection

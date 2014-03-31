@@ -242,15 +242,15 @@ def test_provider_collector():
     collector.unregister_provider(provider1)
     assert provider1 not in collector._providers
 
-    with pytest.raises(KeyError):
-        collector.unregister_provider(provider1)
+    # unregister missing provider is a no-op
+    collector.unregister_provider(provider1)
 
-    # should time out waiting for stop
+    # stop() should block while a provider remains
     with pytest.raises(eventlet.Timeout):
         with eventlet.Timeout(0):
             collector.stop()
 
-    # should not time out
+    # stop() will return when the final provider is unregistered
     with eventlet.Timeout(0):
         collector.unregister_provider(provider2)
         collector.stop()

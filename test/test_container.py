@@ -1,7 +1,10 @@
+import sys
+
+import eventlet
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
 import greenlet
-from mock import patch, call
+from mock import patch, call, ANY
 import pytest
 
 from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
@@ -39,7 +42,7 @@ class CallCollectorMixin(object):
         self._log_call(('stop'))
         super(CallCollectorMixin, self).stop()
 
-    def kill(self, exc):
+    def kill(self, exc=None):
         self._log_call(('kill'))
         super(CallCollectorMixin, self).stop()
 
@@ -116,7 +119,7 @@ def container():
 
 @pytest.yield_fixture
 def logger():
-    with patch('nameko.containers._log') as patched:
+    with patch('nameko.containers._log', autospec=True) as patched:
         yield patched
 
 
@@ -249,15 +252,14 @@ def test_container_doesnt_exhaust_max_workers(container):
         assert gt.dead
 
 
-def test_stop_already_stopped(container):
+def test_stop_already_stopped(container, logger):
 
     assert not container._died.ready()
     container.stop()
     assert container._died.ready()
 
-    with patch('nameko.containers._log') as logger:
-        container.stop()
-        assert logger.debug.call_args == call("already stopped %s", container)
+    container.stop()
+    assert logger.debug.call_args == call("already stopped %s", container)
 
 
 def test_kill_already_stopped(container, logger):
@@ -266,7 +268,7 @@ def test_kill_already_stopped(container, logger):
     container.stop()
     assert container._died.ready()
 
-    container.kill(Exception("kill"))
+    container.kill()
     assert logger.debug.call_args == call("already stopped %s", container)
 
 
@@ -283,15 +285,10 @@ def test_kill_container_with_active_threads(container):
     assert len(container._active_threads) == 1
     (worker_gt,) = container._active_threads
 
-    class Killed(Exception):
-        pass
-    exc = Killed("kill")
-
-    container.kill(exc)
+    container.kill()
 
     with Timeout(1):
-        with pytest.raises(Killed):
-            container._died.wait()
+        container._died.wait()
 
         with pytest.raises(greenlet.GreenletExit):
             worker_gt.wait()
@@ -310,15 +307,10 @@ def test_kill_container_with_protected_threads(container):
     assert len(container._protected_threads) == 1
     (worker_gt,) = container._protected_threads
 
-    class Killed(Exception):
-        pass
-    exc = Killed("kill")
-
-    container.kill(exc)
+    container.kill()
 
     with Timeout(1):
-        with pytest.raises(Killed):
-            container._died.wait()
+        container._died.wait()
 
         with pytest.raises(greenlet.GreenletExit):
             worker_gt.wait()
@@ -375,19 +367,22 @@ def test_spawned_thread_causes_container_to_kill_other_thread(container):
 
 
 def test_container_only_killed_once(container):
-    exc = Exception('foobar')
+
+    class Broken(Exception):
+        pass
+
+    exc = Broken('foobar')
 
     def raise_error():
         raise exc
 
-    orig = container._handle_container_kill
-    with patch.object(container, '_handle_container_kill',
-                      wraps=orig) as _handle_container_kill:
+    with patch.object(
+            container, '_kill_active_threads', autospec=True) as kill_threads:
 
         with patch.object(container, 'kill', wraps=container.kill) as kill:
             # insert an eventlet yield into the kill process, otherwise
             # the container dies before the second exception gets raised
-            kill.side_effect = lambda e: sleep()
+            kill.side_effect = lambda exc: sleep()
 
             container.start()
 
@@ -399,14 +394,17 @@ def test_container_only_killed_once(container):
             container.spawn_managed_thread(raise_error)
 
             # container should die with an exception
-            with pytest.raises(Exception):
+            with pytest.raises(Broken):
                 container.wait()
 
             # container.kill should have been called twice
-            assert kill.call_args_list == [call(exc), call(exc)]
+            assert kill.call_args_list == [
+                call((Broken, exc, ANY)),
+                call((Broken, exc, ANY))
+            ]
 
             # only the first kill results in any cleanup
-            _handle_container_kill.assert_called_once_with(exc)
+            assert kill_threads.call_count == 1
 
 
 def test_container_stop_kills_remaining_managed_threads(container, logger):
@@ -445,7 +443,7 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
     container.spawn_managed_thread(sleep_forever)
     container.spawn_managed_thread(sleep_forever, protected=True)
 
-    container.kill(Exception("killed"))
+    container.kill()
 
     assert logger.warning.call_args_list == [
         call("killing %s active thread(s)", 1),
@@ -453,6 +451,33 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
         call("killing %s protected thread(s)", 1),
         call("%s thread killed by container", container),
     ]
+
+
+def test_stop_during_kill(container, logger):
+    """ Verify we handle the race condition when a runner tries to stop
+    a container while it is being killed.
+    """
+    with patch.object(
+            container, '_kill_active_threads', autospec=True) as kill_threads:
+
+        # force eventlet yield during kill() so stop() will be scheduled
+        kill_threads.side_effect = eventlet.sleep
+
+        # manufacture an exc_info to kill with
+        try:
+            raise Exception('error')
+        except:
+            pass
+        exc_info = sys.exc_info()
+
+        eventlet.spawn(container.kill, exc_info)
+        eventlet.spawn(container.stop)
+
+        with pytest.raises(Exception):
+            container.wait()
+        assert logger.debug.call_args_list == [
+            call("already being killed %s", container),
+        ]
 
 
 def test_container_entrypoint_property(container):
@@ -465,3 +490,17 @@ def test_container_injection_property(container):
     injections = container.injections
     assert {dep.name for dep in injections} == {'spam'}
     assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]
+
+
+def test_container_catches_managed_thread_errors(container):
+
+    class Broken(Exception):
+        pass
+
+    def raises():
+        raise Broken('error')
+
+    container.spawn_managed_thread(raises)
+
+    with pytest.raises(Broken):
+        container.wait()

@@ -12,7 +12,7 @@ def test_anon_context_constructor():
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_call(nova, constructor):
     connection = ANY
     context = Mock()
@@ -37,7 +37,7 @@ def test_call(nova, constructor):
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_call_dynamic_route(nova, constructor):
     connection = ANY
     context = Mock()
@@ -66,7 +66,7 @@ def test_call_dynamic_route(nova, constructor):
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_call_default(nova, constructor):
     connection = ANY
     context = Mock()
@@ -83,7 +83,7 @@ def test_call_default(nova, constructor):
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_extra_route(nova, constructor):
     rpcproxy = constructor()
 
@@ -92,7 +92,7 @@ def test_extra_route(nova, constructor):
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_route_abuse(nova, constructor):
     rpcproxy = constructor()
     # N.B. There are safeguards against misconfiguring the info attribute.
@@ -104,7 +104,7 @@ def test_route_abuse(nova, constructor):
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_control_exchange_config(rpc, constructor):
     connection = ANY
     context = Mock()
@@ -210,7 +210,7 @@ def test_add_call_matching():
         rpcproxy.service.controller(key='value')
 
 
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_service_whitelist(nova):
     connection = ANY
     context = Mock()
@@ -254,7 +254,7 @@ def test_fallback_to_call():
 
 
 @pytest.mark.parametrize('constructor', [proxy.RPCProxy, MockRPCProxy])
-@patch.object(proxy, 'nova')
+@patch.object(proxy, 'nova', autospec=True)
 def test_timeout(nova, constructor):
     connection = ANY
     context = Mock()

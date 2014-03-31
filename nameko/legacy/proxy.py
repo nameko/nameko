@@ -24,7 +24,10 @@ class RPCProxy(object):
         self.control_exchange = control_exchange
 
     def create_connection(self):
-        return kombu.BrokerConnection(self.uri)
+        return kombu.BrokerConnection(
+            self.uri,
+            transport_options={'confirm_publish': True},
+        )
 
     def call_options(self):
         options = {}

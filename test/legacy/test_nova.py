@@ -4,11 +4,12 @@ from kombu import Producer
 import mock
 import pytest
 
+from nameko.exceptions import RemoteError, UnknownService
 from nameko.legacy import context
 from nameko.legacy import nova
 from nameko.legacy.consuming import queue_iterator
 from nameko.legacy.responses import ifirst
-from nameko.exceptions import RemoteError
+from nameko.testing.utils import assert_stops_raising
 
 
 def test_delegation_to_send_rpc():
@@ -23,7 +24,7 @@ def test_delegation_to_send_rpc():
     exchange = 'spam_exchange'
     options = {'CONTROL_EXCHANGE': exchange}
 
-    with mock.patch('nameko.legacy.nova.send_rpc') as send_rpc:
+    with mock.patch('nameko.legacy.nova.send_rpc', autospec=True) as send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout, options=options)
@@ -45,7 +46,7 @@ def test_delegation_to_send_rpc_default_exchange():
     timeout = 123
     exchange = 'rpc'
 
-    with mock.patch('nameko.legacy.nova.send_rpc') as send_rpc:
+    with mock.patch('nameko.legacy.nova.send_rpc', autospec=True) as send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout)
@@ -68,7 +69,7 @@ def test_send_rpc(get_connection):
                 queue.declare()
                 queue_declared.send(True)
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
-                msgid, ctx, method, args = nova.parse_message(msg.payload)
+                msgid, _, _, args = nova.parse_message(msg.payload)
 
                 exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
@@ -96,7 +97,24 @@ def test_send_rpc(get_connection):
 
         assert resp == {'foo': 'bar', }
 
-    assert not g
+    def check_greenthread_dead():
+        assert not g
+    assert_stops_raising(check_greenthread_dead)
+
+
+def test_send_rpc_unknown_service(get_connection):
+    with get_connection() as conn:
+        ctx = context.get_admin_context()
+
+        with pytest.raises(UnknownService):
+            nova.send_rpc(
+                conn,
+                context=ctx,
+                exchange='test_rpc',
+                topic='test',
+                method='test_method',
+                args={'foo': 'bar', },
+                timeout=3)
 
 
 def test_send_rpc_errors(get_connection):
@@ -111,7 +129,7 @@ def test_send_rpc_errors(get_connection):
                 queue.declare()
                 queue_declared.send(True)
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
-                msgid, ctx, method, args = nova.parse_message(msg.payload)
+                msgid, _, _, _ = nova.parse_message(msg.payload)
 
                 exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
@@ -142,7 +160,9 @@ def test_send_rpc_errors(get_connection):
                 args={'foo': 'bar', },
                 timeout=3)
 
-    assert not g
+    def check_greenthread_dead():
+        assert not g
+    assert_stops_raising(check_greenthread_dead)
 
 
 def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
@@ -158,7 +178,7 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
                 queue_declared.send(True)
 
                 msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
-                msgid, ctx, method, args = nova.parse_message(msg.payload)
+                msgid, _, _, args = nova.parse_message(msg.payload)
 
                 exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
@@ -194,4 +214,6 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
         assert resp == {'spam': 'shrub', }
     eventlet.sleep()
 
-    assert not g
+    def check_greenthread_dead():
+        assert not g
+    assert_stops_raising(check_greenthread_dead)

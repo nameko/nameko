@@ -103,6 +103,11 @@ def rabbit_config(request, rabbit_manager):
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
+    connections = rabbit_manager.get_connections()
+    if connections is not None:
+        for connection in connections:
+            rabbit_manager.delete_connection(connection['name'])
+
     yield conf
 
     del_vhost()
@@ -153,6 +158,6 @@ def runner_factory(rabbit_config):
 
 @pytest.yield_fixture
 def predictable_call_ids(request):
-    with patch('nameko.containers.new_call_id') as get_id:
+    with patch('nameko.containers.new_call_id', autospec=True) as get_id:
         get_id.side_effect = (str(i) for i in itertools.count())
         yield get_id

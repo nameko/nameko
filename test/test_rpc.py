@@ -12,7 +12,7 @@ from nameko.containers import (
     ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
-from nameko.exceptions import RemoteError, MethodNotFound
+from nameko.exceptions import RemoteError, MethodNotFound, UnknownService
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
@@ -54,7 +54,8 @@ class ExampleService(object):
     name = 'exampleservice'
 
     translate = translator()
-    rpc_proxy = rpc_proxy('exampleservice')
+    example_rpc = rpc_proxy('exampleservice')
+    unknown_rpc = rpc_proxy('unknown_service')
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -69,6 +70,10 @@ class ExampleService(object):
     @rpc
     def broken(self):
         raise ExampleError("broken")
+
+    @rpc
+    def call_unknown(self):
+        return self.unknown_rpc.any_method()
 
     @rpc
     def echo(self, *args, **kwargs):
@@ -116,7 +121,7 @@ class FailingConnection(Connection):
 
 @pytest.yield_fixture
 def get_rpc_exchange():
-    with patch('nameko.rpc.get_rpc_exchange') as patched:
+    with patch('nameko.rpc.get_rpc_exchange', autospec=True) as patched:
         yield patched
 
 
@@ -182,7 +187,7 @@ def test_reply_listener(get_rpc_exchange):
 
     forced_uuid = uuid.uuid4().hex
 
-    with patch('nameko.rpc.uuid') as patched_uuid:
+    with patch('nameko.rpc.uuid', autospec=True) as patched_uuid:
         patched_uuid.uuid4.return_value = forced_uuid
 
         reply_listener.prepare()
@@ -210,14 +215,14 @@ def test_reply_listener(get_rpc_exchange):
 
     assert reply_listener._reply_events == {}
 
-    with patch('nameko.rpc._log') as log:
+    with patch('nameko.rpc._log', autospec=True) as log:
         reply_listener.handle_message("msg", message)
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
 
-#==============================================================================
+# =============================================================================
 # INTEGRATION TESTS
-#==============================================================================
+# =============================================================================
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
@@ -300,7 +305,8 @@ def test_rpc_headers(container_factory, rabbit_config):
     rpc_consumer = get_dependency(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
-    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+    with patch.object(
+            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
         def side_effect(body, message):
             headers.update(message.headers)  # extract message headers
             return handle_message(body, message)
@@ -333,7 +339,8 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     rpc_consumer = get_dependency(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
-    with patch.object(rpc_consumer, 'handle_message') as patched_handler:
+    with patch.object(
+            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
         def side_effect(body, message):
             headers.update(message.headers)  # extract message headers
             return handle_message(body, message)
@@ -387,6 +394,30 @@ def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.exc_type == "ExampleError"
 
 
+def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with RpcProxy("exampleservice", rabbit_config) as proxy:
+        # success
+        assert proxy.task_a()
+
+        # failure
+        with pytest.raises(RemoteError) as exc_info:
+            proxy.call_unknown()
+
+    assert exc_info.value.exc_type == "UnknownService"
+
+
+def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
+
+    with RpcProxy("unknown_service", rabbit_config) as proxy:
+        with pytest.raises(UnknownService) as exc_info:
+            proxy.anything()
+
+    assert exc_info.value._service_name == 'unknown_service'
+
+
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,
                                     rabbit_manager):
 
@@ -396,7 +427,8 @@ def test_rpc_responder_auto_retries(container_factory, rabbit_config,
     uri = container.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri, max_failure_count=2)
 
-    with patch("kombu.connection.ConnectionPool.new") as new_connection:
+    path = "kombu.connection.ConnectionPool.new"
+    with patch(path, autospec=True) as new_connection:
         new_connection.return_value = conn
 
         with RpcProxy("exampleservice", rabbit_config) as proxy:
@@ -413,7 +445,8 @@ def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
     uri = container.config[AMQP_URI_CONFIG_KEY]
     conn = FailingConnection(uri)
 
-    with patch("kombu.connection.ConnectionPool.new") as new_connection:
+    path = "kombu.connection.ConnectionPool.new"
+    with patch(path, autospec=True) as new_connection:
         new_connection.return_value = conn
 
         with RpcProxy("exampleservice", rabbit_config) as proxy:
@@ -469,7 +502,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
                     proxy.task_a()
 
     # kill the container so we don't have to wait for task_b to stop
-    container.kill(Exception('test stopped'))
+    container.kill()
 
 
 def test_rpc_consumer_cannot_exit_with_providers(
@@ -490,4 +523,4 @@ def test_rpc_consumer_cannot_exit_with_providers(
                 container.stop()
 
     # kill off task_a's misbehaving rpc provider
-    container.kill(Exception('test-end'))
+    container.kill()

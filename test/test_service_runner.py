@@ -6,7 +6,7 @@ from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import RpcProxy
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
-from nameko.testing.utils import assert_stops_raising
+from nameko.testing.utils import assert_stops_raising, get_container
 
 
 class TestService1(object):
@@ -53,7 +53,7 @@ def test_runner_lifecycle():
         def stop(self):
             events.add(('stop', self.service_cls.name, self.service_cls))
 
-        def kill(self, exc):
+        def kill(self):
             events.add(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
@@ -80,7 +80,7 @@ def test_runner_lifecycle():
     }
 
     events = set()
-    runner.kill(Exception('die'))
+    runner.kill()
     assert events == {
         ('kill', 'foobar_1', TestService1),
         ('kill', 'foobar_2', TestService2),
@@ -109,7 +109,7 @@ def test_contextual_lifecycle():
         def stop(self):
             events.add(('stop', self.service_cls.name, self.service_cls))
 
-        def kill(self, exc):
+        def kill(self, exc=None):
             events.add(('kill', self.service_cls.name, self.service_cls))
 
         def wait(self):
@@ -261,3 +261,20 @@ def test_runner_with_duplicate_services(runner_factory, rabbit_config):
             eventlet.sleep()
 
         assert received == [arg]
+
+
+def test_runner_catches_managed_thread_errors(runner_factory, rabbit_config):
+
+    class Broken(Exception):
+        pass
+
+    def raises():
+        raise Broken('error')
+
+    runner = runner_factory(rabbit_config, Service)
+
+    container = get_container(runner, Service)
+    container.spawn_managed_thread(raises)
+
+    with pytest.raises(Broken):
+        runner.wait()

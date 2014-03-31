@@ -2,7 +2,6 @@
 -r contrib_requirements.txt
 
 flake8==2.1
-mock==1.0.1
 pylint==1.0.0
 pyrabbit==1.0.1
 pytest==2.4.2

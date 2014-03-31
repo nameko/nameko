@@ -77,13 +77,13 @@ class ServiceRunner(object):
 
         _log.info('services stopped: %s', self.service_names)
 
-    def kill(self, exc):
+    def kill(self):
         """ Kill all running containers concurrently.
         The method will block until all containers have stopped.
         """
         _log.info('killing services: %s', self.service_names)
 
-        SpawningProxy(self.containers).kill(exc)
+        SpawningProxy(self.containers).kill()
 
         _log.info('services killed: %s ', self.service_names)
 
@@ -92,11 +92,11 @@ class ServiceRunner(object):
         """
         try:
             SpawningProxy(self.containers, abort_on_error=True).wait()
-        except Exception as e:
+        except Exception:
             # If a single container failed, stop its peers and re-raise the
             # exception
             self.stop()
-            raise e
+            raise
 
 
 @contextmanager
@@ -157,6 +157,6 @@ def run_services(config, *services, **kwargs):
     yield runner
 
     if kill_on_exit:
-        runner.kill(Exception('killed by contextual service runner'))
+        runner.kill()
     else:
         runner.stop()

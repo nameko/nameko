@@ -20,6 +20,6 @@ def patch_injection_provider(provider):
     """
     injection = Mock()
 
-    with patch.object(provider, 'acquire_injection') as acquire:
+    with patch.object(provider, 'acquire_injection', autospec=True) as acquire:
         acquire.return_value = injection
         yield injection
