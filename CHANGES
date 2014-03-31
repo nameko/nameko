@@ -1,3 +1,14 @@
+Version 1.6.0
+-------------
+
+* Rename instance_factory to worker_factory
+* Raise IncorrectSignature as exception instead of “RemoteError: TypeError”
+  if an RPC method is called with invalid arguments
+* Raise MethodNotFound as exception instead of “RemoteError: MethodNotFound”
+* Let log handlers format warning messages so that aggregators group them
+  correctly.
+* Expose the entire dependency provider (rather than just the method name) to
+  the worker context.
 
 Version 1.5.0
 -------------
