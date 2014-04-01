@@ -8,11 +8,12 @@ import logging
 import sys
 from urlparse import urlparse
 
-from pyrabbit.api import Client
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.runners import ServiceRunner
+from nameko.testing.utils import (
+    get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections)
 
 
 def pytest_addoption(parser):
@@ -70,18 +71,11 @@ def empty_config(request):
 @pytest.fixture(scope='session')
 def rabbit_manager(request):
     config = request.config
-
-    rabbit_ctl_uri = urlparse(config.getoption('RABBIT_CTL_URI'))
-    host_port = '{0.hostname}:{0.port}'.format(rabbit_ctl_uri)
-
-    rabbit = Client(
-        host_port, rabbit_ctl_uri.username, rabbit_ctl_uri.password)
-
-    return rabbit
+    return get_rabbit_manager(config.getoption('RABBIT_CTL_URI'))
 
 
-@pytest.yield_fixture
-def rabbit_config(request, rabbit_manager):
+@pytest.yield_fixture(scope='session')
+def rabbit_config(request):
     amqp_uri = request.config.getoption('AMQP_URI')
 
     conf = {'AMQP_URI': amqp_uri}
@@ -93,28 +87,21 @@ def rabbit_config(request, rabbit_manager):
     conf['vhost'] = vhost
     conf['username'] = username
 
-    def del_vhost():
-        try:
-            rabbit_manager.delete_vhost(vhost)
-        except:
-            pass
-
-    del_vhost()
-    rabbit_manager.create_vhost(vhost)
-    rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
-
-    connections = rabbit_manager.get_connections()
-    if connections is not None:
-        for connection in connections:
-            rabbit_manager.delete_connection(connection['name'])
-
     yield conf
 
-    del_vhost()
+
+@pytest.fixture
+def reset_rabbit(rabbit_manager, rabbit_config):
+
+    vhost = rabbit_config['vhost']
+    username = rabbit_config['username']
+
+    reset_rabbit_vhost(vhost, username, rabbit_manager)
+    reset_rabbit_connections(vhost, rabbit_manager)
 
 
 @pytest.yield_fixture
-def container_factory(rabbit_config):
+def container_factory(rabbit_config, reset_rabbit):
 
     all_containers = []
 
@@ -136,7 +123,7 @@ def container_factory(rabbit_config):
 
 
 @pytest.yield_fixture
-def runner_factory(rabbit_config):
+def runner_factory(rabbit_config, reset_rabbit):
 
     all_runners = []
 
