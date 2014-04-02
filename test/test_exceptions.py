@@ -78,3 +78,26 @@ def test_exception_name_clash():
     assert type(deserialized) == NamekoMethodNotFound
     assert deserialized.message == "missing"
     assert deserialized.args == ("missing",)
+
+
+def test_serialize_backwards_compat():
+
+    exc = CustomError('something went wrong')
+    data = serialize(exc)
+
+    # nameko < 1.5.0 has no ``exc_path`` or ``args`` keys
+    del data['exc_path']
+    del data['args']
+
+    deserialized = deserialize(data)
+    assert type(deserialized) == RemoteError
+    assert deserialized.value == "something went wrong"
+    assert deserialized.args == ("CustomError something went wrong",)
+
+    # nameko < 1.1.4 have an extra ``traceback`` key
+    data['traceback'] = "traceback string"
+
+    deserialized = deserialize(data)
+    assert type(deserialized) == RemoteError
+    assert deserialized.value == "something went wrong"
+    assert deserialized.args == ("CustomError something went wrong",)
