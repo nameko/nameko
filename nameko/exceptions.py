@@ -62,7 +62,7 @@ def deserialize(data):
 
     exc_type = data.get('exc_type')
     value = data.get('value')
-    args = data.get('args')
+    args = data.get('args', ())
     return RemoteError(exc_type=exc_type, value=value, args=args)
 
 
