@@ -35,7 +35,9 @@ class RemoteErrorWrapper(object):
 
     @classmethod
     def deserialize(cls, data):
-        return RemoteError(**data)
+        exc_type = data.get('exc_type')
+        value = data.get('value')
+        return RemoteError(exc_type=exc_type, value=value)
 
 
 class DependencyNotFound(AttributeError):
