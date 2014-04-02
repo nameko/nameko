@@ -56,13 +56,14 @@ def deserialize(data):
     Otherwise, return a `RemoteError` instance describing the exception
     that occured.
     """
-    key = data['exc_path']
+    key = data.get('exc_path')
     if key in registry:
         return registry[key](*data['args'])
 
-    args = data.copy()
-    del args['exc_path']
-    return RemoteError(**args)
+    exc_type = data.get('exc_type')
+    value = data.get('value')
+    args = data.get('args')
+    return RemoteError(exc_type=exc_type, value=value, args=args)
 
 
 def deserialize_to_instance(exc_type):
