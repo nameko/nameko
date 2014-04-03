@@ -29,10 +29,9 @@ class RemoteError(Exception):
     """ Exception to raise at the caller if an exception occured in the
     remote worker.
     """
-    def __init__(self, exc_type=None, value="", args=()):
+    def __init__(self, exc_type=None, value=""):
         self.exc_type = exc_type
         self.value = value
-        self.args = args
         message = '{} {}'.format(exc_type, value)
         super(RemoteError, self).__init__(message)
 
@@ -43,8 +42,8 @@ def serialize(exc):
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'value': exc.message,
-        'args': exc.args,
+        'exc_args': exc.args,
+        'value': str(exc),
     }
 
 
@@ -56,13 +55,14 @@ def deserialize(data):
     Otherwise, return a `RemoteError` instance describing the exception
     that occured.
     """
-    key = data['exc_path']
+    key = data.get('exc_path')
     if key in registry:
-        return registry[key](*data['args'])
+        exc_args = data.get('exc_args', ())
+        return registry[key](*exc_args)
 
-    args = data.copy()
-    del args['exc_path']
-    return RemoteError(**args)
+    exc_type = data.get('exc_type')
+    value = data.get('value')
+    return RemoteError(exc_type=exc_type, value=value)
 
 
 def deserialize_to_instance(exc_type):
