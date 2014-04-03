@@ -22,8 +22,8 @@ def test_serialize():
     assert serialize(exc) == {
         'exc_type': 'CustomError',
         'exc_path': 'test.test_exceptions.CustomError',
+        'exc_args': ('something went wrong',),
         'value': 'something went wrong',
-        'args': ('something went wrong',)
     }
 
 
@@ -36,7 +36,7 @@ def test_deserialize_to_remote_error():
     assert type(deserialized) == RemoteError
     assert deserialized.exc_type == "CustomError"
     assert deserialized.value == "something went wrong"
-    assert deserialized.args == ("CustomError something went wrong",)
+    assert str(deserialized) == "CustomError something went wrong"
 
 
 @pytest.mark.usefixtures('registry')
@@ -50,8 +50,7 @@ def test_deserialize_to_instance():
 
     deserialized = deserialize(data)
     assert type(deserialized) == CustomError
-    assert deserialized.message == "something went wrong"
-    assert deserialized.args == ("something went wrong",)
+    assert str(deserialized) == "something went wrong"
 
 
 def test_exception_name_clash():
@@ -67,7 +66,7 @@ def test_exception_name_clash():
     assert type(deserialized) == RemoteError
     assert deserialized.exc_type == "MethodNotFound"
     assert deserialized.value == "application error"
-    assert deserialized.args == ("MethodNotFound application error",)
+    assert str(deserialized) == "MethodNotFound application error"
 
     from nameko.exceptions import MethodNotFound as NamekoMethodNotFound
 
@@ -76,8 +75,7 @@ def test_exception_name_clash():
 
     deserialized = deserialize(data)
     assert type(deserialized) == NamekoMethodNotFound
-    assert deserialized.message == "missing"
-    assert deserialized.args == ("missing",)
+    assert str(deserialized) == "missing"
 
 
 def test_serialize_backwards_compat():
@@ -85,19 +83,21 @@ def test_serialize_backwards_compat():
     exc = CustomError('something went wrong')
     data = serialize(exc)
 
-    # nameko < 1.5.0 has no ``exc_path`` or ``args`` keys
+    # nameko < 1.5.0 has no ``exc_path`` or ``exc_args`` keys
     del data['exc_path']
-    del data['args']
+    del data['exc_args']
 
     deserialized = deserialize(data)
     assert type(deserialized) == RemoteError
+    assert deserialized.exc_type == "CustomError"
     assert deserialized.value == "something went wrong"
-    assert deserialized.args == ("CustomError something went wrong",)
+    assert str(deserialized) == "CustomError something went wrong"
 
     # nameko < 1.1.4 have an extra ``traceback`` key
     data['traceback'] = "traceback string"
 
     deserialized = deserialize(data)
     assert type(deserialized) == RemoteError
+    assert deserialized.exc_type == "CustomError"
     assert deserialized.value == "something went wrong"
-    assert deserialized.args == ("CustomError something went wrong",)
+    assert str(deserialized) == "CustomError something went wrong"
