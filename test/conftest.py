@@ -87,19 +87,10 @@ def rabbit_config(request, rabbit_manager):
     conf['vhost'] = vhost
     conf['username'] = username
 
-    reset_rabbit(rabbit_manager, conf)
-
-    yield conf
-
-
-@pytest.fixture
-def reset_rabbit(rabbit_manager, rabbit_config):
-
-    vhost = rabbit_config['vhost']
-    username = rabbit_config['username']
-
     reset_rabbit_vhost(vhost, username, rabbit_manager)
     reset_rabbit_connections(vhost, rabbit_manager)
+
+    yield conf
 
 
 @pytest.yield_fixture

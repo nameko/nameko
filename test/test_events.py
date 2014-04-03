@@ -587,7 +587,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
     """Uses a custom handler subclass for the event_handler entrypoint"""
 
-    (container,) = start_containers(CustomHandler, ('custom-events',))
+    start_containers(CustomHandler, ('custom-events',))
 
     payload = {'custom': 'data'}
     with standalone_dispatcher('srcservice', rabbit_config) as dispatch:

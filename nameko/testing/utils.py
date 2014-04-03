@@ -8,6 +8,8 @@ from urlparse import urlparse
 import eventlet
 from mock import Mock
 from pyrabbit.api import Client
+from pyrabbit.http import HTTPError
+
 
 from nameko.containers import WorkerContextBase
 
@@ -135,8 +137,8 @@ def reset_rabbit_vhost(vhost, username, rabbit_manager):
 
     try:
         rabbit_manager.delete_vhost(vhost)
-    except:  # pragma: no cover
-        pass
+    except HTTPError:
+        pass  # 404 - vhost does not exist
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 

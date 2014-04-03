@@ -3,7 +3,8 @@ from mock import Mock
 import pytest
 
 from nameko.testing.utils import (
-    AnyInstanceOf, get_dependency, get_container, wait_for_call)
+    AnyInstanceOf, get_dependency, get_container, wait_for_call,
+    reset_rabbit_vhost)
 
 
 def test_any_instance_of():
@@ -88,3 +89,22 @@ def test_get_container(runner_factory, rabbit_config):
     assert get_container(runner, ServiceX).service_cls is ServiceX
     assert get_container(runner, ServiceY).service_cls is ServiceY
     assert get_container(runner, object) is None
+
+
+def test_reset_rabbit_vhost(rabbit_config, rabbit_manager):
+
+    vhost = rabbit_config['vhost']
+    username = rabbit_config['username']
+
+    def get_active_vhosts():
+        return [vhost_data['name'] for
+                vhost_data in rabbit_manager.get_all_vhosts()]
+
+    reset_rabbit_vhost(vhost, username, rabbit_manager)
+    assert vhost in get_active_vhosts()
+
+    rabbit_manager.delete_vhost(vhost)
+    assert vhost not in get_active_vhosts()
+
+    reset_rabbit_vhost(vhost, username, rabbit_manager)
+    assert vhost in get_active_vhosts()
