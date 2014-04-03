@@ -93,7 +93,7 @@ def test_serialize_backwards_compat():
     assert deserialized.value == "something went wrong"
     assert str(deserialized) == "CustomError something went wrong"
 
-    # nameko < 1.1.4 have an extra ``traceback`` key
+    # nameko < 1.1.4 has an extra ``traceback`` key
     data['traceback'] = "traceback string"
 
     deserialized = deserialize(data)
