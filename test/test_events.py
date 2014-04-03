@@ -600,7 +600,7 @@ def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
     assert CustomEventHandler._calls[0].payload == payload
 
 
-def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, reset_rabbit):
+def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
 

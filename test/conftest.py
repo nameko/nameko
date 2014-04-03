@@ -74,8 +74,8 @@ def rabbit_manager(request):
     return get_rabbit_manager(config.getoption('RABBIT_CTL_URI'))
 
 
-@pytest.yield_fixture(scope='session')
-def rabbit_config(request):
+@pytest.yield_fixture()
+def rabbit_config(request, rabbit_manager):
     amqp_uri = request.config.getoption('AMQP_URI')
 
     conf = {'AMQP_URI': amqp_uri}
@@ -86,6 +86,8 @@ def rabbit_config(request):
 
     conf['vhost'] = vhost
     conf['username'] = username
+
+    reset_rabbit(rabbit_manager, conf)
 
     yield conf
 
@@ -101,7 +103,7 @@ def reset_rabbit(rabbit_manager, rabbit_config):
 
 
 @pytest.yield_fixture
-def container_factory(rabbit_config, reset_rabbit):
+def container_factory(rabbit_config):
 
     all_containers = []
 
@@ -123,7 +125,7 @@ def container_factory(rabbit_config, reset_rabbit):
 
 
 @pytest.yield_fixture
-def runner_factory(rabbit_config, reset_rabbit):
+def runner_factory(rabbit_config):
 
     all_runners = []
 
