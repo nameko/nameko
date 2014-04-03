@@ -3,9 +3,13 @@ Common testing utilities.
 """
 from contextlib import contextmanager
 from functools import partial
+from urlparse import urlparse
 
 import eventlet
 from mock import Mock
+from pyrabbit.api import Client
+from pyrabbit.http import HTTPError
+
 
 from nameko.containers import WorkerContextBase
 
@@ -121,3 +125,28 @@ def worker_context_factory(*keys):
             )
 
     return CustomWorkerContext
+
+
+def get_rabbit_manager(rabbit_ctl_uri):
+    uri = urlparse(rabbit_ctl_uri)
+    host_port = '{0.hostname}:{0.port}'.format(uri)
+    return Client(host_port, uri.username, uri.password)
+
+
+def reset_rabbit_vhost(vhost, username, rabbit_manager):
+
+    try:
+        rabbit_manager.delete_vhost(vhost)
+    except HTTPError:
+        pass  # 404 - vhost does not exist
+    rabbit_manager.create_vhost(vhost)
+    rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+
+
+def reset_rabbit_connections(vhost, rabbit_manager):
+
+    connections = rabbit_manager.get_connections()
+    if connections is not None:
+        for connection in connections:
+            if connection['vhost'] == vhost:
+                rabbit_manager.delete_connection(connection['name'])
