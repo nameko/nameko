@@ -1,3 +1,12 @@
+Version 1.6.1
+-------------
+
+* Revert changes to legacy exception serialization to maintain backwards
+  compatibility with old clients.
+* Add forwards compatibility for future clients that wish to serialize
+  exceptions into more data
+* Promote conftest rabbit manipulations to test helpers
+
 Version 1.6.0
 -------------
 
