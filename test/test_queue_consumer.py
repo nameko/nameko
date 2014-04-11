@@ -301,5 +301,9 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
     # kill should close all connections
     queue_consumer.kill()
 
+    # no connections should remain for our vhost
+    vhost = rabbit_config['vhost']
     connections = rabbit_manager.get_connections()
-    assert connections is None
+    if connections:
+        for connection in connections:
+            assert connection['vhost'] != vhost
