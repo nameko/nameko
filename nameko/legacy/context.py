@@ -5,16 +5,17 @@ from nameko.legacy.common import UTCNOW, UIDGEN
 
 class Context(dict):
 
-    def __init__(self, user_id, timestamp=None, request_id=None, **kwargs):
+    def __init__(self, user_id=None, timestamp=None, request_id=None,
+                 **kwargs):
+
         if isinstance(timestamp, basestring):
             timestamp = iso8601.parse_date(timestamp)
+
+        if user_id is not None:
+            self.user_id = user_id
         self.timestamp = timestamp or UTCNOW()
         self.request_id = request_id or UIDGEN()
         self.update(kwargs)
-
-        # we currently care little about what goes in here
-        # from nova's context
-        self.user_id = user_id
 
     def __getattr__(self, name):
         if name not in self:
@@ -38,7 +39,6 @@ class Context(dict):
         timestamp = timestamp[:timestamp.index('+')]
         res.update({
             'timestamp': timestamp,
-            'project_id': None,
         })
         return res
 
@@ -47,7 +47,7 @@ class Context(dict):
 
 
 def get_admin_context():
-    return Context(user_id=None, is_admin=True)
+    return Context(is_admin=True)
 
 
 def add_context_to_payload(context, payload):
