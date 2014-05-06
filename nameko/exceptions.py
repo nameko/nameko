@@ -29,7 +29,7 @@ def get_module_path(exc_type):
 
     e.g.::
 
-        >>> get_module_class(MethodNotFound)
+        >>> get_module_path(MethodNotFound)
         >>> "nameko.exceptions.MethodNotFound"
 
     """
