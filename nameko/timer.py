@@ -7,6 +7,7 @@ from eventlet.event import Event
 
 from nameko.dependencies import (
     entrypoint, EntrypointProvider, DependencyFactory)
+from nameko.exceptions import ContainerBeingKilled
 
 _log = getLogger(__name__)
 
@@ -89,4 +90,7 @@ class TimerProvider(EntrypointProvider):
     def handle_timer_tick(self):
         args = tuple()
         kwargs = {}
-        self.container.spawn_worker(self, args, kwargs)
+        try:
+            self.container.spawn_worker(self, args, kwargs)
+        except ContainerBeingKilled:
+            _log.debug('Tick failed. Consumer is about to die')

@@ -9,6 +9,18 @@ class WaiterTimeout(Exception):
     pass
 
 
+class ContainerBeingKilled(Exception):
+    """Raised by Container.spawn_worker if it has started a `kill` sequence.
+
+    Entrypoint provider should catch this and react as if they hadn't been
+    available in the first place, e.g. an rpc consumer should probably requeue
+    the message.
+
+    We need this, as the container might yield during `kill`, and entrypoints
+    might fire before they themselves have been killed.
+    """
+
+
 registry = {}
 
 
