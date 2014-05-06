@@ -500,6 +500,26 @@ def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
     assert exc_info.value._service_name == 'unknown_service'
 
 
+def test_rpc_container_being_killed_retries(
+        container_factory, rabbit_config, rabbit_manager):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with RpcProxy("exampleservice", rabbit_config) as proxy:
+        assert proxy.task_a()
+
+        container._being_killed = True
+
+        with pytest.raises(eventlet.Timeout):
+            with eventlet.Timeout(.1):
+                proxy.task_a()
+
+        container._being_killed = False
+
+        assert proxy.task_a()
+
+
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,
                                     rabbit_manager):
 
