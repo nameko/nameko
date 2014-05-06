@@ -5,6 +5,7 @@ from kombu import Exchange, Queue
 from mock import patch, Mock
 
 from nameko.dependencies import DependencyFactory
+from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
     PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
 from nameko.containers import (
@@ -98,6 +99,14 @@ def test_consume_provider(empty_config):
     consume_provider.handle_message("body", message)
     handle_result = spawn_worker.call_args[1]['handle_result']
     handle_result(worker_ctx, None, Exception('Error'))
+    assert not queue_consumer.ack_message.called
+    queue_consumer.requeue_message.assert_called_once_with(message)
+
+    # test requeueing on ContainerBeingKilled (even without requeue_on_error)
+    queue_consumer.reset_mock()
+    consume_provider.requeue_on_error = False
+    spawn_worker.side_effect = ContainerBeingKilled()
+    consume_provider.handle_message("body", message)
     assert not queue_consumer.ack_message.called
     queue_consumer.requeue_message.assert_called_once_with(message)
 
