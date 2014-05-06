@@ -19,6 +19,9 @@ class Context(dict):
 
     def __getattr__(self, name):
         if name not in self:
+            # backwards compat: user_id attr should exist even if no value set
+            if name == "user_id":
+                return None
             raise AttributeError("Context has no attribute '{}'".format(name))
         return self[name]
 
