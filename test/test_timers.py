@@ -4,7 +4,6 @@ from eventlet import Timeout
 from mock import Mock
 
 from nameko.containers import ServiceContainer
-from nameko.exceptions import ContainerBeingKilled
 from nameko.timer import TimerProvider
 from nameko.testing.utils import wait_for_call
 
