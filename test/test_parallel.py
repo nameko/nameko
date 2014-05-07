@@ -1,6 +1,6 @@
 from greenlet import GreenletExit
 import eventlet
-from mock import Mock, MagicMock
+from mock import Mock
 import pytest
 from nameko.parallel import (
     ParallelExecutor, parallel_provider, ParallelProvider,
@@ -137,7 +137,7 @@ def test_parallel_executor_injection():
 
 def test_busy_check_on_teardown():
     # max_workers needs to be provided, as it's used in a semaphore count
-    config = MagicMock({'max_workers': 4})
+    config = {'max_workers': 4}
     kill_called = Mock()
 
     class MockedContainer(ServiceContainer):
