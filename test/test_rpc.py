@@ -19,7 +19,7 @@ from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
-from nameko.testing.utils import get_dependency
+from nameko.testing.utils import get_dependency, wait_for_call
 
 
 class ExampleError(Exception):
@@ -512,9 +512,17 @@ def test_rpc_container_being_killed_retries(
 
     container._being_killed = True
 
-    waiter = eventlet.spawn(wait_for_result)
-    eventlet.sleep(0.1)  # pick message off the queue (but requeue again)
-    assert not waiter.dead
+    rpc_provider = get_dependency(container, RpcProvider, name='task_a')
+
+    with patch.object(
+        rpc_provider,
+        'rpc_consumer',
+        wraps=rpc_provider.rpc_consumer,
+    ) as wrapped_consumer:
+        waiter = eventlet.spawn(wait_for_result)
+        with wait_for_call(1, wrapped_consumer.requeue_message):
+            pass  # wait until at least one message has been requeued
+        assert not waiter.dead
 
     container._being_killed = False
     assert waiter.wait()  # now completed
