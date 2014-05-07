@@ -92,21 +92,3 @@ def test_kill_stops_timer():
     # to trigger
     eventlet.sleep(0.1)
     assert container.spawn_worker.call_count == 1
-
-
-def test_container_being_killed():
-    container = Mock(spec=ServiceContainer)
-    container.service_name = "service"
-    container.spawn_managed_thread = eventlet.spawn
-
-    container.spawn_worker.side_effect = ContainerBeingKilled()
-
-    timer = TimerProvider(interval=0, config_key=None)
-    timer.bind('foobar', container)
-    timer.prepare()
-    timer.start()
-
-    with wait_for_call(1, container.spawn_worker):
-        # if the exception wasn't caught, the timer gt would die
-        assert not timer.gt.dead
-        timer.kill()
