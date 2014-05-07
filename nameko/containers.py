@@ -13,6 +13,7 @@ import greenlet
 from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
+from nameko.exceptions import ContainerBeingKilled
 from nameko.logging import log_time
 
 WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
@@ -301,6 +302,11 @@ class ServiceContainer(object):
         in by the calling entrypoint provider. It is called with the
         result returned or error raised by the service method.
         """
+
+        if self._being_killed:
+            _log.info("Worker spawn prevented due to being killed")
+            raise ContainerBeingKilled()
+
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
             self, service, provider, args, kwargs, data=context_data)

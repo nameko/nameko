@@ -89,4 +89,10 @@ class TimerProvider(EntrypointProvider):
     def handle_timer_tick(self):
         args = tuple()
         kwargs = {}
+
+        # Note that we don't catch ContainerBeingKilled here. If that's raised,
+        # there is nothing for us to do anyway. The exception bubbles, and is
+        # caught by :meth:`Container._handle_thread_exited`, though the
+        # triggered `kill` is a no-op, since the container is alredy
+        # `_being_killed`.
         self.container.spawn_worker(self, args, kwargs)

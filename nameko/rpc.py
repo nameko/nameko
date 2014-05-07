@@ -16,7 +16,7 @@ from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
     CONTAINER_SHARED)
-from nameko.exceptions import IncorrectSignature
+from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
 
 _log = getLogger(__name__)
 
@@ -116,6 +116,9 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
 
         self.queue_consumer.ack_message(message)
 
+    def requeue_message(self, message):
+        self.queue_consumer.requeue_message(message)
+
 
 @dependency
 def rpc_consumer():
@@ -166,9 +169,12 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         context_data = self.unpack_message_headers(worker_ctx_cls, message)
 
         handle_result = partial(self.handle_result, message)
-        self.container.spawn_worker(self, args, kwargs,
-                                    context_data=context_data,
-                                    handle_result=handle_result)
+        try:
+            self.container.spawn_worker(self, args, kwargs,
+                                        context_data=context_data,
+                                        handle_result=handle_result)
+        except ContainerBeingKilled:
+            self.rpc_consumer.requeue_message(message)
 
     def handle_result(self, message, worker_ctx, result, exc):
         self.rpc_consumer.handle_result(message, self.container, result, exc)

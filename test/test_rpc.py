@@ -19,7 +19,7 @@ from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
-from nameko.testing.utils import get_dependency
+from nameko.testing.utils import get_dependency, wait_for_call
 
 
 class ExampleError(Exception):
@@ -498,6 +498,34 @@ def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
             proxy.anything()
 
     assert exc_info.value._service_name == 'unknown_service'
+
+
+def test_rpc_container_being_killed_retries(
+        container_factory, rabbit_config, rabbit_manager):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    def wait_for_result():
+        with RpcProxy("exampleservice", rabbit_config) as proxy:
+            return proxy.task_a()
+
+    container._being_killed = True
+
+    rpc_provider = get_dependency(container, RpcProvider, name='task_a')
+
+    with patch.object(
+        rpc_provider,
+        'rpc_consumer',
+        wraps=rpc_provider.rpc_consumer,
+    ) as wrapped_consumer:
+        waiter = eventlet.spawn(wait_for_result)
+        with wait_for_call(1, wrapped_consumer.requeue_message):
+            pass  # wait until at least one message has been requeued
+        assert not waiter.dead
+
+    container._being_killed = False
+    assert waiter.wait() == 'result_a'  # now completed
 
 
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,

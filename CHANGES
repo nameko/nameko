@@ -1,3 +1,12 @@
+Version 1.7.0
+-------------
+
+* `Container.spawn_worker` now throws `ContainerBeingKilled` if a `kill` is
+  in progress, since some providers may already be dead. Providers shuold catch
+  this and e.g. requeue rpc messages. There is a race condition between
+  completing the kill sequence and remaining entrypoints firing.
+
+
 Version 1.6.1
 -------------
 
@@ -6,6 +15,7 @@ Version 1.6.1
 * Add forwards compatibility for future clients that wish to serialize
   exceptions into more data
 * Promote conftest rabbit manipulations to test helpers
+
 
 Version 1.6.0
 -------------
@@ -18,6 +28,7 @@ Version 1.6.0
   correctly.
 * Expose the entire dependency provider (rather than just the method name) to
   the worker context.
+
 
 Version 1.5.0
 -------------
@@ -43,7 +54,6 @@ Version 1.4.0
   indefinitely. Note that calls to existing but non-running services (where the
   queue exists but has no consumer) behave as before.
 
->>>>>>> origin/master
 
 Version 1.3.5
 -------------
