@@ -525,7 +525,7 @@ def test_rpc_container_being_killed_retries(
         assert not waiter.dead
 
     container._being_killed = False
-    assert waiter.wait()  # now completed
+    assert waiter.wait() == 'result_a'  # now completed
 
 
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,
