@@ -506,18 +506,18 @@ def test_rpc_container_being_killed_retries(
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with RpcProxy("exampleservice", rabbit_config) as proxy:
-        assert proxy.task_a()
+    def wait_for_result():
+        with RpcProxy("exampleservice", rabbit_config) as proxy:
+            return proxy.task_a()
 
-        container._being_killed = True
+    container._being_killed = True
 
-        with pytest.raises(eventlet.Timeout):
-            with eventlet.Timeout(.1):
-                proxy.task_a()
+    waiter = eventlet.spawn(wait_for_result)
+    eventlet.sleep(0.1)  # pick message off the queue (but requeue again)
+    assert not waiter.dead
 
-        container._being_killed = False
-
-        assert proxy.task_a()
+    container._being_killed = False
+    assert waiter.wait()  # now completed
 
 
 def test_rpc_responder_auto_retries(container_factory, rabbit_config,
