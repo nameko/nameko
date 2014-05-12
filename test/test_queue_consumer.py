@@ -8,7 +8,7 @@ from mock import patch, Mock, ANY
 import pytest
 
 from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
-from nameko.testing.utils import assert_stops_raising
+from nameko.testing.utils import assert_stops_raising, get_rabbit_connections
 
 
 TIMEOUT = 5
@@ -303,7 +303,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
 
     # no connections should remain for our vhost
     vhost = rabbit_config['vhost']
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     if connections:
         for connection in connections:
             assert connection['vhost'] != vhost

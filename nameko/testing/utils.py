@@ -143,10 +143,16 @@ def reset_rabbit_vhost(vhost, username, rabbit_manager):
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
 
-def reset_rabbit_connections(vhost, rabbit_manager):
+def get_rabbit_connections(vhost, rabbit_manager):
 
     connections = rabbit_manager.get_connections()
     if connections is not None:
-        for connection in connections:
-            if connection['vhost'] == vhost:
-                rabbit_manager.delete_connection(connection['name'])
+        return [connection for connection in connections
+                if connection['vhost'] == vhost]
+    return []
+
+
+def reset_rabbit_connections(vhost, rabbit_manager):
+
+    for connection in get_rabbit_connections(vhost, rabbit_manager):
+        rabbit_manager.delete_connection(connection['name'])
