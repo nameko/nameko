@@ -14,25 +14,26 @@ from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
+from nameko.language import LANGUAGE_CONTEXT_KEY
 from nameko.logging import log_time
 
-WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
 
 _log = getLogger(__name__)
 
+CALL_ID_STACK_CONTEXT_KEY = 'call_id_stack'
+
+NAMEKO_CONTEXT_KEYS = (
+    LANGUAGE_CONTEXT_KEY,
+    'user_id',
+    'auth_token',
+    CALL_ID_STACK_CONTEXT_KEY,
+)
 
 MAX_WORKERS_KEY = 'max_workers'
 PARENT_CALLS_KEY = 'parent_calls_tracked'
 
 DEFAULT_MAX_WORKERS = 10
 DEFAULT_PARENT_CALLS_TRACKED = 10
-
-NAMEKO_CONTEXT_KEYS = (
-    'language',
-    'user_id',
-    'auth_token',
-    WORKER_CALL_ID_STACK_KEY,
-)
 
 
 def get_service_name(service_cls):
@@ -98,7 +99,7 @@ class WorkerContextBase(object):
         """
         key_data = {k: v for k, v in self.data.iteritems()
                     if k in self.context_keys}
-        key_data[WORKER_CALL_ID_STACK_KEY] = self.call_id_stack
+        key_data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
         return key_data
 
     @property
@@ -120,7 +121,7 @@ class WorkerContextBase(object):
             cls_name, self.service_name, self.provider.name, id(self))
 
     def _init_call_id(self):
-        parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
+        parent_call_stack = self.data.pop(CALL_ID_STACK_CONTEXT_KEY, [])
         unique_id = new_call_id()
         return parent_call_stack, unique_id
 
