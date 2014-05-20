@@ -9,7 +9,8 @@ from nameko.rpc import rpc, rpc_proxy
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook, dummy
-from nameko.testing.utils import assert_stops_raising
+from nameko.testing.utils import (
+    assert_stops_raising, get_rabbit_connections, reset_rabbit_connections)
 
 
 disconnect_now = EventletEvent()
@@ -90,8 +91,8 @@ def test_idle_disconnect(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    for connection in rabbit_manager.get_connections():
-        rabbit_manager.delete_connection(connection['name'])
+    vhost = rabbit_config['vhost']
+    reset_rabbit_connections(vhost, rabbit_manager)
 
     with RpcProxy('exampleservice', rabbit_config) as proxy:
         assert proxy.echo("hello") == "hello"
@@ -111,7 +112,8 @@ def test_proxy_disconnect_with_active_worker(container_factory,
 
     # get proxyservice's queue consumer connection while we know it's the
     # only active connection
-    connections = rabbit_manager.get_connections()
+    vhost = rabbit_config['vhost']
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 1
     proxy_consumer_conn = connections[0]['name']
 
@@ -120,7 +122,7 @@ def test_proxy_disconnect_with_active_worker(container_factory,
     # there should now be two connections:
     # 1. the queue consumer from proxyservice
     # 2. the queue consumer from exampleservice
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 2
 
     # disconnect proxyservice's queue consumer while its request is in-flight
@@ -129,7 +131,7 @@ def test_proxy_disconnect_with_active_worker(container_factory,
         # we should receive a response after reconnection
         assert entrypoint('hello') == 'hello'
 
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert proxy_consumer_conn not in [conn['name'] for conn in connections]
 
 
@@ -143,7 +145,8 @@ def test_service_disconnect_with_active_async_worker(
 
     # get the service's queue consumer connection while we know it's the
     # only active connection
-    connections = rabbit_manager.get_connections()
+    vhost = rabbit_config['vhost']
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 1
     queue_consumer_conn = connections[0]['name']
 
@@ -161,7 +164,7 @@ def test_service_disconnect_with_active_async_worker(
         assert handle_called.call_args_list == [call(data), call(data)]
     assert_stops_raising(event_handled_twice)
 
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert queue_consumer_conn not in [conn['name'] for conn in connections]
 
 
@@ -175,7 +178,8 @@ def test_service_disconnect_with_active_rpc_worker(
 
     # get the service's queue consumer connection while we know it's the
     # only active connection
-    connections = rabbit_manager.get_connections()
+    vhost = rabbit_config['vhost']
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 1
     queue_consumer_conn = connections[0]['name']
 
@@ -186,7 +190,7 @@ def test_service_disconnect_with_active_rpc_worker(
     # there should now be two connections:
     # 1. the queue consumer from the target service
     # 2. the queue consumer in the standalone rpc proxy
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 2
 
     # disconnect the service's queue consumer while it's running a worker
@@ -204,7 +208,7 @@ def test_service_disconnect_with_active_rpc_worker(
         assert method_called.call_args_list == [call(arg), call(arg)]
     assert_stops_raising(method_called_twice)
 
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert queue_consumer_conn not in [conn['name'] for conn in connections]
 
     rpc_proxy.stop()
@@ -226,7 +230,8 @@ def test_service_disconnect_with_active_rpc_worker_via_service_proxy(
 
     # get exampleservice's queue consumer connection while we know it's the
     # only active connection
-    connections = rabbit_manager.get_connections()
+    vhost = rabbit_config['vhost']
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 1
     service_consumer_conn = connections[0]['name']
 
@@ -235,7 +240,7 @@ def test_service_disconnect_with_active_rpc_worker_via_service_proxy(
     # there should now be two connections:
     # 1. the queue consumer from proxyservice
     # 2. the queue consumer from exampleservice
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 2
 
     # disconnect exampleservice's queue consumer while it's running the worker
@@ -260,5 +265,5 @@ def test_service_disconnect_with_active_rpc_worker_via_service_proxy(
         assert method_called.call_args_list == [call(arg), call(arg)]
     assert_stops_raising(method_called_twice)
 
-    connections = rabbit_manager.get_connections()
+    connections = get_rabbit_connections(vhost, rabbit_manager)
     assert service_consumer_conn not in [conn['name'] for conn in connections]
