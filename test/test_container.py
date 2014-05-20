@@ -7,7 +7,8 @@ import greenlet
 from mock import patch, call, ANY
 import pytest
 
-from nameko.containers import ServiceContainer, MAX_WORKERS_KEY, WorkerContext
+from nameko.containers import ServiceContainer, WorkerContext
+from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyFactory)
@@ -227,7 +228,7 @@ def test_container_doesnt_exhaust_max_workers(container):
 
     container = ServiceContainer(service_cls=Service,
                                  worker_ctx_cls=WorkerContext,
-                                 config={MAX_WORKERS_KEY: 1})
+                                 config={MAX_WORKERS_CONFIG_KEY: 1})
 
     dep = next(iter(container.dependencies))
 

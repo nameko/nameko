@@ -10,30 +10,19 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 import greenlet
 
+from nameko.constants import (
+    PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED,
+    MAX_WORKERS_CONFIG_KEY, DEFAULT_MAX_WORKERS,
+    CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
+
 from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
-from nameko.language import LANGUAGE_CONTEXT_KEY
 from nameko.logging import log_time
 
 
 _log = getLogger(__name__)
-
-CALL_ID_STACK_CONTEXT_KEY = 'call_id_stack'
-
-NAMEKO_CONTEXT_KEYS = (
-    LANGUAGE_CONTEXT_KEY,
-    'user_id',
-    'auth_token',
-    CALL_ID_STACK_CONTEXT_KEY,
-)
-
-MAX_WORKERS_KEY = 'max_workers'
-PARENT_CALLS_KEY = 'parent_calls_tracked'
-
-DEFAULT_MAX_WORKERS = 10
-DEFAULT_PARENT_CALLS_TRACKED = 10
 
 
 def get_service_name(service_cls):
@@ -60,7 +49,7 @@ class WorkerContextBase(object):
         self.config = container.config  # TODO: remove?
 
         self.parent_calls_tracked = self.config.get(
-            PARENT_CALLS_KEY, DEFAULT_PARENT_CALLS_TRACKED)
+            PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED)
 
         self.service = service
         self.provider = provider
@@ -142,7 +131,8 @@ class ServiceContainer(object):
         self.service_name = get_service_name(service_cls)
 
         self.config = config
-        self.max_workers = config.get(MAX_WORKERS_KEY) or DEFAULT_MAX_WORKERS
+        self.max_workers = (
+            config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
         self.dependencies = DependencySet()
         for dep in prepare_dependencies(self):
