@@ -3,7 +3,8 @@ import pytest
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import (
     AUTH_TOKEN_CONTEXT_KEY, LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY)
-from nameko.context import language, user_id, auth_token, ContextDataProvider
+from nameko.contextdata import (
+    language, user_id, auth_token, ContextDataProvider)
 from nameko.dependencies import DependencyFactory, injection
 from nameko.testing.utils import get_dependency
 
