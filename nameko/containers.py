@@ -10,29 +10,19 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 import greenlet
 
+from nameko.constants import (
+    PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED,
+    MAX_WORKERS_CONFIG_KEY, DEFAULT_MAX_WORKERS,
+    CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
+
 from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.logging import log_time
 
-WORKER_CALL_ID_STACK_KEY = 'call_id_stack'
 
 _log = getLogger(__name__)
-
-
-MAX_WORKERS_KEY = 'max_workers'
-PARENT_CALLS_KEY = 'parent_calls_tracked'
-
-DEFAULT_MAX_WORKERS = 10
-DEFAULT_PARENT_CALLS_TRACKED = 10
-
-NAMEKO_CONTEXT_KEYS = (
-    'language',
-    'user_id',
-    'auth_token',
-    WORKER_CALL_ID_STACK_KEY,
-)
 
 
 def get_service_name(service_cls):
@@ -59,7 +49,7 @@ class WorkerContextBase(object):
         self.config = container.config  # TODO: remove?
 
         self.parent_calls_tracked = self.config.get(
-            PARENT_CALLS_KEY, DEFAULT_PARENT_CALLS_TRACKED)
+            PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED)
 
         self.service = service
         self.provider = provider
@@ -98,7 +88,7 @@ class WorkerContextBase(object):
         """
         key_data = {k: v for k, v in self.data.iteritems()
                     if k in self.context_keys}
-        key_data[WORKER_CALL_ID_STACK_KEY] = self.call_id_stack
+        key_data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
         return key_data
 
     @property
@@ -120,7 +110,7 @@ class WorkerContextBase(object):
             cls_name, self.service_name, self.provider.name, id(self))
 
     def _init_call_id(self):
-        parent_call_stack = self.data.pop(WORKER_CALL_ID_STACK_KEY, [])
+        parent_call_stack = self.data.pop(CALL_ID_STACK_CONTEXT_KEY, [])
         unique_id = new_call_id()
         return parent_call_stack, unique_id
 
@@ -141,7 +131,8 @@ class ServiceContainer(object):
         self.service_name = get_service_name(service_cls)
 
         self.config = config
-        self.max_workers = config.get(MAX_WORKERS_KEY) or DEFAULT_MAX_WORKERS
+        self.max_workers = (
+            config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
         self.dependencies = DependencySet()
         for dep in prepare_dependencies(self):

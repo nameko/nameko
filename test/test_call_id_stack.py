@@ -1,7 +1,8 @@
 from mock import Mock, call
 import pytest
 
-from nameko.containers import WorkerContext, PARENT_CALLS_KEY
+from nameko.containers import WorkerContext
+from nameko.constants import PARENT_CALLS_CONFIG_KEY
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
 from nameko.rpc import rpc, rpc_proxy
 from nameko.testing.utils import (
@@ -57,7 +58,7 @@ def test_short_call_stack(container_factory):
     class FooService(object):
         name = 'baz'
 
-    container = container_factory(FooService, {PARENT_CALLS_KEY: 1})
+    container = container_factory(FooService, {PARENT_CALLS_CONFIG_KEY: 1})
     service = FooService()
 
     # Trim stack
