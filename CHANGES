@@ -1,3 +1,11 @@
+Version 1.7.1
+-------------
+
+* Added `language`, `auth_token` and `user_id` injections to make
+  context data available to service workers.
+* Refacted constants into their own module.
+* Minor test changes to enable testing on shared rabbit brokers.
+
 Version 1.7.0
 -------------
 
