@@ -1,10 +1,10 @@
 import eventlet
-from mock import Mock
+from mock import Mock, patch
 import pytest
 
 from nameko.testing.utils import (
     AnyInstanceOf, get_dependency, get_container, wait_for_call,
-    reset_rabbit_vhost)
+    reset_rabbit_vhost, get_rabbit_connections)
 
 
 def test_any_instance_of():
@@ -108,3 +108,25 @@ def test_reset_rabbit_vhost(rabbit_config, rabbit_manager):
 
     reset_rabbit_vhost(vhost, username, rabbit_manager)
     assert vhost in get_active_vhosts()
+
+
+def test_get_rabbit_connections(rabbit_config, rabbit_manager):
+
+    vhost = rabbit_config['vhost']
+
+    connections = [{
+        'vhost': vhost,
+        'key': 'value'
+    }, {
+        'vhost': 'other',
+        'key': 'value'
+    }]
+
+    with patch.object(rabbit_manager, 'get_connections') as get_connections:
+        get_connections.return_value = connections
+        vhost_conns = [connections[0]]
+        assert get_rabbit_connections(vhost, rabbit_manager) == vhost_conns
+
+    with patch.object(rabbit_manager, 'get_connections') as get_connections:
+        get_connections.return_value = None
+        assert get_rabbit_connections(vhost, rabbit_manager) == []
