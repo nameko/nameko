@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from functools import partial
 import inspect
+import json
 from logging import getLogger
 import uuid
 
@@ -9,7 +10,8 @@ from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
 from nameko.exceptions import (
-    MethodNotFound, serialize, deserialize, UnknownService)
+    MethodNotFound, UnknownService, UnserializableValueError,
+    serialize, deserialize)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -199,10 +201,21 @@ class Responder(object):
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
-        # assumes result is json-serializable
         error = None
         if exc is not None:
             error = serialize(exc)
+
+        # disaster avoidence serialization check. the entrypoint method is
+        # responsible for producing serializable output, but an irresponsible
+        # method should not take down the entire cluster (without this check
+        # an unserializable result would kill its container, then the message
+        # would be requeued by the broker and picked up by the next victim)
+        for item in (result, error):
+            try:
+                json.dumps(item)
+            except TypeError:
+                result = None
+                error = serialize(UnserializableValueError(item))
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
 
