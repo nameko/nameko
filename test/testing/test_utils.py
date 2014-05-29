@@ -118,7 +118,7 @@ def test_get_rabbit_connections(rabbit_config, rabbit_manager):
         'vhost': vhost,
         'key': 'value'
     }, {
-        'vhost': 'JgOrZWTDXrrF',  # random string
+        'vhost': 'unlikely_vhost_name',
         'key': 'value'
     }]
 
