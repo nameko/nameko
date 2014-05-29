@@ -213,7 +213,7 @@ class Responder(object):
         for item in (result, error):
             try:
                 json.dumps(item)
-            except TypeError:
+            except Exception:
                 result = None
                 error = serialize(UnserializableValueError(item))
 
