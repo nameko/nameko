@@ -142,7 +142,7 @@ def test_render_multiple_pages(renderer, mock_write):
         )
 
     assert mock_open.call_args_list == [
-        call('folder/services.rst', 'w'),
+        call('folder/index.rst', 'w'),
         call('folder/foo.rst', 'w'),
         call('folder/bar.rst', 'w'),
     ]

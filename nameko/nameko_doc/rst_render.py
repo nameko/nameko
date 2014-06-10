@@ -1,7 +1,7 @@
 from collections import namedtuple
 from path import path
 
-SERVICE_INDEX_FILENAME = 'services.rst'
+SERVICE_INDEX_FILENAME = 'index.rst'
 
 LEVEL_UNDERLINES = '=-~^'
 
