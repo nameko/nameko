@@ -57,7 +57,7 @@ def serialize(exc):
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
         'exc_args': exc.args,
-        'value': str(exc),
+        'value': unicode(exc),
     }
 
 
@@ -105,3 +105,12 @@ class UnknownService(Exception):
 
     def __str__(self):
         return "Unknown service `{}`".format(self._service_name)
+
+
+class UnserializableValueError(Exception):
+    def __init__(self, value):
+        self.repr_value = repr(value)
+        super(UnserializableValueError, self).__init__()
+
+    def __str__(self):
+        return "Unserializable value: `{}`".format(self.repr_value)
