@@ -1,3 +1,12 @@
+Version 1.7.2
+-------------
+
+* `Container._run_worker` now calls any `handle_result` method before
+  dependency teardown.
+* Serialization errors now generate a specific error message rather
+  than bubbling into the container.
+* Minor change to nameko_doc output.  
+
 Version 1.7.1
 -------------
 
