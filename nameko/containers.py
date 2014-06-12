@@ -29,11 +29,6 @@ def get_service_name(service_cls):
     return getattr(service_cls, "name", service_cls.__name__.lower())
 
 
-def log_worker_exception(worker_ctx, exc):
-    _log.debug('error handling worker %s: %s', worker_ctx, exc, exc_info=True,
-               extra=worker_ctx.extra_for_logging)
-
-
 def new_call_id():
     return str(uuid.uuid4())
 
@@ -352,7 +347,7 @@ class ServiceContainer(object):
             self.dependencies.injections.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)
 
-            result = exc = None
+            result = exc_info = None
             method = getattr(worker_ctx.service, worker_ctx.provider.name)
             try:
 
@@ -362,9 +357,10 @@ class ServiceContainer(object):
                 with log_time(_log.debug, 'ran handler for %s in %0.3fsec',
                               worker_ctx):
                     result = method(*worker_ctx.args, **worker_ctx.kwargs)
-            except Exception as e:
-                log_worker_exception(worker_ctx, e)
-                exc = e
+            except Exception as exc:
+                _log.debug('error handling worker %s: %s', worker_ctx, exc,
+                           exc_info=True, extra=worker_ctx.extra_for_logging)
+                exc_info = sys.exc_info()
 
             if handle_result is not None:
                 _log.debug('handling result for %s', worker_ctx,
@@ -372,7 +368,7 @@ class ServiceContainer(object):
 
                 with log_time(_log.debug, 'handled result for %s in %0.3fsec',
                               worker_ctx):
-                    handle_result(worker_ctx, result, exc)
+                    handle_result(worker_ctx, result, exc_info)
 
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):
@@ -380,7 +376,7 @@ class ServiceContainer(object):
                 _log.debug('signalling result for %s', worker_ctx,
                            extra=worker_ctx.extra_for_logging)
                 self.dependencies.injections.all.worker_result(
-                    worker_ctx, result, exc)
+                    worker_ctx, result, exc_info)
 
                 _log.debug('tearing down %s', worker_ctx,
                            extra=worker_ctx.extra_for_logging)

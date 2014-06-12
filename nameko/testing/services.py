@@ -40,8 +40,8 @@ def entrypoint_hook(container, name, context_data=None):
     def hook(*args, **kwargs):
         result = event.Event()
 
-        def handle_result(worker_ctx, res=None, exc=None):
-            result.send(res, exc)
+        def handle_result(worker_ctx, res=None, exc_info=None):
+            result.send(res, exc_info)
 
         container.spawn_worker(provider, args, kwargs,
                                context_data=context_data,

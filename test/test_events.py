@@ -172,9 +172,9 @@ class CustomEventHandler(EventHandler):
         super(CustomEventHandler, self).__init__(*args, **kwargs)
         self._calls[:] = []
 
-    def handle_result(self, message, worker_ctx, result=None, exc=None):
+    def handle_result(self, message, worker_ctx, result=None, exc_info=None):
         super(CustomEventHandler, self).handle_result(
-            message, worker_ctx, result, exc)
+            message, worker_ctx, result, exc_info)
         self._calls.append(message)
 
 

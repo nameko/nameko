@@ -90,7 +90,7 @@ def test_consume_provider(empty_config):
     consume_provider.requeue_on_error = False
     consume_provider.handle_message("body", message)
     handle_result = spawn_worker.call_args[1]['handle_result']
-    handle_result(worker_ctx, None, Exception('Error'))
+    handle_result(worker_ctx, None, (Exception, Exception('Error'), "tb"))
     queue_consumer.ack_message.assert_called_once_with(message)
 
     # test handling failed call with requeue
@@ -98,7 +98,7 @@ def test_consume_provider(empty_config):
     consume_provider.requeue_on_error = True
     consume_provider.handle_message("body", message)
     handle_result = spawn_worker.call_args[1]['handle_result']
-    handle_result(worker_ctx, None, Exception('Error'))
+    handle_result(worker_ctx, None, (Exception, Exception('Error'), "tb"))
     assert not queue_consumer.ack_message.called
     queue_consumer.requeue_message.assert_called_once_with(message)
 

@@ -3,6 +3,7 @@ from functools import partial
 import inspect
 import json
 from logging import getLogger
+import sys
 import uuid
 
 from eventlet.event import Event
@@ -110,11 +111,12 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
         except (MethodNotFound, IncorrectSignature) as exc:
-            self.handle_result(message, self.container, None, exc)
+            exc_info = sys.exc_info()
+            self.handle_result(message, self.container, None, exc_info)
 
-    def handle_result(self, message, container, result, exc):
+    def handle_result(self, message, container, result, exc_info):
         responder = Responder(message)
-        responder.send_response(container, result, exc)
+        responder.send_response(container, result, exc_info)
 
         self.queue_consumer.ack_message(message)
 
@@ -178,8 +180,9 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         except ContainerBeingKilled:
             self.rpc_consumer.requeue_message(message)
 
-    def handle_result(self, message, worker_ctx, result, exc):
-        self.rpc_consumer.handle_result(message, self.container, result, exc)
+    def handle_result(self, message, worker_ctx, result, exc_info):
+        container = self.container
+        self.rpc_consumer.handle_result(message, container, result, exc_info)
 
 
 @entrypoint
@@ -197,13 +200,13 @@ class Responder(object):
             retry_policy = {'max_retries': 3}
         self.retry_policy = retry_policy
 
-    def send_response(self, container, result, exc):
+    def send_response(self, container, result, exc_info):
 
         # TODO: if we use error codes outside the payload we would only
         # need to serialize the actual value
         error = None
-        if exc is not None:
-            error = serialize(exc)
+        if exc_info is not None:
+            error = serialize(exc_info[1])
 
         # disaster avoidence serialization check. the entrypoint method is
         # responsible for producing serializable output, but an irresponsible

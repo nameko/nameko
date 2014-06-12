@@ -151,7 +151,7 @@ class InjectionProvider(DependencyProvider):
         into the worker instance of the service by the container.
         """
 
-    def worker_result(self, worker_ctx, result=None, exc=None):
+    def worker_result(self, worker_ctx, result=None, exc_info=None):
         """ Called with the result of a service worker execution.
 
         InjectionProvider that need to process the result should do it here.
