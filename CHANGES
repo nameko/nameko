@@ -1,4 +1,4 @@
-Version x.x.x
+Version 1.8.0
 -------------
 
 * Now passing exc_info tuples instead of bare exceptions to `worker_result`
