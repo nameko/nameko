@@ -110,7 +110,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         try:
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except (MethodNotFound, IncorrectSignature) as exc:
+        except (MethodNotFound, IncorrectSignature):
             exc_info = sys.exc_info()
             self.handle_result(message, self.container, None, exc_info)
 
