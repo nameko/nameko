@@ -1,3 +1,10 @@
+Version x.x.x
+-------------
+
+* Now passing exc_info tuples instead of bare exceptions to `worker_result`
+  and `handle_result`, to enable exception processing in non-worker
+  greenthreads.
+
 Version 1.7.2
 -------------
 
