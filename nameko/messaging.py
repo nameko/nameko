@@ -438,12 +438,12 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         except ContainerBeingKilled:
             self.queue_consumer.requeue_message(message)
 
-    def handle_result(self, message, worker_ctx, result=None, exc=None):
-        self.handle_message_processed(message, result, exc)
+    def handle_result(self, message, worker_ctx, result=None, exc_info=None):
+        self.handle_message_processed(message, result, exc_info)
 
-    def handle_message_processed(self, message, result=None, exc=None):
+    def handle_message_processed(self, message, result=None, exc_info=None):
 
-        if exc is not None and self.requeue_on_error:
+        if exc_info is not None and self.requeue_on_error:
             self.queue_consumer.requeue_message(message)
         else:
             self.queue_consumer.ack_message(message)

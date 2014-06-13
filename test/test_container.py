@@ -51,9 +51,10 @@ class CallCollectorMixin(object):
         self._log_call(('setup', worker_ctx))
         super(CallCollectorMixin, self).worker_setup(worker_ctx)
 
-    def worker_result(self, worker_ctx, result=None, exc=None):
-        self._log_call(('result', worker_ctx, (result, exc)))
-        super(CallCollectorMixin, self).worker_result(worker_ctx, result, exc)
+    def worker_result(self, worker_ctx, result=None, exc_info=None):
+        self._log_call(('result', worker_ctx, (result, exc_info)))
+        super(CallCollectorMixin, self).worker_result(
+            worker_ctx, result, exc_info)
 
     def worker_teardown(self, worker_ctx):
         self._log_call(('teardown', worker_ctx))
@@ -185,7 +186,7 @@ def test_worker_life_cycle(container):
         ('teardown', ham_worker_ctx),
         ('acquire', egg_worker_ctx),
         ('setup', egg_worker_ctx),
-        ('result', egg_worker_ctx, (None, egg_error)),
+        ('result', egg_worker_ctx, (None, (Exception, egg_error, ANY))),
         ('teardown', egg_worker_ctx),
     ]
 
