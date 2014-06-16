@@ -1,7 +1,7 @@
 from nameko.nameko_doc import entities
 from nameko.nameko_doc.method_extractor import MethodExtractor
 
-from test.nameko_doc.example import ExampleService
+from test.nameko_doc.example import ExampleService, ExampleEvent
 
 
 class TestMethodExtraction(object):
@@ -11,7 +11,12 @@ class TestMethodExtraction(object):
                 ExampleService,
             ]
 
-        e = MethodExtractor(service_loader)
+        def event_loader(_):
+            return [
+                ExampleEvent,
+            ]
+
+        e = MethodExtractor(service_loader, event_loader)
         processed = e.extract()
         assert processed == entities.ServiceCollection(services=[
             entities.ServiceDescription(
@@ -24,6 +29,15 @@ class TestMethodExtraction(object):
                         contents=[
                             entities.SingleMethod(
                                 'method', extras=[]
+                            )
+                        ]
+                    ),
+                    entities.Section(
+                        'Events',
+                        contents=[
+                            entities.SingleEvent(
+                                'test.nameko_doc.example.ExampleEvent',
+                                extras=[]
                             )
                         ]
                     ),

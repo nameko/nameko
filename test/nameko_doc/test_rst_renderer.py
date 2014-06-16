@@ -57,6 +57,27 @@ def test_render_method():
     assert res == expected
 
 
+def test_render_class():
+    res = rst.render_include_class(
+        path='foo.bar.events.EventClass',
+        no_index=True,
+        extras=[
+            rst.render_instruction(
+                name='Handled by',
+                content='some.thing',
+            )
+        ]
+    ).strip()
+    expected_lines = [
+        '.. autoclass:: foo.bar.events.EventClass',
+        '    :noindex:',
+        '    ',
+        '    :Handled by: some.thing',
+    ]
+    expected = '\n'.join(expected_lines)
+    assert res == expected
+
+
 def test_render_section():
     res = rst.render_section(
         contents=[

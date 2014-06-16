@@ -151,3 +151,23 @@ def render_instruction(name, content):
     """ Render an arbitrary in-line instruction with the given name and
     content """
     return ':{}: {}'.format(name, content)
+
+
+def render_include_class(path, no_index=False, extras=None):
+    """ Render an instruction to include documentation for a class """
+    extras = extras or []
+
+    extra_lines = []
+    if no_index:
+        extra_lines.append(':noindex:')
+
+    if extras:
+        extra_lines.append('')
+
+    for extra in extras:
+        extra_lines.append(extra)
+
+    extra_text = '\n'.join(extra_lines)
+    extra_indented_content = indent(extra_text)
+
+    return '.. autoclass:: {}\n{}\n'.format(path, extra_indented_content)
