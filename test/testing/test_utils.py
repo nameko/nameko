@@ -1,10 +1,13 @@
 import eventlet
+from eventlet.event import Event
 from mock import Mock, patch
 import pytest
 
+from nameko.constants import DEFAULT_MAX_WORKERS
+from nameko.rpc import rpc
 from nameko.testing.utils import (
     AnyInstanceOf, get_dependency, get_container, wait_for_call,
-    reset_rabbit_vhost, get_rabbit_connections)
+    reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle)
 
 
 def test_any_instance_of():
@@ -130,3 +133,43 @@ def test_get_rabbit_connections(rabbit_config, rabbit_manager):
     with patch.object(rabbit_manager, 'get_connections') as get_connections:
         get_connections.return_value = None
         assert get_rabbit_connections(vhost, rabbit_manager) == []
+
+
+def test_wait_for_worker_idle(container_factory, rabbit_config):
+
+    event = Event()
+
+    class Service(object):
+
+        @rpc
+        def wait_for_event(self):
+            event.wait()
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    max_workers = DEFAULT_MAX_WORKERS
+
+    # verify nothing running
+    assert container._worker_pool.free() == max_workers
+    with eventlet.Timeout(1):
+        wait_for_worker_idle(container)
+
+    # spawn a worker
+    wait_for_event = get_dependency(container, rpc.provider_cls)
+    container.spawn_worker(wait_for_event, [], {})
+
+    # verify that wait_for_worker_idle does not return while worker active
+    assert container._worker_pool.free() == max_workers - 1
+    gt = eventlet.spawn(wait_for_worker_idle, container)
+    assert not gt.dead  # still waiting
+
+    # verify that wait_for_worker_idle raises when it times out
+    with pytest.raises(eventlet.Timeout):
+        wait_for_worker_idle(container, timeout=0)
+
+    # complete the worker, verify previous wait_for_worker_idle completes
+    event.send()
+    with eventlet.Timeout(1):
+        gt.wait()
+    assert container._worker_pool.free() == max_workers
