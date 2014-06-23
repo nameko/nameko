@@ -1,3 +1,7 @@
+Version 1.8.1
+
+* Adding `wait_for_worker_idle` test helper.
+
 Version 1.8.0
 -------------
 
