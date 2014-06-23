@@ -56,10 +56,10 @@ def wait_for_call(timeout, mock_method):
 
 
 def wait_for_worker_idle(container, timeout=10):
-    """ Blocks until all workers in ``container`` are idle.
+    """ Blocks until ``container`` has no running workers.
 
     Raises an eventlet.TimeoutError if the workers did not complete within
-    ``timeout``.
+    ``timeout`` seconds.
     """
     with eventlet.Timeout(timeout):
         container._worker_pool.waitall()
