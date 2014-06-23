@@ -55,6 +55,16 @@ def wait_for_call(timeout, mock_method):
     yield mock_method
 
 
+def wait_for_worker_idle(container, timeout=10):
+    """ Blocks until ``container`` has no running workers.
+
+    Raises an eventlet.TimeoutError if the workers did not complete within
+    ``timeout`` seconds.
+    """
+    with eventlet.Timeout(timeout):
+        container._worker_pool.waitall()
+
+
 def assert_stops_raising(fn, exception_type=Exception, timeout=10,
                          interval=0.1):
     """Assert that ``fn`` returns succesfully within ``timeout``
