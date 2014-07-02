@@ -1,10 +1,12 @@
 import socket
 
+from eventlet.event import Event
 from mock import patch, Mock
 import pytest
 
-from nameko.exceptions import WaiterTimeout
 from nameko.legacy import consuming
+from nameko.legacy.dependencies import rpc
+from nameko.legacy.proxy import RPCProxy
 
 
 class TestQueueIteratorTimeout(object):
@@ -22,5 +24,25 @@ class TestQueueIteratorTimeout(object):
         eventloop.side_effect = socket.timeout
 
         queue = Mock()
-        with pytest.raises(WaiterTimeout):
+        with pytest.raises(socket.timeout):
             list(consuming.queue_iterator(queue, timeout=0.1))
+
+    def test_timeout(self, container_factory, rabbit_config):
+
+        class NovaService(object):
+
+            @rpc
+            def wait(self):
+                Event().wait()
+
+        container = container_factory(NovaService, rabbit_config)
+        container.start()
+
+        uri = rabbit_config['AMQP_URI']
+        proxy = RPCProxy(uri)
+
+        with pytest.raises(socket.timeout):
+            proxy.novaservice.wait(timeout=1)
+
+        # container won't stop gracefully with a running worker
+        container.kill()
