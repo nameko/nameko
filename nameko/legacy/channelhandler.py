@@ -1,5 +1,7 @@
 import types
 
+from nameko.exceptions import WaiterTimeout
+
 
 class ChannelHandler(object):
     def __init__(self, connection, channel=None, create_channel=True):
@@ -17,9 +19,8 @@ class ChannelHandler(object):
         self.channel = channel
 
     def on_error(self, exc_value, *args, **kwargs):
-        # TODO: looking at ensure() it sounds like
-        # we are ignoring any error, is this intentional?
-        pass
+        if isinstance(exc_value, WaiterTimeout):  # hack: catch specific error
+            raise
 
     def __call__(self, func, *args, **kwargs):
         return self.ensure(func)(*args, **kwargs)
