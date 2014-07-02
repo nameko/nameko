@@ -33,7 +33,7 @@ def queue_iterator(queue, no_ack=False, timeout=None):
 
     try:
         consumer = Consumer(channel, queues=[queue], no_ack=no_ack)
-        for _, msg in drain_consumer(consumer, timeout=timeout,
+        for _, msg in drain_consumer(consumer, limit=None, timeout=timeout,
                                      ignore_timeouts=False):
             yield msg
     except socket.timeout:
