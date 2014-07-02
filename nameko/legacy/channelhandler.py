@@ -1,6 +1,5 @@
+import socket
 import types
-
-from nameko.exceptions import WaiterTimeout
 
 
 class ChannelHandler(object):
@@ -19,7 +18,8 @@ class ChannelHandler(object):
         self.channel = channel
 
     def on_error(self, exc_value, *args, **kwargs):
-        if isinstance(exc_value, WaiterTimeout):  # hack: catch specific error
+        # re-raise socket timeouts to exit `ensure`
+        if isinstance(exc_value, socket.timeout):
             raise
 
     def __call__(self, func, *args, **kwargs):

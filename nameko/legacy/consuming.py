@@ -1,10 +1,7 @@
 from collections import deque
-import socket
 
 from kombu.common import eventloop
 from kombu.messaging import Consumer
-
-from nameko.exceptions import WaiterTimeout
 
 
 # lifted from kombu, modified to accept `ignore_timeouts`
@@ -25,16 +22,13 @@ def drain_consumer(consumer, limit=1, timeout=None, callbacks=None,
             try:
                 yield acc.popleft()
             except IndexError:
-                pass
+                pass  # pragma: no cover
 
 
 def queue_iterator(queue, no_ack=False, timeout=None):
     channel = queue.channel
 
-    try:
-        consumer = Consumer(channel, queues=[queue], no_ack=no_ack)
-        for _, msg in drain_consumer(consumer, limit=None, timeout=timeout,
-                                     ignore_timeouts=False):
-            yield msg
-    except socket.timeout:
-        raise WaiterTimeout
+    consumer = Consumer(channel, queues=[queue], no_ack=no_ack)
+    for _, msg in drain_consumer(consumer, limit=None, timeout=timeout,
+                                 ignore_timeouts=False):
+        yield msg
