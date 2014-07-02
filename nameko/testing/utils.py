@@ -147,8 +147,11 @@ def reset_rabbit_vhost(vhost, username, rabbit_manager):
 
     try:
         rabbit_manager.delete_vhost(vhost)
-    except HTTPError:
-        pass  # 404 - vhost does not exist
+    except HTTPError as exc:
+        if exc.status == 404:
+            pass  # vhost does not exist
+        else:
+            raise
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
@@ -165,4 +168,10 @@ def get_rabbit_connections(vhost, rabbit_manager):
 def reset_rabbit_connections(vhost, rabbit_manager):
 
     for connection in get_rabbit_connections(vhost, rabbit_manager):
-        rabbit_manager.delete_connection(connection['name'])
+        try:
+            rabbit_manager.delete_connection(connection['name'])
+        except HTTPError as exc:
+            if exc.status == 404:
+                pass  # connection closed in a race
+            else:
+                raise
