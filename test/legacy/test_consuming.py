@@ -1,7 +1,7 @@
 import socket
 
 from eventlet.event import Event
-from mock import patch, Mock
+from mock import patch, Mock, MagicMock
 import pytest
 
 from nameko.legacy import consuming
@@ -46,3 +46,29 @@ class TestQueueIteratorTimeout(object):
 
         # container won't stop gracefully with a running worker
         container.kill()
+
+    @patch('nameko.legacy.consuming.eventloop', autospec=True)
+    def test_drain_consumer(self, eventloop):
+
+        def receive_message(client, **kwargs):
+            client.consumer.callbacks[0](1, "foo")
+            return [True]
+
+        eventloop.side_effect = receive_message
+
+        consumer = MagicMock()
+        client = Mock()
+
+        # nasty circular reference so we can access the callback
+        client.consumer = consumer
+        consumer.channel.connection.client = client
+
+        assert list(consuming.drain_consumer(consumer)) == [(1, 'foo')]
+
+    @patch('nameko.legacy.consuming.eventloop', autospec=True)
+    def test_drain_consumer_no_messages(self, eventloop):
+
+        eventloop.return_value = [True]  # no message arrives
+
+        consumer = MagicMock()
+        assert list(consuming.drain_consumer(consumer)) == []

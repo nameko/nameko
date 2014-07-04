@@ -22,7 +22,7 @@ def drain_consumer(consumer, limit=1, timeout=None, callbacks=None,
             try:
                 yield acc.popleft()
             except IndexError:
-                pass  # pragma: no cover
+                pass
 
 
 def queue_iterator(queue, no_ack=False, timeout=None):
