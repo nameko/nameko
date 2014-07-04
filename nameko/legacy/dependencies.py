@@ -40,7 +40,7 @@ class NovaResponder(Responder):
                 producer.publish(msg, routing_key=self.msgid)
 
 
-# pylint: disable=E1101,E1123
+# pylint: disable=E1101
 class NovaRpcConsumer(RpcConsumer):
     """ Extend RpcConsumer to modify the routing key, queue name, exchange
     name and handle the nova message payload.
@@ -106,7 +106,6 @@ class NovaRpcProvider(RpcProvider):
                 handle_result=handle_result)
         except ContainerBeingKilled:
             self.rpc_consumer.requeue_message(message)
-            return
 
     def handle_result(self, message, msgid, worker_ctx, result, exc):
 
