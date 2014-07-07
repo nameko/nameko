@@ -1,3 +1,10 @@
+Version 1.8.2
+-------------
+
+* Documentation generator accepts a function listing event classes and adds
+  to output accordingly.
+
+
 Version 1.8.1
 -------------
 

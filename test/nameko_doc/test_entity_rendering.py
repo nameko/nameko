@@ -37,6 +37,15 @@ def test_render_service_collection(renderer):
                         )
                     ]
                 ),
+                entities.Section(
+                    'Events',
+                    contents=[
+                        entities.SingleEvent(
+                            'path.to.EventClass',
+                            extras=[],
+                        )
+                    ]
+                ),
                 entities.ReferenceSection(
                     references=[
                         entities.ClassReference(
@@ -63,6 +72,12 @@ def test_render_service_collection(renderer):
         '    :noindex:',
         '    ',
         '    :Foo: Bar',
+        '',
+        'Events',
+        '------',
+        '',
+        '.. autoclass:: path.to.EventClass',
+        '    :noindex:',
         '',
         '.. seealso::',
         '',

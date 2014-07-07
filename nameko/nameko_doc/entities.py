@@ -116,3 +116,18 @@ class ExtraInstruction(namedtuple('ExtraInstruction', [
 ])):
     def render_extra(self):
         return rst.render_instruction(self.title, self.content)
+
+
+class SingleEvent(namedtuple('SingleEvent', [
+    'event_path', 'extras'
+])):
+    def render_section(self, service_description, this_level=1):
+        event_ref = rst.render_include_class(
+            path=self.event_path,
+            no_index=True,
+            extras=[
+                extra.render_extra() for extra in self.extras
+            ]
+        )
+
+        return event_ref
