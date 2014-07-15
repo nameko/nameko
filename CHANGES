@@ -5,6 +5,13 @@ Version 1.9.0
 * Introduced RPC entrypoints compatible with the 'legacy' proxy.
 
 
+Version 1.8.2
+-------------
+
+* Documentation generator accepts a function listing event classes and adds
+  to output accordingly.
+
+
 Version 1.8.1
 -------------
 

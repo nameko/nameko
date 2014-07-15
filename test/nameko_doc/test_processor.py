@@ -7,11 +7,17 @@ def empty_loader():
     return []
 
 
+def empty_event_loader(_):
+    return []
+
+
 class TestProcessor(object):
     def test_build_empty_project(self, temp_folder_factory):
         output_folder = temp_folder_factory(reserve_only=True)
 
-        processor = ServiceDocProcessor(output_folder, empty_loader)
+        processor = ServiceDocProcessor(
+            output_folder, empty_loader, empty_event_loader
+        )
         processor.write_docs()
 
         assert output_folder.exists()
@@ -25,7 +31,9 @@ class TestProcessor(object):
 
         assert len(output_folder.files()) == 1
 
-        processor = ServiceDocProcessor(output_folder, empty_loader)
+        processor = ServiceDocProcessor(
+            output_folder, empty_loader, empty_event_loader
+        )
 
         with pytest.raises(ValueError):
             processor.write_docs()
