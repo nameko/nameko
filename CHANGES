@@ -1,3 +1,10 @@
+Version 1.9.0
+-------------
+
+* No longer relying on eventlet for standalone RPC proxy timeouts.
+* Introduced RPC entrypoints compatible with the 'legacy' proxy.
+
+
 Version 1.8.2
 -------------
 

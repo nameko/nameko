@@ -1,13 +1,15 @@
 import eventlet
 from eventlet.event import Event
-from mock import Mock, patch
+from mock import Mock, patch, call
+from pyrabbit.http import HTTPError
 import pytest
 
 from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import rpc
 from nameko.testing.utils import (
     AnyInstanceOf, get_dependency, get_container, wait_for_call,
-    reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle)
+    reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle,
+    reset_rabbit_connections)
 
 
 def test_any_instance_of():
@@ -55,7 +57,7 @@ def test_wait_for_call():
 def test_get_dependency(rabbit_config):
 
     from nameko.messaging import QueueConsumer
-    from nameko.rpc import rpc, RpcProvider, RpcConsumer
+    from nameko.rpc import RpcProvider, RpcConsumer
     from nameko.containers import ServiceContainer, WorkerContext
 
     class Service(object):
@@ -87,7 +89,6 @@ def test_get_container(runner_factory, rabbit_config):
         name = "service_y"
 
     runner = runner_factory(rabbit_config, ServiceX, ServiceY)
-    runner.start()
 
     assert get_container(runner, ServiceX).service_cls is ServiceX
     assert get_container(runner, ServiceY).service_cls is ServiceY
@@ -113,9 +114,31 @@ def test_reset_rabbit_vhost(rabbit_config, rabbit_manager):
     assert vhost in get_active_vhosts()
 
 
-def test_get_rabbit_connections(rabbit_config, rabbit_manager):
+def test_reset_rabbit_vhost_errors():
 
-    vhost = rabbit_config['vhost']
+    rabbit_manager = Mock()
+
+    # 500 error
+    error_500 = HTTPError({'reason': 'error'}, status=500)
+    rabbit_manager.delete_vhost.side_effect = error_500
+
+    with pytest.raises(HTTPError):
+        reset_rabbit_vhost("vhost", "username", rabbit_manager)
+
+    # 404 error
+    error_404 = HTTPError({'reason': 'error'}, status=404)
+    rabbit_manager.delete_vhost.side_effect = error_404
+
+    # does not raise
+    reset_rabbit_vhost("vhost", "username", rabbit_manager)
+    assert rabbit_manager.create_vhost.call_args == call("vhost")
+    assert rabbit_manager.set_vhost_permissions.call_args == call(
+        "vhost", "username", '.*', '.*', '.*')
+
+
+def test_get_rabbit_connections():
+
+    vhost = "vhost_name"
 
     connections = [{
         'vhost': vhost,
@@ -125,14 +148,54 @@ def test_get_rabbit_connections(rabbit_config, rabbit_manager):
         'key': 'value'
     }]
 
-    with patch.object(rabbit_manager, 'get_connections') as get_connections:
-        get_connections.return_value = connections
-        vhost_conns = [connections[0]]
-        assert get_rabbit_connections(vhost, rabbit_manager) == vhost_conns
+    rabbit_manager = Mock()
 
-    with patch.object(rabbit_manager, 'get_connections') as get_connections:
-        get_connections.return_value = None
-        assert get_rabbit_connections(vhost, rabbit_manager) == []
+    rabbit_manager.get_connections.return_value = connections
+    vhost_conns = [connections[0]]
+    assert get_rabbit_connections(vhost, rabbit_manager) == vhost_conns
+
+    rabbit_manager.get_connections.return_value = None
+    assert get_rabbit_connections(vhost, rabbit_manager) == []
+
+
+def test_reset_rabbit_connections():
+
+    with patch('nameko.testing.utils.get_rabbit_connections') as connections:
+        connections.return_value = [{
+            'vhost': 'vhost',
+            'name': 'connection_name'
+        }]
+
+        rabbit_manager = Mock()
+        reset_rabbit_connections('vhost', rabbit_manager)
+
+        assert rabbit_manager.delete_connection.call_args_list == [
+            call("connection_name")]
+
+
+def test_reset_rabbit_connection_errors():
+
+    rabbit_manager = Mock()
+
+    with patch('nameko.testing.utils.get_rabbit_connections') as connections:
+        connections.return_value = [{
+            'vhost': 'vhost_name',
+            'name': 'connection_name'
+        }]
+
+        # 500 error
+        error_500 = HTTPError({'reason': 'err'}, status=500)
+        rabbit_manager.delete_connection.side_effect = error_500
+
+        with pytest.raises(HTTPError):
+            reset_rabbit_connections("vhost_name", rabbit_manager)
+
+        # 404 error
+        error_404 = HTTPError({'reason': 'err'}, status=404)
+        rabbit_manager.delete_connection.side_effect = error_404
+
+        # does not raise
+        reset_rabbit_connections("vhost_name", rabbit_manager)
 
 
 def test_wait_for_worker_idle(container_factory, rabbit_config):
