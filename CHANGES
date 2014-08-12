@@ -1,3 +1,9 @@
+Version 1.9.1
+-------------
+
+* Bugfix to exception handling in `nameko.legacy.dependencies`
+
+
 Version 1.9.0
 -------------
 
