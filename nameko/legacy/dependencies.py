@@ -1,4 +1,5 @@
 from functools import partial
+import sys
 
 from kombu import Connection
 from kombu.pools import producers
@@ -19,12 +20,12 @@ class NovaResponder(Responder):
     def __init__(self, msgid):
         self.msgid = msgid
 
-    def send_response(self, container, result, exc):
+    def send_response(self, container, result, exc_info):
         if not self.msgid:
             return  # pragma: no cover
 
-        if exc is not None:
-            failure = (type(exc).__name__, str(exc))
+        if exc_info is not None:
+            failure = (exc_info[0].__name__, str(exc_info[1]))
         else:
             failure = None
 
@@ -65,13 +66,14 @@ class NovaRpcConsumer(RpcConsumer):
 
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except (MethodNotFound, IncorrectSignature) as exc:
+        except (MethodNotFound, IncorrectSignature):
             msgid = body.get('_msg_id', None)
-            self.handle_result(message, msgid, container, None, exc)
+            exc_info = sys.exc_info()
+            self.handle_result(message, msgid, container, None, exc_info)
 
-    def handle_result(self, message, msgid, container, result, exc):
+    def handle_result(self, message, msgid, container, result, exc_info):
         responder = NovaResponder(msgid)
-        responder.send_response(container, result, exc)
+        responder.send_response(container, result, exc_info)
 
         self.queue_consumer.ack_message(message)
 
@@ -107,10 +109,10 @@ class NovaRpcProvider(RpcProvider):
         except ContainerBeingKilled:
             self.rpc_consumer.requeue_message(message)
 
-    def handle_result(self, message, msgid, worker_ctx, result, exc):
+    def handle_result(self, message, msgid, worker_ctx, result, exc_info):
 
         self.rpc_consumer.handle_result(
-            message, msgid, self.container, result, exc)
+            message, msgid, self.container, result, exc_info)
 
 
 @entrypoint
