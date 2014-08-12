@@ -39,6 +39,7 @@ class NovaResponder(Responder):
 
             for msg in messages:
                 producer.publish(msg, routing_key=self.msgid)
+        return result, exc_info
 
 
 # pylint: disable=E1101
@@ -73,9 +74,10 @@ class NovaRpcConsumer(RpcConsumer):
 
     def handle_result(self, message, msgid, container, result, exc_info):
         responder = NovaResponder(msgid)
-        responder.send_response(container, result, exc_info)
+        result, exc_info = responder.send_response(container, result, exc_info)
 
         self.queue_consumer.ack_message(message)
+        return result, exc_info
 
 
 @dependency
@@ -111,7 +113,7 @@ class NovaRpcProvider(RpcProvider):
 
     def handle_result(self, message, msgid, worker_ctx, result, exc_info):
 
-        self.rpc_consumer.handle_result(
+        return self.rpc_consumer.handle_result(
             message, msgid, self.container, result, exc_info)
 
 

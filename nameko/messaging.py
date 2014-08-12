@@ -430,16 +430,17 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         worker_ctx_cls = self.container.worker_ctx_cls
         context_data = self.unpack_message_headers(worker_ctx_cls, message)
 
+        handle_result = partial(self.handle_result, message)
         try:
-            self.container.spawn_worker(
-                self, args, kwargs,
-                context_data=context_data,
-                handle_result=partial(self.handle_result, message))
+            self.container.spawn_worker(self, args, kwargs,
+                                        context_data=context_data,
+                                        handle_result=handle_result)
         except ContainerBeingKilled:
             self.queue_consumer.requeue_message(message)
 
     def handle_result(self, message, worker_ctx, result=None, exc_info=None):
         self.handle_message_processed(message, result, exc_info)
+        return result, exc_info
 
     def handle_message_processed(self, message, result=None, exc_info=None):
 

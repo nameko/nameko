@@ -116,9 +116,10 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
 
     def handle_result(self, message, container, result, exc_info):
         responder = Responder(message)
-        responder.send_response(container, result, exc_info)
+        result, exc_info = responder.send_response(container, result, exc_info)
 
         self.queue_consumer.ack_message(message)
+        return result, exc_info
 
     def requeue_message(self, message):
         self.queue_consumer.requeue_message(message)
@@ -182,7 +183,9 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     def handle_result(self, message, worker_ctx, result, exc_info):
         container = self.container
-        self.rpc_consumer.handle_result(message, container, result, exc_info)
+        result, exc_info = self.rpc_consumer.handle_result(
+            message, container, result, exc_info)
+        return result, exc_info
 
 
 @entrypoint
@@ -236,6 +239,8 @@ class Responder(object):
                 msg, retry=self.retry, retry_policy=self.retry_policy,
                 exchange=exchange, routing_key=routing_key,
                 correlation_id=correlation_id)
+
+        return result, exc_info
 
 
 # pylint: disable=E1101,E1123

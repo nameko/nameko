@@ -4,7 +4,7 @@ import eventlet
 from eventlet import spawn, sleep, Timeout
 from eventlet.event import Event
 import greenlet
-from mock import patch, call, ANY
+from mock import patch, call, ANY, Mock
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
@@ -172,12 +172,17 @@ def test_worker_life_cycle(container):
     (ham_dep,) = [dep for dep in dependencies if dep.name == 'ham']
     (egg_dep,) = [dep for dep in dependencies if dep.name == 'egg']
 
-    ham_worker_ctx = container.spawn_worker(ham_dep, [], {})
-    container._worker_pool.waitall()
-    egg_worker_ctx = container.spawn_worker(egg_dep, [], {})
+    handle_result = Mock()
+    handle_result.side_effect = (
+        lambda worker_ctx, res, exc_info: (res, exc_info))
+
+    ham_worker_ctx = container.spawn_worker(
+        ham_dep, [], {}, handle_result=handle_result)
     container._worker_pool.waitall()
 
-    # TODO: test handle_result callback for spawn
+    egg_worker_ctx = container.spawn_worker(
+        egg_dep, [], {}, handle_result=handle_result)
+    container._worker_pool.waitall()
 
     assert spam_dep.calls == [
         ('acquire', ham_worker_ctx),
@@ -202,6 +207,11 @@ def test_worker_life_cycle(container):
         ('teardown', ham_worker_ctx),
         ('setup', egg_worker_ctx),
         ('teardown', egg_worker_ctx),
+    ]
+
+    assert handle_result.call_args_list == [
+        call(ham_worker_ctx, "ham", None),
+        call(egg_worker_ctx, None, (Exception, egg_error, ANY))
     ]
 
 

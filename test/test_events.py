@@ -176,6 +176,7 @@ class CustomEventHandler(EventHandler):
         super(CustomEventHandler, self).handle_result(
             message, worker_ctx, result, exc_info)
         self._calls.append(message)
+        return result, exc_info
 
 
 class HandlerService(object):
