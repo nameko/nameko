@@ -343,13 +343,14 @@ def test_responder_unserializable_exc(producers):
                                    "serializable".format(worker_exc.args[0]))
 
     # and publish a dictionary-serialized UnserializableValueError
-    # (where the value is itself a serialized UnserializableValueError)
+    # (where the unserialisable value is a dictionary-serialized worker_exc)
     mock_producer = producers.values()[0].acquire().__enter__()
+    serialized_exc = serialize(worker_exc)
     expected_msg = {
         'result': None,
         'error': {
             'exc_path': 'nameko.exceptions.UnserializableValueError',
-            'value': 'Unserializable value: `{}`'.format(serialize(worker_exc)),
+            'value': 'Unserializable value: `{}`'.format(serialized_exc),
             'exc_type': 'UnserializableValueError',
             'exc_args': ()
         }
