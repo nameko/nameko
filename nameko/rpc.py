@@ -205,15 +205,13 @@ class Responder(object):
 
     def send_response(self, container, result, exc_info):
 
-        # TODO: if we use error codes outside the payload we would only
-        # need to serialize the actual value
         error = None
         if exc_info is not None:
             error = serialize(exc_info[1])
 
-        # disaster avoidence serialization check. the entrypoint method is
-        # responsible for producing serializable output, but an irresponsible
-        # method should not take down the entire cluster (without this check
+        # disaster avoidance serialization check. an entrypoint should
+        # produce serializable output, but an irresponsible implementation
+        # should not take down the entire cluster (without this check
         # an unserializable result would kill its container, then the message
         # would be requeued by the broker and picked up by the next victim)
         for item in (result, error):

@@ -1,12 +1,15 @@
+from collections import defaultdict
+from functools import partial
 from itertools import count
-import pytest
 import socket
 import uuid
+
 
 import eventlet
 from eventlet.event import Event
 from kombu import Connection
 from mock import patch, Mock, MagicMock, call, ANY
+import pytest
 
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
@@ -222,9 +225,6 @@ def test_reply_listener(get_rpc_exchange):
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
 
-from collections import defaultdict
-from functools import partial
-
 
 @patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
 def test_responder(producers):
@@ -357,6 +357,50 @@ def test_responder_unserializable_exc(producers):
     }
     publish_args, _ = mock_producer.publish.call_args
     assert publish_args == (expected_msg,)
+
+
+@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
+def test_responder_cannot_unicode_exc(producers):
+
+    message = Mock()
+    message.properties = {'reply_to': ''}
+
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: ''}
+
+    responder = Responder(message)
+
+    class CannotUnicode(object):
+        def __str__(self):
+            raise Exception('error')
+
+    # un-unicode-able exception
+    worker_exc = Exception(CannotUnicode())
+
+    # send_response should not throw
+    responder.send_response(container, True, (Exception, worker_exc, "tb"))
+
+
+@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
+def test_responder_cannot_repr_exc(producers):
+
+    message = Mock()
+    message.properties = {'reply_to': ''}
+
+    container = Mock()
+    container.config = {AMQP_URI_CONFIG_KEY: ''}
+
+    responder = Responder(message)
+
+    class CannotRepr(object):
+        def __repr__(self):
+            raise Exception('error')
+
+    # un-repr-able exception
+    worker_exc = Exception(CannotRepr())
+
+    # send_response should not throw
+    responder.send_response(container, True, (Exception, worker_exc, "tb"))
 
 
 # =============================================================================

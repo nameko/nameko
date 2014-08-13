@@ -53,11 +53,16 @@ class RemoteError(Exception):
 def serialize(exc):
     """ Serialize `self.exc` into a data dictionary representing it.
     """
+    try:
+        value = unicode(exc)
+    except Exception:
+        value = '[__unicode__ failed]'
+
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
         'exc_args': exc.args,
-        'value': unicode(exc),
+        'value': value,
     }
 
 
@@ -109,7 +114,10 @@ class UnknownService(Exception):
 
 class UnserializableValueError(Exception):
     def __init__(self, value):
-        self.repr_value = repr(value)
+        try:
+            self.repr_value = repr(value)
+        except Exception:
+            self.repr_value = '[__repr__ failed]'
         super(UnserializableValueError, self).__init__()
 
     def __str__(self):

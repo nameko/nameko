@@ -2,7 +2,8 @@ from mock import patch
 import pytest
 
 from nameko.exceptions import (
-    serialize, deserialize, deserialize_to_instance, RemoteError)
+    serialize, deserialize, deserialize_to_instance, RemoteError,
+    UnserializableValueError)
 
 
 class CustomError(Exception):
@@ -24,6 +25,23 @@ def test_serialize():
         'exc_path': 'test.test_exceptions.CustomError',
         'exc_args': ('something went wrong',),
         'value': 'something went wrong',
+    }
+
+
+def test_serialize_cannot_unicode():
+
+    class CannotUnicode(object):
+        def __str__(self):
+            raise Exception('boom')
+
+    bad_string = CannotUnicode()
+    exc = CustomError(bad_string)
+
+    assert serialize(exc) == {
+        'exc_type': 'CustomError',
+        'exc_path': 'test.test_exceptions.CustomError',
+        'exc_args': (bad_string,),
+        'value': '[__unicode__ failed]',
     }
 
 
@@ -101,3 +119,24 @@ def test_serialize_backwards_compat():
     assert deserialized.exc_type == "CustomError"
     assert deserialized.value == "something went wrong"
     assert str(deserialized) == "CustomError something went wrong"
+
+
+def test_unserializable_value_error():
+
+    # normal value
+    value = "value"
+    exc = UnserializableValueError(value)
+
+    assert exc.repr_value == "'value'"
+    assert str(exc) == "Unserializable value: `'value'`"
+
+    # un-repr-able value
+    class CannotRepr(object):
+        def __repr__(self):
+            raise Exception('boom')
+
+    bad_value = CannotRepr()
+    exc = UnserializableValueError(bad_value)
+
+    assert exc.repr_value == "[__repr__ failed]"
+    assert str(exc) == "Unserializable value: `[__repr__ failed]`"
