@@ -1,8 +1,7 @@
 import json
 import sys
-import uuid
 
-from mock import Mock, call, ANY
+from mock import ANY
 import pytest
 
 from nameko.dependencies import (
@@ -13,7 +12,12 @@ from nameko.standalone.rpc import RpcProxy
 from nameko.testing.utils import wait_for_worker_idle
 
 
-worker_result_called = Mock()
+worker_result_called = []
+
+
+@pytest.fixture(autouse=True)
+def reset():
+    del worker_result_called[:]
 
 
 class CollectorInjection(InjectionProvider):
@@ -23,7 +27,7 @@ class CollectorInjection(InjectionProvider):
         pass
 
     def worker_result(self, worker_ctx, res, exc_info):
-        worker_result_called(res, exc_info)
+        worker_result_called.append((res, exc_info))
 
 
 @injection
@@ -61,7 +65,7 @@ class ExampleService(object):
 
     @custom_rpc
     def unserializable(self):
-        return uuid.uuid4()
+        return object()
 
 
 def test_handle_result(container_factory, rabbit_manager, rabbit_config):
@@ -81,7 +85,7 @@ def test_handle_result(container_factory, rabbit_manager, rabbit_config):
     wait_for_worker_idle(container)
 
     # verify CollectorInjection sees values returned from `handle_result`
-    assert worker_result_called.call_args_list == [
-        call("hello", None),
-        call("something went wrong", (TypeError, ANY, ANY)),
+    assert worker_result_called == [
+        ("hello", None),
+        ("something went wrong", (TypeError, ANY, ANY)),
     ]

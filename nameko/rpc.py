@@ -221,6 +221,7 @@ class Responder(object):
                 json.dumps(item)
             except Exception:
                 result = None
+                exc_info = sys.exc_info()
                 error = serialize(UnserializableValueError(item))
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
