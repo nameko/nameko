@@ -239,8 +239,8 @@ def test_responder(producers):
 
     # serialisable result
     result, exc_info = responder.send_response(container, True, None)
-    assert result == True
-    assert exc_info == None
+    assert result is True
+    assert exc_info is None
 
     mock_producer = producers.values()[0].acquire().__enter__()
     expected_msg = {
@@ -266,7 +266,7 @@ def test_responder_worker_exc(producers):
     worker_exc = Exception('error')
     result, exc_info = responder.send_response(
         container, None, (Exception, worker_exc, "tb"))
-    assert result == None
+    assert result is None
     assert exc_info == (Exception, worker_exc, "tb")
 
     mock_producer = producers.values()[0].acquire().__enter__()
@@ -299,7 +299,7 @@ def test_responder_unserializable_result(producers):
     result, exc_info = responder.send_response(container, worker_result, None)
 
     # responder will return the TypeError from json.dumps
-    assert result == None
+    assert result is None
     assert exc_info == (TypeError, ANY, ANY)
     assert exc_info[1].message == ("{} is not JSON "
                                    "serializable".format(worker_result))
@@ -337,7 +337,7 @@ def test_responder_unserializable_exc(producers):
         container, True, (Exception, worker_exc, "tb"))
 
     # responder will return the TypeError from json.dumps
-    assert result == None
+    assert result is None
     assert exc_info == (TypeError, ANY, ANY)
     assert exc_info[1].message == ("{} is not JSON "
                                    "serializable".format(worker_exc.args[0]))
