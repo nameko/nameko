@@ -10,7 +10,7 @@ from nameko.rpc import Responder
 def mock_publish():
     path = 'nameko.rpc.producers'
     with patch(path) as patched:
-        publish = patched[0].acquire().__enter__().publish
+        publish = patched[ANY].acquire().__enter__().publish
         yield publish
 
 

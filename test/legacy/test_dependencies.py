@@ -19,7 +19,7 @@ class NovaService(object):
 def mock_publish():
     path = 'nameko.legacy.dependencies.producers'
     with patch(path) as patched:
-        publish = patched[0].acquire().__enter__().publish
+        publish = patched[ANY].acquire().__enter__().publish
         yield publish
 
 
