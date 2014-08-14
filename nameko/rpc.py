@@ -116,9 +116,10 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
 
     def handle_result(self, message, container, result, exc_info):
         responder = Responder(message)
-        responder.send_response(container, result, exc_info)
+        result, exc_info = responder.send_response(container, result, exc_info)
 
         self.queue_consumer.ack_message(message)
+        return result, exc_info
 
     def requeue_message(self, message):
         self.queue_consumer.requeue_message(message)
@@ -182,7 +183,9 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     def handle_result(self, message, worker_ctx, result, exc_info):
         container = self.container
-        self.rpc_consumer.handle_result(message, container, result, exc_info)
+        result, exc_info = self.rpc_consumer.handle_result(
+            message, container, result, exc_info)
+        return result, exc_info
 
 
 @entrypoint
@@ -202,22 +205,21 @@ class Responder(object):
 
     def send_response(self, container, result, exc_info):
 
-        # TODO: if we use error codes outside the payload we would only
-        # need to serialize the actual value
         error = None
         if exc_info is not None:
             error = serialize(exc_info[1])
 
-        # disaster avoidence serialization check. the entrypoint method is
-        # responsible for producing serializable output, but an irresponsible
-        # method should not take down the entire cluster (without this check
-        # an unserializable result would kill its container, then the message
-        # would be requeued by the broker and picked up by the next victim)
+        # disaster avoidance serialization check
+        # `result` and `error` must both be json serializable, otherwise
+        # the container will commit suicide assuming unrecoverable errors
+        # (and the message will be requeued for another victim)
         for item in (result, error):
             try:
                 json.dumps(item)
             except Exception:
                 result = None
+                exc_info = sys.exc_info()
+                # `error` below is guaranteed to serialize to json
                 error = serialize(UnserializableValueError(item))
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
@@ -236,6 +238,8 @@ class Responder(object):
                 msg, retry=self.retry, retry_policy=self.retry_policy,
                 exchange=exchange, routing_key=routing_key,
                 correlation_id=correlation_id)
+
+        return result, exc_info
 
 
 # pylint: disable=E1101,E1123

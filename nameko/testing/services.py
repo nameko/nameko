@@ -42,6 +42,7 @@ def entrypoint_hook(container, name, context_data=None):
 
         def handle_result(worker_ctx, res=None, exc_info=None):
             result.send(res, exc_info)
+            return res, exc_info
 
         container.spawn_worker(provider, args, kwargs,
                                context_data=context_data,

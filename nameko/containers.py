@@ -284,9 +284,11 @@ class ServiceContainer(object):
 
         ``context_data`` is used to initialize a ``WorkerContext``.
 
-        ``handle_result`` is an optional callback which may be passed
-        in by the calling entrypoint provider. It is called with the
-        result returned or error raised by the service method.
+        ``handle_result`` is an optional function which may be passed
+        in by the entrypoint provider. It is called with the result returned
+        or error raised by the service method. If provided it must return a
+        value for ``result`` and ``exc_info`` to propagate to dependencies;
+        these may be different to those returned by the service method.
         """
 
         if self._being_killed:
@@ -368,7 +370,8 @@ class ServiceContainer(object):
 
                 with log_time(_log.debug, 'handled result for %s in %0.3fsec',
                               worker_ctx):
-                    handle_result(worker_ctx, result, exc_info)
+                    result, exc_info = handle_result(
+                        worker_ctx, result, exc_info)
 
             with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
                           worker_ctx):

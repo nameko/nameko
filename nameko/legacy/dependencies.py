@@ -1,4 +1,5 @@
 from functools import partial
+import json
 import sys
 
 from kombu import Connection
@@ -24,8 +25,21 @@ class NovaResponder(Responder):
         if not self.msgid:
             return  # pragma: no cover
 
+        # disaster avoidance serialization check
+        try:
+            json.dumps(result)
+        except Exception:
+            result = None
+            exc_info = sys.exc_info()
+
+        # failure will always json serialize
+        # because we catch excs that can't be stringified
         if exc_info is not None:
-            failure = (exc_info[0].__name__, str(exc_info[1]))
+            try:
+                value = str(exc_info[1])
+            except Exception:
+                value = "[__str__ failed]"
+            failure = (exc_info[0].__name__, value)
         else:
             failure = None
 
@@ -39,6 +53,7 @@ class NovaResponder(Responder):
 
             for msg in messages:
                 producer.publish(msg, routing_key=self.msgid)
+        return result, exc_info
 
 
 # pylint: disable=E1101
@@ -73,9 +88,10 @@ class NovaRpcConsumer(RpcConsumer):
 
     def handle_result(self, message, msgid, container, result, exc_info):
         responder = NovaResponder(msgid)
-        responder.send_response(container, result, exc_info)
+        result, exc_info = responder.send_response(container, result, exc_info)
 
         self.queue_consumer.ack_message(message)
+        return result, exc_info
 
 
 @dependency
@@ -111,7 +127,7 @@ class NovaRpcProvider(RpcProvider):
 
     def handle_result(self, message, msgid, worker_ctx, result, exc_info):
 
-        self.rpc_consumer.handle_result(
+        return self.rpc_consumer.handle_result(
             message, msgid, self.container, result, exc_info)
 
 

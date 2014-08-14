@@ -1,3 +1,11 @@
+Version 1.10.0
+--------------
+
+* Entrypoint providers' handle_result is now able to manipulate and modify and
+  return the (result, exc_info) tuple. This enables default post-processing
+  (e.g. serialization, translations)
+* Added serialization safety to legacy rpc entrypoint.
+
 Version 1.9.1
 -------------
 

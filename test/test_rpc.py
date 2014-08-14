@@ -1,12 +1,13 @@
 from itertools import count
-import pytest
 import socket
 import uuid
+
 
 import eventlet
 from eventlet.event import Event
 from kombu import Connection
 from mock import patch, Mock, call
+import pytest
 
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
@@ -221,6 +222,7 @@ def test_reply_listener(get_rpc_exchange):
         reply_listener.handle_message("msg", message)
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
+
 
 # =============================================================================
 # INTEGRATION TESTS
