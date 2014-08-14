@@ -1,5 +1,3 @@
-from collections import defaultdict
-from functools import partial
 from itertools import count
 import socket
 import uuid
@@ -8,7 +6,7 @@ import uuid
 import eventlet
 from eventlet.event import Event
 from kombu import Connection
-from mock import patch, Mock, MagicMock, call, ANY
+from mock import patch, Mock, call
 import pytest
 
 from nameko.containers import (
@@ -16,10 +14,10 @@ from nameko.containers import (
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature, serialize)
+    RemoteError, MethodNotFound, UnknownService, IncorrectSignature)
 from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener, Responder)
+    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_dependency, wait_for_call
@@ -224,183 +222,6 @@ def test_reply_listener(get_rpc_exchange):
         reply_listener.handle_message("msg", message)
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
-
-
-@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
-def test_responder(producers):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
-
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
-
-    # serialisable result
-    result, exc_info = responder.send_response(container, True, None)
-    assert result is True
-    assert exc_info is None
-
-    mock_producer = producers.values()[0].acquire().__enter__()
-    expected_msg = {
-        'result': True,
-        'error': None
-    }
-    publish_args, _ = mock_producer.publish.call_args
-    assert publish_args == (expected_msg,)
-
-
-@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
-def test_responder_worker_exc(producers):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
-
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
-
-    # serialisable exception
-    worker_exc = Exception('error')
-    result, exc_info = responder.send_response(
-        container, None, (Exception, worker_exc, "tb"))
-    assert result is None
-    assert exc_info == (Exception, worker_exc, "tb")
-
-    mock_producer = producers.values()[0].acquire().__enter__()
-    expected_msg = {
-        'result': None,
-        'error': {
-            'exc_path': 'exceptions.Exception',
-            'value': 'error',
-            'exc_type': 'Exception',
-            'exc_args': ('error',)
-        }
-    }
-    publish_args, _ = mock_producer.publish.call_args
-    assert publish_args == (expected_msg,)
-
-
-@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
-def test_responder_unserializable_result(producers):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
-
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
-
-    # unserialisable result
-    worker_result = object()
-    result, exc_info = responder.send_response(container, worker_result, None)
-
-    # responder will return the TypeError from json.dumps
-    assert result is None
-    assert exc_info == (TypeError, ANY, ANY)
-    assert exc_info[1].message == ("{} is not JSON "
-                                   "serializable".format(worker_result))
-
-    # and publish a dictionary-serialized UnserializableValueError
-    # on worker_result
-    mock_producer = producers.values()[0].acquire().__enter__()
-    expected_msg = {
-        'result': None,
-        'error': {
-            'exc_path': 'nameko.exceptions.UnserializableValueError',
-            'value': 'Unserializable value: `{}`'.format(worker_result),
-            'exc_type': 'UnserializableValueError',
-            'exc_args': ()
-        }
-    }
-    publish_args, _ = mock_producer.publish.call_args
-    assert publish_args == (expected_msg,)
-
-
-@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
-def test_responder_unserializable_exc(producers):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
-
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
-
-    # unserialisable exception
-    worker_exc = Exception(object())
-    result, exc_info = responder.send_response(
-        container, True, (Exception, worker_exc, "tb"))
-
-    # responder will return the TypeError from json.dumps
-    assert result is None
-    assert exc_info == (TypeError, ANY, ANY)
-    assert exc_info[1].message == ("{} is not JSON "
-                                   "serializable".format(worker_exc.args[0]))
-
-    # and publish a dictionary-serialized UnserializableValueError
-    # (where the unserialisable value is a dictionary-serialized worker_exc)
-    mock_producer = producers.values()[0].acquire().__enter__()
-    serialized_exc = serialize(worker_exc)
-    expected_msg = {
-        'result': None,
-        'error': {
-            'exc_path': 'nameko.exceptions.UnserializableValueError',
-            'value': 'Unserializable value: `{}`'.format(serialized_exc),
-            'exc_type': 'UnserializableValueError',
-            'exc_args': ()
-        }
-    }
-    publish_args, _ = mock_producer.publish.call_args
-    assert publish_args == (expected_msg,)
-
-
-@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
-def test_responder_cannot_unicode_exc(producers):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
-
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
-
-    class CannotUnicode(object):
-        def __str__(self):
-            raise Exception('error')
-
-    # un-unicode-able exception
-    worker_exc = Exception(CannotUnicode())
-
-    # send_response should not throw
-    responder.send_response(container, True, (Exception, worker_exc, "tb"))
-
-
-@patch('nameko.rpc.producers', new_callable=partial(defaultdict, MagicMock))
-def test_responder_cannot_repr_exc(producers):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
-
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
-
-    class CannotRepr(object):
-        def __repr__(self):
-            raise Exception('error')
-
-    # un-repr-able exception
-    worker_exc = Exception(CannotRepr())
-
-    # send_response should not throw
-    responder.send_response(container, True, (Exception, worker_exc, "tb"))
 
 
 # =============================================================================
