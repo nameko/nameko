@@ -1,4 +1,5 @@
 from functools import partial
+import json
 import sys
 
 from kombu import Connection
@@ -24,8 +25,21 @@ class NovaResponder(Responder):
         if not self.msgid:
             return  # pragma: no cover
 
+        # disaster avoidance serialization check
+        try:
+            json.dumps(result)
+        except Exception:
+            result = None
+            exc_info = sys.exc_info()
+
+        # failure will always json serialize
+        # because we catch excs that can't be stringified
         if exc_info is not None:
-            failure = (exc_info[0].__name__, str(exc_info[1]))
+            try:
+                value = str(exc_info[1])
+            except Exception:
+                value = "[__str__ failed]"
+            failure = (exc_info[0].__name__, value)
         else:
             failure = None
 

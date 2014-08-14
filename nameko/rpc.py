@@ -209,17 +209,17 @@ class Responder(object):
         if exc_info is not None:
             error = serialize(exc_info[1])
 
-        # disaster avoidance serialization check. an entrypoint should
-        # produce serializable output, but an irresponsible implementation
-        # should not take down the entire cluster (without this check
-        # an unserializable result would kill its container, then the message
-        # would be requeued by the broker and picked up by the next victim)
+        # disaster avoidance serialization check
+        # `result` and `error` must both be json serializable, otherwise
+        # the container will commit suicide assuming unrecoverable errors
+        # (and the message will be requeued for another victim)
         for item in (result, error):
             try:
                 json.dumps(item)
             except Exception:
                 result = None
                 exc_info = sys.exc_info()
+                # `error` below is guaranteed to serialize to json
                 error = serialize(UnserializableValueError(item))
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
