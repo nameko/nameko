@@ -19,10 +19,11 @@ from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
-from nameko.logging import log_time
+from nameko.logging import make_timing_logger
 
 
 _log = getLogger(__name__)
+_log_time = make_timing_logger(_log)
 
 
 def get_service_name(service_cls):
@@ -86,13 +87,6 @@ class WorkerContextBase(object):
         key_data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
         return key_data
 
-    @property
-    def extra_for_logging(self):
-        """
-        Get a dictionary of extra data to apply to log statements.
-        """
-        return {}
-
     @classmethod
     def get_context_data(cls, incoming):
         data = {k: v for k, v in incoming.iteritems()
@@ -155,7 +149,7 @@ class ServiceContainer(object):
         _log.debug('starting %s', self)
         self.started = True
 
-        with log_time(_log.debug, 'started %s in %0.3f sec', self):
+        with _log_time('started %s', self):
             self.dependencies.all.prepare()
             self.dependencies.all.start()
 
@@ -195,7 +189,7 @@ class ServiceContainer(object):
 
         _log.debug('stopping %s', self)
 
-        with log_time(_log.debug, 'stopped %s in %0.3f sec', self):
+        with _log_time('stopped %s', self):
             dependencies = self.dependencies
 
             # entrypoint deps have to be stopped before injection deps
@@ -299,8 +293,7 @@ class ServiceContainer(object):
         worker_ctx = self.worker_ctx_cls(
             self, service, provider, args, kwargs, data=context_data)
 
-        _log.debug('spawning %s', worker_ctx,
-                   extra=worker_ctx.extra_for_logging)
+        _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
         self._active_threads.add(gt)
@@ -334,17 +327,14 @@ class ServiceContainer(object):
         return gt
 
     def _run_worker(self, worker_ctx, handle_result):
-        _log.debug('setting up %s', worker_ctx,
-                   extra=worker_ctx.extra_for_logging)
+        _log.debug('setting up %s', worker_ctx)
 
         if not worker_ctx.parent_call_stack:
-            _log.debug('starting call chain',
-                       extra=worker_ctx.extra_for_logging)
+            _log.debug('starting call chain')
         _log.debug('call stack for %s: %s',
-                   worker_ctx, '->'.join(worker_ctx.call_id_stack),
-                   extra=worker_ctx.extra_for_logging)
+                   worker_ctx, '->'.join(worker_ctx.call_id_stack))
 
-        with log_time(_log.debug, 'ran worker %s in %0.3fsec', worker_ctx):
+        with _log_time('ran worker %s', worker_ctx):
 
             self.dependencies.injections.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)
@@ -353,36 +343,29 @@ class ServiceContainer(object):
             method = getattr(worker_ctx.service, worker_ctx.provider.name)
             try:
 
-                _log.debug('calling handler for %s', worker_ctx,
-                           extra=worker_ctx.extra_for_logging)
+                _log.debug('calling handler for %s', worker_ctx)
 
-                with log_time(_log.debug, 'ran handler for %s in %0.3fsec',
-                              worker_ctx):
+                with _log_time('ran handler for %s', worker_ctx):
                     result = method(*worker_ctx.args, **worker_ctx.kwargs)
             except Exception as exc:
                 _log.debug('error handling worker %s: %s', worker_ctx, exc,
-                           exc_info=True, extra=worker_ctx.extra_for_logging)
+                           exc_info=True)
                 exc_info = sys.exc_info()
 
             if handle_result is not None:
-                _log.debug('handling result for %s', worker_ctx,
-                           extra=worker_ctx.extra_for_logging)
+                _log.debug('handling result for %s', worker_ctx)
 
-                with log_time(_log.debug, 'handled result for %s in %0.3fsec',
-                              worker_ctx):
+                with _log_time('handled result for %s', worker_ctx):
                     result, exc_info = handle_result(
                         worker_ctx, result, exc_info)
 
-            with log_time(_log.debug, 'tore down worker %s in %0.3fsec',
-                          worker_ctx):
+            with _log_time('tore down worker %s', worker_ctx):
 
-                _log.debug('signalling result for %s', worker_ctx,
-                           extra=worker_ctx.extra_for_logging)
+                _log.debug('signalling result for %s', worker_ctx)
                 self.dependencies.injections.all.worker_result(
                     worker_ctx, result, exc_info)
 
-                _log.debug('tearing down %s', worker_ctx,
-                           extra=worker_ctx.extra_for_logging)
+                _log.debug('tearing down %s', worker_ctx)
                 self.dependencies.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
 
