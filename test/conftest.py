@@ -87,8 +87,8 @@ def rabbit_config(request, rabbit_manager):
     conf['vhost'] = vhost
     conf['username'] = username
 
-    reset_rabbit_vhost(vhost, username, rabbit_manager)
     reset_rabbit_connections(vhost, rabbit_manager)
+    reset_rabbit_vhost(vhost, username, rabbit_manager)
 
     yield conf
 
