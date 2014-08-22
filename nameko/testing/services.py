@@ -109,7 +109,7 @@ def worker_factory(service_cls, **injections):
 
     """
     service = service_cls()
-    for name, attr in inspect.getmembers(service):
+    for name, attr in inspect.getmembers(service_cls):
         if isinstance(attr, DependencyFactory):
             factory = attr
             if issubclass(factory.dep_cls, InjectionProvider):
