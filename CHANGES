@@ -1,3 +1,11 @@
+Version 1.10.1
+--------------
+
+* Inspect the service class (instead of an instance) in `worker_factory`. Works
+  better with descriptors.
+* Explicity delete exc_info variable when not needed, to help the gc.
+
+
 Version 1.10.0
 --------------
 
@@ -5,6 +13,7 @@ Version 1.10.0
   return the (result, exc_info) tuple. This enables default post-processing
   (e.g. serialization, translations)
 * Added serialization safety to legacy rpc entrypoint.
+
 
 Version 1.9.1
 -------------
@@ -45,7 +54,7 @@ Version 1.7.2
   dependency teardown.
 * Serialization errors now generate a specific error message rather
   than bubbling into the container.
-* Minor change to nameko_doc output.  
+* Minor change to nameko_doc output.
 
 Version 1.7.1
 -------------
