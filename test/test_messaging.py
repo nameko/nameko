@@ -4,6 +4,7 @@ import pytest
 from kombu import Exchange, Queue
 from mock import patch, Mock
 
+from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.dependencies import DependencyFactory
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
@@ -138,12 +139,13 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     # test publish
     msg = "msg"
     publisher.inject(worker_ctx)
-    service.publish(msg)
+    service.publish(msg, publish_kwarg="value")
     headers = {
         'nameko.call_id_stack': ['srcservice.publish.0']
     }
     producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex)
+        msg, headers=headers, exchange=foobar_ex, retry=True,
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
@@ -179,9 +181,10 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
         'nameko.call_id_stack': ['srcservice.publish.0'],
     }
     publisher.inject(worker_ctx)
-    service.publish(msg)
-    producer.publish.assert_called_once_with(msg, headers=headers,
-                                             exchange=foobar_ex)
+    service.publish(msg, publish_kwarg="value")
+    producer.publish.assert_called_once_with(
+        msg, headers=headers, exchange=foobar_ex, retry=True,
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
@@ -217,9 +220,10 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
                'nameko.customheader': 'customvalue',
                'nameko.call_id_stack': ['srcservice.method.0']}
     publisher.inject(worker_ctx)
-    service.publish(msg)
-    producer.publish.assert_called_once_with(msg, headers=headers,
-                                             exchange=foobar_ex)
+    service.publish(msg, publish_kwarg="value")
+    producer.publish.assert_called_once_with(
+        msg, headers=headers, exchange=foobar_ex, retry=True,
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
 def test_header_encoder(empty_config):

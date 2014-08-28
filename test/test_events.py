@@ -80,11 +80,11 @@ def test_event_dispatcher(empty_config):
         get_producer.return_value = as_context_manager(producer)
 
         # test dispatch
-        service.dispatch(evt)
+        service.dispatch(evt, retry_policy={'max_retries': 5})
         headers = event_dispatcher.get_message_headers(worker_ctx)
         producer.publish.assert_called_once_with(
             evt.data, exchange=event_dispatcher.exchange, headers=headers,
-            routing_key=evt.type)
+            routing_key=evt.type, retry=True, retry_policy={'max_retries': 5})
 
 
 @pytest.fixture

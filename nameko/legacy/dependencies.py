@@ -5,6 +5,7 @@ import sys
 from kombu import Connection
 from kombu.pools import producers
 
+from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
     MethodNotFound, IncorrectSignature, ContainerBeingKilled)
 from nameko.dependencies import (
@@ -21,7 +22,7 @@ class NovaResponder(Responder):
     def __init__(self, msgid):
         self.msgid = msgid
 
-    def send_response(self, container, result, exc_info):
+    def send_response(self, container, result, exc_info, **kwargs):
         if not self.msgid:
             return  # pragma: no cover
 
@@ -45,6 +46,9 @@ class NovaResponder(Responder):
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
 
+        retry = kwargs.pop('retry', True)
+        retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+
         with producers[conn].acquire(block=True) as producer:
             messages = [
                 {'result': result, 'failure': failure, 'ending': False},
@@ -52,7 +56,8 @@ class NovaResponder(Responder):
             ]
 
             for msg in messages:
-                producer.publish(msg, routing_key=self.msgid)
+                producer.publish(msg, routing_key=self.msgid, retry=retry,
+                                 retry_policy=retry_policy, **kwargs)
         return result, exc_info
 
 
