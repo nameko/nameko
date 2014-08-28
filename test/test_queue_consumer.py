@@ -283,8 +283,8 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
     queue_consumer1.unregister_provider(handler1)
     queue_consumer2.unregister_provider(handler2)
 
-    queue_consumer1.stop()
-    queue_consumer2.stop()
+    queue_consumer1.kill()
+    queue_consumer2.kill()
 
 
 def test_kill_closes_connections(rabbit_manager, rabbit_config):

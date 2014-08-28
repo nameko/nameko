@@ -42,10 +42,6 @@ class TestQueueIteratorTimeout(object):
         class NovaService(object):
 
             @rpc
-            def foo(self):
-                return "bst"
-
-            @rpc
             def wait(self):
                 Event().wait()
 
