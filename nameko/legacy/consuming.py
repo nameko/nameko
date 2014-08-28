@@ -38,5 +38,10 @@ def queue_iterator(queue, no_ack=False, timeout=None):
             yield msg
     except socket.timeout:
         if timeout is not None:
+            # we raise a different exception type here because we bubble out
+            # to our caller, but `socket.timeout` errors get caught if
+            # our connection is "ensured" with `kombu.Connection.ensure`;
+            # the reference to the connection is destroyed so it can't be
+            # closed later - see http://bit.ly/1nJz2Gm#L446
             raise RpcTimeout(timeout)
         raise
