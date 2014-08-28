@@ -4,6 +4,7 @@ from eventlet.event import Event
 from mock import patch, Mock, MagicMock
 import pytest
 
+from nameko.exceptions import RpcTimeout
 from nameko.legacy import consuming
 from nameko.legacy.dependencies import rpc
 from nameko.legacy.proxy import RPCProxy
@@ -19,17 +20,30 @@ class TestQueueIteratorTimeout(object):
         assert res == ['foo', 'bar']
 
     @patch('nameko.legacy.consuming.eventloop', autospec=True)
-    def test_timeout_raises(self, eventloop):
+    def test_timeout_raises_rpc_exc_on_timeout(self, eventloop):
+
+        eventloop.side_effect = socket.timeout
+
+        queue = Mock()
+        with pytest.raises(RpcTimeout):
+            list(consuming.queue_iterator(queue, timeout=0.1))
+
+    @patch('nameko.legacy.consuming.eventloop', autospec=True)
+    def test_timeout_reraises_if_no_timeout(self, eventloop):
 
         eventloop.side_effect = socket.timeout
 
         queue = Mock()
         with pytest.raises(socket.timeout):
-            list(consuming.queue_iterator(queue, timeout=0.1))
+            list(consuming.queue_iterator(queue, timeout=None))
 
     def test_timeout(self, container_factory, rabbit_config):
 
         class NovaService(object):
+
+            @rpc
+            def foo(self):
+                return "bst"
 
             @rpc
             def wait(self):
@@ -41,7 +55,7 @@ class TestQueueIteratorTimeout(object):
         uri = rabbit_config['AMQP_URI']
         proxy = RPCProxy(uri)
 
-        with pytest.raises(socket.timeout):
+        with pytest.raises(RpcTimeout):
             proxy.novaservice.wait(timeout=1)
 
         # container won't stop gracefully with a running worker

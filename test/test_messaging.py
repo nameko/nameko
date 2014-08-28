@@ -406,3 +406,5 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
     # stop will hang if the consumer hasn't acked or requeued messages
     with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
         consumer.stop()
+
+    consumer.queue_consumer.kill()

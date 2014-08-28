@@ -1,4 +1,3 @@
-import socket
 import types
 
 
@@ -18,9 +17,7 @@ class ChannelHandler(object):
         self.channel = channel
 
     def on_error(self, exc_value, *args, **kwargs):
-        # re-raise socket timeouts to exit `ensure`
-        if isinstance(exc_value, socket.timeout):
-            raise
+        pass
 
     def __call__(self, func, *args, **kwargs):
         return self.ensure(func)(*args, **kwargs)

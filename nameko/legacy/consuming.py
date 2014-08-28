@@ -1,7 +1,10 @@
 from collections import deque
+import socket
 
 from kombu.common import eventloop
 from kombu.messaging import Consumer
+
+from nameko.exceptions import RpcTimeout
 
 
 # lifted from kombu, modified to accept `ignore_timeouts`
@@ -29,6 +32,11 @@ def queue_iterator(queue, no_ack=False, timeout=None):
     channel = queue.channel
 
     consumer = Consumer(channel, queues=[queue], no_ack=no_ack)
-    for _, msg in drain_consumer(consumer, limit=None, timeout=timeout,
-                                 ignore_timeouts=False):
-        yield msg
+    try:
+        for _, msg in drain_consumer(consumer, limit=None, timeout=timeout,
+                                     ignore_timeouts=False):
+            yield msg
+    except socket.timeout:
+        if timeout is not None:
+            raise RpcTimeout(timeout)
+        raise
