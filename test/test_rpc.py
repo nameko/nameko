@@ -1,11 +1,7 @@
-from itertools import count
-import socket
 import uuid
-
 
 import eventlet
 from eventlet.event import Event
-from kombu import Connection
 from mock import patch, Mock, call
 import pytest
 
@@ -15,7 +11,7 @@ from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import (
     RemoteError, MethodNotFound, UnknownService, IncorrectSignature)
-from nameko.messaging import AMQP_URI_CONFIG_KEY, QueueConsumer
+from nameko.messaging import QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.standalone.rpc import RpcProxy
@@ -88,37 +84,6 @@ class ExampleService(object):
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
         pass
-
-
-class FailingConnection(Connection):
-    exc_type = socket.error
-
-    def __init__(self, *args, **kwargs):
-        self.failure_count = 0
-        self.max_failure_count = kwargs.pop('max_failure_count', count(0))
-        return super(FailingConnection, self).__init__(*args, **kwargs)
-
-    @property
-    def should_raise(self):
-        return self.failure_count < self.max_failure_count
-
-    def maybe_raise(self, fun, *args, **kwargs):
-        if self.should_raise:
-            raise self.exc_type()
-        return fun(*args, **kwargs)
-
-    def ensure(self, obj, fun, **kwargs):
-        def wrapped(*args, **kwargs):
-            return self.maybe_raise(fun, *args, **kwargs)
-        kwargs['interval_start'] = 0
-        kwargs['interval_step'] = 0
-        return super(FailingConnection, self).ensure(obj, wrapped, **kwargs)
-
-    def connect(self, *args, **kwargs):
-        if self.should_raise:
-            self.failure_count += 1
-            raise self.exc_type()
-        return super(FailingConnection, self).connect(*args, **kwargs)
 
 
 @pytest.yield_fixture
@@ -528,48 +493,6 @@ def test_rpc_container_being_killed_retries(
 
     container._being_killed = False
     assert waiter.wait() == 'result_a'  # now completed
-
-
-def test_rpc_responder_auto_retries(container_factory, rabbit_config,
-                                    rabbit_manager):
-
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    uri = container.config[AMQP_URI_CONFIG_KEY]
-    conn = FailingConnection(uri, max_failure_count=2)
-
-    path = "kombu.connection.ConnectionPool.new"
-    with patch(path, autospec=True) as new_connection:
-        new_connection.return_value = conn
-
-        with RpcProxy("exampleservice", rabbit_config) as proxy:
-            assert proxy.task_a() == "result_a"
-        assert conn.failure_count == 2
-
-
-def test_rpc_responder_eventual_failure(container_factory, rabbit_config,
-                                        rabbit_manager):
-
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    uri = container.config[AMQP_URI_CONFIG_KEY]
-    conn = FailingConnection(uri)
-
-    path = "kombu.connection.ConnectionPool.new"
-    with patch(path, autospec=True) as new_connection:
-        new_connection.return_value = conn
-
-        with RpcProxy("exampleservice", rabbit_config) as proxy:
-            eventlet.spawn(proxy.task_a)
-
-        with eventlet.Timeout(10):
-            with pytest.raises(Exception) as exc_info:
-                container.wait()
-            assert type(exc_info.value) == socket.error
-
-# test reply-to and correlation-id correct
 
 
 def test_rpc_consumer_sharing(container_factory, rabbit_config,

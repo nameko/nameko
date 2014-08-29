@@ -15,17 +15,9 @@ class _Tester(object):
             raise self.failexc()
 
 
-def test_autoretry(connection):
-    tester = _Tester()
-    connection.transport.connection_errors = (tester.failexc, )
-
-    decorators.autoretry(tester)(connection)
-    assert tester.tries == 2
-
-
 def test_ensure(connection):
     tester = _Tester()
-    connection.transport.connection_errors = (tester.failexc, )
+    connection.transport.connection_errors = (tester.failexc,)
 
     decorators.ensure(tester)(connection)
     assert tester.tries == 2

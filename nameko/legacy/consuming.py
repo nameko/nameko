@@ -1,7 +1,10 @@
 from collections import deque
+import socket
 
 from kombu.common import eventloop
 from kombu.messaging import Consumer
+
+from nameko.exceptions import RpcTimeout
 
 
 # lifted from kombu, modified to accept `ignore_timeouts`
@@ -29,6 +32,17 @@ def queue_iterator(queue, no_ack=False, timeout=None):
     channel = queue.channel
 
     consumer = Consumer(channel, queues=[queue], no_ack=no_ack)
-    for _, msg in drain_consumer(consumer, limit=None, timeout=timeout,
-                                 ignore_timeouts=False):
-        yield msg
+    try:
+        for _, msg in drain_consumer(consumer, limit=None, timeout=timeout,
+                                     ignore_timeouts=False):
+            yield msg
+    except socket.timeout:
+        if timeout is not None:
+            # we raise a different exception type here because we bubble out
+            # to our caller, but `socket.timeout` errors get caught if
+            # our connection is "ensured" with `kombu.Connection.ensure`;
+            # the reference to the connection is destroyed so it can't be
+            # closed later - see https://github.com/celery/kombu/blob/v3.0.4/
+            # kombu/connection.py#L446
+            raise RpcTimeout(timeout)
+        raise

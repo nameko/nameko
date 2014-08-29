@@ -11,14 +11,12 @@ def test_ensure():
 
     handler.ensure(handler.close)
     conn.ensure.assert_called_with(
-        handler, handler.close,
-        errback=handler.on_error, on_revive=handler.revive)
+        handler, handler.close, on_revive=handler.revive)
 
     obj = {}
     fn = lambda: None
     handler.ensure((obj, fn))
-    conn.ensure.assert_called_with(
-        obj, fn, errback=handler.on_error, on_revive=None)
+    conn.ensure.assert_called_with(obj, fn, on_revive=None)
 
     with pytest.raises(TypeError):
         handler.ensure(None)

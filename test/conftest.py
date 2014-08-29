@@ -1,19 +1,20 @@
 import eventlet
-import itertools
-from mock import patch
-
 eventlet.monkey_patch()
 
+import itertools
 import logging
 import sys
 from urlparse import urlparse
 
+from kombu import pools
+from mock import patch
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
-    get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections)
+    get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
+    get_rabbit_connections)
 
 
 def pytest_addoption(parser):
@@ -57,12 +58,6 @@ def pytest_configure(config):
         logging.basicConfig(level=log_level, stream=sys.stderr)
 
 
-@pytest.fixture(autouse=True)
-def reset_kombu_pools(request):
-    from kombu.pools import reset
-    reset()
-
-
 @pytest.fixture
 def empty_config(request):
     return {}
@@ -87,10 +82,18 @@ def rabbit_config(request, rabbit_manager):
     conf['vhost'] = vhost
     conf['username'] = username
 
-    reset_rabbit_vhost(vhost, username, rabbit_manager)
     reset_rabbit_connections(vhost, rabbit_manager)
+    reset_rabbit_vhost(vhost, username, rabbit_manager)
 
     yield conf
+
+    pools.reset()  # close connections in pools
+
+    # raise a runtime error if the test leaves any connections lying around
+    connections = get_rabbit_connections(vhost, rabbit_manager)
+    if connections:
+        count = len(connections)
+        raise RuntimeError("{} rabbit connection(s) left open.".format(count))
 
 
 @pytest.yield_fixture
