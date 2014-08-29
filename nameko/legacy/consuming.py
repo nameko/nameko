@@ -42,6 +42,7 @@ def queue_iterator(queue, no_ack=False, timeout=None):
             # to our caller, but `socket.timeout` errors get caught if
             # our connection is "ensured" with `kombu.Connection.ensure`;
             # the reference to the connection is destroyed so it can't be
-            # closed later - see http://bit.ly/1nJz2Gm#L446
+            # closed later - see https://github.com/celery/kombu/blob/v3.0.4/
+            # kombu/connection.py#L446
             raise RpcTimeout(timeout)
         raise
