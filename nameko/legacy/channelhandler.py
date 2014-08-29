@@ -1,4 +1,3 @@
-import socket
 import types
 
 
@@ -16,11 +15,6 @@ class ChannelHandler(object):
 
     def revive(self, channel):
         self.channel = channel
-
-    def on_error(self, exc_value, *args, **kwargs):
-        # re-raise socket timeouts to exit `ensure`
-        if isinstance(exc_value, socket.timeout):
-            raise
 
     def __call__(self, func, *args, **kwargs):
         return self.ensure(func)(*args, **kwargs)
@@ -44,7 +38,4 @@ class ChannelHandler(object):
         else:
             revive = None
 
-        return self.connection.ensure(
-            obj, func,
-            errback=self.on_error,
-            on_revive=revive)
+        return self.connection.ensure(obj, func, on_revive=revive)

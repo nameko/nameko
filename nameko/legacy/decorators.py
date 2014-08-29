@@ -4,15 +4,6 @@ import functools
 from nameko.legacy.channelhandler import ChannelHandler
 
 
-def autoretry(func):
-    """A decorator for connection.autoretry. """
-    @functools.wraps(func)
-    def wrapped(connection, *args, **kwargs):
-        channel = kwargs.pop('channel', None)
-        return connection.autoretry(func, channel=channel)(*args, **kwargs)
-    return wrapped
-
-
 def ensure(func):
     """wraps an entire function with ensure to use as a decorator. """
     @functools.wraps(func)

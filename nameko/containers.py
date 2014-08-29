@@ -365,7 +365,11 @@ class ServiceContainer(object):
                 self.dependencies.injections.all.worker_result(
                     worker_ctx, result, exc_info)
 
-                _log.debug('tearing down %s', worker_ctx)
+                # we don't need this any more, and breaking the cycle means
+                # this can be reclaimed immediately, rather than waiting for a
+                # gc sweep
+                del exc_info
+
                 self.dependencies.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
 

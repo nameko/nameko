@@ -5,7 +5,7 @@ class DependencyNotFound(AttributeError):
     pass
 
 
-class WaiterTimeout(Exception):
+class RpcTimeout(Exception):
     pass
 
 

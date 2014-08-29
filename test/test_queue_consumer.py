@@ -80,6 +80,8 @@ def test_lifecycle(rabbit_manager, rabbit_config):
     messages = rabbit_manager.get_messages(vhost, 'ham')
     assert ['ni'] == [msg['payload'] for msg in messages]
 
+    queue_consumer.kill()
+
 
 def test_reentrant_start_stops(rabbit_config):
     container = Mock()
@@ -96,6 +98,8 @@ def test_reentrant_start_stops(rabbit_config):
     # nothing should happen as the consumer has already been started
     queue_consumer.start()
     assert gt is queue_consumer._gt
+
+    queue_consumer.kill()
 
 
 def test_stop_while_starting():
@@ -279,8 +283,12 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
     queue_consumer1.unregister_provider(handler1)
     queue_consumer2.unregister_provider(handler2)
 
+    queue_consumer1.kill()
+    queue_consumer2.kill()
+
 
 def test_kill_closes_connections(rabbit_manager, rabbit_config):
+
     container = Mock()
     container.config = rabbit_config
     container.max_workers = 1
