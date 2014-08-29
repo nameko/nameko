@@ -15,6 +15,7 @@ from kombu.pools import producers, connections
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
+from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyProvider, ProviderCollector, DependencyFactory, dependency,
@@ -123,12 +124,14 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
             if exchange is None and queue is not None:
                 exchange = queue.exchange
 
+            retry = kwargs.pop('retry', True)
+            retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+
             with self.get_producer() as producer:
-                # TODO: should we enable auto-retry,
-                #      should that be an option in __init__?
                 headers = self.get_message_headers(worker_ctx)
-                producer.publish(msg, exchange=exchange, headers=headers,
-                                 **kwargs)
+                producer.publish(
+                    msg, exchange=exchange, headers=headers,
+                    retry=retry, retry_policy=retry_policy, **kwargs)
 
         return publish
 

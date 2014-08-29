@@ -10,6 +10,7 @@ from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
+from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
     serialize, deserialize)
@@ -195,15 +196,10 @@ def rpc():
 
 class Responder(object):
 
-    def __init__(self, message, retry=True, retry_policy=None):
-        self._connection = None
+    def __init__(self, message):
         self.message = message
-        self.retry = retry
-        if retry_policy is None:
-            retry_policy = {'max_retries': 3}
-        self.retry_policy = retry_policy
 
-    def send_response(self, container, result, exc_info):
+    def send_response(self, container, result, exc_info, **kwargs):
 
         error = None
         if exc_info is not None:
@@ -226,6 +222,9 @@ class Responder(object):
 
         exchange = get_rpc_exchange(container)
 
+        retry = kwargs.pop('retry', True)
+        retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+
         with producers[conn].acquire(block=True) as producer:
 
             routing_key = self.message.properties['reply_to']
@@ -235,9 +234,9 @@ class Responder(object):
 
             _log.debug('publish response %s:%s', routing_key, correlation_id)
             producer.publish(
-                msg, retry=self.retry, retry_policy=self.retry_policy,
+                msg, retry=retry, retry_policy=retry_policy,
                 exchange=exchange, routing_key=routing_key,
-                correlation_id=correlation_id)
+                correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
 
@@ -365,8 +364,6 @@ class MethodProxy(HeaderEncoder):
         exchange = get_rpc_exchange(container)
 
         with producers[conn].acquire(block=True) as producer:
-            # TODO: should we enable auto-retry,
-            #      should that be an option in __init__?
 
             headers = self.get_message_headers(worker_ctx)
             correlation_id = str(uuid.uuid4())
@@ -383,6 +380,8 @@ class MethodProxy(HeaderEncoder):
                 reply_to=reply_to_routing_key,
                 headers=headers,
                 correlation_id=correlation_id,
+                retry=True,
+                retry_policy=DEFAULT_RETRY_POLICY
             )
 
             if not producer.channel.returned_messages.empty():

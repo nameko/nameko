@@ -3,6 +3,7 @@ from logging import getLogger
 
 from kombu import Producer, Exchange, Queue
 
+from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import UnknownService
 from nameko.legacy import consuming, responses
 from nameko.legacy.context import Context
@@ -83,7 +84,9 @@ def _send_topic(connection, exchange, topic, data):
             exchange=exchange,
             routing_key=topic,
             )
-        ch.ensure(producer.publish)(data, declare=[exchange], mandatory=True)
+        ch.ensure(producer.publish)(data, declare=[exchange], mandatory=True,
+                                    retry_policy=DEFAULT_RETRY_POLICY,
+                                    retry=True)
 
         # see comment in rpc.MethodProxy.__call__, after publish()
         if not producer.channel.returned_messages.empty():

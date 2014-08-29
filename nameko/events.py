@@ -31,6 +31,7 @@ import uuid
 
 from kombu import Exchange, Queue
 
+from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.messaging import PublishProvider, PERSISTENT, ConsumeProvider
 from nameko.dependencies import entrypoint, injection, DependencyFactory
 
@@ -152,8 +153,11 @@ class EventDispatcher(PublishProvider):
     def acquire_injection(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        def dispatch(evt):
+        def dispatch(evt, **kwargs):
             exchange = self.exchange
+
+            retry = kwargs.pop('retry', True)
+            retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
 
             msg = evt.data
             routing_key = evt.type
@@ -162,7 +166,8 @@ class EventDispatcher(PublishProvider):
 
                 headers = self.get_message_headers(worker_ctx)
                 producer.publish(msg, exchange=exchange, headers=headers,
-                                 routing_key=routing_key)
+                                 routing_key=routing_key, retry=retry,
+                                 retry_policy=retry_policy, **kwargs)
 
         return dispatch
 
