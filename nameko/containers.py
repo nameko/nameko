@@ -19,7 +19,7 @@ from nameko.dependencies import (
     prepare_dependencies, DependencySet, is_entrypoint_provider,
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
-from nameko.logging import make_timing_logger
+from nameko.log_helpers import make_timing_logger
 
 
 _log = getLogger(__name__)
