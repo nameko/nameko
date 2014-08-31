@@ -65,28 +65,28 @@ handle_foo_called = Mock()
 
 
 def test_example_service(container_factory, rabbit_config):
+    with tempfile.NamedTemporaryFile() as sql_db_file:
+        db_uri = 'sqlite:///{}'.format(sql_db_file.name)
+        engine = create_engine(db_uri)
+        FooModel.metadata.create_all(engine)
 
-    db_uri = 'sqlite:///{}'.format(tempfile.NamedTemporaryFile().name)
-    engine = create_engine(db_uri)
-    FooModel.metadata.create_all(engine)
-
-    config = {
-        ORM_DB_URIS_KEY: {
-            'foo-service:foo_base': db_uri
+        config = {
+            ORM_DB_URIS_KEY: {
+                'foo-service:foo_base': db_uri
+            }
         }
-    }
-    config.update(rabbit_config)
+        config.update(rabbit_config)
 
-    container = container_factory(FooService, config)
-    container.start()
+        container = container_factory(FooService, config)
+        container.start()
 
-    with wait_for_call(5, handle_spam_called) as handle_spam:
-        handle_spam.assert_called_with('ham & eggs')
+        with wait_for_call(5, handle_spam_called) as handle_spam:
+            handle_spam.assert_called_with('ham & eggs')
 
-    with wait_for_call(5, handle_foo_called) as handle_foo:
-        handle_foo.assert_called_with('message')
+        with wait_for_call(5, handle_foo_called) as handle_foo:
+            handle_foo.assert_called_with('message')
 
-    entries = list(engine.execute('SELECT data FROM spam LIMIT 1'))
-    assert entries == [('ham',)]
+        entries = list(engine.execute('SELECT data FROM spam LIMIT 1'))
+        assert entries == [('ham',)]
 
-    container.stop()
+        container.stop()

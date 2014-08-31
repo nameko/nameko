@@ -390,7 +390,8 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
             "kwargs_only() got an unexpected keyword argument 'arg'"),
         (('star_args', ('a', 'b'), {}), None),
         (('star_args', (), {'c': 'c'}),
-            "star_args() got an unexpected keyword argument 'c'"),
+            ("star_args() got an unexpected keyword argument 'c'",
+             "star_args() takes no arguments (1 given)")),
         (('args_star_args', ('a',), {}), None),
         (('args_star_args', ('a', 'b'), {}), None),
         (('args_star_args', (), {}),
@@ -399,11 +400,17 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
             "args_star_args() got an unexpected keyword argument 'c'"),
         (('args_star_kwargs', ('a',), {}), None),
         (('args_star_kwargs', ('a', 'b'), {}),
-            "args_star_kwargs() takes exactly 1 argument (2 given)"),
+            ("args_star_kwargs() takes exactly 1 argument (2 given)",
+             "args_star_kwargs() takes exactly 1 non-keyword argument "
+             "(2 given)")),
         (('args_star_kwargs', ('a', 'b'), {'c': 'c'}),
-            "args_star_kwargs() takes exactly 1 argument (3 given)"),
+            ("args_star_kwargs() takes exactly 1 argument (3 given)",
+             "args_star_kwargs() takes exactly 1 non-keyword argument "
+             "(2 given)")),
         (('args_star_kwargs', (), {}),
-            "args_star_kwargs() takes exactly 1 argument (0 given)"),
+            ("args_star_kwargs() takes exactly 1 argument (0 given)",
+             "args_star_kwargs() takes exactly 1 non-keyword argument "
+             "(0 given)")),
     ]
 
     for signature, expected_error in method_calls:
@@ -416,7 +423,10 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
             if expected_error:
                 with pytest.raises(IncorrectSignature) as exc_info:
                     method(*args, **kwargs)
-                assert exc_info.value.message == expected_error
+                if isinstance(expected_error, tuple):
+                    assert exc_info.value.message in expected_error
+                else:
+                    assert exc_info.value.message == expected_error
             else:
                 method(*args, **kwargs)  # no raise
 

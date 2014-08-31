@@ -37,27 +37,31 @@ class PollingQueueConsumer(object):
     separate thread it provides a polling method to block until a message with
     the same correlation ID of the RPC-proxy call arrives.
     """
+    def _get_connection(self):
+        return Connection(self.provider.container.config['AMQP_URI'])
+
     def register_provider(self, provider):
         self.provider = provider
-        self.connection = Connection(provider.container.config['AMQP_URI'])
-        self.channel = self.connection.channel()
         self.queue = provider.queue
-        maybe_declare(self.queue, self.channel)
+        with self._get_connection() as conn:
+            channel = conn.channel()
+            maybe_declare(self.queue, channel)
 
     def unregister_provider(self, provider):
-        self.connection.close()
+        pass
 
     def ack_message(self, msg):
         msg.ack()
 
     def poll_messages(self, correlation_id):
-        channel = self.channel
-        conn = channel.connection
+        with Connection(self.provider.container.config['AMQP_URI']) as conn:
+            channel = conn.channel()
 
-        for body, msg in itermessages(conn, channel, self.queue, limit=None):
-            if correlation_id == msg.properties.get('correlation_id'):
-                self.provider.handle_message(body, msg)
-                break
+            messages = itermessages(conn, channel, self.queue, limit=None)
+            for body, msg in messages:
+                if correlation_id == msg.properties.get('correlation_id'):
+                    self.provider.handle_message(body, msg)
+                    return
 
 
 class SingleThreadedReplyListener(ReplyListener):
