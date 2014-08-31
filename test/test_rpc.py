@@ -377,46 +377,36 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
     container.start()
 
     method_calls = [
-        (('no_args', (), {}), None),
-        (('no_args', ('bad arg',), {}),
-            "no_args() takes no arguments (1 given)"),
-        (('args_only', ('arg',), {}), None),
-        (('args_only', (), {'a': 'arg'}), None),
-        (('args_only', (), {'arg': 'arg'}),
-            "args_only() got an unexpected keyword argument 'arg'"),
-        (('kwargs_only', ('a',), {}), None),
-        (('kwargs_only', (), {'a': 'arg'}), None),
-        (('kwargs_only', (), {'arg': 'arg'}),
-            "kwargs_only() got an unexpected keyword argument 'arg'"),
-        (('star_args', ('a', 'b'), {}), None),
-        (('star_args', (), {'c': 'c'}),
-            "star_args() got an unexpected keyword argument 'c'"),
-        (('args_star_args', ('a',), {}), None),
-        (('args_star_args', ('a', 'b'), {}), None),
-        (('args_star_args', (), {}),
-            "args_star_args() takes at least 1 argument (0 given)"),
-        (('args_star_args', (), {'c': 'c'}),
-            "args_star_args() got an unexpected keyword argument 'c'"),
-        (('args_star_kwargs', ('a',), {}), None),
-        (('args_star_kwargs', ('a', 'b'), {}),
-            "args_star_kwargs() takes exactly 1 argument (2 given)"),
-        (('args_star_kwargs', ('a', 'b'), {'c': 'c'}),
-            "args_star_kwargs() takes exactly 1 argument (3 given)"),
-        (('args_star_kwargs', (), {}),
-            "args_star_kwargs() takes exactly 1 argument (0 given)"),
+        (('no_args', (), {}), True),
+        (('no_args', ('bad arg',), {}), False),
+        (('args_only', ('arg',), {}), True),
+        (('args_only', (), {'a': 'arg'}), True),
+        (('args_only', (), {'arg': 'arg'}), False),
+        (('kwargs_only', ('a',), {}), True),
+        (('kwargs_only', (), {'a': 'arg'}), True),
+        (('kwargs_only', (), {'arg': 'arg'}), False),
+        (('star_args', ('a', 'b'), {}), True),
+        (('star_args', (), {'c': 'c'}), False),
+        (('args_star_args', ('a',), {}), True),
+        (('args_star_args', ('a', 'b'), {}), True),
+        (('args_star_args', (), {}), False),
+        (('args_star_args', (), {'c': 'c'}), False),
+        (('args_star_kwargs', ('a',), {}), True),
+        (('args_star_kwargs', ('a', 'b'), {}), False),
+        (('args_star_kwargs', ('a', 'b'), {'c': 'c'}), False),
+        (('args_star_kwargs', (), {}), False),
     ]
 
-    for signature, expected_error in method_calls:
+    for signature, valid_call in method_calls:
 
         method_name, args, kwargs = signature
 
         with RpcProxy("service", rabbit_config) as proxy:
             method = getattr(proxy, method_name)
 
-            if expected_error:
-                with pytest.raises(IncorrectSignature) as exc_info:
+            if not valid_call:
+                with pytest.raises(IncorrectSignature):
                     method(*args, **kwargs)
-                assert exc_info.value.message == expected_error
             else:
                 method(*args, **kwargs)  # no raise
 
