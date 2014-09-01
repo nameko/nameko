@@ -1,3 +1,15 @@
+Version 1.11.0
+--------------
+
+* Raise a specific RpcTimeout error in the RPC proxy rather than
+ `socket.timeout` to avoid confusing kombu's Connection.ensure 
+* Improve logging helpers
+* Use inspect.getcallargs instead of shadow lambda for RPC argument checking
+* Add default retry policies to all publishers
+* Stricter handling of connections between tests 
+* Workarounds for rabbitmq bugs described at
+  https://groups.google.com/forum/#!topic/rabbitmq-users/lrl0tYd1L38
+
 Version 1.10.1
 --------------
 
