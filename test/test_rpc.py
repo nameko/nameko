@@ -397,14 +397,14 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
         (('args_star_kwargs', (), {}), False),
     ]
 
-    for signature, valid_call in method_calls:
+    for signature, is_valid_call in method_calls:
 
         method_name, args, kwargs = signature
 
         with RpcProxy("service", rabbit_config) as proxy:
             method = getattr(proxy, method_name)
 
-            if not valid_call:
+            if not is_valid_call:
                 with pytest.raises(IncorrectSignature):
                     method(*args, **kwargs)
             else:
