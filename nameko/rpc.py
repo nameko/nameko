@@ -134,7 +134,6 @@ def rpc_consumer():
 # pylint: disable=E1101,E1123
 class RpcProvider(EntrypointProvider, HeaderDecoder):
 
-    _shadow = None
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
     def prepare(self):
@@ -144,26 +143,14 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         self.rpc_consumer.unregister_provider(self)
         super(RpcProvider, self).stop()
 
-    def bind(self, name, container):
-        super(RpcProvider, self).bind(name, container)
-
-        # Generate a 'shadow' lambda that can be used to verify
-        # invocation args against our method signature without running the
-        # actual entrypoint - see :meth:`RpcProvider.check_signature`.
-        fn = getattr(self.container.service_cls, self.name)
-        argspec = inspect.getargspec(fn)
-        argspec.args[:1] = []  # remove self
-        signature = inspect.formatargspec(*argspec)[1:-1]  # remove parens
-
-        src = "lambda {}: None".format(signature)
-        self.shadow = eval(src)
-
     def check_signature(self, args, kwargs):
+        service_cls = self.container.service_cls
+        fn = getattr(service_cls, self.name)
         try:
-            self.shadow(*args, **kwargs)
+            service_instance = None  # fn is unbound
+            inspect.getcallargs(fn, service_instance, *args, **kwargs)
         except TypeError as exc:
-            msg = str(exc).replace('<lambda>', self.name)
-            raise IncorrectSignature(msg)
+            raise IncorrectSignature(str(exc))
 
     def handle_message(self, body, message):
         args = body['args']
