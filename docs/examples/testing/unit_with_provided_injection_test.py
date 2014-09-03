@@ -52,4 +52,4 @@ def test_service(session):
 
     # verify ``save`` logic by querying the real database
     service.save("helloworld")
-    assert session.query(Result.value).all() == [("helloworld",)]
+    assert service.session.query(Result.value).all() == [("helloworld",)]
