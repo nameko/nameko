@@ -79,9 +79,10 @@ def test_example_service(container_factory, rabbit_config):
 
     container = container_factory(FooService, config)
 
-    with entrypoint_waiter(container, 'handle_spam'), \
-        entrypoint_waiter(container, 'foo'):
-            container.start()
+    spam_waiter = entrypoint_waiter(container, 'handle_spam')
+    foo_waiter = entrypoint_waiter(container, 'foo')
+    with spam_waiter, foo_waiter:
+        container.start()
 
     handle_spam_called.assert_called_with('ham & eggs')
     handle_foo_called.assert_called_with('message')
