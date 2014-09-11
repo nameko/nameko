@@ -343,8 +343,18 @@ def test_restrict_entrypoint_container_already_started(container_factory,
 
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
-    container.start()
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError) as exc:
         with entrypoint_waiter(container, "unknown"):
             pass
+    assert 'has no entrypoint' in str(exc)
+
+
+def test_entrypoint_waiter_duplicates(container_factory, rabbit_config):
+    container = container_factory(Service, rabbit_config)
+
+    with pytest.raises(RuntimeError) as exc:
+        with entrypoint_waiter(container, "working"):
+            with entrypoint_waiter(container, "working"):
+                pass
+    assert 'already registered' in str(exc)
