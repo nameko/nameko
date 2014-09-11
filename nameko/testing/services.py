@@ -6,12 +6,15 @@ from collections import OrderedDict
 from contextlib import contextmanager
 import inspect
 
+import eventlet
 from eventlet import event
+from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
 from nameko.dependencies import (
     DependencyFactory, InjectionProvider, EntrypointProvider, entrypoint)
 from nameko.exceptions import DependencyNotFound
+from nameko.testing.utils import get_dependency, wait_for_worker_idle
 
 
 @contextmanager
@@ -50,6 +53,63 @@ def entrypoint_hook(container, name, context_data=None):
         return result.wait()
 
     yield hook
+
+
+class EntrypointWaiter(InjectionProvider):
+    """Helper for `entrypoint_waiter`
+
+    Injection to be manually (and temporarily) added to an existing container.
+    Takes an entrypoint name, and exposes a `wait` method, which will return
+    once the entrypoint has fired.
+    """
+
+    def __init__(self, entrypoint):
+        self.name = '_entrypoint_waiter_{}'.format(entrypoint)
+        self.entrypoint = entrypoint
+        self.done = Semaphore(value=0)
+
+    def acquire_injection(self, *a, **k):
+        pass
+
+    def worker_teardown(self, worker_ctx):
+        provider = worker_ctx.provider
+        if provider.name == self.entrypoint:
+            self.done.release()
+
+    def wait(self):
+        self.done.acquire()
+
+
+@contextmanager
+def entrypoint_waiter(container, entrypoint, timeout=30):
+    """Helper to wait for entrypoints to fire
+
+    Usage::
+
+        container = ServiceContainer(ExampleService, config)
+        with entrypoint_waiter(container, 'example_handler'):
+            ...  # e.g. rpc call that will result in handler being called
+    """
+
+    waiter = EntrypointWaiter(entrypoint)
+    if not get_dependency(container, EntrypointProvider, name=entrypoint):
+        raise RuntimeError("{} has no entrypoint `{}`".format(
+            container.service_name, entrypoint))
+    if get_dependency(container, EntrypointWaiter, entrypoint=entrypoint):
+        raise RuntimeError("Waiter already registered for {}".format(
+            entrypoint))
+
+    # can't mess with dependencies while container is running
+    wait_for_worker_idle(container)
+    container.dependencies.add(waiter)
+
+    try:
+        yield
+        with eventlet.Timeout(timeout):
+            waiter.wait()
+    finally:
+        wait_for_worker_idle(container)
+        container.dependencies.remove(waiter)
 
 
 def worker_factory(service_cls, **injections):

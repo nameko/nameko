@@ -5,8 +5,9 @@ from nameko.containers import WorkerContext
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
 from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
 from nameko.rpc import rpc, rpc_proxy
+from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import (
-    get_container, wait_for_call, worker_context_factory, DummyProvider)
+    get_container, worker_context_factory, DummyProvider)
 from nameko.testing.services import entrypoint_hook
 
 
@@ -157,14 +158,17 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
     runner.start()
 
     container = get_container(runner, EventRaisingService)
+    listener1 = get_container(runner, EventListeningServiceOne)
+    listener2 = get_container(runner, EventListeningServiceTwo)
     with entrypoint_hook(container, "say_hello") as say_hello:
-        say_hello()
+        waiter1 = entrypoint_waiter(listener1, 'hello')
+        waiter2 = entrypoint_waiter(listener2, 'hello')
+        with waiter1, waiter2:
+            say_hello()
 
-    with wait_for_call(5, one_called), wait_for_call(5, two_called):
-
-        assert predictable_call_ids.call_count == 3
-        stack_request.assert_has_calls([
-            call(None),
-            call(['event_raiser.say_hello.0']),
-            call(['event_raiser.say_hello.0']),
-        ])
+    assert predictable_call_ids.call_count == 3
+    stack_request.assert_has_calls([
+        call(None),
+        call(['event_raiser.say_hello.0']),
+        call(['event_raiser.say_hello.0']),
+    ])
