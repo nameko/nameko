@@ -341,6 +341,18 @@ def test_restrict_entrypoint_container_already_started(container_factory,
         restrict_entrypoints(container, "method")
 
 
+def test_entrypoint_waiter(container_factory, rabbit_config):
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    class ExampleEvent(Event):
+        type = "eventtype"
+
+    with event_dispatcher('srcservice', rabbit_config) as dispatch:
+        with entrypoint_waiter(container, 'handle'):
+            dispatch(ExampleEvent(""))
+
+
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
 
