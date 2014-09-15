@@ -11,8 +11,8 @@ from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import (
     entrypoint_hook, worker_factory,
-    replace_injections, restrict_entrypoints)
-from nameko.testing.utils import get_container, wait_for_call
+    replace_injections, restrict_entrypoints, entrypoint_waiter)
+from nameko.testing.utils import get_container
 
 
 class LanguageReporter(InjectionProvider):
@@ -104,10 +104,9 @@ def test_entrypoint_hook(runner_factory, rabbit_config):
 
     event_payload = "msg"
     with entrypoint_hook(service_container, 'handle') as handle:
-        handle(event_payload)
-
-        with wait_for_call(1, handle_event):
-            handle_event.assert_called_once_with(event_payload)
+        with entrypoint_waiter(service_container, 'handle'):
+            handle(event_payload)
+    handle_event.assert_called_once_with(event_payload)
 
 
 def test_entrypoint_hook_with_return(runner_factory, rabbit_config):
@@ -305,12 +304,13 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     # dispatch an event to handler_two
     msg = "msg"
     with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(ExampleEvent(msg))
+
+        with entrypoint_waiter(container, 'handler_two'):
+            dispatch(ExampleEvent(msg))
 
     # method_called should have exactly one call, derived from the event
     # handler and not from the disabled @once entrypoint
-    with wait_for_call(1, method_called):
-        method_called.assert_called_once_with(msg)
+    method_called.assert_called_once_with(msg)
 
 
 def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
@@ -339,3 +339,34 @@ def test_restrict_entrypoint_container_already_started(container_factory,
 
     with pytest.raises(RuntimeError):
         restrict_entrypoints(container, "method")
+
+
+def test_entrypoint_waiter(container_factory, rabbit_config):
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    class ExampleEvent(Event):
+        type = "eventtype"
+
+    with event_dispatcher('srcservice', rabbit_config) as dispatch:
+        with entrypoint_waiter(container, 'handle'):
+            dispatch(ExampleEvent(""))
+
+
+def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
+    container = container_factory(Service, rabbit_config)
+
+    with pytest.raises(RuntimeError) as exc:
+        with entrypoint_waiter(container, "unknown"):
+            pass
+    assert 'has no entrypoint' in str(exc)
+
+
+def test_entrypoint_waiter_duplicates(container_factory, rabbit_config):
+    container = container_factory(Service, rabbit_config)
+
+    with pytest.raises(RuntimeError) as exc:
+        with entrypoint_waiter(container, "working"):
+            with entrypoint_waiter(container, "working"):
+                pass
+    assert 'already registered' in str(exc)

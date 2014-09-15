@@ -10,7 +10,7 @@ from nameko.events import event_handler, event_dispatcher, Event
 from nameko.messaging import publisher, consume
 from nameko.rpc import rpc, rpc_proxy
 from nameko.timer import timer
-from nameko.testing.utils import wait_for_call
+from nameko.testing.services import entrypoint_waiter
 
 DeclBase = declarative_base(name='foo_base')
 
@@ -78,13 +78,14 @@ def test_example_service(container_factory, rabbit_config):
     config.update(rabbit_config)
 
     container = container_factory(FooService, config)
-    container.start()
 
-    with wait_for_call(5, handle_spam_called) as handle_spam:
-        handle_spam.assert_called_with('ham & eggs')
+    spam_waiter = entrypoint_waiter(container, 'handle_spam')
+    foo_waiter = entrypoint_waiter(container, 'foo')
+    with spam_waiter, foo_waiter:
+        container.start()
 
-    with wait_for_call(5, handle_foo_called) as handle_foo:
-        handle_foo.assert_called_with('message')
+    handle_spam_called.assert_called_with('ham & eggs')
+    handle_foo_called.assert_called_with('message')
 
     entries = list(engine.execute('SELECT data FROM spam LIMIT 1'))
     assert entries == [('ham',)]

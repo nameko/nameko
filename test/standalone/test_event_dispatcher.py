@@ -2,7 +2,7 @@ from mock import Mock
 
 from nameko.events import Event, event_handler
 from nameko.standalone.events import event_dispatcher
-from nameko.testing.utils import wait_for_call
+from nameko.testing.services import entrypoint_waiter
 
 handler_called = Mock()
 
@@ -28,7 +28,6 @@ def test_dispatch(container_factory, rabbit_config):
     msg = "msg"
 
     with event_dispatcher('srcservice', config) as dispatch:
-        dispatch(TestEvent(msg))
-
-        with wait_for_call(1, handler_called):
-            handler_called.assert_called_once_with(msg)
+        with entrypoint_waiter(container, 'handler', timeout=1):
+            dispatch(TestEvent(msg))
+    handler_called.assert_called_once_with(msg)
