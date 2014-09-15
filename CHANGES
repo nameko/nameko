@@ -1,4 +1,4 @@
-Version 1.12.0
+Version 1.11.1
 --------------
 
 * New test helper `nameko.testing.services.entrypoint_waiter` to wait for
