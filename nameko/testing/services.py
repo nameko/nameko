@@ -82,7 +82,7 @@ class EntrypointWaiter(InjectionProvider):
 
 @contextmanager
 def entrypoint_waiter(container, entrypoint, timeout=30):
-    """Helper to wait for entrypoints to fire
+    """Helper to wait for entrypoints to fire (and complete)
 
     Usage::
 
