@@ -6,6 +6,7 @@ pylint==1.0.0
 pyrabbit==1.0.1
 pytest==2.4.2
 Sphinx==1.2
+sphinx-rtd-theme==0.1.6
 
 # patched version of coverage, to deal with eventlet
 git+https://github.com/newbrough/coverage.git#egg=coverage-3.5.2pl1
