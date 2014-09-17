@@ -1,3 +1,11 @@
+Version 1.11.2
+--------------
+
+Add a default implementation for `acquire_injection` (returning `None`) for
+injections that are used for side-effects rather than injecting dependencies.
+`acquire_injection` is no longer an `abstractmethod`.
+
+
 Version 1.11.1
 --------------
 
