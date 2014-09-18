@@ -3,7 +3,6 @@ Provides classes and method to deal with dependency injection.
 """
 from __future__ import absolute_import
 
-from abc import ABCMeta, abstractmethod
 from functools import wraps, partial
 import inspect
 from itertools import chain
@@ -143,12 +142,10 @@ class EntrypointProvider(DependencyProvider):
 
 
 class InjectionProvider(DependencyProvider):
-    __metaclass__ = ABCMeta
 
-    @abstractmethod
     def acquire_injection(self, worker_ctx):
-        """ A subclass must return the instance that should be injected
-        into the worker instance of the service by the container.
+        """ Called before worker execution. An InjectionProvider should return
+        an object to be injected into the worker instance by the container.
         """
 
     def worker_result(self, worker_ctx, result=None, exc_info=None):

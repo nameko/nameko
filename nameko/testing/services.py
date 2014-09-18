@@ -68,9 +68,6 @@ class EntrypointWaiter(InjectionProvider):
         self.entrypoint = entrypoint
         self.done = Semaphore(value=0)
 
-    def acquire_injection(self, *a, **k):
-        pass
-
     def worker_teardown(self, worker_ctx):
         provider = worker_ctx.provider
         if provider.name == self.entrypoint:

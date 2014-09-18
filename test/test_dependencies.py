@@ -158,9 +158,6 @@ def test_dependency_instances_are_shared(container_factory, rabbit_config):
             # track ExampleProvider instances
             example_providers.append(self)
 
-        def acquire_injection(self):
-            pass
-
     @injection
     def injection_provider():
         return DependencyFactory(ExampleProvider)

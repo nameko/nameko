@@ -23,9 +23,6 @@ def reset():
 class CollectorInjection(InjectionProvider):
     """ InjectionProvider that collects worker results
     """
-    def acquire_injection(self, worker_ctx):
-        pass
-
     def worker_result(self, worker_ctx, res, exc_info):
         worker_result_called.append((res, exc_info))
 
