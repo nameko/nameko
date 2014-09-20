@@ -14,7 +14,7 @@ Features:
 ---------
 
  * Quickly build, host and deploy services
- * Highly declarative, let's you concentrate on your business logic
+ * Highly declarative, lets you concentrate on your business logic
  * RPC, Events (Pub-Sub) and AMQP Messaging out-of-the-box
  * Extensible, so you can write your own service interactions
 
