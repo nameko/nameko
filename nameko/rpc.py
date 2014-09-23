@@ -13,7 +13,7 @@ from kombu.pools import producers
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
-    serialize, deserialize)
+    MalformedRequest, serialize, deserialize)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -111,7 +111,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         try:
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except (MethodNotFound, IncorrectSignature):
+        except Exception:
             exc_info = sys.exc_info()
             self.handle_result(message, self.container, None, exc_info)
 
@@ -153,8 +153,11 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
             raise IncorrectSignature(str(exc))
 
     def handle_message(self, body, message):
-        args = body['args']
-        kwargs = body['kwargs']
+        try:
+            args = body['args']
+            kwargs = body['kwargs']
+        except KeyError:
+            raise MalformedRequest('Message missing `args` or `kwargs`')
 
         self.check_signature(args, kwargs)
 
@@ -214,16 +217,20 @@ class Responder(object):
 
         with producers[conn].acquire(block=True) as producer:
 
-            routing_key = self.message.properties['reply_to']
-            correlation_id = self.message.properties.get('correlation_id')
+            try:
+                routing_key = self.message.properties['reply_to']
+            except KeyError:
+                pass  # can't reply, so can't even report error
+            else:
+                correlation_id = self.message.properties.get('correlation_id')
 
-            msg = {'result': result, 'error': error}
+                msg = {'result': result, 'error': error}
 
-            _log.debug('publish response %s:%s', routing_key, correlation_id)
-            producer.publish(
-                msg, retry=retry, retry_policy=retry_policy,
-                exchange=exchange, routing_key=routing_key,
-                correlation_id=correlation_id, **kwargs)
+                _log.debug('publish response %s:%s', routing_key, correlation_id)
+                producer.publish(
+                    msg, retry=retry, retry_policy=retry_policy,
+                    exchange=exchange, routing_key=routing_key,
+                    correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
 

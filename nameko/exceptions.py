@@ -94,6 +94,11 @@ def deserialize_to_instance(exc_type):
 
 
 @deserialize_to_instance
+class MalformedRequest(Exception):
+    pass
+
+
+@deserialize_to_instance
 class MethodNotFound(Exception):
     pass
 

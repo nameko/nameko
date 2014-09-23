@@ -2,7 +2,9 @@ import uuid
 
 import eventlet
 from eventlet.event import Event
-from mock import patch, Mock, call
+from kombu import Connection
+from kombu.pools import producers
+from mock import patch, Mock, call, ANY
 import pytest
 
 from nameko.containers import (
@@ -10,10 +12,12 @@ from nameko.containers import (
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature)
+    RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
+    MalformedRequest)
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
+    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener,
+    AMQP_URI_CONFIG_KEY)
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_dependency, wait_for_call
@@ -420,6 +424,50 @@ def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
         with pytest.raises(MethodNotFound) as exc_info:
             proxy.task_c()
     assert exc_info.value.message == "task_c"
+
+
+# @contextmanager
+# def mutated_publish(mutating_function):
+
+
+
+# def test_rpc_malformed_kwargs(container_factory, rabbit_config):
+    # container = container_factory(ExampleService, rabbit_config)
+    # container.start()
+
+    # def mutate(real_publish, *a, **k):
+        # real_publish(*a, **k)
+
+    # with mutated_publish(mutate):
+        # with pytest.raises(MalformedRequest):
+            # with RpcProxy("exampleservice", rabbit_config) as proxy:
+                # proxy.task_a()
+
+def test_rpc_malformed_kwargs(container_factory, rabbit_config):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    def publish_malformed(msg, *args, **kwargs):
+
+        # don't mess with e.g. reply
+        if msg == {'args': (), 'kwargs': {}}:
+            # msg = {'args': ()}
+            import pdb; pdb.set_trace()
+
+        conn = Connection(
+            container.config[AMQP_URI_CONFIG_KEY],
+            transport_options={'confirm_publish': True},
+        )
+        with producers[conn].acquire(block=True) as producer:
+            producer.publish(msg, *args, **kwargs)
+
+    with patch('nameko.rpc.producers') as patched:
+        publish = patched[ANY].acquire().__enter__().publish
+        publish.side_effect = publish_malformed
+
+        with pytest.raises(MalformedRequest):
+            with RpcProxy("exampleservice", rabbit_config) as proxy:
+                proxy.task_a()
 
 
 def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
