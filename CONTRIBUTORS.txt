@@ -1,0 +1,13 @@
+Nameko is written and maintained by onefinestay.
+
+Contributions have been made by:
+
+Edward George (@edwardgeorge)
+David Szotten (@davidszotten)
+Fergus Doyle (@junkafarian)
+Matt Bennett (@mattbennett)
+Jan Klass Kollhof (@kollhof)
+Tony Bajan (@tonybajan)
+Tim Buckland (@timbu)
+Shaun Stanworth (@shauns)
+Russ Ferriday (@topiaruss)
