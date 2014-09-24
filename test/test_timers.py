@@ -1,7 +1,7 @@
 import eventlet
 from eventlet import Timeout
 
-from mock import Mock
+from mock import Mock, call
 
 from nameko.containers import ServiceContainer
 from nameko.timer import TimerProvider
@@ -14,7 +14,7 @@ def test_provider():
     container.config = Mock()
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = TimerProvider(interval=0, config_key=None)
+    timer = TimerProvider(interval=0)
     timer.bind('foobar', container)
     timer.prepare()
 
@@ -33,29 +33,20 @@ def test_provider():
     assert timer.gt.dead
 
 
-def test_provider_uses_config_for_interval():
-    container = Mock(spec=ServiceContainer)
-    container.service_name = "service"
-    container.config = {'spam-conf': 10}
-    container.spawn_managed_thread = eventlet.spawn
-
-    timer = TimerProvider(interval=None, config_key='spam-conf')
-    timer.bind('foobar', container)
-    timer.prepare()
-
-    assert timer.interval == 10
-
-
-def test_provider_interval_as_config_fallback():
+def test_provider_interval_as_callable():
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
     container.config = {}
 
-    timer = TimerProvider(interval=1, config_key='spam-conf')
+    get_interval = Mock()
+    get_interval.return_value = 1
+
+    timer = TimerProvider(interval=get_interval)
     timer.bind('foobar', container)
     timer.prepare()
 
     assert timer.interval == 1
+    assert get_interval.call_args_list == [call(container)]
 
 
 def test_stop_timer_immediatly():
@@ -63,7 +54,7 @@ def test_stop_timer_immediatly():
     container.service_name = "service"
     container.config = {}
 
-    timer = TimerProvider(interval=5, config_key=None)
+    timer = TimerProvider(interval=5)
     timer.bind('foobar', container)
     timer.prepare()
     timer.start()
@@ -79,7 +70,7 @@ def test_kill_stops_timer():
     container.service_name = "service"
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = TimerProvider(interval=0, config_key=None)
+    timer = TimerProvider(interval=0)
     timer.bind('foobar', container)
     timer.prepare()
     timer.start()

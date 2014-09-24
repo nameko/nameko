@@ -19,7 +19,7 @@ from nameko.messaging import (
 from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
-    CONTAINER_SHARED)
+    CONTAINER_SHARED, ConfigValue)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
 
 _log = getLogger(__name__)
@@ -136,6 +136,20 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
+    # config
+    uri = ConfigValue(None)
+    exchange = ConfigValue(None)
+
+    def __init__(self, uri=None, exchange=None):
+        if uri is None:
+            uri = lambda container: container.config[AMQP_URI_CONFIG_KEY]
+        self.uri = uri
+
+        if exchange is None:
+            exchange = lambda container: (
+                container.config.get[RPC_EXCHANGE_CONFIG_KEY])
+        self.exchange = exchange
+
     def prepare(self):
         self.rpc_consumer.register_provider(self)
 
@@ -177,8 +191,8 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
 
 @entrypoint
-def rpc():
-    return DependencyFactory(RpcProvider)
+def rpc(uri=None, exchange=None):
+    return DependencyFactory(RpcProvider, uri, exchange)
 
 
 class Responder(object):
@@ -285,8 +299,21 @@ class RpcProxyProvider(InjectionProvider):
 
     rpc_reply_listener = reply_listener(shared=CONTAINER_SHARED)
 
-    def __init__(self, service_name):
+    # config
+    uri = ConfigValue(None)
+    exchange = ConfigValue(None)
+
+    def __init__(self, service_name, uri=None, exchange=None):
         self.service_name = service_name
+
+        if uri is None:
+            uri = lambda container: container.config[AMQP_URI_CONFIG_KEY]
+        self.uri = uri
+
+        if exchange is None:
+            exchange = lambda container: (
+                container.config.get[RPC_EXCHANGE_CONFIG_KEY])
+        self.exchange = exchange
 
     def acquire_injection(self, worker_ctx):
         return ServiceProxy(worker_ctx, self.service_name,
@@ -294,8 +321,8 @@ class RpcProxyProvider(InjectionProvider):
 
 
 @injection
-def rpc_proxy(service_name):
-    return DependencyFactory(RpcProxyProvider, service_name)
+def rpc_proxy(service_name, uri=None, exchange=None):
+    return DependencyFactory(RpcProxyProvider, service_name, uri, exchange)
 
 
 class ServiceProxy(object):

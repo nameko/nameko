@@ -6,46 +6,48 @@ from eventlet import Timeout
 from eventlet.event import Event
 
 from nameko.dependencies import (
-    entrypoint, EntrypointProvider, DependencyFactory)
+    entrypoint, EntrypointProvider, DependencyFactory, ConfigValue)
 
 _log = getLogger(__name__)
 
 
 @entrypoint
-def timer(interval=None, config_key=None):
+def timer(interval=None):
     '''
     Decorates a method as a timer, which will be called every `interval` sec.
 
-    Either the `interval` or the `config_key` have to be provided or both.
-    If the `config_key` is given the value for that key in the config will be
-    used as the interval otherwise the `interval` provided will be used.
+    :parameters:
+        interval : int or callable
+            Interval in seconds between timer 'ticks', or a callable that
+            will return a suitable value when invoked with active
+            :class:`nameko.containers.ServiceContainer`.
 
     Example::
 
+        def get_interval(container):
+            return container.config.get('TIMER_TICK')
+
         class Foobar(object):
 
-            @timer(interval=5, config_key='foobar_interval')
-            def handle_timer(self):
+            @timer(interval=get_interval)
+            def tick(self):
+                pass
+
+            @timer(interval=5)
+            def tock(self):
                 self.shrub(body)
     '''
-    return DependencyFactory(TimerProvider, interval, config_key)
+    return DependencyFactory(TimerProvider, interval)
 
 
 class TimerProvider(EntrypointProvider):
-    def __init__(self, interval, config_key):
-        self._default_interval = interval
-        self.config_key = config_key
+
+    interval = ConfigValue(None)
+
+    def __init__(self, interval):
+        self.interval = interval
         self.should_stop = Event()
         self.gt = None
-
-    def prepare(self):
-        interval = self._default_interval
-
-        if self.config_key:
-            config = self.container.config
-            interval = config.get(self.config_key, interval)
-
-        self.interval = interval
 
     def start(self):
         _log.debug('starting %s', self)
