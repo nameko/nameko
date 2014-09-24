@@ -33,9 +33,7 @@ def entrypoint_hook(container, name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = next((entrypoint for entrypoint in container.entrypoints
-                     if entrypoint.name == name), None)
-
+    provider = get_dependency(container, EntrypointProvider, name=name)
     if provider is None:
         raise DependencyNotFound("No entrypoint called '{}' found "
                                  "on container {}.".format(name, container))
@@ -50,6 +48,7 @@ def entrypoint_hook(container, name, context_data=None):
         container.spawn_worker(provider, args, kwargs,
                                context_data=context_data,
                                handle_result=handle_result)
+        wait_for_worker_idle(container)
         return result.wait()
 
     yield hook
