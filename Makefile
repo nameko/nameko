@@ -7,13 +7,13 @@ noop:
 .PHONY: noop
 
 requirements:
-	pip install -r dev_requirements.txt -q
+	pip install --pre -r dev_requirements.txt -q
 
 develop: requirements
 	python setup.py -q develop
 
 pytest:
-	coverage run --source nameko -m pytest test
+	coverage run --concurrency=eventlet --source nameko -m pytest test
 	coverage report --show-missing
 
 flake8:
