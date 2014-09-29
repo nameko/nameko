@@ -16,7 +16,8 @@ from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
-from nameko.testing.utils import get_dependency, wait_for_call
+from nameko.testing.utils import (
+    get_dependency, wait_for_call, wait_for_worker_idle)
 
 
 class ExampleError(Exception):
@@ -246,6 +247,7 @@ def test_expected_exceptions_integration(container_factory, rabbit_config):
         with pytest.raises(AttributeError):
             very_broken()
 
+    wait_for_worker_idle(container)  # wait for worker lifecycle to complete
     assert worker_logger.expected == {'broken': ExampleError}
     assert worker_logger.unexpected == {'very_broken': AttributeError}
 

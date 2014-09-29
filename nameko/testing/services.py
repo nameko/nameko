@@ -48,7 +48,6 @@ def entrypoint_hook(container, name, context_data=None):
         container.spawn_worker(provider, args, kwargs,
                                context_data=context_data,
                                handle_result=handle_result)
-        wait_for_worker_idle(container)
         return result.wait()
 
     yield hook
