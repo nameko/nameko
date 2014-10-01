@@ -56,7 +56,7 @@ class WorkerErrorLogger(InjectionProvider):
 
         exc = exc_info[1]
         expected_exceptions = getattr(
-            worker_ctx.provider, 'expected_exceptions', tuple())
+            worker_ctx.provider, 'expected_exceptions', None)
 
         if expected_exceptions and isinstance(exc, expected_exceptions):
             self.expected[worker_ctx.provider.name] = type(exc)
