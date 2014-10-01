@@ -136,7 +136,7 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
-    def __init__(self, expected_exceptions=None):
+    def __init__(self, expected_exceptions=()):
         self.expected_exceptions = expected_exceptions
         super(RpcProvider, self).__init__()
 
@@ -181,7 +181,7 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
 
 @entrypoint
-def rpc(expected_exceptions=None):
+def rpc(expected_exceptions=()):
     """ Mark a method to be exposed over rpc
 
     :Parameters:

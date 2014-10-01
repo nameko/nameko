@@ -56,13 +56,15 @@ class WorkerErrorLogger(InjectionProvider):
 
         exc = exc_info[1]
         expected_exceptions = getattr(
-            worker_ctx.provider, 'expected_exceptions', None)
+            worker_ctx.provider, 'expected_exceptions', ())
 
-        if expected_exceptions and isinstance(exc, expected_exceptions):
-            self.expected[worker_ctx.provider.name] = type(exc)
-        else:
-            self.unexpected[worker_ctx.provider.name] = type(exc)
-
+        try:
+            if isinstance(exc, expected_exceptions):
+                self.expected[worker_ctx.provider.name] = type(exc)
+            else:
+                self.unexpected[worker_ctx.provider.name] = type(exc)
+        except Exception as exc:
+            import ipdb; ipdb.set_trace()
 
 @injection
 def worker_logger():

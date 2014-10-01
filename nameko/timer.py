@@ -87,7 +87,7 @@ class TimerProvider(EntrypointProvider):
             pass
 
     def handle_timer_tick(self):
-        args = tuple()
+        args = ()
         kwargs = {}
 
         # Note that we don't catch ContainerBeingKilled here. If that's raised,
