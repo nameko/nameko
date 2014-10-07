@@ -7,7 +7,7 @@ noop:
 .PHONY: noop
 
 requirements:
-	pip install --pre -r dev_requirements.txt -q
+	pip install -r dev_requirements.txt -q
 
 develop: requirements
 	python setup.py -q develop

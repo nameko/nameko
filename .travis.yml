@@ -4,7 +4,7 @@ python:
 
 install:
   - python setup.py -q install
-  - pip install --pre -r dev_requirements.txt
+  - pip install -r dev_requirements.txt
 
 services:
     - rabbitmq
