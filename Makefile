@@ -13,7 +13,7 @@ develop: requirements
 	python setup.py -q develop
 
 pytest:
-	coverage run --source nameko -m pytest test
+	coverage run --concurrency=eventlet --source nameko -m pytest test
 	coverage report --show-missing
 
 flake8:
@@ -27,7 +27,7 @@ test: pytest pylint flake8 coverage-check
 full-test: requirements test
 
 coverage-check:
-	coverage report | grep "TOTAL.*100%" > /dev/null
+	coverage report --fail-under=100
 
 sphinx: develop
 	sphinx-build -b html -d docs/build/doctrees docs docs/build/html

@@ -5,10 +5,6 @@ python:
 install:
   - python setup.py -q install
   - pip install -r dev_requirements.txt
-  # pip incorrectly upgrades coverage 3.5 on first pass
-  # install dev_requirements again to downgrade it
-  # see https://github.com/pypa/pip/issues/1249
-  - pip install -r dev_requirements.txt
 
 services:
     - rabbitmq
