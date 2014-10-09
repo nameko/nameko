@@ -328,6 +328,39 @@ def test_kill_container_with_protected_threads(container):
             worker_gt.wait()
 
 
+def test_kill_container_with_active_workers(container):
+    waiting = Event()
+    wait_forever = Event()
+
+    class Service(object):
+        name = 'kill-with-active-workers'
+
+        @foobar
+        def spam(self):
+            waiting.send(None)
+            wait_forever.wait()
+
+    container = ServiceContainer(
+        service_cls=Service,
+        worker_ctx_cls=WorkerContext,
+        config={},
+    )
+
+    dep = next(iter(container.dependencies))
+
+    # start the first worker, which should wait for spam_continue
+    container.spawn_worker(dep, (), {})
+
+    waiting.wait()
+
+    with patch('nameko.containers._log') as logger:
+        container.kill()
+    calls = logger.warning.call_args_list
+    assert call(
+        'killing active thread for %s', 'kill-with-active-workers.spam'
+    ) in calls
+
+
 def test_handle_killed_worker(container, logger):
 
     dep = next(iter(container.dependencies))
