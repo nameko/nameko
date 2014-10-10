@@ -1,5 +1,4 @@
 import eventlet
-from eventlet import Timeout
 
 from mock import Mock
 
@@ -20,15 +19,14 @@ def test_provider():
 
     assert timer.interval == 0
 
-    timer.start()
-
-    with wait_for_call(1, container.spawn_worker) as spawn_worker:
-        with Timeout(1):
-            timer.stop()
+    with wait_for_call(1, container.spawn_worker):
+        timer.start()
+        eventlet.sleep()
+        timer.stop()
 
     # the timer should have stopped and should only have spawned
     # a single worker
-    spawn_worker.assert_called_once_with(timer, (), {})
+    container.spawn_worker.assert_called_once_with(timer, (), {})
 
     assert timer.gt.dead
 
@@ -82,9 +80,10 @@ def test_kill_stops_timer():
     timer = TimerProvider(interval=0, config_key=None)
     timer.bind('foobar', container)
     timer.prepare()
-    timer.start()
 
     with wait_for_call(1, container.spawn_worker):
+        timer.start()
+        eventlet.sleep()
         timer.kill()
 
     # unless the timer is dead, the following nap would cause a timer

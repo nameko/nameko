@@ -20,10 +20,10 @@ def container():
 
 def test_parallel_executor_submit_makes_call(container):
     to_call = Mock(return_value=99)
-    future = ParallelExecutor(container).submit(to_call, 1)
-    with wait_for_call(5, to_call) as to_call_waited:
-        to_call_waited.assert_called_with(1)
-        assert future.result() == 99
+    with wait_for_call(5, to_call):
+        future = ParallelExecutor(container).submit(to_call, 1)
+    to_call.assert_called_with(1)
+    assert future.result() == 99
 
 
 def test_calling_result_waits(container):
@@ -148,6 +148,6 @@ def test_busy_check_on_teardown():
     sr = ServiceRunner(config, container_cls=MockedContainer)
     sr.add_service(ExampleService)
     sr.start()
-    sr.kill()
-    with wait_for_call(5, kill_called) as kill_called_waited:
-        assert kill_called_waited.call_count == 1
+    with wait_for_call(5, kill_called):
+        sr.kill()
+    assert kill_called.call_count == 1
