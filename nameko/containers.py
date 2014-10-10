@@ -24,6 +24,7 @@ from nameko.log_helpers import make_timing_logger
 
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
+MANAGED_THREAD = object()
 
 
 def get_service_name(service_cls):
@@ -130,7 +131,7 @@ class ServiceContainer(object):
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
 
-        self._active_threads = set()
+        self._active_threads = {}
         self._protected_threads = set()
         self._being_killed = False
         self._died = Event()
@@ -296,7 +297,7 @@ class ServiceContainer(object):
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
-        self._active_threads.add(gt)
+        self._active_threads[gt] = provider
         gt.link(self._handle_thread_exited)
         return worker_ctx
 
@@ -320,7 +321,7 @@ class ServiceContainer(object):
         """
         gt = eventlet.spawn(run_method)
         if not protected:
-            self._active_threads.add(gt)
+            self._active_threads[gt] = MANAGED_THREAD
         else:
             self._protected_threads.add(gt)
         gt.link(self._handle_thread_exited)
@@ -386,7 +387,11 @@ class ServiceContainer(object):
 
         if num_active_threads:
             _log.warning('killing %s active thread(s)', num_active_threads)
-            for gt in list(self._active_threads):
+            for gt, provider in list(self._active_threads.items()):
+                if provider is not MANAGED_THREAD:
+                    description = '{}.{}'.format(
+                        self.service_name, provider.name)
+                    _log.warning('killing active thread for %s', description)
                 gt.kill()
 
     def _kill_protected_threads(self):
@@ -404,7 +409,7 @@ class ServiceContainer(object):
                 gt.kill()
 
     def _handle_thread_exited(self, gt):
-        self._active_threads.discard(gt)
+        self._active_threads.pop(gt, None)
         self._protected_threads.discard(gt)
 
         try:

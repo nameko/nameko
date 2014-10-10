@@ -12,7 +12,7 @@ from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.dependencies import(
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyFactory)
-from nameko.testing.utils import AnyInstanceOf
+from nameko.testing.utils import AnyInstanceOf, get_dependency
 
 
 class CallCollectorMixin(object):
@@ -159,7 +159,7 @@ def test_stops_entrypoints_before_injections(container):
     container.stop()
 
     dependencies = container.dependencies
-    spam_dep = next(iter(dependencies.injections))
+    spam_dep = get_dependency(container, InjectionProvider)
 
     for dec_dep in dependencies.entrypoints:
         assert dec_dep.call_ids[0] < spam_dep.call_ids[0]
@@ -241,7 +241,7 @@ def test_container_doesnt_exhaust_max_workers(container):
                                  worker_ctx_cls=WorkerContext,
                                  config={MAX_WORKERS_CONFIG_KEY: 1})
 
-    dep = next(iter(container.dependencies))
+    dep = get_dependency(container, EntrypointProvider)
 
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, ['ham'], {})
@@ -328,9 +328,37 @@ def test_kill_container_with_protected_threads(container):
             worker_gt.wait()
 
 
+def test_kill_container_with_active_workers(container_factory):
+    waiting = Event()
+    wait_forever = Event()
+
+    class Service(object):
+        name = 'kill-with-active-workers'
+
+        @foobar
+        def spam(self):
+            waiting.send(None)
+            wait_forever.wait()
+
+    container = container_factory(Service, {})
+    dep = get_dependency(container, EntrypointProvider)
+
+    # start the first worker, which should wait for spam_continue
+    container.spawn_worker(dep, (), {})
+
+    waiting.wait()
+
+    with patch('nameko.containers._log') as logger:
+        container.kill()
+    calls = logger.warning.call_args_list
+    assert call(
+        'killing active thread for %s', 'kill-with-active-workers.spam'
+    ) in calls
+
+
 def test_handle_killed_worker(container, logger):
 
-    dep = next(iter(container.dependencies))
+    dep = get_dependency(container, EntrypointProvider)
     container.spawn_worker(dep, ['sleep'], {})
 
     assert len(container._active_threads) == 1
