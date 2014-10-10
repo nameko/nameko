@@ -6,6 +6,7 @@ from functools import partial
 from urlparse import urlparse
 
 import eventlet
+from eventlet.semaphore import Semaphore
 from mock import Mock
 from pyrabbit.api import Client
 from pyrabbit.http import HTTPError
@@ -46,13 +47,32 @@ def wait_for_call(timeout, mock_method):
     """ Return a context manager that waits ``timeout`` seconds for
     ``mock_method`` to be called, yielding the mock if so.
 
+    This uses mock.side_effect, so cannot be used for mocks that area already
+    using side_effect.
+
     Raises an eventlet.TimeoutError if the method was not called within
     ``timeout``.
     """
+
+    if mock_method.side_effect is not None:
+        raise RuntimeError(
+            "Mock {} already has a side_effect in place".format(mock_method)
+        )
+
+    lock = Semaphore(0)
+
+    def side_effect(*args, **kwargs):
+        lock.release()
+        wraps = mock_method._mock_wraps
+        if wraps is not None:
+            return  # mock will call the wrapped function
+        return mock_method.return_value
+
+    mock_method.side_effect = side_effect
+
+    yield
     with eventlet.Timeout(timeout):
-        while not mock_method.called:
-            eventlet.sleep()
-    yield mock_method
+        lock.acquire()
 
 
 def wait_for_worker_idle(container, timeout=10):

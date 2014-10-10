@@ -46,7 +46,7 @@ def test_wait_for_call():
     with wait_for_call(1, mock.method):
         pass
 
-    mock.reset_mock()
+    mock = Mock()
 
     with pytest.raises(eventlet.Timeout):
         eventlet.spawn(call_after, 1)

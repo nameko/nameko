@@ -388,21 +388,22 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message consumed from queue
-    container.spawn_worker.return_value = worker_ctx
+    spawn_worker = container.spawn_worker
+    spawn_worker.return_value = worker_ctx
 
     headers = {'nameko.language': 'en', 'nameko.customheader': 'customvalue'}
-    rabbit_manager.publish(
-        vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
+    with wait_for_call(CONSUME_TIMEOUT, spawn_worker):
+        rabbit_manager.publish(
+            vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
 
     ctx_data = {
         'language': 'en',
         'customheader': 'customvalue',
     }
-    with wait_for_call(CONSUME_TIMEOUT, container.spawn_worker) as method:
-        method.assert_called_once_with(consumer, ('msg',), {},
-                                       context_data=ctx_data,
-                                       handle_result=ANY_PARTIAL)
-        handle_result = method.call_args[1]['handle_result']
+    spawn_worker.assert_called_once_with(consumer, ('msg',), {},
+                                   context_data=ctx_data,
+                                   handle_result=ANY_PARTIAL)
+    handle_result = spawn_worker.call_args[1]['handle_result']
 
     # ack message
     handle_result(worker_ctx, 'result')

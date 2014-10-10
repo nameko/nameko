@@ -476,9 +476,9 @@ def test_rpc_container_being_killed_retries(
         'rpc_consumer',
         wraps=rpc_provider.rpc_consumer,
     ) as wrapped_consumer:
-        waiter = eventlet.spawn(wait_for_result)
+        # wait until at least one message has been requeued
         with wait_for_call(1, wrapped_consumer.requeue_message):
-            pass  # wait until at least one message has been requeued
+            waiter = eventlet.spawn(wait_for_result)
         assert not waiter.dead
 
     container._being_killed = False
