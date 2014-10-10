@@ -1,3 +1,9 @@
+Version 1.11.3
+--------------
+
+Add more logging for workers killed by `container.kill`.
+
+
 Version 1.11.2
 --------------
 
