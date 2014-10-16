@@ -460,3 +460,23 @@ def prepare_dependencies(container):
     return chain(
         prepare_injection_providers(container, include_dependencies=True),
         prepare_entrypoint_providers(container, include_dependencies=True))
+
+
+class ConfigValue(object):
+    """ Descriptor for DependencyProviders that accepts a bare value or a
+    callable that returns a value when invoked with the active
+    :class:`ServiceContainer` instance; the value is subsequently cached.
+    """
+    def __init__(self, default):
+        self.default = default
+        self.data = WeakKeyDictionary()
+
+    def __get__(self, instance, owner):
+        value = self.data.get(instance, self.default)
+        if callable(value):
+            value = value(instance.container)
+            self.data[instance] = value
+        return value
+
+    def __set__(self, instance, value):
+        self.data[instance] = value
