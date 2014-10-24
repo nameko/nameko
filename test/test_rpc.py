@@ -413,7 +413,7 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
                 method(*args, **kwargs)  # no raise
 
 
-def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_missing_method(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -453,7 +453,7 @@ def test_rpc_bad_provider(container_factory, rabbit_config):
                 proxy.task_a()
 
 
-def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_broken_method(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -464,7 +464,7 @@ def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.exc_type == "ExampleError"
 
 
-def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_unknown_service(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -479,7 +479,7 @@ def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.exc_type == "UnknownService"
 
 
-def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
+def test_rpc_unknown_service_standalone(rabbit_config):
 
     with RpcProxy("unknown_service", rabbit_config) as proxy:
         with pytest.raises(UnknownService) as exc_info:
@@ -489,7 +489,7 @@ def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
 
 
 def test_rpc_container_being_killed_retries(
-        container_factory, rabbit_config, rabbit_manager):
+        container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -562,7 +562,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
 
 def test_rpc_consumer_cannot_exit_with_providers(
-        container_factory, rabbit_config, rabbit_manager):
+        container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
