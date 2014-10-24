@@ -1,3 +1,11 @@
+Version next
+------------
+
+Make 'RpcConsumer' more robust against failures in the 'RpcProvider'. Add a
+new exception `MalformedRequest` That rpc providers can use, and implement to
+catch `args` or `kwargs` keys being missing in an rpc message.
+
+
 Version 1.11.3
 --------------
 
