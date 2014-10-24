@@ -424,14 +424,15 @@ def test_rpc_missing_method(container_factory, rabbit_config):
     assert exc_info.value.message == "task_c"
 
 
-def test_malformed_kwargs():
+def test_rpc_invalid_message():
     provider = RpcProvider()
     with pytest.raises(MalformedRequest) as exc:
         provider.handle_message({'args': ()}, None)  # missing 'kwargs'
     assert 'Message missing `args` or `kwargs`' in str(exc)
 
 
-def test_rpc_malformed_request(container_factory, rabbit_config):
+def test_handle_message_raise_malformed_request(
+        container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -442,7 +443,8 @@ def test_rpc_malformed_request(container_factory, rabbit_config):
                 proxy.task_a()
 
 
-def test_rpc_bad_provider(container_factory, rabbit_config):
+def test_handle_message_raise_other_exception(
+        container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
