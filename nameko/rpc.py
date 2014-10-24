@@ -217,20 +217,16 @@ class Responder(object):
 
         with producers[conn].acquire(block=True) as producer:
 
-            try:
-                routing_key = self.message.properties['reply_to']
-            except KeyError:
-                pass  # can't reply, so can't even report error
-            else:
-                correlation_id = self.message.properties.get('correlation_id')
+            routing_key = self.message.properties['reply_to']
+            correlation_id = self.message.properties.get('correlation_id')
 
-                msg = {'result': result, 'error': error}
+            msg = {'result': result, 'error': error}
 
-                _log.debug('publish response %s:%s', routing_key, correlation_id)
-                producer.publish(
-                    msg, retry=retry, retry_policy=retry_policy,
-                    exchange=exchange, routing_key=routing_key,
-                    correlation_id=correlation_id, **kwargs)
+            _log.debug('publish response %s:%s', routing_key, correlation_id)
+            producer.publish(
+                msg, retry=retry, retry_policy=retry_policy,
+                exchange=exchange, routing_key=routing_key,
+                correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
 
