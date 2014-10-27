@@ -243,6 +243,9 @@ def test_send_lazy_rpc(rabbit_config):
             assert res == 'result'
             assert response_waiter.response.called
 
+        with pytest.raises(RuntimeError):
+            proxy.topic.method()
+
 
 def test_send_lazy_rpc_auto_close(rabbit_config):
     uri = rabbit_config['AMQP_URI']

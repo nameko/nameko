@@ -1,5 +1,5 @@
+
 from contextlib import contextmanager
-from functools import partial
 from concurrent.futures import Executor, Future
 import eventlet
 import kombu
@@ -99,13 +99,15 @@ class RPCProxy(object):
         return self.call(context, **kwargs)
 
 
-class NamekoExecutor(Executor):
-    def __init__(self):
-        self.pool = eventlet.GreenPool()
-        self._spawned_threads = set()
+class GreenPoolExecutor(Executor):
+    def __init__(self, pool):
+        self.pool = pool
         self._shutdown = False
 
     def submit(self, fn, *args, **kwargs):
+        if self._shutdown:
+            raise RuntimeError('cannot schedule new futures after '
+                               'shutdown')
         f = Future()
 
         @try_wraps(fn)
@@ -117,24 +119,14 @@ class NamekoExecutor(Executor):
             else:
                 f.set_result(result)
 
-        gt = self.pool.spawn(do_function_call, *args, **kwargs)
-        self._spawned_threads.add(gt)
-        gt.link(partial(self._handle_thread_exited, f))
-
+        self.pool.spawn(do_function_call, *args, **kwargs)
         f.set_running_or_notify_cancel()
         return f
-
-    def _handle_thread_exited(self, future, gt):
-        """
-        Handle the completion of a thread spawned for a future.
-        """
-        self._spawned_threads.remove(gt)
 
     def shutdown(self, wait=True):
         self._shutdown = True
         if wait:
-            for thread in list(self._spawned_threads):
-                thread.wait()
+            self.pool.waitall()
 
 
 class _FutureRPCProxy(RPCProxy):
@@ -177,5 +169,6 @@ class _FutureRPCProxy(RPCProxy):
 
 @contextmanager
 def future_rpc(**kwargs):
-    with NamekoExecutor() as executor:
+    pool = eventlet.GreenPool()
+    with GreenPoolExecutor(pool) as executor:
         yield _FutureRPCProxy(executor, **kwargs)
