@@ -20,6 +20,9 @@ DEFAULT_RPC_TIMEOUT = 10
 DURABLE_QUEUES = False
 
 
+NO_RESPONSE = object()
+
+
 def get_reply_exchange(msgid, channel=None):
     return Exchange(
         name=msgid,
@@ -105,34 +108,74 @@ def parse_message(message_body):
     return msg_id, context, method, args
 
 
-@ensure
-def send_rpc(connection, context, exchange, topic, method, args, timeout=None):
+class ResponseWaiter(object):
+    def __init__(self, queue, timeout, channel, connection):
+        self.queue = queue
+        self.timeout = timeout
+        self.channel = channel
+        self.connection = connection
 
+        self._response = NO_RESPONSE
+
+    def response(self):
+        if self._response is NO_RESPONSE:
+            iter_ = consuming.queue_iterator(self.queue, timeout=self.timeout)
+            iter_ = responses.iter_rpcresponses(iter_)
+            ret = responses.last(iter_)
+            if ret is not None:
+                ret = ret.payload['result']
+
+            self._response = ret
+            self.channel.__exit__()
+            self.connection.close()
+
+        return self._response
+
+
+@ensure
+def begin_send_rpc(
+    connection, context, exchange, topic, method, args, timeout=None
+):
     _log.info('rpc: %s %s.%s', exchange, topic, method)
 
     msgid, payload = _create_rpcpayload(context, method, args)
 
-    with connection.channel() as channel:
-        queue = get_reply_queue(msgid, channel=channel)
-        queue.declare()
-        _send_topic(connection, exchange, topic, payload)
-        iter_ = consuming.queue_iterator(queue, timeout=timeout)
-        iter_ = responses.iter_rpcresponses(iter_)
-        ret = responses.last(iter_)
-        if ret is not None:
-            return ret.payload['result']
+    channel = connection.channel().__enter__()
+    queue = get_reply_queue(msgid, channel=channel)
+    queue.declare()
+    _send_topic(connection, exchange, topic, payload)
+
+    return ResponseWaiter(
+        queue, timeout, channel, connection,
+    )
 
 
-def call(connection, context, topic, msg,
-         timeout=DEFAULT_RPC_TIMEOUT, options=None):
+@ensure
+def send_rpc(connection, context, exchange, topic, method, args, timeout=None):
+    waiter = begin_send_rpc(
+        connection, context, exchange, topic, method, args, timeout
+    )
+    return waiter.response()
 
+
+def begin_call(connection, context, topic, msg,
+               timeout=DEFAULT_RPC_TIMEOUT, options=None):
     exchange = _get_exchange(options)
-
-    return send_rpc(
+    waiter = begin_send_rpc(
         connection,
         context=context,
         exchange=exchange,
         topic=topic,
         method=msg['method'],
         args=msg['args'],
-        timeout=timeout)
+        timeout=timeout
+    )
+    return waiter
+
+
+def call(connection, context, topic, msg,
+         timeout=DEFAULT_RPC_TIMEOUT, options=None):
+    waiter = begin_call(
+        connection, context, topic, msg, timeout=timeout, options=options
+    )
+    return waiter.response()

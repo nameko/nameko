@@ -1,3 +1,4 @@
+from concurrent.futures import Future
 import eventlet
 from eventlet.event import Event
 from kombu import Producer
@@ -8,6 +9,7 @@ from nameko.exceptions import RemoteError, UnknownService
 from nameko.legacy import context
 from nameko.legacy import nova
 from nameko.legacy.consuming import queue_iterator
+from nameko.legacy.proxy import future_rpc
 from nameko.legacy.responses import ifirst
 from nameko.testing.utils import assert_stops_raising
 
@@ -24,12 +26,14 @@ def test_delegation_to_send_rpc():
     exchange = 'spam_exchange'
     options = {'CONTROL_EXCHANGE': exchange}
 
-    with mock.patch('nameko.legacy.nova.send_rpc', autospec=True) as send_rpc:
+    with mock.patch(
+        'nameko.legacy.nova.begin_send_rpc', autospec=True
+    ) as begin_send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout, options=options)
 
-        send_rpc.assert_called_with(
+        begin_send_rpc.assert_called_with(
             conn, context=ctx, exchange=exchange,
             topic=topic, method=method, args=args,
             timeout=timeout)
@@ -46,12 +50,14 @@ def test_delegation_to_send_rpc_default_exchange():
     timeout = 123
     exchange = 'rpc'
 
-    with mock.patch('nameko.legacy.nova.send_rpc', autospec=True) as send_rpc:
+    with mock.patch(
+        'nameko.legacy.nova.begin_send_rpc', autospec=True
+    ) as begin_send_rpc:
         nova.call(
             connection=conn, context=ctx, topic=topic,
             msg=msg, timeout=timeout)
 
-        send_rpc.assert_called_with(
+        begin_send_rpc.assert_called_with(
             conn, context=ctx, exchange=exchange,
             topic=topic, method=method, args=args,
             timeout=timeout)
@@ -217,3 +223,64 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
     def check_greenthread_dead():
         assert not g
     assert_stops_raising(check_greenthread_dead)
+
+
+def test_send_lazy_rpc(rabbit_config):
+    uri = rabbit_config['AMQP_URI']
+    with mock.patch(
+        'nameko.legacy.nova.begin_send_rpc', autospec=True
+    ) as begin_send_rpc:
+        response_waiter = mock.Mock()
+        begin_send_rpc.return_value = response_waiter
+        response_waiter.response.return_value = 'result'
+
+        with future_rpc(uri=uri) as proxy:
+            future = proxy.topic.method(foo='bar')
+            assert isinstance(future, Future)
+            assert not response_waiter.response.called
+
+            res = future.result()
+            assert res == 'result'
+            assert response_waiter.response.called
+
+
+def test_send_lazy_rpc_auto_close(rabbit_config):
+    uri = rabbit_config['AMQP_URI']
+    with mock.patch(
+        'nameko.legacy.nova.begin_send_rpc', autospec=True
+    ) as begin_send_rpc:
+        response_waiter = mock.Mock()
+        begin_send_rpc.return_value = response_waiter
+        response_waiter.response.return_value = 'result'
+
+        with future_rpc(uri=uri) as proxy:
+            future = proxy.topic.method(foo='bar')
+            assert isinstance(future, Future)
+            assert not response_waiter.response.called
+
+        # Leaving the executor causes all threads to be evaluated
+        assert response_waiter.response.called
+        res = future.result()
+        assert res == 'result'
+
+
+def test_send_lazy_rpc_with_exception(rabbit_config):
+    uri = rabbit_config['AMQP_URI']
+    with mock.patch(
+        'nameko.legacy.nova.begin_send_rpc', autospec=True
+    ) as begin_send_rpc:
+        response_waiter = mock.Mock()
+        begin_send_rpc.return_value = response_waiter
+        remote_exception = ValueError('RPC method raised exception')
+        response_waiter.response.side_effect = remote_exception
+
+        with future_rpc(uri=uri) as proxy:
+            future = proxy.topic.method(foo='bar')
+            assert isinstance(future, Future)
+            assert not response_waiter.response.called
+
+            with pytest.raises(ValueError) as exc_info:
+                future.result()
+
+            assert exc_info.value is remote_exception
+            assert response_waiter.response.called
