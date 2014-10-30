@@ -1,11 +1,14 @@
+import eventlet
+from mock import Mock
 from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import Session
 
-from nameko.contrib.sqlalchemy import orm_session, ORM_DB_URIS_KEY
+from nameko.contrib.sqlalchemy import orm_session, OrmSession, ORM_DB_URIS_KEY
 from nameko.containers import WorkerContext
 from nameko.testing.utils import DummyProvider
 
+CONCURRENT_REQUESTS = 10
 
 DeclBase = declarative_base(name='spam_base')
 
@@ -24,6 +27,35 @@ config = {
         'fooservice:spam_base': 'sqlite:///:memory:'
     }
 }
+
+
+def test_concurrency():
+
+    container = Mock()
+    container.config = config
+    container.service_name = "fooservice"
+
+    entrypoint = DummyProvider()
+    service_instance = Mock()
+
+    def inject(worker_ctx):
+        orm_session = OrmSession(DeclBase)
+        orm_session.container = container
+        return orm_session.acquire_injection(worker_ctx)
+
+    # get injections concurrently
+    gts = []
+    for _ in xrange(CONCURRENT_REQUESTS):
+        worker_ctx = WorkerContext(container, service_instance, entrypoint)
+        gt = eventlet.spawn(inject, worker_ctx)
+        gts.append(gt)
+
+    results = []
+    for gt in gts:
+        results.append(gt.wait())
+
+    # injections should all be unique
+    assert len(set(results)) == CONCURRENT_REQUESTS
 
 
 def test_db(container_factory):
