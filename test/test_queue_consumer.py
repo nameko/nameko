@@ -83,9 +83,9 @@ def test_lifecycle(rabbit_manager, rabbit_config):
     queue_consumer.kill()
 
 
-def test_reentrant_start_stops(rabbit_config):
+def test_reentrant_start_stops():
     container = Mock()
-    container.config = rabbit_config
+    container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
 
@@ -102,11 +102,11 @@ def test_reentrant_start_stops(rabbit_config):
     queue_consumer.kill()
 
 
-def test_stop_while_starting():
+def test_stop_while_starting(rabbit_config):
     started = Event()
 
     container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.config = rabbit_config
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
 
@@ -151,7 +151,7 @@ def test_stop_while_starting():
 
 def test_error_stops_consumer_thread():
     container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
 
@@ -175,7 +175,7 @@ def test_error_stops_consumer_thread():
 
 def test_on_consume_error_kills_consumer():
     container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
@@ -194,10 +194,10 @@ def test_on_consume_error_kills_consumer():
             queue_consumer._gt.wait()
 
 
-def test_reconnect_on_socket_error():
+def test_reconnect_on_socket_error(rabbit_config):
 
     container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: None}
+    container.config = rabbit_config
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
