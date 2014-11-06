@@ -220,6 +220,9 @@ def test_reconnect_on_socket_error(rabbit_config):
             assert connection_revived.call_count > 1
         assert_stops_raising(check_reconnected)
 
+    queue_consumer.unregister_provider(handler)
+    queue_consumer.stop()
+
 
 def test_prefetch_count(rabbit_manager, rabbit_config):
     container = Mock()
