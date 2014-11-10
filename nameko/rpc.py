@@ -13,7 +13,7 @@ from kombu.pools import producers
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
-    serialize, deserialize)
+    MalformedRequest, serialize, deserialize)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -111,7 +111,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         try:
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except (MethodNotFound, IncorrectSignature):
+        except Exception:
             exc_info = sys.exc_info()
             self.handle_result(message, self.container, None, exc_info)
 
@@ -136,6 +136,10 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
+    def __init__(self, expected_exceptions=()):
+        self.expected_exceptions = expected_exceptions
+        super(RpcProvider, self).__init__()
+
     def prepare(self):
         self.rpc_consumer.register_provider(self)
 
@@ -153,8 +157,11 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
             raise IncorrectSignature(str(exc))
 
     def handle_message(self, body, message):
-        args = body['args']
-        kwargs = body['kwargs']
+        try:
+            args = body['args']
+            kwargs = body['kwargs']
+        except KeyError:
+            raise MalformedRequest('Message missing `args` or `kwargs`')
 
         self.check_signature(args, kwargs)
 
@@ -177,8 +184,16 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
 
 @entrypoint
-def rpc():
-    return DependencyFactory(RpcProvider)
+def rpc(expected_exceptions=()):
+    """ Mark a method to be exposed over rpc
+
+    :Parameters:
+        expected_exceptions : exception class or tuple of exception classes
+            Stashed on the provider instance for later inspection by other
+            dependencies in the worker lifecycle. Use for exceptions caused
+            by the caller (e.g. bad arguments).
+    """
+    return DependencyFactory(RpcProvider, expected_exceptions)
 
 
 class Responder(object):

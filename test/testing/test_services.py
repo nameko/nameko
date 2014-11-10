@@ -151,6 +151,29 @@ def test_entrypoint_hook_dependency_not_found(container_factory,
             pass
 
 
+def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
+    class InjectionError(Exception):
+        pass
+
+    class BadInjection(InjectionProvider):
+        def worker_setup(self, worker_ctx):
+            raise InjectionError("Boom")
+
+    @injection
+    def bad_injection():
+        return DependencyFactory(BadInjection)
+
+    class BadService(Service):
+        bad = bad_injection()
+
+    container = container_factory(BadService, rabbit_config)
+    container.start()
+
+    with pytest.raises(InjectionError):
+        with entrypoint_hook(container, 'working') as call:
+            call()
+
+
 def test_worker_factory():
 
     class Service(object):

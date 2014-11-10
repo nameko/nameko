@@ -6,17 +6,20 @@ from mock import patch, Mock, call
 import pytest
 
 from nameko.containers import (
-    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
+    ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature)
+    RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
+    MalformedRequest)
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
+    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener,
+)
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
-from nameko.testing.utils import get_dependency, wait_for_call
+from nameko.testing.utils import (
+    get_dependency, wait_for_call, wait_for_worker_idle)
 
 
 class ExampleError(Exception):
@@ -44,6 +47,30 @@ def translator():
     return DependencyFactory(Translator)
 
 
+class WorkerErrorLogger(InjectionProvider):
+
+    expected = {}
+    unexpected = {}
+
+    def worker_result(self, worker_ctx, result=None, exc_info=None):
+        if exc_info is None:
+            return  # nothing to do
+
+        exc = exc_info[1]
+        expected_exceptions = getattr(
+            worker_ctx.provider, 'expected_exceptions', ())
+
+        if isinstance(exc, expected_exceptions):
+            self.expected[worker_ctx.provider.name] = type(exc)
+        else:
+            self.unexpected[worker_ctx.provider.name] = type(exc)
+
+
+@injection
+def worker_logger():
+    return DependencyFactory(WorkerErrorLogger)
+
+
 class CustomWorkerContext(WorkerContextBase):
     context_keys = NAMEKO_CONTEXT_KEYS + ('custom_header',)
 
@@ -51,6 +78,7 @@ class CustomWorkerContext(WorkerContextBase):
 class ExampleService(object):
     name = 'exampleservice'
 
+    logger = worker_logger()
     translate = translator()
     example_rpc = rpc_proxy('exampleservice')
     unknown_rpc = rpc_proxy('unknown_service')
@@ -65,9 +93,13 @@ class ExampleService(object):
         print "task_b", args, kwargs
         return "result_b"
 
-    @rpc
+    @rpc(expected_exceptions=ExampleError)
     def broken(self):
         raise ExampleError("broken")
+
+    @rpc(expected_exceptions=(KeyError, ValueError))
+    def very_broken(self):
+        raise AttributeError
 
     @rpc
     def call_unknown(self):
@@ -189,9 +221,37 @@ def test_reply_listener(get_rpc_exchange):
             'Unknown correlation id: %s', correlation_id)
 
 
+def test_expected_exceptions(rabbit_config):
+    container = ServiceContainer(ExampleService, WorkerContext, rabbit_config)
+
+    broken = get_dependency(container, RpcProvider, name="broken")
+    assert broken.expected_exceptions == ExampleError
+
+    very_broken = get_dependency(container, RpcProvider, name="very_broken")
+    assert very_broken.expected_exceptions == (KeyError, ValueError)
+
+
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
+
+def test_expected_exceptions_integration(container_factory, rabbit_config):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    worker_logger = get_dependency(container, WorkerErrorLogger)
+
+    with entrypoint_hook(container, 'broken') as broken:
+        with pytest.raises(ExampleError):
+            broken()
+
+    with entrypoint_hook(container, 'very_broken') as very_broken:
+        with pytest.raises(AttributeError):
+            very_broken()
+
+    wait_for_worker_idle(container)  # wait for worker lifecycle to complete
+    assert worker_logger.expected == {'broken': ExampleError}
+    assert worker_logger.unexpected == {'very_broken': AttributeError}
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
@@ -411,7 +471,7 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
                 method(*args, **kwargs)  # no raise
 
 
-def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_missing_method(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -422,7 +482,38 @@ def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.message == "task_c"
 
 
-def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_invalid_message():
+    provider = RpcProvider()
+    with pytest.raises(MalformedRequest) as exc:
+        provider.handle_message({'args': ()}, None)  # missing 'kwargs'
+    assert 'Message missing `args` or `kwargs`' in str(exc)
+
+
+def test_handle_message_raise_malformed_request(
+        container_factory, rabbit_config):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with pytest.raises(MalformedRequest):
+        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+            handle_message.side_effect = MalformedRequest('bad request')
+            with RpcProxy("exampleservice", rabbit_config) as proxy:
+                proxy.task_a()
+
+
+def test_handle_message_raise_other_exception(
+        container_factory, rabbit_config):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with pytest.raises(RemoteError):
+        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+            handle_message.side_effect = Exception('broken')
+            with RpcProxy("exampleservice", rabbit_config) as proxy:
+                proxy.task_a()
+
+
+def test_rpc_broken_method(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -433,7 +524,7 @@ def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.exc_type == "ExampleError"
 
 
-def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_unknown_service(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -448,7 +539,7 @@ def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.exc_type == "UnknownService"
 
 
-def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
+def test_rpc_unknown_service_standalone(rabbit_config):
 
     with RpcProxy("unknown_service", rabbit_config) as proxy:
         with pytest.raises(UnknownService) as exc_info:
@@ -458,7 +549,7 @@ def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
 
 
 def test_rpc_container_being_killed_retries(
-        container_factory, rabbit_config, rabbit_manager):
+        container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -531,7 +622,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
 
 def test_rpc_consumer_cannot_exit_with_providers(
-        container_factory, rabbit_config, rabbit_manager):
+        container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
