@@ -1,4 +1,5 @@
 import eventlet
+from eventlet.greenpool import GreenPile
 from mock import Mock
 from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
@@ -44,18 +45,14 @@ def test_concurrency():
         return orm_session.acquire_injection(worker_ctx)
 
     # get injections concurrently
-    gts = []
+    pile = GreenPile()
     for _ in xrange(CONCURRENT_REQUESTS):
         worker_ctx = WorkerContext(container, service_instance, entrypoint)
-        gt = eventlet.spawn(inject, worker_ctx)
-        gts.append(gt)
-
-    results = []
-    for gt in gts:
-        results.append(gt.wait())
+        pile.spawn(inject, worker_ctx)
+    results = set(pile)
 
     # injections should all be unique
-    assert len(set(results)) == CONCURRENT_REQUESTS
+    assert len(results) == CONCURRENT_REQUESTS
 
 
 def test_db(container_factory):
