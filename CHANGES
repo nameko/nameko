@@ -9,7 +9,7 @@ Version 1.11.4
 * Upgrade to eventlet 0.15.2.
 * Include pyrabbit in requirements.txt (no longer just for tests).
 * Catch dying containers in the entrypoint_hook to avoid hangs.
-* Add ``expected_exception`` kwarg to the rpc entrypoint to enable different
+* Add ``expected_exceptions`` kwarg to the rpc entrypoint to enable different
   exception handling (in dependencies) for user vs system errors.
 
 
