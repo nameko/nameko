@@ -1,15 +1,15 @@
 Version 1.11.4
 --------------
 
-* Make 'RpcConsumer' more robust against failures in the 'RpcProvider'.
+* Make ``RpcConsumer`` more robust against failures in the ``RpcProvider``.
 * Add a new exception ``MalformedRequest`` that rpc providers can raise if
-  they detect an invalid message. Raise this exception in the default.
+  they detect an invalid message. Raise this exception in the default
   ``RpcProvider`` if `args` or `kwargs` keys are missing from the message.
 * Fix issues in queue consumer tests against non-localhost brokers.
 * Upgrade to eventlet 0.15.2.
 * Include pyrabbit in requirements.txt (no longer just for tests).
 * Catch dying containers in the entrypoint_hook to avoid hangs.
-* Add expected_expected kwarg to the rpc entrypoint to enable different
+* Add ``expected_exception`` kwarg to the rpc entrypoint to enable different
   exception handling (in dependencies) for user vs system errors.
 
 
