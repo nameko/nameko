@@ -1,24 +1,30 @@
-Version next
-------------
+Version 1.11.4
+--------------
 
-Make 'RpcConsumer' more robust against failures in the 'RpcProvider'. Add a new
-exception ``MalformedRequest`` that rpc providers can raise if they detect an
-invalid message. Raise this exception in the default ``RpcProvider`` if `args`
-or `kwargs` keys are missing from the message.
+* Make 'RpcConsumer' more robust against failures in the 'RpcProvider'.
+* Add a new exception ``MalformedRequest`` that rpc providers can raise if
+  they detect an invalid message. Raise this exception in the default.
+  ``RpcProvider`` if `args` or `kwargs` keys are missing from the message.
+* Fix issues in queue consumer tests against non-localhost brokers.
+* Upgrade to eventlet 0.15.2.
+* Include pyrabbit in requirements.txt (no longer just for tests).
+* Catch dying containers in the entrypoint_hook to avoid hangs.
+* Add expected_expected kwarg to the rpc entrypoint to enable different
+  exception handling (in dependencies) for user vs system errors.
 
 
 Version 1.11.3
 --------------
 
-Add more logging for workers killed by `container.kill`.
+* Add more logging for workers killed by `container.kill`.
 
 
 Version 1.11.2
 --------------
 
-Add a default implementation for `acquire_injection` (returning `None`) for
-injections that are used for side-effects rather than injecting dependencies.
-`acquire_injection` is no longer an `abstractmethod`.
+* Add a default implementation for `acquire_injection` (returning `None`) for
+  injections that are used for side-effects rather than injecting dependencies.
+* `acquire_injection` is no longer an `abstractmethod`.
 
 
 Version 1.11.1
