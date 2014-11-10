@@ -10,10 +10,12 @@ from nameko.containers import (
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature)
+    RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
+    MalformedRequest)
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener)
+    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener,
+)
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_dependency, wait_for_call
@@ -411,7 +413,7 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
                 method(*args, **kwargs)  # no raise
 
 
-def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_missing_method(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -422,7 +424,38 @@ def test_rpc_missing_method(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.message == "task_c"
 
 
-def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_invalid_message():
+    provider = RpcProvider()
+    with pytest.raises(MalformedRequest) as exc:
+        provider.handle_message({'args': ()}, None)  # missing 'kwargs'
+    assert 'Message missing `args` or `kwargs`' in str(exc)
+
+
+def test_handle_message_raise_malformed_request(
+        container_factory, rabbit_config):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with pytest.raises(MalformedRequest):
+        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+            handle_message.side_effect = MalformedRequest('bad request')
+            with RpcProxy("exampleservice", rabbit_config) as proxy:
+                proxy.task_a()
+
+
+def test_handle_message_raise_other_exception(
+        container_factory, rabbit_config):
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with pytest.raises(RemoteError):
+        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+            handle_message.side_effect = Exception('broken')
+            with RpcProxy("exampleservice", rabbit_config) as proxy:
+                proxy.task_a()
+
+
+def test_rpc_broken_method(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -433,7 +466,7 @@ def test_rpc_broken_method(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.exc_type == "ExampleError"
 
 
-def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
+def test_rpc_unknown_service(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -448,7 +481,7 @@ def test_rpc_unknown_service(container_factory, rabbit_config, rabbit_manager):
     assert exc_info.value.exc_type == "UnknownService"
 
 
-def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
+def test_rpc_unknown_service_standalone(rabbit_config):
 
     with RpcProxy("unknown_service", rabbit_config) as proxy:
         with pytest.raises(UnknownService) as exc_info:
@@ -458,7 +491,7 @@ def test_rpc_unknown_service_standalone(rabbit_config, rabbit_manager):
 
 
 def test_rpc_container_being_killed_retries(
-        container_factory, rabbit_config, rabbit_manager):
+        container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -531,7 +564,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
 
 def test_rpc_consumer_cannot_exit_with_providers(
-        container_factory, rabbit_config, rabbit_manager):
+        container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()

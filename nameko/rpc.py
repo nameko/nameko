@@ -13,7 +13,7 @@ from kombu.pools import producers
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
-    serialize, deserialize)
+    MalformedRequest, serialize, deserialize)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -111,7 +111,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         try:
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except (MethodNotFound, IncorrectSignature):
+        except Exception:
             exc_info = sys.exc_info()
             self.handle_result(message, self.container, None, exc_info)
 
@@ -153,8 +153,11 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
             raise IncorrectSignature(str(exc))
 
     def handle_message(self, body, message):
-        args = body['args']
-        kwargs = body['kwargs']
+        try:
+            args = body['args']
+            kwargs = body['kwargs']
+        except KeyError:
+            raise MalformedRequest('Message missing `args` or `kwargs`')
 
         self.check_signature(args, kwargs)
 
