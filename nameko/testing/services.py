@@ -50,6 +50,20 @@ def entrypoint_hook(container, name, context_data=None):
         container.spawn_worker(provider, args, kwargs,
                                context_data=context_data,
                                handle_result=handle_result)
+
+        # If the container errors (e.g. due to a bad provider), handle_result
+        # is never called and we hang. To mitigate, we spawn a greenlet waiting
+        # for the container, and if that throws we send the exception back
+        # as our result
+        def catch_container_errors(gt):
+            try:
+                gt.wait()
+            except Exception as exc:
+                result.send_exception(exc)
+
+        gt = eventlet.spawn(container.wait)
+        gt.link(catch_container_errors)
+
         return result.wait()
 
     yield hook
