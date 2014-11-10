@@ -1,4 +1,3 @@
-import eventlet
 from eventlet.greenpool import GreenPile
 from mock import Mock
 from sqlalchemy import Column, Integer
