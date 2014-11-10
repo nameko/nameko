@@ -33,9 +33,7 @@ def entrypoint_hook(container, name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = next((entrypoint for entrypoint in container.entrypoints
-                     if entrypoint.name == name), None)
-
+    provider = get_dependency(container, EntrypointProvider, name=name)
     if provider is None:
         raise DependencyNotFound("No entrypoint called '{}' found "
                                  "on container {}.".format(name, container))

@@ -136,6 +136,10 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 
+    def __init__(self, expected_exceptions=()):
+        self.expected_exceptions = expected_exceptions
+        super(RpcProvider, self).__init__()
+
     def prepare(self):
         self.rpc_consumer.register_provider(self)
 
@@ -180,8 +184,16 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
 
 
 @entrypoint
-def rpc():
-    return DependencyFactory(RpcProvider)
+def rpc(expected_exceptions=()):
+    """ Mark a method to be exposed over rpc
+
+    :Parameters:
+        expected_exceptions : exception class or tuple of exception classes
+            Stashed on the provider instance for later inspection by other
+            dependencies in the worker lifecycle. Use for exceptions caused
+            by the caller (e.g. bad arguments).
+    """
+    return DependencyFactory(RpcProvider, expected_exceptions)
 
 
 class Responder(object):
