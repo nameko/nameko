@@ -120,10 +120,41 @@ def test_proxy_connection_error(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    path = 'nameko.standalone.rpc.PollingQueueConsumer.poll_messages'
-    with patch(path, autospec=True) as poll_messages:
-        poll_messages.side_effect = socket.error
-
-        with RpcProxy("foobar", rabbit_config) as proxy:
+    with RpcProxy("foobar", rabbit_config) as proxy:
+        queue_consumer = proxy.reply_listener.queue_consumer
+        with patch.object(queue_consumer, 'get_message', autospec=True) as get:
+            get.side_effect = socket.error
             with pytest.raises(socket.error):
                 proxy.spam("")
+
+
+def test_reply_queue_autodelete(
+    rabbit_manager, rabbit_config, container_factory
+):
+    def list_queues():
+        vhost = rabbit_config['vhost']
+        return [
+            queue['name']
+            for queue in rabbit_manager.get_queues(vhost=vhost)
+        ]
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    queues_before = list_queues()
+
+    with RpcProxy('foobar', rabbit_config) as foo:
+        assert foo.spam(ham='eggs') == 'eggs'
+        pass
+
+    queues_after = list_queues()
+    assert queues_after == queues_before
+
+    # check proxy re-use
+    with RpcProxy('foobar', rabbit_config) as foo:
+        assert foo.spam(ham='eggs') == 'eggs'
+        assert foo.spam(ham='eggs') == 'eggs'
+        pass
+
+    queues_after = list_queues()
+    assert queues_after == queues_before

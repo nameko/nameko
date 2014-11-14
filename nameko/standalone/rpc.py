@@ -27,7 +27,7 @@ class ConsumeEvent(object):
 
         Exceptions are raised directly.
         """
-        self.queue_consumer.poll_messages(self.correlation_id)
+        self.queue_consumer.get_message(self.correlation_id)
         return self.body
 
 
@@ -42,7 +42,11 @@ class PollingQueueConsumer(object):
         self.connection = Connection(provider.container.config['AMQP_URI'])
         self.channel = self.connection.channel()
         self.queue = provider.queue
+        self.queue.auto_delete = True
         maybe_declare(self.queue, self.channel)
+        message_iterator = self._poll_messages()
+        message_iterator.send(None)  # start generator
+        self.get_message = message_iterator.send
 
     def unregister_provider(self, provider):
         self.connection.close()
@@ -50,14 +54,15 @@ class PollingQueueConsumer(object):
     def ack_message(self, msg):
         msg.ack()
 
-    def poll_messages(self, correlation_id):
+    def _poll_messages(self):
         channel = self.channel
         conn = channel.connection
 
+        correlation_id = yield
+
         for body, msg in itermessages(conn, channel, self.queue, limit=None):
             if correlation_id == msg.properties.get('correlation_id'):
-                self.provider.handle_message(body, msg)
-                break
+                correlation_id = yield self.provider.handle_message(body, msg)
 
 
 class SingleThreadedReplyListener(ReplyListener):
