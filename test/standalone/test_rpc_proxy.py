@@ -145,7 +145,6 @@ def test_reply_queue_autodelete(
 
     with RpcProxy('foobar', rabbit_config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
-        pass
 
     queues_after = list_queues()
     assert queues_after == queues_before
@@ -154,7 +153,6 @@ def test_reply_queue_autodelete(
     with RpcProxy('foobar', rabbit_config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'
-        pass
 
     queues_after = list_queues()
     assert queues_after == queues_before
