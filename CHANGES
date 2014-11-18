@@ -1,3 +1,10 @@
+Version 1.11.5
+--------------
+
+* Have the standalone rpc proxy mark its reply queues as auto-delete, to stop
+  them staying around after use.
+
+
 Version 1.11.4
 --------------
 
