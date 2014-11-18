@@ -1,3 +1,4 @@
+from kombu.message import Message
 from mock import patch
 import pytest
 import socket
@@ -5,7 +6,7 @@ import socket
 from nameko.containers import WorkerContext
 from nameko.dependencies import injection, InjectionProvider, DependencyFactory
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc
+from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import RpcProxy
 
 
@@ -156,3 +157,20 @@ def test_reply_queue_autodelete(
 
     queues_after = list_queues()
     assert queues_after == queues_before
+
+
+def test_unexpected_correlation_id(container_factory, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy("foobar", rabbit_config) as proxy:
+
+        message = Message(channel=None, properties={
+            'reply_to': proxy.reply_listener.routing_key,
+            'correlation_id': 'invalid',
+        })
+        responder = Responder(message)
+        with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
+            responder.send_response(container, None, None)
+            assert proxy.spam(ham='eggs') == 'eggs'
+            assert logger.debug.call_count == 1

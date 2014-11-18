@@ -1,10 +1,15 @@
 from __future__ import absolute_import
 
+import logging
+
 from kombu import Connection
 from kombu.common import itermessages, maybe_declare
 
 from nameko.containers import WorkerContext
 from nameko.rpc import ServiceProxy, ReplyListener
+
+
+_logger = logging.getLogger(__name__)
 
 
 class ConsumeEvent(object):
@@ -61,8 +66,11 @@ class PollingQueueConsumer(object):
         correlation_id = yield
 
         for body, msg in itermessages(conn, channel, self.queue, limit=None):
-            if correlation_id == msg.properties.get('correlation_id'):
+            msg_correlation_id = msg.properties.get('correlation_id')
+            if msg_correlation_id == correlation_id:
                 correlation_id = yield self.provider.handle_message(body, msg)
+            else:
+                _logger.debug("Unknown correlation id: %s", msg_correlation_id)
 
 
 class SingleThreadedReplyListener(ReplyListener):
