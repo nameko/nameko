@@ -1,5 +1,7 @@
 from nameko.constants import (
-    LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY, AUTH_TOKEN_CONTEXT_KEY)
+    LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
+    AUTH_TOKEN_CONTEXT_KEY,
+)
 from nameko.dependencies import InjectionProvider, DependencyFactory, injection
 
 
@@ -20,6 +22,11 @@ def language():
 @injection
 def user_id():
     return DependencyFactory(ContextDataProvider, USER_ID_CONTEXT_KEY)
+
+
+@injection
+def user_agent():
+    return DependencyFactory(ContextDataProvider, USER_AGENT_CONTEXT_KEY)
 
 
 @injection
