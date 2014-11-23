@@ -62,15 +62,20 @@ class PollingQueueConsumer(object):
     def _poll_messages(self):
         channel = self.channel
         conn = channel.connection
+        replies = {}
 
         correlation_id = yield
 
         for body, msg in itermessages(conn, channel, self.queue, limit=None):
             msg_correlation_id = msg.properties.get('correlation_id')
-            if msg_correlation_id == correlation_id:
+            replies[msg_correlation_id] = (body, msg)
+
+            if correlation_id not in replies:
+                continue  # keep waiting
+
+            while correlation_id in replies:
+                body, msg = replies.pop(correlation_id)
                 correlation_id = yield self.provider.handle_message(body, msg)
-            else:
-                _logger.debug("Unknown correlation id: %s", msg_correlation_id)
 
 
 class SingleThreadedReplyListener(ReplyListener):

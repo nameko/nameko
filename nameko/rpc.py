@@ -324,6 +324,23 @@ class ServiceProxy(object):
             self.worker_ctx, self.service_name, name, self.reply_listener)
 
 
+class RpcReply(object):
+    def __init__(self, reply_event):
+        self.reply_event = reply_event
+
+    def wait(self):
+        _log.debug('Waiting for RPC reply event %s', self)
+
+        resp_body = self.reply_event.wait()
+
+        _log.debug('RPC reply event complete %s %s', self, resp_body)
+
+        error = resp_body.get('error')
+        if error:
+            raise deserialize(error)
+        return resp_body['result']
+
+
 class MethodProxy(HeaderEncoder):
 
     def __init__(self, worker_ctx, service_name, method_name, reply_listener):
@@ -333,6 +350,14 @@ class MethodProxy(HeaderEncoder):
         self.reply_listener = reply_listener
 
     def __call__(self, *args, **kwargs):
+        reply = self.call(*args, **kwargs)
+        return reply.wait()
+
+    def call_async(self, *args, **kwargs):
+        reply = self.call(*args, **kwargs)
+        return reply
+
+    def call(self, *args, **kwargs):
         _log.debug('invoking %s', self)
 
         worker_ctx = self.worker_ctx
@@ -388,14 +413,7 @@ class MethodProxy(HeaderEncoder):
             if not producer.channel.returned_messages.empty():
                 raise UnknownService(self.service_name)
 
-        _log.debug('Waiting for RPC reply event %s', self)
-        resp_body = reply_event.wait()
-        _log.debug('RPC reply event complete %s %s', self, resp_body)
-
-        error = resp_body.get('error')
-        if error:
-            raise deserialize(error)
-        return resp_body['result']
+        return RpcReply(reply_event)
 
     def __str__(self):
         return '<proxy method: %s.%s>' % (self.service_name, self.method_name)

@@ -174,3 +174,24 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
             responder.send_response(container, None, None)
             assert proxy.spam(ham='eggs') == 'eggs'
             assert logger.debug.call_count == 1
+
+
+def test_foo(container_factory, rabbit_config):
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy('foobar', rabbit_config) as foo:
+        assert foo.spam(ham='eggs') == 'eggs'
+        # import pdb; pdb.set_trace()
+        rep1 = foo.spam.call_async(ham=1)
+        rep2 = foo.spam.call_async(ham=2)
+        rep3 = foo.spam.call_async(ham=3)
+        rep4 = foo.spam.call_async(ham=4)
+        rep5 = foo.spam.call_async(ham=5)
+        assert rep2.wait() == 2
+        assert rep3.wait() == 3
+        assert rep1.wait() == 1
+        assert rep4.wait() == 4
+        assert rep5.wait() == 5
+        pass

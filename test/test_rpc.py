@@ -102,6 +102,13 @@ class ExampleService(object):
         raise AttributeError
 
     @rpc
+    def call_async(self):
+        res1 = self.example_rpc.task_a.call_async()
+        res2 = self.example_rpc.task_b.call_async()
+        res3 = self.example_rpc.echo.call_async()
+        return [res2.wait(), res1.wait(), res3.wait()]
+
+    @rpc
     def call_unknown(self):
         return self.unknown_rpc.any_method()
 
@@ -399,6 +406,15 @@ def test_rpc_existing_method(container_factory, rabbit_config):
     with RpcProxy("exampleservice", rabbit_config) as proxy:
         assert proxy.task_a() == "result_a"
         assert proxy.task_b() == "result_b"
+
+
+def test_async_rpc(container_factory, rabbit_config):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with entrypoint_hook(container, 'call_async') as call_async:
+        assert call_async() == ["result_b", "result_a", [[], {}]]
 
 
 def test_rpc_incorrect_signature(container_factory, rabbit_config):
