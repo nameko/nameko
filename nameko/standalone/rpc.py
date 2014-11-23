@@ -68,6 +68,11 @@ class PollingQueueConsumer(object):
 
         for body, msg in itermessages(conn, channel, self.queue, limit=None):
             msg_correlation_id = msg.properties.get('correlation_id')
+
+            if msg_correlation_id not in self.provider._reply_events:
+                _logger.debug("Unknown correlation id: %s", correlation_id)
+                continue
+
             replies[msg_correlation_id] = (body, msg)
 
             if correlation_id not in replies:
