@@ -106,7 +106,7 @@ class ExampleService(object):
         res1 = self.example_rpc.task_a.async()
         res2 = self.example_rpc.task_b.async()
         res3 = self.example_rpc.echo.async()
-        return [res2.wait(), res1.wait(), res3.wait()]
+        return [res2.result(), res1.result(), res3.result()]
 
     @rpc
     def call_unknown(self):

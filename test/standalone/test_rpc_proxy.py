@@ -187,8 +187,32 @@ def test_async_rpc(container_factory, rabbit_config):
         rep3 = foo.spam.async(ham=3)
         rep4 = foo.spam.async(ham=4)
         rep5 = foo.spam.async(ham=5)
-        assert rep2.wait() == 2
-        assert rep3.wait() == 3
-        assert rep1.wait() == 1
-        assert rep4.wait() == 4
-        assert rep5.wait() == 5
+        assert rep2.result() == 2
+        assert rep3.result() == 3
+        assert rep1.result() == 1
+        assert rep4.result() == 4
+        assert rep5.result() == 5
+
+
+def test_multiple_proxies(container_factory, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy('foobar', rabbit_config) as proxy1:
+        res1 = proxy1.spam.async(ham=1)
+
+        with RpcProxy('foobar', rabbit_config) as proxy2:
+            res2 = proxy2.spam.async(ham=2)
+
+            assert res1.result() == 1
+            assert res2.result() == 2
+
+
+def test_multiple_calls_to_result(container_factory, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy('foobar', rabbit_config) as proxy:
+        res = proxy.spam.async(ham=1)
+        res.result()
+        res.result()

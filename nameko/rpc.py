@@ -325,20 +325,22 @@ class ServiceProxy(object):
 
 
 class RpcReply(object):
+    resp_body = None
+
     def __init__(self, reply_event):
         self.reply_event = reply_event
 
-    def wait(self):
+    def result(self):
         _log.debug('Waiting for RPC reply event %s', self)
 
-        resp_body = self.reply_event.wait()
+        if self.resp_body is None:
+            self.resp_body = self.reply_event.wait()
+            _log.debug('RPC reply event complete %s %s', self, self.resp_body)
 
-        _log.debug('RPC reply event complete %s %s', self, resp_body)
-
-        error = resp_body.get('error')
+        error = self.resp_body.get('error')
         if error:
             raise deserialize(error)
-        return resp_body['result']
+        return self.resp_body['result']
 
 
 class MethodProxy(HeaderEncoder):
@@ -350,14 +352,14 @@ class MethodProxy(HeaderEncoder):
         self.reply_listener = reply_listener
 
     def __call__(self, *args, **kwargs):
-        reply = self.call(*args, **kwargs)
-        return reply.wait()
+        reply = self._call(*args, **kwargs)
+        return reply.result()
 
     def async(self, *args, **kwargs):
-        reply = self.call(*args, **kwargs)
+        reply = self._call(*args, **kwargs)
         return reply
 
-    def call(self, *args, **kwargs):
+    def _call(self, *args, **kwargs):
         _log.debug('invoking %s', self)
 
         worker_ctx = self.worker_ctx
