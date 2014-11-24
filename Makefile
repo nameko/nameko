@@ -14,7 +14,6 @@ develop: requirements
 
 pytest:
 	coverage run --concurrency=eventlet --source nameko -m pytest test
-	coverage report --show-missing
 
 flake8:
 	flake8 nameko test
