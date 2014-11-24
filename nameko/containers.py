@@ -8,7 +8,7 @@ import uuid
 import eventlet
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
-import greenlet
+from greenlet import GreenletExit  # pylint: disable=E0611
 
 from nameko.constants import (
     PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED,
@@ -415,7 +415,7 @@ class ServiceContainer(object):
         try:
             gt.wait()
 
-        except greenlet.GreenletExit:
+        except GreenletExit:
             # we don't care much about threads killed by the container
             # this can happen in stop() and kill() if providers
             # don't properly take care of their threads

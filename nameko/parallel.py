@@ -1,11 +1,10 @@
 from __future__ import absolute_import
 from contextlib import contextmanager
 from functools import partial
-
 from logging import getLogger
 
 from concurrent import futures
-import greenlet
+from greenlet import GreenletExit  # pylint: disable=E0611
 from nameko.utils import try_wraps
 from nameko.dependencies import InjectionProvider, injection, DependencyFactory
 
@@ -79,7 +78,7 @@ class ParallelExecutor(futures.Executor):
         self._spawned_threads.remove(gt)
         try:
             gt.wait()
-        except greenlet.GreenletExit as green_exit:
+        except GreenletExit as green_exit:
             # 'Normal' errors with the submitted function call are handled
             # by `_handle_call_complete`. This only occurs when the
             # container is killed before the future's thread exits.
