@@ -75,9 +75,6 @@ class PollingQueueConsumer(object):
 
             replies[msg_correlation_id] = (body, msg)
 
-            if correlation_id not in replies:
-                continue  # keep waiting
-
             while correlation_id in replies:
                 body, msg = replies.pop(correlation_id)
                 correlation_id = yield self.provider.handle_message(body, msg)
