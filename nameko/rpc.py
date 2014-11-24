@@ -353,7 +353,7 @@ class MethodProxy(HeaderEncoder):
         reply = self.call(*args, **kwargs)
         return reply.wait()
 
-    def call_async(self, *args, **kwargs):
+    def async(self, *args, **kwargs):
         reply = self.call(*args, **kwargs)
         return reply
 

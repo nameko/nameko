@@ -182,11 +182,11 @@ def test_async_rpc(container_factory, rabbit_config):
     container.start()
 
     with RpcProxy('foobar', rabbit_config) as foo:
-        rep1 = foo.spam.call_async(ham=1)
-        rep2 = foo.spam.call_async(ham=2)
-        rep3 = foo.spam.call_async(ham=3)
-        rep4 = foo.spam.call_async(ham=4)
-        rep5 = foo.spam.call_async(ham=5)
+        rep1 = foo.spam.async(ham=1)
+        rep2 = foo.spam.async(ham=2)
+        rep3 = foo.spam.async(ham=3)
+        rep4 = foo.spam.async(ham=4)
+        rep5 = foo.spam.async(ham=5)
         assert rep2.wait() == 2
         assert rep3.wait() == 3
         assert rep1.wait() == 1
