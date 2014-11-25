@@ -1,3 +1,11 @@
+Version 1.12.0
+--------------
+
+* Add ability to make asynchronous rpc calls using the rpc proxy.
+* Add a new nameko context key ``user_agent`` to support including such info
+  in the rpc header.
+
+
 Version 1.11.5
 --------------
 

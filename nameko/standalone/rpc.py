@@ -62,15 +62,25 @@ class PollingQueueConsumer(object):
     def _poll_messages(self):
         channel = self.channel
         conn = channel.connection
+        replies = {}
 
         correlation_id = yield
 
         for body, msg in itermessages(conn, channel, self.queue, limit=None):
             msg_correlation_id = msg.properties.get('correlation_id')
-            if msg_correlation_id == correlation_id:
+
+            if msg_correlation_id not in self.provider._reply_events:
+                _logger.debug("Unknown correlation id: %s", correlation_id)
+                continue
+
+            replies[msg_correlation_id] = (body, msg)
+
+            # Here, and every time we re-enter this coroutine (at the `yield`
+            # statement below) we check if we already have the data for the new
+            # correlation_id before polling for new messages.
+            while correlation_id in replies:
+                body, msg = replies.pop(correlation_id)
                 correlation_id = yield self.provider.handle_message(body, msg)
-            else:
-                _logger.debug("Unknown correlation id: %s", msg_correlation_id)
 
 
 class SingleThreadedReplyListener(ReplyListener):

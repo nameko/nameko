@@ -174,3 +174,45 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
             responder.send_response(container, None, None)
             assert proxy.spam(ham='eggs') == 'eggs'
             assert logger.debug.call_count == 1
+
+
+def test_async_rpc(container_factory, rabbit_config):
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy('foobar', rabbit_config) as foo:
+        rep1 = foo.spam.async(ham=1)
+        rep2 = foo.spam.async(ham=2)
+        rep3 = foo.spam.async(ham=3)
+        rep4 = foo.spam.async(ham=4)
+        rep5 = foo.spam.async(ham=5)
+        assert rep2.result() == 2
+        assert rep3.result() == 3
+        assert rep1.result() == 1
+        assert rep4.result() == 4
+        assert rep5.result() == 5
+
+
+def test_multiple_proxies(container_factory, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy('foobar', rabbit_config) as proxy1:
+        res1 = proxy1.spam.async(ham=1)
+
+        with RpcProxy('foobar', rabbit_config) as proxy2:
+            res2 = proxy2.spam.async(ham=2)
+
+            assert res1.result() == 1
+            assert res2.result() == 2
+
+
+def test_multiple_calls_to_result(container_factory, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy('foobar', rabbit_config) as proxy:
+        res = proxy.spam.async(ham=1)
+        res.result()
+        res.result()
