@@ -75,6 +75,9 @@ class PollingQueueConsumer(object):
 
             replies[msg_correlation_id] = (body, msg)
 
+            # Here, and every time we re-enter this coroutine (at the `yield`
+            # statement below) we check if we already have the data for the new
+            # correlation_id before polling for new messages.
             while correlation_id in replies:
                 body, msg = replies.pop(correlation_id)
                 correlation_id = yield self.provider.handle_message(body, msg)
