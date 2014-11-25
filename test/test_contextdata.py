@@ -2,9 +2,11 @@ import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import (
-    AUTH_TOKEN_CONTEXT_KEY, LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY)
+    AUTH_TOKEN_CONTEXT_KEY, LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY,
+    USER_AGENT_CONTEXT_KEY,
+)
 from nameko.contextdata import (
-    language, user_id, auth_token, ContextDataProvider)
+    language, user_id, user_agent, auth_token, ContextDataProvider)
 from nameko.dependencies import DependencyFactory, injection
 from nameko.testing.utils import get_dependency
 
@@ -26,6 +28,7 @@ class Service(object):
     auth_token = auth_token()
     language = language()
     user_id = user_id()
+    user_agent = user_agent()
 
     # custom context data provider
     custom_value = custom_value()
@@ -58,6 +61,7 @@ def test_get_unset_value(container):
     ('auth_token', AUTH_TOKEN_CONTEXT_KEY),
     ('language', LANGUAGE_CONTEXT_KEY),
     ('user_id', USER_ID_CONTEXT_KEY),
+    ('user_agent', USER_AGENT_CONTEXT_KEY),
 
 ])
 def test_get_builtin_providers(provider_name, context_key, container):
