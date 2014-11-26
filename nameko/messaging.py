@@ -354,6 +354,14 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             _log.debug('consumer started %s', self)
             self._consumers_ready.send(None)
 
+        for provider in self._providers:
+            try:
+                callback = provider.on_consume_ready
+            except AttributeError:
+                pass
+            else:
+                callback()
+
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
         """ Lifted from Kombu.
 

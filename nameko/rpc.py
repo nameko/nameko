@@ -266,8 +266,12 @@ class ReplyListener(DependencyProvider):
 
         exchange = get_rpc_exchange(container)
 
-        self.queue = Queue(queue_name, exchange=exchange,
-                           routing_key=self.routing_key)
+        self.queue = Queue(
+            queue_name,
+            exchange=exchange,
+            routing_key=self.routing_key,
+            auto_delete=True,
+        )
 
         self.queue_consumer.register_provider(self)
 
@@ -279,6 +283,12 @@ class ReplyListener(DependencyProvider):
         reply_event = Event()
         self._reply_events[correlation_id] = reply_event
         return reply_event
+
+    def on_consume_ready(self):
+        for event in self._reply_events.values():
+            event.send_exception(
+                Exception('disconnected while waiting for reply')  # TODO
+            )
 
     def handle_message(self, body, message):
         self.queue_consumer.ack_message(message)

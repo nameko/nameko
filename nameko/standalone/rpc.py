@@ -47,7 +47,6 @@ class PollingQueueConsumer(object):
         self.connection = Connection(provider.container.config['AMQP_URI'])
         self.channel = self.connection.channel()
         self.queue = provider.queue
-        self.queue.auto_delete = True
         maybe_declare(self.queue, self.channel)
         message_iterator = self._poll_messages()
         message_iterator.send(None)  # start generator
