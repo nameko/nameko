@@ -6,8 +6,7 @@ from kombu import Connection
 from kombu.pools import producers
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.exceptions import (
-    MethodNotFound, IncorrectSignature, ContainerBeingKilled)
+from nameko.exceptions import ContainerBeingKilled
 from nameko.dependencies import (
     dependency, entrypoint, DependencyFactory, CONTAINER_SHARED)
 from nameko.legacy.nova import get_topic_queue, parse_message
@@ -86,7 +85,7 @@ class NovaRpcConsumer(RpcConsumer):
 
             provider = self.get_provider_for_method(routing_key)
             provider.handle_message(body, message)
-        except (MethodNotFound, IncorrectSignature):
+        except Exception:
             msgid = body.get('_msg_id', None)
             exc_info = sys.exc_info()
             self.handle_result(message, msgid, container, None, exc_info)

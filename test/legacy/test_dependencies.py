@@ -1,9 +1,11 @@
-from mock import Mock, patch, ANY
+from kombu.message import Message
+from mock import Mock, patch, ANY, DEFAULT
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.exceptions import RemoteError, ContainerBeingKilled
-from nameko.legacy.dependencies import rpc, NovaRpcProvider, NovaResponder
+from nameko.legacy.dependencies import (
+    rpc, NovaRpcProvider, NovaResponder, NovaRpcConsumer)
 from nameko.legacy.proxy import RPCProxy
 from nameko.messaging import AMQP_URI_CONFIG_KEY
 
@@ -155,3 +157,29 @@ def test_nova_responder_cannot_str_exc(mock_publish):
         'result': True,
         'ending': False
     }
+
+
+def test_nova_consumer_bad_provider():
+    consumer = NovaRpcConsumer()
+    consumer.container = Mock()
+    message = Message(
+        channel=None,
+        delivery_info={'routing_key': 'some route'},
+        properties={},
+    )
+    with patch.multiple(
+        consumer,
+        get_provider_for_method=DEFAULT,
+        handle_result=DEFAULT,
+    ) as mocks:
+        provider = mocks['get_provider_for_method']
+        handle_result = mocks['handle_result']
+
+        exception = LookupError('broken')
+        provider.side_effect = exception
+        consumer.handle_message({'args': ()}, message)
+        assert handle_result.call_count == 1
+        args, kwargs = handle_result.call_args
+        exc_info = args[-1]
+        exc_type, exc_value, traceback = exc_info
+        assert exc_value is exception
