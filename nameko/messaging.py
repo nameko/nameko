@@ -239,7 +239,11 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self._pending_requeue_messages = []
             self._pending_remove_providers = {}
             self.should_stop = True
-            self._gt.wait()
+            try:
+                self._gt.wait()
+            except Exception:
+                # discard the exception since we're already being killed
+                pass
 
             super(QueueConsumer, self).kill()
             _log.debug('killed %s', self)
