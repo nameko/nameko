@@ -5,6 +5,7 @@ import pytest
 import uuid
 
 from nameko.events import event_handler, Event
+from nameko.exceptions import RpcConnectionError
 from nameko.rpc import rpc, rpc_proxy
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import RpcProxy
@@ -85,7 +86,7 @@ class ProxyService(object):
                 results.append(self.example_rpc.method(arg))
                 return results
             except Exception as ex:
-                results.append(ex)
+                results.append((type(ex), str(ex)))
 
 def disconnect_on_event(rabbit_manager, connection_name):
     disconnect_now.wait()
@@ -107,8 +108,8 @@ def test_idle_disconnect(container_factory, rabbit_manager, rabbit_config):
         assert proxy.echo("hello") == "hello"
 
 
-def test_proxy_disconnect_with_active_worker(container_factory,
-                                             rabbit_manager, rabbit_config):
+def test_proxy_disconnect_with_active_worker(
+        container_factory, rabbit_manager, rabbit_config):
     """ Break the connection to rabbit while a service's queue consumer and
     rabbit while the service has an in-flight rpc request (i.e. it is waiting
     on a reply).
@@ -139,12 +140,43 @@ def test_proxy_disconnect_with_active_worker(container_factory,
     with entrypoint_hook(proxy_container, 'retry') as retry:
         # if disconnecting while waiting for a reply, call fails
         # fail, then success
-        assert retry('hello') == None
-        # proxy should still be useable
-        assert retry('hello') == 'duplicate-call-result'
+        assert retry('hello') == [
+            (RpcConnectionError, 'Disconnected while waiting for reply'),
+            'duplicate-call-result',
+        ]
 
     connections = get_rabbit_connections(vhost, rabbit_manager)
     assert proxy_consumer_conn not in [conn['name'] for conn in connections]
+
+def test_standalone_proxy_disconnect_with_pending_reply(
+    container_factory, rabbit_manager, rabbit_config):
+
+    example_container = container_factory(ExampleService, rabbit_config)
+    example_container.start()
+
+    vhost = rabbit_config['vhost']
+
+    connections = get_rabbit_connections(vhost, rabbit_manager)
+    assert len(connections) == 1
+    container_connection = connections[0]
+
+    # TODO standalone
+    with RpcProxy('exampleservice', rabbit_config) as proxy:
+        connections = get_rabbit_connections(vhost, rabbit_manager)
+        assert len(connections) == 2
+        proxy_connection = [
+            conn for conn in connections if conn != container_connection][0]
+        eventlet.spawn(
+            disconnect_on_event,
+            rabbit_manager,
+            proxy_connection['name']
+        )
+        # if disconnecting while waiting for a reply, call fails
+        with pytest.raises(RpcConnectionError):
+            proxy.method('hello')
+        # proxy should work again afterwards
+        assert proxy.method('hello') == 'duplicate-call-result'
+
 
 
 def test_service_disconnect_with_active_async_worker(

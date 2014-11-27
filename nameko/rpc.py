@@ -13,7 +13,7 @@ from kombu.pools import producers
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
-    MalformedRequest, serialize, deserialize)
+    MalformedRequest, RpcConnectionError, serialize, deserialize)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -287,7 +287,7 @@ class ReplyListener(DependencyProvider):
     def on_consume_ready(self):
         for event in self._reply_events.values():
             event.send_exception(
-                Exception('disconnected while waiting for reply')  # TODO
+                RpcConnectionError('Disconnected while waiting for reply')
             )
 
     def handle_message(self, body, message):
