@@ -150,53 +150,6 @@ def test_proxy_disconnect_with_active_worker(
     assert proxy_consumer_conn not in [conn['name'] for conn in connections]
 
 
-def test_standalone_proxy_disconnect_with_pending_reply(
-        container_factory, rabbit_manager, rabbit_config):
-
-    example_container = container_factory(ExampleService, rabbit_config)
-    example_container.start()
-
-    vhost = rabbit_config['vhost']
-
-    connections = get_rabbit_connections(vhost, rabbit_manager)
-    assert len(connections) == 1
-    container_connection = connections[0]
-
-    with RpcProxy('exampleservice', rabbit_config) as proxy:
-        connections = get_rabbit_connections(vhost, rabbit_manager)
-        assert len(connections) == 2
-        proxy_connection = [
-            conn for conn in connections if conn != container_connection][0]
-        eventlet.spawn(
-            disconnect_on_event,
-            rabbit_manager,
-            proxy_connection['name']
-        )
-
-        async = proxy.method.async('hello')
-
-        # if disconnecting while waiting for a reply, call fails
-        with pytest.raises(RpcConnectionError):
-            proxy.method('hello')
-
-        # the failure above also has to consider any other pending calls a
-        # failure, since the reply may have been sent while the queue was gone
-        # (deleted on disconnect, and not added until re-connect)
-        with pytest.raises(RpcConnectionError):
-            async.result()
-
-        # proxy should work again afterwards
-        assert proxy.method('hello') == 'duplicate-call-result'
-
-
-def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
-    vhost = rabbit_config['vhost']
-    with RpcProxy('exampleservice', rabbit_config):
-        assert len(rabbit_manager.get_queues(vhost)) == 1
-
-    assert len(rabbit_manager.get_queues(vhost)) == 0
-
-
 def test_service_disconnect_with_active_async_worker(
         container_factory, rabbit_manager, rabbit_config):
     """ Break the connection between a service's queue consumer and rabbit

@@ -8,6 +8,8 @@ from nameko.dependencies import injection, InjectionProvider, DependencyFactory
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import RpcProxy
+from nameko.testing.utils import get_rabbit_connections
+from nameko.exceptions import RpcConnectionError
 
 
 class ContextReader(InjectionProvider):
@@ -216,3 +218,66 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
         res = proxy.spam.async(ham=1)
         res.result()
         res.result()
+
+
+class ExampleService(object):
+    def callback(self):
+        # to be patched out with mock
+        pass
+
+    @rpc
+    def method(self, arg):
+        self.callback()
+        return arg
+
+
+def test_standalone_proxy_disconnect_with_pending_reply(
+        container_factory, rabbit_manager, rabbit_config):
+
+    example_container = container_factory(ExampleService, rabbit_config)
+    example_container.start()
+
+    vhost = rabbit_config['vhost']
+
+    # get exampleservice's queue consumer connection while we know it's the
+    # only active connection
+    connections = get_rabbit_connections(vhost, rabbit_manager)
+    assert len(connections) == 1
+    container_connection = connections[0]
+
+    with RpcProxy('exampleservice', rabbit_config) as proxy:
+        connections = get_rabbit_connections(vhost, rabbit_manager)
+        assert len(connections) == 2
+        proxy_connection = [
+            conn for conn in connections if conn != container_connection][0]
+
+        def disconnect_once(self):
+            if hasattr(disconnect_once, 'called'):
+                return
+            disconnect_once.called = True
+            rabbit_manager.delete_connection( proxy_connection['name'])
+
+        with patch.object(ExampleService, 'callback', disconnect_once):
+
+            async = proxy.method.async('hello')
+
+            # if disconnecting while waiting for a reply, call fails
+            with pytest.raises(RpcConnectionError):
+                proxy.method('hello')
+
+            # the failure above also has to consider any other pending calls a
+            # failure, since the reply may have been sent while the queue was gone
+            # (deleted on disconnect, and not added until re-connect)
+            with pytest.raises(RpcConnectionError):
+                async.result()
+
+            # proxy should work again afterwards
+            assert proxy.method('hello') == 'hello'
+
+
+def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
+    vhost = rabbit_config['vhost']
+    with RpcProxy('exampleservice', rabbit_config):
+        assert len(rabbit_manager.get_queues(vhost)) == 1
+
+    assert len(rabbit_manager.get_queues(vhost)) == 0
