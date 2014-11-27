@@ -290,6 +290,7 @@ class ReplyListener(DependencyProvider):
             event.send_exception(
                 RpcConnectionError('Disconnected while waiting for reply')
             )
+        self._reply_events.clear()
 
     def handle_message(self, body, message):
         self.queue_consumer.ack_message(message)

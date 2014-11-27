@@ -100,10 +100,11 @@ class PollingQueueConsumer(object):
                         correlation_id = yield self.provider.handle_message(
                             body, msg)
             except ConnectionError as exc:
-                for _, event in self.provider._reply_events.items():
+                for event in self.provider._reply_events.values():
                     rpc_connection_error = RpcConnectionError(
                         'Disconnected while waiting for reply: %s', exc)
                     event.send_exception(rpc_connection_error)
+                self.provider._reply_events.clear()
                 # In case this was a temporary error, attempt to reconnect. If
                 # we fail, the second connection error will bubble, so it's
                 # ok that we leave the current standalone proxy unuseable.
