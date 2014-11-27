@@ -58,7 +58,7 @@ class DependencyProvider(object):
         """ Called to stop this dependency without grace.
 
         DependencyProviders should urgently shut down here. This means
-        stopping as soon as possible by omiting cleanup.
+        stopping as soon as possible by omitting cleanup.
         This may be distinct from ``stop()`` for certain dependencies.
 
         For example, :class:`~messaging.QueueConsumer` tracks messages being
