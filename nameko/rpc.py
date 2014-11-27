@@ -286,6 +286,9 @@ class ReplyListener(DependencyProvider):
         return reply_event
 
     def on_consume_ready(self):
+        # This is called on re-connection, and is the best hook for detecting
+        # disconnections. If we have any pending reply events, we were
+        # disconnected, and may have lost replies (reply queue auto delete).
         for event in self._reply_events.values():
             event.send_exception(
                 RpcConnectionError('Disconnected while waiting for reply')
