@@ -178,6 +178,14 @@ def test_standalone_proxy_disconnect_with_pending_reply(
         assert proxy.method('hello') == 'duplicate-call-result'
 
 
+def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
+    vhost = rabbit_config['vhost']
+    with RpcProxy('exampleservice', rabbit_config):
+        assert len(rabbit_manager.get_queues(vhost)) == 1
+
+    assert len(rabbit_manager.get_queues(vhost)) == 0
+
+
 
 def test_service_disconnect_with_active_async_worker(
         container_factory, rabbit_manager, rabbit_config):

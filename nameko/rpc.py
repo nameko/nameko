@@ -271,6 +271,7 @@ class ReplyListener(DependencyProvider):
             exchange=exchange,
             routing_key=self.routing_key,
             auto_delete=True,
+            exclusive=True,
         )
 
         self.queue_consumer.register_provider(self)
