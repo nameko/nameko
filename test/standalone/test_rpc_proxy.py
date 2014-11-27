@@ -255,7 +255,7 @@ def test_standalone_proxy_disconnect_with_pending_reply(
             if hasattr(disconnect_once, 'called'):
                 return
             disconnect_once.called = True
-            rabbit_manager.delete_connection( proxy_connection['name'])
+            rabbit_manager.delete_connection(proxy_connection['name'])
 
         with patch.object(ExampleService, 'callback', disconnect_once):
 
@@ -266,8 +266,8 @@ def test_standalone_proxy_disconnect_with_pending_reply(
                 proxy.method('hello')
 
             # the failure above also has to consider any other pending calls a
-            # failure, since the reply may have been sent while the queue was gone
-            # (deleted on disconnect, and not added until re-connect)
+            # failure, since the reply may have been sent while the queue was
+            # gone (deleted on disconnect, and not added until re-connect)
             with pytest.raises(RpcConnectionError):
                 async.result()
 
