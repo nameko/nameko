@@ -241,9 +241,9 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self.should_stop = True
             try:
                 self._gt.wait()
-            except Exception:
+            except Exception as exc:
                 # discard the exception since we're already being killed
-                pass
+                _log.warn('QueueConsumer raised `%s` during kill', exc)
 
             super(QueueConsumer, self).kill()
             _log.debug('killed %s', self)
