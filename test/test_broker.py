@@ -162,7 +162,6 @@ def test_standalone_proxy_disconnect_with_pending_reply(
     assert len(connections) == 1
     container_connection = connections[0]
 
-    # TODO standalone
     with RpcProxy('exampleservice', rabbit_config) as proxy:
         connections = get_rabbit_connections(vhost, rabbit_manager)
         assert len(connections) == 2
