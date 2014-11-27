@@ -21,7 +21,7 @@ flake8:
 pylint:
 	pylint nameko -E
 
-test: pytest pylint flake8 coverage-check
+test: flake8 pylint pytest coverage-check
 
 full-test: requirements test
 
