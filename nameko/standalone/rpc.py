@@ -97,8 +97,8 @@ class PollingQueueConsumer(object):
                     # messages.
                     while correlation_id in replies:
                         body, msg = replies.pop(correlation_id)
-                        correlation_id = yield self.provider.handle_message(
-                            body, msg)
+                        self.provider.handle_message(body, msg)
+                        correlation_id = yield
             except ConnectionError as exc:
                 for event in self.provider._reply_events.values():
                     rpc_connection_error = RpcConnectionError(
@@ -111,7 +111,7 @@ class PollingQueueConsumer(object):
                 self.channel = self.connection.channel()
                 self.connection = self.channel.connection
                 maybe_declare(self.queue, self.channel)
-                correlation_id = yield rpc_connection_error
+                correlation_id = yield
 
 
 class SingleThreadedReplyListener(ReplyListener):
