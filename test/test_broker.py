@@ -88,6 +88,7 @@ class ProxyService(object):
             except Exception as ex:
                 results.append((type(ex), str(ex)))
 
+
 def disconnect_on_event(rabbit_manager, connection_name):
     disconnect_now.wait()
     rabbit_manager.delete_connection(connection_name)
@@ -148,8 +149,9 @@ def test_proxy_disconnect_with_active_worker(
     connections = get_rabbit_connections(vhost, rabbit_manager)
     assert proxy_consumer_conn not in [conn['name'] for conn in connections]
 
+
 def test_standalone_proxy_disconnect_with_pending_reply(
-    container_factory, rabbit_manager, rabbit_config):
+        container_factory, rabbit_manager, rabbit_config):
 
     example_container = container_factory(ExampleService, rabbit_config)
     example_container.start()
@@ -184,7 +186,6 @@ def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
         assert len(rabbit_manager.get_queues(vhost)) == 1
 
     assert len(rabbit_manager.get_queues(vhost)) == 0
-
 
 
 def test_service_disconnect_with_active_async_worker(
