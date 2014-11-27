@@ -172,9 +172,19 @@ def test_standalone_proxy_disconnect_with_pending_reply(
             rabbit_manager,
             proxy_connection['name']
         )
+
+        async = proxy.method.async('hello')
+
         # if disconnecting while waiting for a reply, call fails
         with pytest.raises(RpcConnectionError):
             proxy.method('hello')
+
+        # the failure above also has to consider any other pending calls a
+        # failure, since the reply may have been sent while the queue was gone
+        # (deleted on disconnect, and not added until re-connect)
+        with pytest.raises(RpcConnectionError):
+            async.result()
+
         # proxy should work again afterwards
         assert proxy.method('hello') == 'duplicate-call-result'
 
