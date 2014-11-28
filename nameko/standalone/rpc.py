@@ -106,8 +106,7 @@ class PollingQueueConsumer(object):
                     event.send_exception(rpc_connection_error)
                 self.provider._reply_events.clear()
                 # In case this was a temporary error, attempt to reconnect. If
-                # we fail, the second connection error will bubble, so it's
-                # ok that we leave the current standalone proxy unuseable.
+                # we fail, the connection error will bubble.
                 self.channel = self.connection.channel()
                 self.connection = self.channel.connection
                 maybe_declare(self.queue, self.channel)
