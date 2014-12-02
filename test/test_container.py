@@ -493,6 +493,30 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
     ]
 
 
+def test_kill_bad_dependency(container):
+    """ Verify that an exception from a badly-behaved dependency.kill()
+    doesn't stop the container's kill process.
+    """
+    dep = get_dependency(container, InjectionProvider)
+    with patch.object(dep, 'kill') as dep_kill:
+        dep_kill.side_effect = Exception('dependency error')
+
+        container.start()
+
+        # manufacture an exc_info to kill with
+        try:
+            raise Exception('container error')
+        except:
+            pass
+        exc_info = sys.exc_info()
+
+        container.kill(exc_info)
+
+        with pytest.raises(Exception) as exc_info:
+            container.wait()
+        assert exc_info.value.message == "container error"
+
+
 def test_stop_during_kill(container, logger):
     """ Verify we handle the race condition when a runner tries to stop
     a container while it is being killed.
@@ -530,17 +554,3 @@ def test_container_injection_property(container):
     injections = container.injections
     assert {dep.name for dep in injections} == {'spam'}
     assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]
-
-
-def test_container_catches_managed_thread_errors(container):
-
-    class Broken(Exception):
-        pass
-
-    def raises():
-        raise Broken('error')
-
-    container.spawn_managed_thread(raises)
-
-    with pytest.raises(Broken):
-        container.wait()
