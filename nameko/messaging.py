@@ -230,7 +230,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         asked to terminate as soon as possible.
         """
         # greenlet has a magic attribute ``dead`` - pylint: disable=E1101
-        if self._gt and not self._gt.dead:
+        if self._gt is not None and not self._gt.dead:
             # we can't just kill the thread because we have to give
             # ConsumerMixin a chance to close the sockets properly.
             self._providers = set()
@@ -239,7 +239,12 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             self._pending_requeue_messages = []
             self._pending_remove_providers = {}
             self.should_stop = True
-            self._gt.wait()
+            try:
+                self._gt.wait()
+            except Exception as exc:
+                # discard the exception since we're already being killed
+                _log.warn(
+                    'QueueConsumer %s raised `%s` during kill', self, exc)
 
             super(QueueConsumer, self).kill()
             _log.debug('killed %s', self)
@@ -353,6 +358,14 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         if not self._consumers_ready.ready():
             _log.debug('consumer started %s', self)
             self._consumers_ready.send(None)
+
+        for provider in self._providers:
+            try:
+                callback = provider.on_consume_ready
+            except AttributeError:
+                pass
+            else:
+                callback()
 
     def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
         """ Lifted from Kombu.

@@ -249,9 +249,17 @@ class ServiceContainer(object):
         else:
             _log.info('killing %s', self)
 
-        self.dependencies.entrypoints.all.kill()
+        # protect against dependencies that throw during kill; the container
+        # is already dying with an exception, so ignore anything else
+        def safely_kill_dependencies(dep_set):
+            try:
+                dep_set.kill()
+            except Exception as exc:
+                _log.warning('Dependency raised `%s` during kill', exc)
+
+        safely_kill_dependencies(self.dependencies.entrypoints.all)
         self._kill_active_threads()
-        self.dependencies.all.kill()
+        safely_kill_dependencies(self.dependencies.all)
         self._kill_protected_threads()
 
         self.started = False
