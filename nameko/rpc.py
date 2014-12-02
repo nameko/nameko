@@ -13,7 +13,7 @@ from kombu.pools import producers
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
-    MalformedRequest, serialize, deserialize)
+    MalformedRequest, RpcConnectionError, serialize, deserialize)
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
@@ -266,8 +266,13 @@ class ReplyListener(DependencyProvider):
 
         exchange = get_rpc_exchange(container)
 
-        self.queue = Queue(queue_name, exchange=exchange,
-                           routing_key=self.routing_key)
+        self.queue = Queue(
+            queue_name,
+            exchange=exchange,
+            routing_key=self.routing_key,
+            auto_delete=True,
+            exclusive=True,
+        )
 
         self.queue_consumer.register_provider(self)
 
@@ -279,6 +284,17 @@ class ReplyListener(DependencyProvider):
         reply_event = Event()
         self._reply_events[correlation_id] = reply_event
         return reply_event
+
+    def on_consume_ready(self):
+        # This is called on re-connection, and is the best hook for detecting
+        # disconnections. If we have any pending reply events, we were
+        # disconnected, and may have lost replies (since reply queues auto
+        # delete).
+        for event in self._reply_events.values():
+            event.send_exception(
+                RpcConnectionError('Disconnected while waiting for reply')
+            )
+        self._reply_events.clear()
 
     def handle_message(self, body, message):
         self.queue_consumer.ack_message(message)

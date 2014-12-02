@@ -5,6 +5,7 @@ import pytest
 import uuid
 
 from nameko.events import event_handler, Event
+from nameko.exceptions import RpcConnectionError
 from nameko.rpc import rpc, rpc_proxy
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import RpcProxy
@@ -77,6 +78,16 @@ class ProxyService(object):
     def entrypoint(self, arg):
         return self.example_rpc.method(arg)
 
+    @dummy
+    def retry(self, arg):
+        results = []
+        while True:
+            try:
+                results.append(self.example_rpc.method(arg))
+                return results
+            except Exception as ex:
+                results.append((type(ex), str(ex)))
+
 
 def disconnect_on_event(rabbit_manager, connection_name):
     disconnect_now.wait()
@@ -98,8 +109,8 @@ def test_idle_disconnect(container_factory, rabbit_manager, rabbit_config):
         assert proxy.echo("hello") == "hello"
 
 
-def test_proxy_disconnect_with_active_worker(container_factory,
-                                             rabbit_manager, rabbit_config):
+def test_proxy_disconnect_with_active_worker(
+        container_factory, rabbit_manager, rabbit_config):
     """ Break the connection to rabbit while a service's queue consumer and
     rabbit while the service has an in-flight rpc request (i.e. it is waiting
     on a reply).
@@ -127,9 +138,13 @@ def test_proxy_disconnect_with_active_worker(container_factory,
 
     # disconnect proxyservice's queue consumer while its request is in-flight
     eventlet.spawn(disconnect_on_event, rabbit_manager, proxy_consumer_conn)
-    with entrypoint_hook(proxy_container, 'entrypoint') as entrypoint:
-        # we should receive a response after reconnection
-        assert entrypoint('hello') == 'hello'
+    with entrypoint_hook(proxy_container, 'retry') as retry:
+        # if disconnecting while waiting for a reply, call fails
+        # fail, then success
+        assert retry('hello') == [
+            (RpcConnectionError, 'Disconnected while waiting for reply'),
+            'duplicate-call-result',
+        ]
 
     connections = get_rabbit_connections(vhost, rabbit_manager)
     assert proxy_consumer_conn not in [conn['name'] for conn in connections]

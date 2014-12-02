@@ -2,10 +2,12 @@ from __future__ import absolute_import
 
 import logging
 
+from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import itermessages, maybe_declare
 
 from nameko.containers import WorkerContext
+from nameko.exceptions import RpcConnectionError
 from nameko.rpc import ServiceProxy, ReplyListener
 
 
@@ -15,12 +17,17 @@ _logger = logging.getLogger(__name__)
 class ConsumeEvent(object):
     """ Event for the RPC consumer with the same interface as eventlet.Event.
     """
+    exception = None
+
     def __init__(self, queue_consumer, correlation_id):
         self.correlation_id = correlation_id
         self.queue_consumer = queue_consumer
 
     def send(self, body):
         self.body = body
+
+    def send_exception(self, exc):
+        self.exception = exc
 
     def wait(self):
         """ Makes a blocking call to its queue_consumer until the message
@@ -32,7 +39,15 @@ class ConsumeEvent(object):
 
         Exceptions are raised directly.
         """
+        # disconnected before starting to wait
+        if self.exception:
+            raise self.exception
+
         self.queue_consumer.get_message(self.correlation_id)
+
+        # disconnected while waiting
+        if self.exception:
+            raise self.exception
         return self.body
 
 
@@ -47,7 +62,6 @@ class PollingQueueConsumer(object):
         self.connection = Connection(provider.container.config['AMQP_URI'])
         self.channel = self.connection.channel()
         self.queue = provider.queue
-        self.queue.auto_delete = True
         maybe_declare(self.queue, self.channel)
         message_iterator = self._poll_messages()
         message_iterator.send(None)  # start generator
@@ -60,27 +74,43 @@ class PollingQueueConsumer(object):
         msg.ack()
 
     def _poll_messages(self):
-        channel = self.channel
-        conn = channel.connection
         replies = {}
 
         correlation_id = yield
 
-        for body, msg in itermessages(conn, channel, self.queue, limit=None):
-            msg_correlation_id = msg.properties.get('correlation_id')
+        while True:
+            try:
+                for body, msg in itermessages(
+                        self.connection, self.channel, self.queue, limit=None):
+                    msg_correlation_id = msg.properties.get('correlation_id')
 
-            if msg_correlation_id not in self.provider._reply_events:
-                _logger.debug("Unknown correlation id: %s", correlation_id)
-                continue
+                    if msg_correlation_id not in self.provider._reply_events:
+                        _logger.debug(
+                            "Unknown correlation id: %s", correlation_id)
+                        continue
 
-            replies[msg_correlation_id] = (body, msg)
+                    replies[msg_correlation_id] = (body, msg)
 
-            # Here, and every time we re-enter this coroutine (at the `yield`
-            # statement below) we check if we already have the data for the new
-            # correlation_id before polling for new messages.
-            while correlation_id in replies:
-                body, msg = replies.pop(correlation_id)
-                correlation_id = yield self.provider.handle_message(body, msg)
+                    # Here, and every time we re-enter this coroutine (at the
+                    # `yield` statement below) we check if we already have the
+                    # data for the new correlation_id before polling for new
+                    # messages.
+                    while correlation_id in replies:
+                        body, msg = replies.pop(correlation_id)
+                        self.provider.handle_message(body, msg)
+                        correlation_id = yield
+            except ConnectionError as exc:
+                for event in self.provider._reply_events.values():
+                    rpc_connection_error = RpcConnectionError(
+                        'Disconnected while waiting for reply: %s', exc)
+                    event.send_exception(rpc_connection_error)
+                self.provider._reply_events.clear()
+                # In case this was a temporary error, attempt to reconnect. If
+                # we fail, the connection error will bubble.
+                self.channel = self.connection.channel()
+                self.connection = self.channel.connection
+                maybe_declare(self.queue, self.channel)
+                correlation_id = yield
 
 
 class SingleThreadedReplyListener(ReplyListener):
