@@ -1,7 +1,12 @@
+
+from contextlib import contextmanager
+from concurrent.futures import Executor, Future
+import eventlet
 import kombu
 
 from nameko.legacy.context import Context
 from nameko.legacy import nova
+from nameko.utils import try_wraps
 
 
 def get_anon_context():
@@ -35,10 +40,7 @@ class RPCProxy(object):
             options['CONTROL_EXCHANGE'] = self.control_exchange
         return options
 
-    def __getattr__(self, key):
-        if len(self.info) >= 2:
-            raise AttributeError(key)
-        info = self.info[:] + [key]
+    def _clone_with_info(self, info):
         return self.__class__(
             uri=self.uri,
             timeout=self.timeout,
@@ -46,6 +48,12 @@ class RPCProxy(object):
             context_factory=self.context_factory,
             control_exchange=self.control_exchange,
         )
+
+    def __getattr__(self, key):
+        if len(self.info) >= 2:
+            raise AttributeError(key)
+        info = self.info[:] + [key]
+        return self._clone_with_info(info)
 
     def _get_route(self, kwargs):
         info = self.info
@@ -89,3 +97,78 @@ class RPCProxy(object):
 
     def __call__(self, context=None, **kwargs):
         return self.call(context, **kwargs)
+
+
+class GreenPoolExecutor(Executor):
+    def __init__(self, pool):
+        self.pool = pool
+        self._shutdown = False
+
+    def submit(self, fn, *args, **kwargs):
+        if self._shutdown:
+            raise RuntimeError('cannot schedule new futures after '
+                               'shutdown')
+        f = Future()
+
+        @try_wraps(fn)
+        def do_function_call():
+            try:
+                result = fn(*args, **kwargs)
+            except Exception as exc:
+                f.set_exception(exc)
+            else:
+                f.set_result(result)
+
+        self.pool.spawn(do_function_call, *args, **kwargs)
+        f.set_running_or_notify_cancel()
+        return f
+
+    def shutdown(self, wait=True):
+        self._shutdown = True
+        if wait:
+            self.pool.waitall()
+
+
+class _FutureRPCProxy(RPCProxy):
+    def __init__(self, executor, **kwargs):
+        super(_FutureRPCProxy, self).__init__(**kwargs)
+        self.executor = executor
+
+    def _clone_with_info(self, info):
+        return self.__class__(
+            self.executor,
+            uri=self.uri,
+            timeout=self.timeout,
+            info=info,
+            context_factory=self.context_factory,
+            control_exchange=self.control_exchange,
+        )
+
+    def call(self, context=None, **kwargs):
+        topic, method = self._get_route(kwargs)
+        timeout = kwargs.pop('timeout', self.timeout)
+
+        if context is None:
+            context = self.context_factory()
+
+        connection = self.create_connection()
+        waiter = nova.begin_call(
+            connection,
+            context,
+            topic,
+            {'method': method, 'args': kwargs, },
+            timeout=timeout,
+            options=self.call_options(),
+        )
+
+        def do_wait():
+            return waiter.response()
+
+        return self.executor.submit(do_wait)
+
+
+@contextmanager
+def future_rpc(**kwargs):
+    pool = eventlet.GreenPool()
+    with GreenPoolExecutor(pool) as executor:
+        yield _FutureRPCProxy(executor, **kwargs)
