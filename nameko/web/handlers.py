@@ -103,6 +103,11 @@ class RequestHandler(EntrypointProvider):
                                         self.handle_result, event))
         return event.wait()
 
+    def expose_exception(self, exc):
+        is_operational, data = expose_exception(exc)
+        status_code = is_operational and 400 or 500
+        return status_code, data
+
     def handle_result(self, event, worker_ctx, result, exc_info):
         event.send(result)
         return result, exc_info
@@ -131,7 +136,7 @@ class JsonRequestHandler(RequestHandler):
                         mimetype='application/json')
 
     def response_from_exception(self, request, exc_type, exc_value, tb):
-        status_code, payload = expose_exception(exc_value)
+        status_code, payload = self.expose_exception(exc_value)
         return Response(self._serialize_payload(
             request, payload, False),
             status=status_code, mimetype='application/json')
