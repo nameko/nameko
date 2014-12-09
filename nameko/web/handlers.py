@@ -8,7 +8,9 @@ from eventlet.event import Event
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
+from nameko import exceptions
 from nameko.web.server import server
+from nameko.web.exceptions import expose_exception
 from nameko.dependencies import (
     CONTAINER_SHARED, entrypoint, EntrypointProvider, DependencyFactory)
 
@@ -27,10 +29,10 @@ class RequestHandler(EntrypointProvider):
         self.method = method
         self.url = url
 
-    def iter_url_rules(self):
-        yield Rule(self.url, methods=[self.method],
-                   endpoint='%s.%s' % (
-                       self.container.service_name, self.name))
+    def get_url_rule(self):
+        return Rule(self.url, methods=[self.method],
+                    endpoint='%s.%s' % (
+                        self.container.service_name, self.name))
 
     def prepare(self):
         self.server.register_provider(self)
@@ -41,6 +43,9 @@ class RequestHandler(EntrypointProvider):
 
     def context_data_from_headers(self, request):
         return {}
+
+    def load_payload(self, request):
+        return None
 
     def add_url_payload(self, payload, request):
         payload.update(request.path_values)
@@ -55,6 +60,18 @@ class RequestHandler(EntrypointProvider):
         self.add_url_payload(payload, request)
         return context_data, payload
 
+    def describe_response(self, request, result):
+        headers = None
+        if isinstance(result, tuple):
+            if len(result) == 3:
+                status, headers, payload = result
+            else:
+                status, payload = result
+        else:
+            payload = result
+            status = 200
+        return status, headers, payload
+
     def response_from_result(self, request, result):
         raise NotImplementedError()
 
@@ -65,9 +82,13 @@ class RequestHandler(EntrypointProvider):
         try:
             context_data, payload = self.process_request_data(request)
             result = self.handle_message(context_data, payload)
+            if isinstance(result, Response):
+                return result
             return self.response_from_result(request, result)
         except Exception:
-            return self.response_from_exception(request, *sys.exc_info())
+            exc_info = sys.exc_info()
+            _log.error('request handling failed', exc_info=exc_info)
+            return self.response_from_exception(request, *exc_info)
 
     def payload_to_args(self, payload):
         return (), payload
@@ -96,7 +117,7 @@ class JsonRequestHandler(RequestHandler):
             except Exception as e:
                 raise BadPayload('Invalid JSON data')
 
-    def serialize_payload(self, request, payload, success=True):
+    def _serialize_payload(self, request, payload, success=True):
         if success:
             wrapper = {'success': True, 'data': payload}
         else:
@@ -104,26 +125,16 @@ class JsonRequestHandler(RequestHandler):
         return json.dumps(wrapper)
 
     def response_from_result(self, request, result):
-        if isinstance(result, Response):
-            return result
-
-        headers = None
-        if isinstance(result, tuple):
-            if len(result) == 3:
-                status, headers, payload = result
-            else:
-                status, payload = result
-        else:
-            payload = result
-            status = 200
-        return Response(self.serialize_payload(request, payload, True),
+        status, headers, payload = self.describe_response(request, result)
+        return Response(self._serialize_payload(request, payload, True),
                         status=status, headers=headers,
                         mimetype='application/json')
 
     def response_from_exception(self, request, exc_type, exc_value, tb):
-        _log.error('request handling failed', exc_info=(exc_type, exc_value, tb))
-        return Response(self.serialize_payload(request, str(exc_value), False),
-                        status=400, mimetype='application/json')
+        status_code, payload = expose_exception(exc_value)
+        return Response(self._serialize_payload(
+            request, payload, False),
+            status=status_code, mimetype='application/json')
 
 
 @entrypoint

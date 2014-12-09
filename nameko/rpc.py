@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 from functools import partial
-import inspect
 import json
 from logging import getLogger
 import sys
@@ -21,7 +20,7 @@ from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
     CONTAINER_SHARED)
-from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
+from nameko.exceptions import ContainerBeingKilled
 from nameko.utils import repr_safe_str
 
 

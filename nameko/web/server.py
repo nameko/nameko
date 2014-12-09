@@ -4,7 +4,7 @@ from functools import partial
 
 from werkzeug.wrappers import Request
 from werkzeug.routing import Map
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, NotFound
 
 from nameko.dependencies import (
     ProviderCollector, DependencyProvider, DependencyFactory, dependency)
@@ -58,12 +58,12 @@ class Server(DependencyProvider, ProviderCollector):
 
     def stop(self):
         self._is_accepting = False
+        super(Server, self).stop()
 
     def make_url_map(self):
         map = Map()
         for provider in self._providers:
-            for rule in provider.iter_url_rules():
-                map.add(rule)
+            map.add(provider.get_url_rule())
         return map
 
     def get_provider_for_endpoint(self, endpoint):

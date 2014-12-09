@@ -6,13 +6,15 @@ from __future__ import absolute_import
 from functools import wraps, partial
 import inspect
 from itertools import chain
+from logging import getLogger
 import types
 from weakref import WeakSet, WeakKeyDictionary
 
 from eventlet.event import Event
-from nameko.utils import SpawningSet, repr_safe_str
 
-from logging import getLogger
+from nameko.utils import SpawningSet, repr_safe_str
+from nameko.exceptions import IncorrectSignature
+
 _log = getLogger(__name__)
 
 ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
