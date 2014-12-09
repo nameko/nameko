@@ -150,15 +150,6 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         self.rpc_consumer.unregister_provider(self)
         super(RpcProvider, self).stop()
 
-    def check_signature(self, args, kwargs):
-        service_cls = self.container.service_cls
-        fn = getattr(service_cls, self.name)
-        try:
-            service_instance = None  # fn is unbound
-            inspect.getcallargs(fn, service_instance, *args, **kwargs)
-        except TypeError as exc:
-            raise IncorrectSignature(str(exc))
-
     def handle_message(self, body, message):
         try:
             args = body['args']
