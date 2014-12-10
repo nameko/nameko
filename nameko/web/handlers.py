@@ -25,9 +25,10 @@ class BadPayload(Exception):
 class RequestHandler(EntrypointProvider):
     server = server(shared=CONTAINER_SHARED)
 
-    def __init__(self, method, url):
+    def __init__(self, method, url, expected_exceptions=None):
         self.method = method
         self.url = url
+        self.expected_exceptions = expected_exceptions
 
     def get_url_rule(self):
         return Rule(self.url, methods=[self.method],
@@ -105,7 +106,11 @@ class RequestHandler(EntrypointProvider):
 
     def expose_exception(self, exc):
         is_operational, data = expose_exception(exc)
-        status_code = is_operational and 400 or 500
+        if is_operational or (self.expected_exceptions and
+                              isinstance(exc, self.expected_exceptions)):
+            status_code = 400
+        else:
+            status_code = 500
         return status_code, data
 
     def handle_result(self, event, worker_ctx, result, exc_info):
@@ -143,5 +148,6 @@ class JsonRequestHandler(RequestHandler):
 
 
 @entrypoint
-def http(method, url):
-    return DependencyFactory(JsonRequestHandler, method, url)
+def http(method, url, expected_exceptions=None):
+    return DependencyFactory(JsonRequestHandler, method, url,
+                             expected_exceptions=expected_exceptions)
