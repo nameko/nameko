@@ -94,7 +94,7 @@ class WorkerContextBase(object):
                 if k in cls.context_keys}
         return data
 
-    def __str__(self):
+    def __repr__(self):
         cls_name = type(self).__name__
         return '<{} {}.{} at 0x{:x}>'.format(
             cls_name, self.service_name, self.provider.name, id(self))
@@ -437,6 +437,6 @@ class ServiceContainer(object):
             # provide the exception info to be raised in self.wait().
             self.kill(sys.exc_info())
 
-    def __str__(self):
+    def __repr__(self):
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
             self.service_name, id(self))
