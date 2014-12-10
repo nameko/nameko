@@ -58,19 +58,16 @@ class Server(DependencyProvider, ProviderCollector):
 
     def stop(self):
         self._is_accepting = False
+        self._gt.kill()
         super(Server, self).stop()
 
     def make_url_map(self):
         map = Map()
         for provider in self._providers:
-            map.add(provider.get_url_rule())
+            rule = provider.get_url_rule()
+            rule.endpoint = provider
+            map.add(rule)
         return map
-
-    def get_provider_for_endpoint(self, endpoint):
-        service_name = self.container.service_name
-        for provider in self._providers:
-            if '%s.%s' % (service_name, provider.name) == endpoint:
-                return provider
 
 
 class WsgiApp(object):
@@ -80,11 +77,20 @@ class WsgiApp(object):
         self.url_map = server.make_url_map()
 
     def __call__(self, environ, start_response):
-        request = Request(environ)
+        # set to shallow mode so that nobody can read request data in
+        # until unset.  This allows the connection to be upgraded into
+        # a bidirectional websocket connection later if we need in all
+        # cases.  The regular request handling code unsets this flag
+        # automatically.
+        #
+        # If we would not do this and some code would access the form data
+        # before that point, we might deadlock outselves because the
+        # browser is no longer reading from our socket at this point in
+        # time.
+        request = Request(environ, shallow=True)
         adapter = self.url_map.bind_to_environ(environ)
         try:
-            endpoint, values = adapter.match()
-            provider = self.server.get_provider_for_endpoint(endpoint)
+            provider, values = adapter.match()
             request.path_values = values
             rv = provider.handle_request(request)
         except HTTPException as e:

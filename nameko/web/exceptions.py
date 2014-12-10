@@ -1,10 +1,15 @@
 from nameko import exceptions
 
 
+class ConnectionNotFound(LookupError):
+    pass
+
+
 operational_errors = frozenset([
     exceptions.IncorrectSignature,
     exceptions.MalformedRequest,
     exceptions.MethodNotFound,
+    ConnectionNotFound,
 ])
 
 
