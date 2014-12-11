@@ -1,5 +1,4 @@
 import sys
-import json
 from logging import getLogger
 from functools import partial
 
@@ -8,12 +7,10 @@ from eventlet.event import Event
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
-from nameko import exceptions
 from nameko.dependencies import (
     CONTAINER_SHARED, entrypoint, EntrypointProvider, DependencyFactory)
 from nameko.web.server import server
 from nameko.web.protocol import JsonProtocol
-from nameko.web.exceptions import expose_exception
 
 
 _log = getLogger(__name__)

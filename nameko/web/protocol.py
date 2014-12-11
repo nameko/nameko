@@ -2,6 +2,7 @@ import json
 
 from werkzeug.wrappers import Response
 
+from nameko.exceptions import BadPayload
 from nameko.web.exceptions import expose_exception
 
 
@@ -34,7 +35,7 @@ class JsonProtocol(object):
                 data.get('data') or {},
                 data.get('correlation_id'),
             )
-        except Exception as e:
+        except Exception:
             raise BadPayload('Invalid JSON data')
 
     def serialize_result(self, payload, success=True, ws=False,
@@ -60,7 +61,7 @@ class JsonProtocol(object):
         if request.mimetype == 'application/json':
             try:
                 return json.load(request.stream)
-            except Exception as e:
+            except Exception:
                 raise BadPayload('Invalid JSON data')
 
     def response_from_result(self, result):

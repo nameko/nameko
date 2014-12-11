@@ -1,10 +1,10 @@
 import eventlet
-from eventlet import wsgi
+from eventlet import wsgi, support
 from functools import partial
 
 from werkzeug.wrappers import Request
 from werkzeug.routing import Map
-from werkzeug.exceptions import HTTPException, NotFound
+from werkzeug.exceptions import HTTPException
 
 from nameko.dependencies import (
     ProviderCollector, DependencyProvider, DependencyFactory, dependency)
