@@ -3,7 +3,10 @@ from __future__ import absolute_import
 import uuid
 import json
 
+from collections import defaultdict
+
 from eventlet.event import Event
+from eventlet.queue import Queue
 
 from nameko.exceptions import RemoteError
 
@@ -16,21 +19,13 @@ def make_virtual_socket(host, port, path='/ws'):
     class Socket(object):
 
         def __init__(self):
-            self.events_received = []
-            self._event_signal = Event()
+            self._event_queues = defaultdict(Queue)
 
-        def pop_event(self, event_type):
-            for idx, evt in enumerate(self.events_received):
-                if evt[0] == event_type:
-                    del self.events_received[idx]
-                    return evt
+        def get_event_queue(self, event_type):
+            return self._event_queues[event_type]
 
         def wait_for_event(self, event_type):
-            while 1:
-                evt = self.pop_event(event_type)
-                if evt is not None:
-                    return evt
-                self._event_signal.wait()
+            return self.get_event_queue(event_type).get()
 
         def rpc(self, _method, **data):
             id = str(uuid.uuid4())
@@ -52,7 +47,7 @@ def make_virtual_socket(host, port, path='/ws'):
     def on_message(ws, message):
         msg = json.loads(message)
         if msg['type'] == 'event':
-            sock.events_received.append((msg['event'], msg['data']))
+            sock.get_event_queue(msg['event']).put((msg['event'], msg['data']))
         elif msg['type'] == 'result':
             result_id = msg['correlation_id']
             handler = result_handlers.pop(result_id, None)
