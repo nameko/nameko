@@ -17,6 +17,20 @@ def make_virtual_socket(host, port, path='/ws'):
 
         def __init__(self):
             self.events_received = []
+            self._event_signal = Event()
+
+        def pop_event(self, event_type):
+            for idx, evt in enumerate(self.events_received):
+                if evt[0] == event_type:
+                    del self.events_received[idx]
+                    return evt
+
+        def wait_for_event(self, event_type):
+            while 1:
+                evt = self.pop_event(event_type)
+                if evt is not None:
+                    return evt
+                self._event_signal.wait()
 
         def rpc(self, _method, **data):
             id = str(uuid.uuid4())

@@ -15,6 +15,7 @@ from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
     get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
     get_rabbit_connections, get_rabbit_config)
+from nameko.testing.websocket import make_virtual_socket
 
 
 def pytest_addoption(parser):
@@ -118,6 +119,29 @@ def web_session(web_config):
     sess = WebSession()
     with sess:
         yield sess
+
+
+@pytest.yield_fixture()
+def websocket(web_config):
+    active_sockets = []
+
+    def socket_creator():
+        ws_app, wait_for_sock = \
+                make_virtual_socket('127.0.0.1',
+                                    web_config['WEB_SERVER_PORT'])
+        gr = eventlet.spawn(ws_app.run_forever)
+        active_sockets.append((gr, ws_app))
+        return wait_for_sock()
+
+    try:
+        yield socket_creator
+    finally:
+        for gr, ws_app in active_sockets:
+            try:
+                ws_app.close()
+            except Exception:
+                pass
+            gr.kill()
 
 
 @pytest.yield_fixture

@@ -1,6 +1,8 @@
 -r requirements.txt
 -r contrib_requirements.txt
 
+websocket-client==0.23.0
+requests==2.5.0
 coverage==4.0a1
 flake8==2.1
 pylint==1.0.0
