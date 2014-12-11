@@ -54,9 +54,11 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
                 ws, initial_context_data)
             try:
                 while 1:
-                    rv = self.handle_websocket_request(
-                        socket_id, context_data, ws.wait())
-                    ws.send(rv)
+                    raw_req = ws.wait()
+                    if raw_req is None:
+                        break
+                    ws.send(self.handle_websocket_request(
+                        socket_id, context_data, raw_req))
             finally:
                 self.remove_socket(socket_id)
         return WebSocketWSGI(handler)
@@ -68,13 +70,12 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
             provider = self.get_provider_for_method(method)
             return self.protocol.serialize_result(
                 provider.handle_message(socket_id, data, context_data),
-                correlation_id=correlation_id,
-                ws=True)
+                correlation_id=correlation_id, ws=True)
         except Exception as e:
             _log.error('websocket message error', exc_info=True)
             return self.protocol.serialize_result(
                 self.protocol.expose_exception(e)[1], success=False,
-                ws=True)
+                correlation_id=correlation_id, ws=True)
 
     def get_provider_for_method(self, method):
         for provider in self._providers:
