@@ -2,8 +2,7 @@ import json
 
 from werkzeug.wrappers import Response
 
-from nameko.exceptions import BadPayload
-from nameko.web.exceptions import expose_exception
+from nameko.web.exceptions import expose_exception, BadPayload
 
 
 class JsonProtocol(object):

@@ -11,13 +11,10 @@ from nameko.dependencies import (
     CONTAINER_SHARED, entrypoint, EntrypointProvider, DependencyFactory)
 from nameko.web.server import server
 from nameko.web.protocol import JsonProtocol
+from nameko.web.exceptions import BadPayload
 
 
 _log = getLogger(__name__)
-
-
-class BadPayload(Exception):
-    pass
 
 
 class RequestHandler(EntrypointProvider):

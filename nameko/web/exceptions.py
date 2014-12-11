@@ -5,11 +5,16 @@ class ConnectionNotFound(LookupError):
     pass
 
 
+class BadPayload(Exception):
+    pass
+
+
 operational_errors = frozenset([
     exceptions.IncorrectSignature,
     exceptions.MalformedRequest,
     exceptions.MethodNotFound,
     ConnectionNotFound,
+    BadPayload,
 ])
 
 
