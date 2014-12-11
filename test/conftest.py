@@ -1,6 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
 
+import socket
 import itertools
 import logging
 import sys
@@ -86,6 +87,37 @@ def rabbit_config(request, rabbit_manager):
     if connections:
         count = len(connections)
         raise RuntimeError("{} rabbit connection(s) left open.".format(count))
+
+
+@pytest.yield_fixture()
+def web_config(rabbit_config):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    sock.bind(('127.0.0.1', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    cfg = rabbit_config
+    cfg['WEB_SERVER_PORT'] = port
+    yield cfg
+
+
+@pytest.yield_fixture()
+def web_session(web_config):
+    from requests import Session
+    from werkzeug.urls import url_join
+
+    port = web_config['WEB_SERVER_PORT']
+
+    class WebSession(Session):
+        def request(self, method, url, *args, **kwargs):
+            url = url_join('http://127.0.0.1:%d/' % port, url)
+            return Session.request(self, method, url, *args, **kwargs)
+
+    sess = WebSession()
+    with sess:
+        yield sess
 
 
 @pytest.yield_fixture
