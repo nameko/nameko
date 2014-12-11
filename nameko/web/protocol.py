@@ -29,17 +29,24 @@ class JsonProtocol(object):
     def deserialize_ws_frame(self, payload):
         try:
             data = json.loads(payload)
-            return data['method'], data.get('data') or {}
+            return (
+                data['method'],
+                data.get('data') or {},
+                data.get('correlation_id'),
+            )
         except Exception as e:
             raise BadPayload('Invalid JSON data')
 
-    def serialize_result(self, payload, success=True, ws=False):
+    def serialize_result(self, payload, success=True, ws=False,
+                         correlation_id=None):
         if success:
             wrapper = {'success': True, 'data': payload}
         else:
             wrapper = {'success': False, 'error': payload}
         if ws:
             wrapper['type'] = 'result'
+        if ws or correlation_id is not None:
+            wrapper['correlation_id'] = correlation_id
         return unicode(json.dumps(wrapper))
 
     def serialize_event(self, event, data):

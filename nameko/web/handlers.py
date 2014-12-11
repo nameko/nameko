@@ -45,14 +45,11 @@ class RequestHandler(EntrypointProvider):
         self.server.unregister_provider(self)
         super(RequestHandler, self).stop()
 
-    def context_data_from_headers(self, request):
-        return {}
-
     def add_url_payload(self, payload, request):
         payload.update(request.path_values)
 
     def process_request_data(self, request, load_payload=True):
-        context_data = self.context_data_from_headers(request)
+        context_data = self.server.context_data_from_headers(request)
         if load_payload:
             payload = self.protocol.load_payload(request)
             if payload is None:

@@ -69,6 +69,9 @@ class Server(DependencyProvider, ProviderCollector):
             map.add(rule)
         return map
 
+    def context_data_from_headers(self, request):
+        return {}
+
 
 class WsgiApp(object):
 

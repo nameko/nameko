@@ -1,3 +1,4 @@
+import os
 import json
 import uuid
 
@@ -43,14 +44,16 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
 
     def handle_request(self, request):
         try:
-            return self.websocket_mainloop()
+            context_data = self.wsgi_server.context_data_from_headers(request)
+            return self.websocket_mainloop(context_data)
         except Exception:
             _log.error('websocket handling failed', exc_info=True)
             raise
 
-    def websocket_mainloop(self):
+    def websocket_mainloop(self, initial_context_data):
         def handler(ws):
-            socket_id, context_data = self.add_websocket(ws)
+            socket_id, context_data = self.add_websocket(
+                ws, initial_context_data)
             try:
                 while 1:
                     rv = self.handle_websocket_request(
@@ -62,10 +65,12 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
 
     def handle_websocket_request(self, socket_id, context_data, raw_req):
         try:
-            method, data = self.protocol.deserialize_ws_frame(raw_req)
+            method, data, correlation_id = \
+                self.protocol.deserialize_ws_frame(raw_req)
             provider = self.get_provider_for_method(method)
             return self.protocol.serialize_result(
                 provider.handle_message(socket_id, data, context_data),
+                correlation_id=correlation_id,
                 ws=True)
         except Exception as e:
             _log.error('websocket message error', exc_info=True)
@@ -86,16 +91,16 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
         self.wsgi_server.unregister_provider(self)
         super(WebSocketServer, self).stop()
 
-    def add_websocket(self, ws):
+    def add_websocket(self, ws, initial_context_data=None):
         socket_id = str(uuid.uuid4())
-        context_data = {}
+        context_data = dict(initial_context_data or ())
         self.sockets[socket_id] = (ws, context_data)
         return socket_id, context_data
 
     def remove_socket(self, socket_id):
         self.sockets.pop(socket_id, None)
         for provider in self._providers:
-            if isinstance(provider, WebSocketHub):
+            if isinstance(provider, WebSocketHubProvider):
                 provider.cleanup_websocket(socket_id)
 
 
@@ -104,41 +109,41 @@ def websocket_server():
     return DependencyFactory(WebSocketServer)
 
 
-class WebSocketHub(InjectionProvider):
+class WebSocketHubProvider(InjectionProvider):
     server = websocket_server(shared=CONTAINER_SHARED)
 
     def __init__(self):
-        super(WebSocketHub, self).__init__()
-        self.hub_controller = None
+        super(WebSocketHubProvider, self).__init__()
+        self.hub = None
 
     def prepare(self):
-        self.hub_controller = WebSocketHubController(self.server)
+        self.hub = WebSocketHub(self.server)
         self.server.register_provider(self)
 
     def stop(self):
         self.server.unregister_provider(self)
-        super(WebSocketHub, self).stop()
+        super(WebSocketHubProvider, self).stop()
 
     def acquire_injection(self, worker_ctx):
-        return self.hub_controller
+        return self.hub
 
     def cleanup_websocket(self, socket_id):
-        con = self.hub_controller.connections.pop(socket_id, None)
+        con = self.hub.connections.pop(socket_id, None)
         if con is not None:
             for channel in con.subscriptions:
-                subs = self.hub_controller.subscriptions.get(channel)
+                subs = self.hub.subscriptions.get(channel)
                 if subs:
                     subs.discard(channel)
 
 
-class WebSocketHubController(object):
+class WebSocketHub(object):
 
     def __init__(self, server):
         self._server = server
         self.connections = {}
         self.subscriptions = {}
 
-    def get_connection(self, socket_id, create=True):
+    def _get_connection(self, socket_id, create=True):
         rv = self.connections.get(socket_id)
         if rv is not None:
             return rv
@@ -147,17 +152,28 @@ class WebSocketHubController(object):
             if not create:
                 return None
             raise ConnectionNotFound(socket_id)
+        if not create:
+            return None
         _, context_data = rv
         self.connections[socket_id] = rv = Connection(socket_id, context_data)
         return rv
 
+    def get_subscriptions(self, socket_id):
+        """Returns a list of all the subscriptions of a socket."""
+        con = self._get_connection(socket_id, create=False)
+        if con is None:
+            return []
+        return sorted(con.subscriptions)
+
     def subscribe(self, socket_id, channel):
-        con = self.get_connection(socket_id)
+        """Subscribes a socket to a channel."""
+        con = self._get_connection(socket_id)
         self.subscriptions.setdefault(channel, set()).add(socket_id)
         con.subscriptions.add(channel)
 
     def unsubscribe(self, socket_id, channel):
-        con = self.get_connection(socket_id, create=False)
+        """Unsubscribes a socket from a channel."""
+        con = self._get_connection(socket_id, create=False)
         if con is not None:
             con.subscriptions.discard(channel)
         try:
@@ -166,11 +182,23 @@ class WebSocketHubController(object):
             pass
 
     def broadcast(self, channel, event, data):
+        """Broadcasts an event to all sockets listening on a channel."""
         payload = self._server.protocol.serialize_event(event, data)
         for socket_id in self.subscriptions.get(channel, ()):
             rv = self._server.sockets.get(socket_id)
             if rv is not None:
                 rv[0].send(payload)
+
+    def unicast(self, socket_id, event, data):
+        """Sends an event to a single socket.  Returns `True` if that
+        worked or `False` if not.
+        """
+        payload = self._server.protocol.serialize_event(event, data)
+        rv = self._server.sockets.get(socket_id)
+        if rv is not None:
+            rv[0].send(payload)
+            return True
+        return False
 
 
 class WebSocketRpc(EntrypointProvider):
@@ -202,7 +230,7 @@ class WebSocketRpc(EntrypointProvider):
 
 @injection
 def websocket_hub():
-    return DependencyFactory(WebSocketHub)
+    return DependencyFactory(WebSocketHubProvider)
 
 
 @entrypoint
