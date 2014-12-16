@@ -5,9 +5,9 @@ import mock
 import pytest
 
 from nameko.exceptions import RemoteError, UnknownService
+from nameko.kombu_helpers import queue_iterator
 from nameko.legacy import context
 from nameko.legacy import nova
-from nameko.legacy.consuming import queue_iterator
 from nameko.legacy.responses import ifirst
 from nameko.testing.utils import assert_stops_raising
 

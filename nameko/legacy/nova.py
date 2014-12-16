@@ -5,7 +5,8 @@ from kombu import Producer, Exchange, Queue
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import UnknownService
-from nameko.legacy import consuming, responses
+from nameko.kombu_helpers import queue_iterator
+from nameko.legacy import responses
 from nameko.legacy.context import Context
 from nameko.legacy.channelhandler import ChannelHandler
 from nameko.legacy.common import UIDGEN
@@ -116,7 +117,7 @@ def send_rpc(connection, context, exchange, topic, method, args, timeout=None):
         queue = get_reply_queue(msgid, channel=channel)
         queue.declare()
         _send_topic(connection, exchange, topic, payload)
-        iter_ = consuming.queue_iterator(queue, timeout=timeout)
+        iter_ = queue_iterator(queue, timeout=timeout)
         iter_ = responses.iter_rpcresponses(iter_)
         ret = responses.last(iter_)
         if ret is not None:
