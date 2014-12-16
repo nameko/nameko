@@ -1,3 +1,4 @@
+import eventlet
 from kombu.message import Message
 from mock import patch
 import pytest
@@ -5,7 +6,7 @@ import socket
 
 from nameko.containers import WorkerContext
 from nameko.dependencies import injection, InjectionProvider, DependencyFactory
-from nameko.exceptions import RemoteError
+from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.utils import get_rabbit_connections
@@ -100,7 +101,7 @@ def test_proxy_worker_context(container_factory, rabbit_config):
     context_data = {'custom_header': 'custom_value'}
 
     with RpcProxy('foobar', rabbit_config, context_data,
-                  CustomWorkerContext) as foo:
+                  worker_ctx_cls=CustomWorkerContext) as foo:
         assert foo.get_context_data('custom_header') == "custom_value"
 
     with RpcProxy('foobar', rabbit_config, context_data) as foo:
@@ -231,7 +232,7 @@ class ExampleService(object):
         return arg
 
 
-def test_standalone_proxy_disconnect_with_pending_reply(
+def test_disconnect_with_pending_reply(
         container_factory, rabbit_manager, rabbit_config):
 
     example_container = container_factory(ExampleService, rabbit_config)
@@ -273,6 +274,43 @@ def test_standalone_proxy_disconnect_with_pending_reply(
 
             # proxy should work again afterwards
             assert proxy.method('hello') == 'hello'
+
+
+def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with RpcProxy('foobar', rabbit_config, timeout=1) as proxy:
+        assert proxy.spam(ham=1) == 1
+
+
+def test_timeout(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()  # create the service rpc queue
+    container.stop()
+
+    with RpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
+        with pytest.raises(RpcTimeout):
+            proxy.spam(ham=1)
+
+        container = container_factory(FooService, rabbit_config)
+        container.start()
+
+        # make sure we can still use the proxy
+        assert proxy.spam(ham=1) == 1
+
+
+def test_no_timeout_waits_forever(
+        container_factory, rabbit_manager, rabbit_config
+    ):
+    container = container_factory(FooService, rabbit_config)
+    container.start()  # create the service rpc queue
+    container.stop()
+
+    with RpcProxy('foobar', rabbit_config) as proxy:
+        with pytest.raises(eventlet.Timeout):
+            with eventlet.Timeout(.1):
+                proxy.spam(ham=1)
 
 
 def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
