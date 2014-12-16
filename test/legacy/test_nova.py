@@ -68,7 +68,8 @@ def test_send_rpc(get_connection):
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
                 queue_declared.send(True)
-                body, msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
+                body, msg = ifirst(
+                    queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, _, _, args = nova.parse_message(body)
 
                 exchange = nova.get_reply_exchange(msgid)
@@ -128,7 +129,8 @@ def test_send_rpc_errors(get_connection):
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
                 queue_declared.send(True)
-                body, msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
+                body, msg = ifirst(
+                    queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, _, _, _ = nova.parse_message(body)
 
                 exchange = nova.get_reply_exchange(msgid)
@@ -177,7 +179,8 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
                 queue.declare()
                 queue_declared.send(True)
 
-                body, msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
+                body, msg = ifirst(
+                    queue_iterator(queue, no_ack=True, timeout=2))
                 msgid, _, _, args = nova.parse_message(body)
 
                 exchange = nova.get_reply_exchange(msgid)

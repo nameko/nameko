@@ -301,8 +301,8 @@ def test_timeout(container_factory, rabbit_manager, rabbit_config):
 
 
 def test_no_timeout_waits_forever(
-        container_factory, rabbit_manager, rabbit_config
-    ):
+    container_factory, rabbit_manager, rabbit_config
+):
     container = container_factory(FooService, rabbit_config)
     container.start()  # create the service rpc queue
     container.stop()

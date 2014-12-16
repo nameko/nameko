@@ -33,8 +33,9 @@ def queue_iterator(queue, no_ack=False, timeout=None):
 
     consumer = Consumer(channel, queues=[queue], no_ack=no_ack)
     try:
-        for body, msg in drain_consumer(consumer, limit=None, timeout=timeout,
-                                     ignore_timeouts=False):
+        for body, msg in drain_consumer(
+            consumer, limit=None, timeout=timeout, ignore_timeouts=False
+        ):
             yield body, msg
     except socket.timeout:
         if timeout is not None:
