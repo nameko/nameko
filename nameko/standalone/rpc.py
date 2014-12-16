@@ -4,10 +4,11 @@ import logging
 
 from amqp.exceptions import ConnectionError
 from kombu import Connection
-from kombu.common import itermessages, maybe_declare
+from kombu.common import maybe_declare
 
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcConnectionError
+from nameko.kombu_helpers import queue_iterator
 from nameko.rpc import ServiceProxy, ReplyListener
 
 
@@ -61,7 +62,8 @@ class PollingQueueConsumer(object):
         self.provider = provider
         self.connection = Connection(provider.container.config['AMQP_URI'])
         self.channel = self.connection.channel()
-        self.queue = provider.queue
+        queue = provider.queue
+        self.queue = queue.bind(self.channel)
         maybe_declare(self.queue, self.channel)
         message_iterator = self._poll_messages()
         message_iterator.send(None)  # start generator
@@ -80,8 +82,9 @@ class PollingQueueConsumer(object):
 
         while True:
             try:
-                for body, msg in itermessages(
-                        self.connection, self.channel, self.queue, limit=None):
+                for body, msg in queue_iterator(
+                    self.queue, timeout=self.timeout
+                ):
                     msg_correlation_id = msg.properties.get('correlation_id')
 
                     if msg_correlation_id not in self.provider._reply_events:
@@ -108,6 +111,7 @@ class PollingQueueConsumer(object):
                 # In case this was a temporary error, attempt to reconnect. If
                 # we fail, the connection error will bubble.
                 self.channel = self.connection.channel()
+                self.queue = self.queue.bind(self.channel)
                 self.connection = self.channel.connection
                 maybe_declare(self.queue, self.channel)
                 correlation_id = yield

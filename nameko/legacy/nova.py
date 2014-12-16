@@ -118,6 +118,7 @@ def send_rpc(connection, context, exchange, topic, method, args, timeout=None):
         queue.declare()
         _send_topic(connection, exchange, topic, payload)
         iter_ = queue_iterator(queue, timeout=timeout)
+        iter_ = (msg for (_, msg) in iter_)
         iter_ = responses.iter_rpcresponses(iter_)
         ret = responses.last(iter_)
         if ret is not None:

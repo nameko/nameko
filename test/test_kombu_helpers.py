@@ -17,7 +17,7 @@ class TestQueueIteratorTimeout(object):
         drain_consumer.return_value = [(1, 'foo'), (2, 'bar')]
         queue = Mock()
         res = list(queue_iterator(queue, timeout=1))
-        assert res == ['foo', 'bar']
+        assert res == [(1, 'foo'), (2, 'bar')]
 
     @patch('nameko.kombu_helpers.eventloop', autospec=True)
     def test_timeout_raises_rpc_exc_on_timeout(self, eventloop):
