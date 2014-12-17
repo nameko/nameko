@@ -329,6 +329,19 @@ def test_async_timeout(
         result.result()
 
 
+def test_foo(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()  # create the service rpc queue
+
+    with RpcProxy('foobar', rabbit_config) as proxy:
+        proxy.spam(ham=1)
+        pass
+
+    with pytest.raises(RuntimeError) as exc:
+        proxy.spam(ham=1)
+    assert 'can no longer be used' in str(exc)
+
+
 def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     with RpcProxy('exampleservice', rabbit_config):

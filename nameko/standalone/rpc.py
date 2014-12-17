@@ -44,6 +44,10 @@ class ConsumeEvent(object):
         if self.exception:
             raise self.exception
 
+        if self.queue_consumer.channel.connection is None:
+            raise RuntimeError(
+                "This consumer has been stopped, and can no longer be used"
+            )
         self.queue_consumer.get_message(self.correlation_id)
 
         # disconnected while waiting
@@ -191,35 +195,58 @@ class RpcProxy(object):
     class DummyProvider(object):
         name = "call"
 
-    def __init__(
-        self, container_service_name, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
-    ):
-
+    def _setup(self, config, context_data, timeout, worker_ctx_cls):
         container = RpcProxy.ServiceContainer(config)
 
         reply_listener = SingleThreadedReplyListener(timeout=timeout)
         reply_listener.container = container
 
-        worker_ctx = worker_ctx_cls(
+        self._worker_ctx = worker_ctx_cls(
             container, service=None, provider=self.DummyProvider,
             data=context_data)
-        service_proxy = ServiceProxy(worker_ctx, container_service_name,
-                                     reply_listener)
-
         self._reply_listener = reply_listener
-        self._service_proxy = service_proxy
+
+    def __init__(
+        self, service_name, config, context_data=None, timeout=None,
+        worker_ctx_cls=WorkerContext
+    ):
+        self._setup(config, context_data, timeout, worker_ctx_cls)
+        self._proxy = ServiceProxy(
+            self._worker_ctx, service_name, self._reply_listener)
 
     def __enter__(self):
-        self.start()
-        return self._service_proxy
+        return self.start()
 
     def __exit__(self, tpe, value, traceback):
         self.stop()
 
     def start(self):
         self._reply_listener.prepare()
-        return self._service_proxy
+        return self._proxy
 
     def stop(self):
         self._reply_listener.stop()
+
+
+class FooRpcProxy(RpcProxy):
+    class MultiProxy(object):
+        def __init__(self, worker_ctx, reply_listener):
+            self._worker_ctx = worker_ctx
+            self._reply_listener = reply_listener
+
+            self._proxies = {}
+
+        def __getattr__(self, name):
+            if name not in self._proxies:
+                self._proxies[name] = ServiceProxy(
+                    self._worker_ctx, name, self._reply_listener)
+            return self._proxies[name]
+
+    def __init__(
+        self, service_name, config, context_data=None, timeout=None,
+        worker_ctx_cls=WorkerContext
+    ):
+
+        self._setup(config, context_data, timeout, worker_ctx_cls)
+        self._proxy = ServiceProxy(
+            self._worker_ctx, service_name, self._reply_listener)
