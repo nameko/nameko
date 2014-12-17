@@ -151,7 +151,7 @@ class SingleThreadedReplyListener(ReplyListener):
         return reply_event
 
 
-class RpcProxy(object):
+class StandaloneProxyBase(object):
     """
     A single-threaded RPC proxy to a named service. Method calls on the
     proxy are converted into RPC calls to the service, with responses
@@ -206,14 +206,6 @@ class RpcProxy(object):
             data=context_data)
         self._reply_listener = reply_listener
 
-    def __init__(
-        self, service_name, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
-    ):
-        self._setup(config, context_data, timeout, worker_ctx_cls)
-        self._proxy = ServiceProxy(
-            self._worker_ctx, service_name, self._reply_listener)
-
     def __enter__(self):
         return self.start()
 
@@ -228,7 +220,17 @@ class RpcProxy(object):
         self._reply_listener.stop()
 
 
-class FooRpcProxy(RpcProxy):
+class ServiceRpcProxy(StandaloneProxyBase):
+    def __init__(
+        self, service_name, config, context_data=None, timeout=None,
+        worker_ctx_cls=WorkerContext
+    ):
+        self._setup(config, context_data, timeout, worker_ctx_cls)
+        self._proxy = ServiceProxy(
+            self._worker_ctx, service_name, self._reply_listener)
+
+
+class RpcProxy(StandaloneProxyBase):
     class MultiProxy(object):
         def __init__(self, worker_ctx, reply_listener):
             self._worker_ctx = worker_ctx
