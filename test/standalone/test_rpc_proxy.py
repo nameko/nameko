@@ -47,6 +47,11 @@ class FooService(object):
     def get_context_data(self, name):
         return self.get_context_value(name)
 
+    @rpc
+    def sleep(self, seconds=0):
+        eventlet.sleep(seconds)
+        return seconds
+
 
 class ExampleError(Exception):
     pass
@@ -281,23 +286,19 @@ def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):
     container.start()
 
     with RpcProxy('foobar', rabbit_config, timeout=1) as proxy:
-        assert proxy.spam(ham=1) == 1
+        assert proxy.sleep() == 0
 
 
 def test_timeout(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
-    container.start()  # create the service rpc queue
-    container.stop()
+    container.start()
 
     with RpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
         with pytest.raises(RpcTimeout):
-            proxy.spam(ham=1)
-
-        container = container_factory(FooService, rabbit_config)
-        container.start()
+            proxy.sleep(seconds=1)
 
         # make sure we can still use the proxy
-        assert proxy.spam(ham=1) == 1
+        assert proxy.sleep(seconds=0) == 0
 
 
 def test_no_timeout_waits_forever(
@@ -305,12 +306,11 @@ def test_no_timeout_waits_forever(
 ):
     container = container_factory(FooService, rabbit_config)
     container.start()  # create the service rpc queue
-    container.stop()
 
     with RpcProxy('foobar', rabbit_config) as proxy:
         with pytest.raises(eventlet.Timeout):
             with eventlet.Timeout(.1):
-                proxy.spam(ham=1)
+                proxy.sleep(seconds=1)
 
 
 def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
