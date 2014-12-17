@@ -4,7 +4,6 @@ eventlet.monkey_patch()
 import itertools
 import logging
 import sys
-from urlparse import urlparse
 
 from kombu import pools
 from mock import patch
@@ -14,7 +13,7 @@ from nameko.containers import ServiceContainer, WorkerContext
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
     get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
-    get_rabbit_connections)
+    get_rabbit_connections, get_rabbit_config)
 
 
 def pytest_addoption(parser):
@@ -73,24 +72,17 @@ def rabbit_manager(request):
 def rabbit_config(request, rabbit_manager):
     amqp_uri = request.config.getoption('AMQP_URI')
 
-    conf = {'AMQP_URI': amqp_uri}
+    conf = get_rabbit_config(amqp_uri)
 
-    uri = urlparse(amqp_uri)
-    vhost = uri.path[1:].replace('/', '%2F')
-    username = uri.username
-
-    conf['vhost'] = vhost
-    conf['username'] = username
-
-    reset_rabbit_connections(vhost, rabbit_manager)
-    reset_rabbit_vhost(vhost, username, rabbit_manager)
+    reset_rabbit_connections(conf['vhost'], rabbit_manager)
+    reset_rabbit_vhost(conf['vhost'], conf['username'], rabbit_manager)
 
     yield conf
 
     pools.reset()  # close connections in pools
 
     # raise a runtime error if the test leaves any connections lying around
-    connections = get_rabbit_connections(vhost, rabbit_manager)
+    connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
     if connections:
         count = len(connections)
         raise RuntimeError("{} rabbit connection(s) left open.".format(count))
