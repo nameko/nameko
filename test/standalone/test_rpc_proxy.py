@@ -305,7 +305,7 @@ def test_no_timeout(
     container_factory, rabbit_manager, rabbit_config
 ):
     container = container_factory(FooService, rabbit_config)
-    container.start()  # create the service rpc queue
+    container.start()
 
     with RpcProxy('foobar', rabbit_config) as proxy:
         with pytest.raises(eventlet.Timeout):
@@ -317,7 +317,7 @@ def test_async_timeout(
     container_factory, rabbit_manager, rabbit_config
 ):
     container = container_factory(FooService, rabbit_config)
-    container.start()  # create the service rpc queue
+    container.start()
 
     with RpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
         result = proxy.sleep.async(seconds=1)
