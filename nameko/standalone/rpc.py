@@ -63,6 +63,7 @@ class PollingQueueConsumer(object):
 
     def _setup_queue(self):
         self.channel = self.connection.channel()
+        # queue.bind returns a bound copy
         self.queue = self.queue.bind(self.channel)
         maybe_declare(self.queue, self.channel)
 
@@ -114,7 +115,8 @@ class PollingQueueConsumer(object):
                 event.send_exception(exc)
 
                 # timeout is implemented using socket timeout, so when it
-                # triggers we disconnect, causing the reply queue to be deleted
+                # fires the connection is closed, causing the reply queue
+                # to be deleted
                 self._setup_queue()
                 correlation_id = yield
 
