@@ -301,7 +301,7 @@ def test_timeout(container_factory, rabbit_manager, rabbit_config):
         assert proxy.sleep(seconds=0) == 0
 
 
-def test_no_timeout_waits_forever(
+def test_no_timeout(
     container_factory, rabbit_manager, rabbit_config
 ):
     container = container_factory(FooService, rabbit_config)
