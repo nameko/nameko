@@ -141,7 +141,7 @@ def get_rabbit_config(amqp_uri):
     conf = {'AMQP_URI': amqp_uri}
 
     uri = urlparse(amqp_uri)
-    conf['vhost'] = uri.path[1:].replace('/', '%2F')
+    conf['vhost'] = uri.path[1:]
     conf['username'] = uri.username
 
     return conf
