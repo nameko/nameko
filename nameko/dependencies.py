@@ -132,7 +132,7 @@ class DependencyProvider(object):
 
     def __repr__(self):
         try:
-            return '<{} [{}.{}] at 0x{:x}>'.format(
+            return '<{} [{!r}.{!r}] at 0x{:x}>'.format(
                 type(self).__name__,
                 self.container.service_name, self.name,
                 id(self))

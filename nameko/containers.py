@@ -96,8 +96,10 @@ class WorkerContextBase(object):
 
     def __repr__(self):
         cls_name = type(self).__name__
-        return '<{} {}.{} at 0x{:x}>'.format(
-            cls_name, self.service_name, self.provider.name, id(self))
+        service_name = self.service_name
+        provider_name = getattr(self.provider, 'name', '<unbound-provider>')
+        return '<{} {!r}.{!r} at 0x{:x}>'.format(
+            cls_name, service_name, provider_name, id(self))
 
     def _init_call_id(self):
         parent_call_stack = self.data.pop(CALL_ID_STACK_CONTEXT_KEY, [])
@@ -438,5 +440,5 @@ class ServiceContainer(object):
             self.kill(sys.exc_info())
 
     def __repr__(self):
-        return '<ServiceContainer [{}] at 0x{:x}>'.format(
+        return '<ServiceContainer [{!r}] at 0x{:x}>'.format(
             self.service_name, id(self))
