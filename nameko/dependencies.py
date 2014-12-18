@@ -34,6 +34,8 @@ class DependencyTypeError(TypeError):
 
 class DependencyProvider(object):
 
+    _bound = False
+
     def prepare(self):
         """ Called when the service container starts.
 
@@ -110,6 +112,7 @@ class DependencyProvider(object):
         """
         self.name = name
         self.container = container
+        self._bound = True
 
     @property
     def nested_dependencies(self):
@@ -131,14 +134,15 @@ class DependencyProvider(object):
                     yield nested_dep
 
     def __repr__(self):
-        try:
-            return '<{} [{!r}.{!r}] at 0x{:x}>'.format(
-                type(self).__name__,
-                self.container.service_name, self.name,
-                id(self))
-        except:
+        if not self._bound:
             return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
+
+        service_name = self.container.service_name.encode('utf-8')
+        name = self.name.encode('utf-8')
+
+        return '<{} [{}.{}] at 0x{:x}>'.format(
+            type(self).__name__, service_name, name, id(self))
 
 
 class EntrypointProvider(DependencyProvider):

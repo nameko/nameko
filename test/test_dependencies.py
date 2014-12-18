@@ -1,3 +1,5 @@
+# coding: utf-8
+
 import eventlet
 from mock import Mock, patch
 import pytest
@@ -215,14 +217,14 @@ def test_decorated_functions_must_return_dependency_factories():
             pass
 
 
-def test_stringify():
+def test_str():
     dep = DependencyProvider()
     assert str(dep).startswith('<DependencyProvider [unbound] at')
 
     container = Mock()
-    container.service_name = 'foobar'
+    container.service_name = u'föbar'
     dep.bind('spam', container)
-    assert str(dep).startswith('<DependencyProvider [foobar.spam] at')
+    assert str(dep).startswith("<DependencyProvider [f\xc3\xb6bar.spam] at")
 
 
 def test_provider_collector():
