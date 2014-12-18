@@ -434,5 +434,6 @@ class MethodProxy(HeaderEncoder):
         return RpcReply(reply_event)
 
     def __repr__(self):
-        return '<proxy method: {!r}.{!r}>'.format(
-            self.service_name, self.method_name)
+        service_name = self.service_name.encode('utf-8')
+        method_name = self.method_name.encode('utf-8')
+        return '<proxy method: {}.{}>'.format(service_name, method_name)

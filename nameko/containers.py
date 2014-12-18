@@ -96,9 +96,9 @@ class WorkerContextBase(object):
 
     def __repr__(self):
         cls_name = type(self).__name__
-        service_name = self.service_name
-        provider_name = getattr(self.provider, 'name', '<unbound-provider>')
-        return '<{} {!r}.{!r} at 0x{:x}>'.format(
+        service_name = self.service_name.encode('utf-8')
+        provider_name = self.provider.name.encode('utf-8')
+        return '<{} {}.{} at 0x{:x}>'.format(
             cls_name, service_name, provider_name, id(self))
 
     def _init_call_id(self):
@@ -440,5 +440,6 @@ class ServiceContainer(object):
             self.kill(sys.exc_info())
 
     def __repr__(self):
-        return '<ServiceContainer [{!r}] at 0x{:x}>'.format(
-            self.service_name, id(self))
+        service_name = self.service_name.encode('utf-8')
+        return '<ServiceContainer [{}] at 0x{:x}>'.format(
+            service_name, id(self))
