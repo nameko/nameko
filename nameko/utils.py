@@ -6,11 +6,14 @@ from eventlet.queue import LightQueue
 
 
 def repr_safe_str(value):
-    """ Transform a bytestring or unicode `value` into a UTF-8 bytestring
-    safe for use in a (python2) repr.
+    """ Transform `value` into a bytestring safe for use in a (python2) repr.
 
-    Falls back to ``repr(value)`` if the encoding fails for any reason.
+    Strings that are already bytestrings are returned unchanged. Unicode
+    strings are encoded with UTF-8. Falls back to ``repr(value)`` if the
+    encoding fails for any reason.
     """
+    if type(value) is bytes:
+        return value
     try:
         return value.encode('utf-8')
     except Exception:
