@@ -1,3 +1,12 @@
+Version 1.14.0
+--------------
+
+* Remove parallel provider injection in favour of async RPC
+* Update `worker_factory` to raise if asked to replace a non-existent injection
+* Add various __repr__ methods for better logging
+* Support for timeouts in the (non-legacy) standalone RPC proxy
+* Add helper for manipulating an AMQP URI into a dict
+
 Version 1.13.0
 --------------
 
