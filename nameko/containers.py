@@ -20,6 +20,7 @@ from nameko.dependencies import (
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
+from nameko.utils import repr_safe_str
 
 
 _log = getLogger(__name__)
@@ -96,8 +97,8 @@ class WorkerContextBase(object):
 
     def __repr__(self):
         cls_name = type(self).__name__
-        service_name = self.service_name.encode('utf-8')
-        provider_name = self.provider.name.encode('utf-8')
+        service_name = repr_safe_str(self.service_name)
+        provider_name = repr_safe_str(self.provider.name)
         return '<{} {}.{} at 0x{:x}>'.format(
             cls_name, service_name, provider_name, id(self))
 
@@ -440,6 +441,6 @@ class ServiceContainer(object):
             self.kill(sys.exc_info())
 
     def __repr__(self):
-        service_name = self.service_name.encode('utf-8')
+        service_name = repr_safe_str(self.service_name)
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
             service_name, id(self))

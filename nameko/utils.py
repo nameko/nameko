@@ -5,6 +5,18 @@ import eventlet
 from eventlet.queue import LightQueue
 
 
+def repr_safe_str(value):
+    """ Transform a bytestring or unicode `value` into a UTF-8 bytestring
+    safe for use in a (python2) repr.
+
+    Falls back to ``repr(value)`` if the encoding fails for any reason.
+    """
+    try:
+        return value.encode('utf-8')
+    except Exception:
+        return repr(value)
+
+
 def fail_fast_imap(pool, call, items):
     """ Run a function against each item in a given list, yielding each
     function result in turn, where the function call is handled in a

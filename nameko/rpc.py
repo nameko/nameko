@@ -21,6 +21,8 @@ from nameko.dependencies import (
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
     CONTAINER_SHARED)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
+from nameko.utils import repr_safe_str
+
 
 _log = getLogger(__name__)
 
@@ -434,6 +436,6 @@ class MethodProxy(HeaderEncoder):
         return RpcReply(reply_event)
 
     def __repr__(self):
-        service_name = self.service_name.encode('utf-8')
-        method_name = self.method_name.encode('utf-8')
+        service_name = repr_safe_str(self.service_name)
+        method_name = repr_safe_str(self.method_name)
         return '<proxy method: {}.{}>'.format(service_name, method_name)
