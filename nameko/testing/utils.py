@@ -137,6 +137,16 @@ def worker_context_factory(*keys):
     return CustomWorkerContext
 
 
+def get_rabbit_config(amqp_uri):
+    conf = {'AMQP_URI': amqp_uri}
+
+    uri = urlparse(amqp_uri)
+    conf['vhost'] = uri.path[1:]
+    conf['username'] = uri.username
+
+    return conf
+
+
 def get_rabbit_manager(rabbit_ctl_uri):
     uri = urlparse(rabbit_ctl_uri)
     host_port = '{0.hostname}:{0.port}'.format(uri)
