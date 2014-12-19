@@ -12,7 +12,7 @@ def repr_safe_str(value):
     strings are encoded with UTF-8. Falls back to ``repr(value)`` if the
     encoding fails for any reason.
     """
-    if type(value) is bytes:
+    if isinstance(value, bytes):
         return value
     try:
         return value.encode('utf-8')

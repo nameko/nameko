@@ -46,4 +46,4 @@ def test_fail_fast_imap():
 def test_repr_safe_str(value, repr_safe_value):
     res = repr_safe_str(value)
     assert res == repr_safe_value
-    assert type(res) is bytes
+    assert isinstance(res, bytes)
