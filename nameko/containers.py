@@ -20,6 +20,7 @@ from nameko.dependencies import (
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
+from nameko.utils import repr_safe_str
 
 
 _log = getLogger(__name__)
@@ -94,10 +95,12 @@ class WorkerContextBase(object):
                 if k in cls.context_keys}
         return data
 
-    def __str__(self):
+    def __repr__(self):
         cls_name = type(self).__name__
+        service_name = repr_safe_str(self.service_name)
+        provider_name = repr_safe_str(self.provider.name)
         return '<{} {}.{} at 0x{:x}>'.format(
-            cls_name, self.service_name, self.provider.name, id(self))
+            cls_name, service_name, provider_name, id(self))
 
     def _init_call_id(self):
         parent_call_stack = self.data.pop(CALL_ID_STACK_CONTEXT_KEY, [])
@@ -437,6 +440,7 @@ class ServiceContainer(object):
             # provide the exception info to be raised in self.wait().
             self.kill(sys.exc_info())
 
-    def __str__(self):
+    def __repr__(self):
+        service_name = repr_safe_str(self.service_name)
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
-            self.service_name, id(self))
+            service_name, id(self))

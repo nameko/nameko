@@ -1,8 +1,22 @@
-import functools
 import sys
 
 import eventlet
 from eventlet.queue import LightQueue
+
+
+def repr_safe_str(value):
+    """ Transform `value` into a bytestring safe for use in a (python2) repr.
+
+    Strings that are already bytestrings are returned unchanged. Unicode
+    strings are encoded with UTF-8. Falls back to ``repr(value)`` if the
+    encoding fails for any reason.
+    """
+    if isinstance(value, bytes):
+        return value
+    try:
+        return value.encode('utf-8')
+    except Exception:
+        return repr(value)
 
 
 def fail_fast_imap(pool, call, items):
@@ -90,19 +104,3 @@ class SpawningSet(set):
     @property
     def all(self):
         return SpawningProxy(self)
-
-
-def try_wraps(func):
-    """Marks a function as wrapping another one using `functools.wraps`, but
-    fails unobtrusively when this isn't possible"""
-    do_wrap = functools.wraps(func)
-
-    def try_to_wrap(inner):
-        try:
-            return do_wrap(inner)
-        except AttributeError:
-            # Some objects don't have all the attributes needed in order to
-            # be wrapped. Fail gracefully and don't wrap.
-            return inner
-
-    return try_to_wrap

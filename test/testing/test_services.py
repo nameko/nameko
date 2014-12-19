@@ -201,11 +201,8 @@ def test_worker_factory():
     assert instance.bar_proxy is bar_injection
 
     # non-applicable injection
-    instance = worker_factory(Service, nonexist=object())
-    assert isinstance(instance, Service)
-    assert isinstance(instance.foo_proxy, Mock)
-    assert isinstance(instance.bar_proxy, Mock)
-    assert not hasattr(instance, "nonexist")
+    with pytest.raises(DependencyNotFound):
+        worker_factory(Service, nonexist=object())
 
 
 def test_replace_injections(container_factory, rabbit_config):

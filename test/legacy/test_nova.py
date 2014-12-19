@@ -5,9 +5,9 @@ import mock
 import pytest
 
 from nameko.exceptions import RemoteError, UnknownService
+from nameko.kombu_helpers import queue_iterator
 from nameko.legacy import context
 from nameko.legacy import nova
-from nameko.legacy.consuming import queue_iterator
 from nameko.legacy.responses import ifirst
 from nameko.testing.utils import assert_stops_raising
 
@@ -68,8 +68,9 @@ def test_send_rpc(get_connection):
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
                 queue_declared.send(True)
-                msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
-                msgid, _, _, args = nova.parse_message(msg.payload)
+                body, msg = ifirst(
+                    queue_iterator(queue, no_ack=True, timeout=2))
+                msgid, _, _, args = nova.parse_message(body)
 
                 exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
@@ -128,8 +129,9 @@ def test_send_rpc_errors(get_connection):
                     'test_rpc', 'test', channel=chan)
                 queue.declare()
                 queue_declared.send(True)
-                msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
-                msgid, _, _, _ = nova.parse_message(msg.payload)
+                body, msg = ifirst(
+                    queue_iterator(queue, no_ack=True, timeout=2))
+                msgid, _, _, _ = nova.parse_message(body)
 
                 exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)
@@ -177,8 +179,9 @@ def test_send_rpc_multi_message_reply_ignores_all_but_last(get_connection):
                 queue.declare()
                 queue_declared.send(True)
 
-                msg = ifirst(queue_iterator(queue, no_ack=True, timeout=2))
-                msgid, _, _, args = nova.parse_message(msg.payload)
+                body, msg = ifirst(
+                    queue_iterator(queue, no_ack=True, timeout=2))
+                msgid, _, _, args = nova.parse_message(body)
 
                 exchange = nova.get_reply_exchange(msgid)
                 producer = Producer(chan, exchange=exchange, routing_key=msgid)

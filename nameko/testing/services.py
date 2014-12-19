@@ -176,6 +176,9 @@ def worker_factory(service_cls, **injections):
 
     .. literalinclude:: examples/testing/unit_with_provided_injection_test.py
 
+    If a given injection does not exist on ``service_cls``, a
+    ``DependencyNotFound`` exception is raised.
+
     """
     service = service_cls()
     for name, attr in inspect.getmembers(service_cls):
@@ -183,10 +186,15 @@ def worker_factory(service_cls, **injections):
             factory = attr
             if issubclass(factory.dep_cls, InjectionProvider):
                 try:
-                    injection = injections[name]
+                    injection = injections.pop(name)
                 except KeyError:
                     injection = MagicMock()
                 setattr(service, name, injection)
+
+    if injections:
+        raise DependencyNotFound("Injection(s) '{}' not found on {}.".format(
+            injections.keys(), service_cls))
+
     return service
 
 
@@ -251,7 +259,7 @@ def replace_injections(container, *injections):
 
     missing = set(injections) - injection_names
     if missing:
-        raise DependencyNotFound("Injections(s) '{}' not found on {}.".format(
+        raise DependencyNotFound("Injection(s) '{}' not found on {}.".format(
             missing, container))
 
     replacements = OrderedDict()

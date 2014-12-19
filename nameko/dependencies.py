@@ -10,7 +10,7 @@ import types
 from weakref import WeakSet, WeakKeyDictionary
 
 from eventlet.event import Event
-from nameko.utils import SpawningSet
+from nameko.utils import SpawningSet, repr_safe_str
 
 from logging import getLogger
 _log = getLogger(__name__)
@@ -33,6 +33,9 @@ class DependencyTypeError(TypeError):
 
 
 class DependencyProvider(object):
+
+    bound = False
+    name = "<unbound-provider>"
 
     def prepare(self):
         """ Called when the service container starts.
@@ -110,6 +113,7 @@ class DependencyProvider(object):
         """
         self.name = name
         self.container = container
+        self.bound = True
 
     @property
     def nested_dependencies(self):
@@ -130,15 +134,16 @@ class DependencyProvider(object):
                 for nested_dep in attr.nested_dependencies:
                     yield nested_dep
 
-    def __str__(self):
-        try:
-            return '<{} [{}.{}] at 0x{:x}>'.format(
-                type(self).__name__,
-                self.container.service_name, self.name,
-                id(self))
-        except:
+    def __repr__(self):
+        if not self.bound:
             return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
+
+        service_name = repr_safe_str(self.container.service_name)
+        name = repr_safe_str(self.name)
+
+        return '<{} [{}.{}] at 0x{:x}>'.format(
+            type(self).__name__, service_name, name, id(self))
 
 
 class EntrypointProvider(DependencyProvider):

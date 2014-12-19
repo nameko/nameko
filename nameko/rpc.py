@@ -7,6 +7,7 @@ import sys
 import uuid
 
 from eventlet.event import Event
+from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
@@ -21,6 +22,8 @@ from nameko.dependencies import (
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
     CONTAINER_SHARED)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
+from nameko.utils import repr_safe_str
+
 
 _log = getLogger(__name__)
 
@@ -428,10 +431,21 @@ class MethodProxy(HeaderEncoder):
                 retry_policy=DEFAULT_RETRY_POLICY
             )
 
-            if not producer.channel.returned_messages.empty():
+            # This used to do .empty() to check if the queue is empty
+            # but we actually need to clear out the queue here as
+            # otherwise future code that reuses the same producer will
+            # incorrectly see a failure which actually was an earlier
+            # one.
+            try:
+                producer.channel.returned_messages.get_nowait()
+            except Empty:
+                pass
+            else:
                 raise UnknownService(self.service_name)
 
         return RpcReply(reply_event)
 
-    def __str__(self):
-        return '<proxy method: %s.%s>' % (self.service_name, self.method_name)
+    def __repr__(self):
+        service_name = repr_safe_str(self.service_name)
+        method_name = repr_safe_str(self.method_name)
+        return '<proxy method: {}.{}>'.format(service_name, method_name)
