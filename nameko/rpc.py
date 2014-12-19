@@ -7,6 +7,7 @@ import sys
 import uuid
 
 from eventlet.event import Event
+from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
@@ -430,7 +431,16 @@ class MethodProxy(HeaderEncoder):
                 retry_policy=DEFAULT_RETRY_POLICY
             )
 
-            if not producer.channel.returned_messages.empty():
+            # This used to do .empty() to check if the queue is empty
+            # but we actually need to clear out the queue here as
+            # otherwise future code that reuses the same producer will
+            # incorrectly see a failure which actually was an earlier
+            # one.
+            try:
+                producer.channel.returned_messages.get_nowait()
+            except Empty:
+                pass
+            else:
                 raise UnknownService(self.service_name)
 
         return RpcReply(reply_event)
