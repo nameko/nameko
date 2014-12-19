@@ -4,10 +4,11 @@ import logging
 
 from amqp.exceptions import ConnectionError
 from kombu import Connection
-from kombu.common import itermessages, maybe_declare
+from kombu.common import maybe_declare
 
 from nameko.containers import WorkerContext
-from nameko.exceptions import RpcConnectionError
+from nameko.exceptions import RpcConnectionError, RpcTimeout
+from nameko.kombu_helpers import queue_iterator
 from nameko.rpc import ServiceProxy, ReplyListener
 
 
@@ -57,12 +58,20 @@ class PollingQueueConsumer(object):
     separate thread it provides a polling method to block until a message with
     the same correlation ID of the RPC-proxy call arrives.
     """
+    def __init__(self, timeout=None):
+        self.timeout = timeout
+
+    def _setup_queue(self):
+        self.channel = self.connection.channel()
+        # queue.bind returns a bound copy
+        self.queue = self.queue.bind(self.channel)
+        maybe_declare(self.queue, self.channel)
+
     def register_provider(self, provider):
         self.provider = provider
         self.connection = Connection(provider.container.config['AMQP_URI'])
-        self.channel = self.connection.channel()
         self.queue = provider.queue
-        maybe_declare(self.queue, self.channel)
+        self._setup_queue()
         message_iterator = self._poll_messages()
         message_iterator.send(None)  # start generator
         self.get_message = message_iterator.send
@@ -80,13 +89,14 @@ class PollingQueueConsumer(object):
 
         while True:
             try:
-                for body, msg in itermessages(
-                        self.connection, self.channel, self.queue, limit=None):
+                for body, msg in queue_iterator(
+                    self.queue, timeout=self.timeout
+                ):
                     msg_correlation_id = msg.properties.get('correlation_id')
 
                     if msg_correlation_id not in self.provider._reply_events:
                         _logger.debug(
-                            "Unknown correlation id: %s", correlation_id)
+                            "Unknown correlation id: %s", msg_correlation_id)
                         continue
 
                     replies[msg_correlation_id] = (body, msg)
@@ -99,6 +109,17 @@ class PollingQueueConsumer(object):
                         body, msg = replies.pop(correlation_id)
                         self.provider.handle_message(body, msg)
                         correlation_id = yield
+
+            except RpcTimeout as exc:
+                event = self.provider._reply_events.pop(correlation_id)
+                event.send_exception(exc)
+
+                # timeout is implemented using socket timeout, so when it
+                # fires the connection is closed, causing the reply queue
+                # to be deleted
+                self._setup_queue()
+                correlation_id = yield
+
             except ConnectionError as exc:
                 for event in self.provider._reply_events.values():
                     rpc_connection_error = RpcConnectionError(
@@ -107,9 +128,7 @@ class PollingQueueConsumer(object):
                 self.provider._reply_events.clear()
                 # In case this was a temporary error, attempt to reconnect. If
                 # we fail, the connection error will bubble.
-                self.channel = self.connection.channel()
-                self.connection = self.channel.connection
-                maybe_declare(self.queue, self.channel)
+                self._setup_queue()
                 correlation_id = yield
 
 
@@ -118,8 +137,8 @@ class SingleThreadedReplyListener(ReplyListener):
     """
     queue_consumer = None
 
-    def __init__(self):
-        self.queue_consumer = PollingQueueConsumer()
+    def __init__(self, timeout=None):
+        self.queue_consumer = PollingQueueConsumer(timeout=timeout)
         super(SingleThreadedReplyListener, self).__init__()
 
     def get_reply_event(self, correlation_id):
@@ -172,12 +191,14 @@ class RpcProxy(object):
     class DummyProvider(object):
         name = "call"
 
-    def __init__(self, container_service_name, config, context_data=None,
-                 worker_ctx_cls=WorkerContext):
+    def __init__(
+        self, container_service_name, config, context_data=None, timeout=None,
+        worker_ctx_cls=WorkerContext
+    ):
 
         container = RpcProxy.ServiceContainer(config)
 
-        reply_listener = SingleThreadedReplyListener()
+        reply_listener = SingleThreadedReplyListener(timeout=timeout)
         reply_listener.container = container
 
         worker_ctx = worker_ctx_cls(

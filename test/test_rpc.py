@@ -387,7 +387,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     # use a standalone rpc proxy to call exampleservice.say_hello(),
     # with a worker context that enables "custom_header"
     with RpcProxy("exampleservice", rabbit_config,
-                  context_data, CustomWorkerContext) as proxy:
+                  context_data, worker_ctx_cls=CustomWorkerContext) as proxy:
         proxy.say_hello()
 
     # bogus_header dropped, custom_header present
