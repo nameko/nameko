@@ -352,7 +352,7 @@ def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
     assert len(rabbit_manager.get_queues(vhost)) == 0
 
 
-def test_multi_proxy(container_factory, rabbit_manager, rabbit_config):
+def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 

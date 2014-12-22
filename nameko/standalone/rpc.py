@@ -167,7 +167,10 @@ class StandaloneProxyBase(object):
 
     _proxy = None
 
-    def _setup(self, config, context_data, timeout, worker_ctx_cls):
+    def __init__(
+            self, config, context_data=None, timeout=None,
+            worker_ctx_cls=WorkerContext
+    ):
         container = self.ServiceContainer(config)
 
         reply_listener = SingleThreadedReplyListener(timeout=timeout)
@@ -211,7 +214,7 @@ class ServiceRpcProxy(StandaloneProxyBase):
 
     The equivalent call, manually starting and stopping::
 
-        targetservice_proxy = RpcProxy('targetservice', config)
+        targetservice_proxy = ServiceRpcProxy('targetservice', config)
         proxy = targetservice_proxy.start()
         proxy.method()
         targetservice_proxy.stop()
@@ -223,11 +226,8 @@ class ServiceRpcProxy(StandaloneProxyBase):
     serialised into the AMQP message headers, and specify custom worker
     context class to serialise them.
     """
-    def __init__(
-        self, service_name, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
-    ):
-        self._setup(config, context_data, timeout, worker_ctx_cls)
+    def __init__(self, service_name, *args, **kwargs):
+        super(ServiceRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ServiceProxy(
             self._worker_ctx, service_name, self._reply_listener)
 
@@ -235,7 +235,7 @@ class ServiceRpcProxy(StandaloneProxyBase):
 class ClusterProxy(object):
     """
     A single-threaded RPC proxy to a cluster of services. Individual services
-    are accessed via attributes, which return service proxyes. Method calls on
+    are accessed via attributes, which return service proxies. Method calls on
     the proxies are converted into RPC calls to the service, with responses
     returned directly.
 
@@ -251,13 +251,13 @@ class ClusterProxy(object):
 
     As a context manager::
 
-        with RpcProxy(config) as proxy:
+        with ClusterRpcProxy(config) as proxy:
             proxy.service.method()
             proxy.other_service.method()
 
     The equivalent call, manually starting and stopping::
 
-        proxy = RpcProxy(config)
+        proxy = ClusterRpcProxy(config)
         proxy = proxy.start()
         proxy.targetservice.method()
         proxy.other_service.method()
@@ -284,10 +284,6 @@ class ClusterProxy(object):
 
 
 class ClusterRpcProxy(StandaloneProxyBase):
-    def __init__(
-        self, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
-    ):
-
-        self._setup(config, context_data, timeout, worker_ctx_cls)
+    def __init__(self, *args, **kwargs):
+        super(ClusterRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener)
