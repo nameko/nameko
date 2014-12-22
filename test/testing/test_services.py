@@ -323,10 +323,10 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
 
     # dispatch an event to handler_two
     msg = "msg"
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
+    dispatch = event_dispatcher(rabbit_config)
 
-        with entrypoint_waiter(container, 'handler_two'):
-            dispatch(ExampleEvent(msg))
+    with entrypoint_waiter(container, 'handler_two'):
+        dispatch('srcservice', ExampleEvent, msg)
 
     # method_called should have exactly one call, derived from the event
     # handler and not from the disabled @once entrypoint
@@ -368,9 +368,9 @@ def test_entrypoint_waiter(container_factory, rabbit_config):
     class ExampleEvent(Event):
         type = "eventtype"
 
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        with entrypoint_waiter(container, 'handle'):
-            dispatch(ExampleEvent(""))
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle'):
+        dispatch('srcservice', ExampleEvent, "")
 
 
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):

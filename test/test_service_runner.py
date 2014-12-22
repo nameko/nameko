@@ -201,8 +201,8 @@ def test_multiple_runners_coexist(runner_factory, rabbit_config,
 
     # test events (both services will receive if in "broadcast" mode)
     event_data = "msg"
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(TestEvent(event_data))
+    dispatch = event_dispatcher(rabbit_config)
+    dispatch('srcservice', TestEvent, event_data)
 
     with eventlet.Timeout(1):
         while len(received) < 2:
@@ -240,8 +240,8 @@ def test_runner_with_duplicate_services(runner_factory, rabbit_config):
 
     # test events (only one service is hosted)
     event_data = "msg"
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(TestEvent(event_data))
+    dispatch = event_dispatcher(rabbit_config)
+    dispatch('srcservice', TestEvent, event_data)
 
     with eventlet.Timeout(1):
         while len(received) == 0:

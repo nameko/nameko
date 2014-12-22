@@ -360,8 +360,8 @@ class ServiceContainer(object):
                 with _log_time('ran handler for %s', worker_ctx):
                     result = method(*worker_ctx.args, **worker_ctx.kwargs)
             except Exception as exc:
-                _log.debug('error handling worker %s: %s', worker_ctx, exc,
-                           exc_info=True)
+                _log.info('error handling worker %s: %s', worker_ctx, exc,
+                          exc_info=True)
                 exc_info = sys.exc_info()
 
             if handle_result is not None:

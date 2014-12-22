@@ -170,8 +170,8 @@ def test_service_disconnect_with_active_async_worker(
 
     # dispatch an event
     data = uuid.uuid4().hex
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(ExampleEvent(data))
+    dispatch = event_dispatcher(rabbit_config)
+    dispatch('srcservice', ExampleEvent, data)
 
     # `handle` will have been called twice with the same the `data`, because
     # rabbit will have redelivered the un-ack'd message from the first call

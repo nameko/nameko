@@ -27,7 +27,7 @@ def test_dispatch(container_factory, rabbit_config):
 
     msg = "msg"
 
-    with event_dispatcher('srcservice', config) as dispatch:
-        with entrypoint_waiter(container, 'handler', timeout=1):
-            dispatch(TestEvent(msg))
+    dispatch = event_dispatcher(config)
+    with entrypoint_waiter(container, 'handler', timeout=1):
+        dispatch('srcservice', TestEvent.type, msg)
     handler_called.assert_called_once_with(msg)
