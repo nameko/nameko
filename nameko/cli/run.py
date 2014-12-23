@@ -1,9 +1,10 @@
+"""Run a nameko service"""
+
 import eventlet
 
 eventlet.monkey_patch()
 
 
-import argparse
 import errno
 import logging
 import os
@@ -14,17 +15,6 @@ from nameko.runners import ServiceRunner
 
 
 logger = logging.getLogger(__name__)
-
-
-def setup_argparse():
-    parser = argparse.ArgumentParser(
-        description='Run a nameko service')
-    parser.add_argument(
-        'service', help='module[:service class]')
-    parser.add_argument(
-        '--broker', default='amqp://guest:guest@localhost:5672/nameko',
-        help='RabbitMQ broker url')
-    return parser
 
 
 class ServiceImportError(Exception):
@@ -110,11 +100,7 @@ def run(service_cls, config):
 
 
 
-def main():
-
-    parser = setup_argparse()
-    args = parser.parse_args()
-
+def main(args):
     logging.basicConfig(level=logging.INFO)
 
     if '.' not in sys.path:
@@ -126,5 +112,12 @@ def main():
     run(cls, config)
 
 
-if __name__ == '__main__':
-    main()
+def init_parser(parser):
+    parser.add_argument(
+        'service', help='module[:service class]')
+    parser.add_argument(
+        '--broker', default='amqp://guest:guest@localhost:5672/nameko',
+        help='RabbitMQ broker url')
+    return parser
+
+
