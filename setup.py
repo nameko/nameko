@@ -40,6 +40,11 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=requirements,
     dependency_links=dependency_links,
+    entry_points={
+        'console_scripts': [
+            'nameko=nameko.cli:main',
+        ],
+    },
     zip_safe=True,
     license='Apache License, Version 2.0',
     classifiers=[
