@@ -1,12 +1,14 @@
 import argparse
 
-from . import run, shell
+from . import backdoor, run, shell
+from .exceptions import CommandError
+
 
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
-    for module in [run, shell]:
+    for module in [backdoor, run, shell]:
         name = module.__name__.split('.')[-1]
         module_parser = subparsers.add_parser(
             name, description=module.__doc__)
@@ -14,4 +16,7 @@ def main():
         module_parser.set_defaults(main=module.main)
 
     args = parser.parse_args()
-    args.main(args)
+    try:
+        args.main(args)
+    except CommandError as exc:
+        parser.error(exc.message)

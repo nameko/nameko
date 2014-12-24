@@ -11,6 +11,8 @@ import os
 import signal
 import sys
 
+from eventlet import backdoor
+
 from nameko.runners import ServiceRunner
 
 
@@ -49,7 +51,20 @@ def import_service(module):
     return service_cls
 
 
-def run(service_cls, config):
+def setup_backdoor(runner, port):
+    def _bad_call():
+        raise RuntimeError('Do not call this. Unsafe')
+    eventlet.spawn(
+        backdoor.backdoor_server,
+        eventlet.listen(('localhost', port)),
+        locals={
+            'runner': runner,
+            'quit': _bad_call,
+            'exit': _bad_call,
+        })
+
+
+def run(service_cls, config, backdoor_port=None):
     service_runner = ServiceRunner(config)
     service_runner.add_service(service_cls)
 
@@ -60,7 +75,8 @@ def run(service_cls, config):
 
     signal.signal(signal.SIGTERM, shutdown)
 
-    # TODO: add backdoor if requested
+    if backdoor_port is not None:
+        setup_backdoor(service_runner, backdoor_port)
 
     service_runner.start()
 
@@ -98,8 +114,6 @@ def run(service_cls, config):
             break
 
 
-
-
 def main(args):
     logging.basicConfig(level=logging.INFO)
 
@@ -109,7 +123,7 @@ def main(args):
     cls = import_service(args.service)
 
     config = {'AMQP_URI': args.broker}
-    run(cls, config)
+    run(cls, config, backdoor_port=args.backdoor_port)
 
 
 def init_parser(parser):
@@ -118,6 +132,10 @@ def init_parser(parser):
     parser.add_argument(
         '--broker', default='amqp://guest:guest@localhost:5672/nameko',
         help='RabbitMQ broker url')
+    parser.add_argument(
+        '--backdoor-port',  type=int,
+        help='Specity a port number to host a backdoor, which can be connected'
+        ' to for an interactive interpreter within the running service'
+        ' process using `nameko backdoor`.'
+    )
     return parser
-
-
