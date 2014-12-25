@@ -19,4 +19,4 @@ def main():
     try:
         args.main(args)
     except CommandError as exc:
-        parser.error(exc.message)
+        print "Error: {}".format(exc)

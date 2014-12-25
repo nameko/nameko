@@ -15,6 +15,8 @@ from eventlet import backdoor
 
 from nameko.runners import ServiceRunner
 
+from .exceptions import CommandError
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,28 +25,38 @@ class ServiceImportError(Exception):
     pass
 
 
-def import_service(module):
-    parts = module.split(":", 1)
+def import_service(module_name):
+    parts = module_name.split(":", 1)
     if len(parts) == 1:
-        module, obj = module, "Service"
+        module_name, obj = module_name, "Service"
     else:
-        module, obj = parts[0], parts[1]
+        module_name, obj = parts[0], parts[1]
 
     try:
-        __import__(module)
-    except ImportError:
-        if module.endswith(".py") and os.path.exists(module):
-            raise ImportError("Failed to find service, did "
-                "you mean '%s:%s'?" % (module.rsplit(".", 1)[0], obj))
-        else:
+        __import__(module_name)
+    except ImportError as exc:
+        if module_name.endswith(".py") and os.path.exists(module_name):
+            raise ServiceImportError("Failed to find service, did "
+                "you mean '%s:%s'?" % (module_name.rsplit(".", 1)[0], obj))
+
+        missing_module_message = 'No module named {}'.format(module_name)
+        # is there a better way to do this?
+        if exc.message != missing_module_message:
+            # found module, but importing it raised an import error elsewhere
+            # let this bubble (resulting in a full stacktrace being printed)
             raise
 
-    mod = sys.modules[module]
+        raise ServiceImportError(exc)
+
+    module = sys.modules[module_name]
 
     try:
-        service_cls = getattr(mod, obj)
+        service_cls = getattr(module, obj)
     except AttributeError:
-        raise ServiceImportError("Failed to find service object: %r" % obj)
+        raise ServiceImportError(
+            "Failed to find service class {!r} in module {!r}".format(
+                obj, module_name)
+            )
 
     if not isinstance(service_cls, type):
         raise ServiceImportError("Service must be a class.")
@@ -120,7 +132,10 @@ def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
 
-    cls = import_service(args.service)
+    try:
+        cls = import_service(args.service)
+    except ServiceImportError as exc:
+        raise CommandError(exc.message)
 
     config = {'AMQP_URI': args.broker}
     run(cls, config, backdoor_port=args.backdoor_port)
