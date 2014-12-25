@@ -21,10 +21,6 @@ from .exceptions import CommandError
 logger = logging.getLogger(__name__)
 
 
-class ServiceImportError(Exception):
-    pass
-
-
 def import_service(module_name):
     parts = module_name.split(":", 1)
     if len(parts) == 1:
@@ -36,8 +32,10 @@ def import_service(module_name):
         __import__(module_name)
     except ImportError as exc:
         if module_name.endswith(".py") and os.path.exists(module_name):
-            raise ServiceImportError("Failed to find service, did "
-                "you mean '%s:%s'?" % (module_name.rsplit(".", 1)[0], obj))
+            raise CommandError(
+                "Failed to find service, did you mean '{}'?".format(
+                module_name[:-3].replace('/', '.'))
+            )
 
         missing_module_message = 'No module named {}'.format(module_name)
         # is there a better way to do this?
@@ -46,34 +44,36 @@ def import_service(module_name):
             # let this bubble (resulting in a full stacktrace being printed)
             raise
 
-        raise ServiceImportError(exc)
+        raise CommandError(exc)
 
     module = sys.modules[module_name]
 
     try:
         service_cls = getattr(module, obj)
     except AttributeError:
-        raise ServiceImportError(
+        raise CommandError(
             "Failed to find service class {!r} in module {!r}".format(
                 obj, module_name)
             )
 
     if not isinstance(service_cls, type):
-        raise ServiceImportError("Service must be a class.")
+        raise CommandError("Service must be a class.")
     return service_cls
 
 
 def setup_backdoor(runner, port):
     def _bad_call():
         raise RuntimeError('Do not call this. Unsafe')
+    socket = eventlet.listen(('localhost', port))
     eventlet.spawn(
         backdoor.backdoor_server,
-        eventlet.listen(('localhost', port)),
+        socket,
         locals={
             'runner': runner,
             'quit': _bad_call,
             'exit': _bad_call,
         })
+    return socket
 
 
 def run(service_cls, config, backdoor_port=None):
@@ -103,10 +103,6 @@ def run(service_cls, config, backdoor_port=None):
         try:
             runnlet.wait()
         except OSError as exc:
-            print "####"
-            print exc
-            print "####"
-
             if exc.errno == errno.EINTR:
                 # this is the OSError(4) caused by the signalhandler.
                 # ignore and go back to waiting on the runner
@@ -132,10 +128,7 @@ def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
 
-    try:
-        cls = import_service(args.service)
-    except ServiceImportError as exc:
-        raise CommandError(exc.message)
+    cls = import_service(args.service)
 
     config = {'AMQP_URI': args.broker}
     run(cls, config, backdoor_port=args.backdoor_port)
