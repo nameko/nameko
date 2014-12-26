@@ -1,46 +1,40 @@
 import os
 import signal
 import socket
-import sys
 
 import eventlet
-from mock import patch
 import pytest
 
-from nameko.cli import main
 from nameko.cli.exceptions import CommandError
-from nameko.cli.run import import_service, setup_backdoor
+from nameko.cli.main import setup_parser
+from nameko.cli.run import import_service, setup_backdoor, main
 from nameko.standalone.rpc import ClusterRpcProxy
 
 from test.sample import Service
 
 
 def test_run(rabbit_config):
+    parser = setup_parser()
     broker = rabbit_config['AMQP_URI']
-    with patch.object(
-        sys,
-        'argv',
-        [
-            'nameko',
-            'run',
-            '--broker',
-            broker,
-            '--backdoor-port',
-            0,
-            'test.sample:Service',
-            ],
-    ):
-        gt = eventlet.spawn(main)
-        eventlet.sleep(1)
+    args = parser.parse_args([
+        'run',
+        '--broker',
+        broker,
+        '--backdoor-port',
+        0,
+        'test.sample:Service',
+        ])
+    gt = eventlet.spawn(main, args)
+    eventlet.sleep(1)
 
-        # make sure service launches ok
-        with ClusterRpcProxy(rabbit_config) as proxy:
-            proxy.service.ping()
+    # make sure service launches ok
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        proxy.service.ping()
 
-        # stop service
-        pid = os.getpid()
-        os.kill(pid, signal.SIGTERM)
-        gt.wait()
+    # stop service
+    pid = os.getpid()
+    os.kill(pid, signal.SIGTERM)
+    gt.wait()
 
 
 def test_import_ok():

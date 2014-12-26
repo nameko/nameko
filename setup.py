@@ -42,7 +42,7 @@ setup(
     dependency_links=dependency_links,
     entry_points={
         'console_scripts': [
-            'nameko=nameko.cli:main',
+            'nameko=nameko.cli.main:main',
         ],
     },
     zip_safe=True,

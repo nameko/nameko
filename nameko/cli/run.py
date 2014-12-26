@@ -34,7 +34,8 @@ def import_service(module_name):
         if module_name.endswith(".py") and os.path.exists(module_name):
             raise CommandError(
                 "Failed to find service, did you mean '{}'?".format(
-                module_name[:-3].replace('/', '.'))
+                    module_name[:-3].replace('/', '.')
+                )
             )
 
         missing_module_message = 'No module named {}'.format(module_name)
@@ -109,14 +110,10 @@ def run(service_cls, config, backdoor_port=None):
                 continue
             raise
         except KeyboardInterrupt:
-            service_runner.stop()
-
-            # something is broken; this should work (Trying to re-send() an
-            # already-triggered event.')
-            # try:
-                # service_runner.stop()
-            # except KeyboardInterrupt:
-                # service_runner.kill()
+            try:
+                service_runner.stop()
+            except KeyboardInterrupt:
+                service_runner.kill()
         else:
             # runner.wait completed
             break
@@ -136,7 +133,8 @@ def main(args):
 
 def init_parser(parser):
     parser.add_argument(
-        'service', help='module[:service class]')
+        'service', metavar='module[:service class]',
+        help='python path to the service class to run')
     parser.add_argument(
         '--broker', default='amqp://guest:guest@localhost:5672/nameko',
         help='RabbitMQ broker url')

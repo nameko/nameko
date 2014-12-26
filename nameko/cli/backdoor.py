@@ -42,9 +42,7 @@ def main(args):
 
 def init_parser(parser):
     parser.add_argument(
-        '--host', default='127.0.0.1', help='host to connect to')
-    parser.add_argument(
-        '-p', '--port', help='port to connect to')
+        'target', metavar='[host:]port', help="(host and) port to connet to")
     parser.add_argument(
         '--rlwrap', dest='rlwrap', action=FlagAction,
         help='Use rlwrap')
