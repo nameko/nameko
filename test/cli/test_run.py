@@ -73,8 +73,8 @@ def test_import_not_a_class():
 
 def test_backdoor():
     runner = object()
-    green_socket = setup_backdoor(runner, 0)
-    eventlet.sleep(1)
+    green_socket, gt = setup_backdoor(runner, 0)
+    eventlet.sleep(0)  # give backdoor a chance to spawn
     socket_name = green_socket.fd.getsockname()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(socket_name)
@@ -88,3 +88,4 @@ def test_backdoor():
     error = sock.recv(4096)
     assert 'RuntimeError: Do not call this. Unsafe' in error
     sock.close()
+    gt.kill()

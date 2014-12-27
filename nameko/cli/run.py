@@ -66,7 +66,7 @@ def setup_backdoor(runner, port):
     def _bad_call():
         raise RuntimeError('Do not call this. Unsafe')
     socket = eventlet.listen(('localhost', port))
-    eventlet.spawn(
+    gt = eventlet.spawn(
         backdoor.backdoor_server,
         socket,
         locals={
@@ -74,7 +74,7 @@ def setup_backdoor(runner, port):
             'quit': _bad_call,
             'exit': _bad_call,
         })
-    return socket
+    return socket, gt
 
 
 def run(service_cls, config, backdoor_port=None):

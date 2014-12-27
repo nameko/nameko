@@ -20,8 +20,12 @@ def main(args):
     else:
         raise CommandError('Could not find an installed telnet.')
 
-    host = args.host
-    port = args.port
+    target = args.target
+    if ':' in target:
+        host, port = target.split(':', 1)
+    else:
+        host, port = 'localhost', target
+
     rlwrap = args.rlwrap
 
     cmd = [prog, str(host), str(port)]
@@ -33,7 +37,9 @@ def main(args):
         cmd.insert(0, 'rlwrap')
     try:
         if call(cmd) != 0:
-            raise CommandError('error: backdoor unreachable')
+            raise CommandError(
+                'Backdoor unreachable on {}'.format(target)
+            )
     except (EOFError, KeyboardInterrupt):
         print
         if rlwrap:
