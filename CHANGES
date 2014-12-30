@@ -1,3 +1,11 @@
+Unreleased
+----------
+
+* Rename the standalone rpc proxy to `ServiceRpcProxy` and add a
+  `ClusterRpcProxy`, using a single reply queue for communicating with multiple
+  remote services.
+
+
 Version 1.14.0
 --------------
 
@@ -6,6 +14,7 @@ Version 1.14.0
 * Add various __repr__ methods for better logging
 * Support for timeouts in the (non-legacy) standalone RPC proxy
 * Add helper for manipulating an AMQP URI into a dict
+
 
 Version 1.13.0
 --------------
