@@ -168,8 +168,8 @@ class StandaloneProxyBase(object):
     _proxy = None
 
     def __init__(
-            self, config, context_data=None, timeout=None,
-            worker_ctx_cls=WorkerContext
+        self, config, context_data=None, timeout=None,
+        worker_ctx_cls=WorkerContext
     ):
         container = self.ServiceContainer(config)
 
