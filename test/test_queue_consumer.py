@@ -11,7 +11,7 @@ from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
 from nameko.testing.utils import (
     assert_stops_raising, get_rabbit_connections, get_dependency)
 from nameko.rpc import rpc, RpcConsumer
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 
 TIMEOUT = 5
 
@@ -349,7 +349,7 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
         container.start()
 
-        with RpcProxy('service', rabbit_config) as service_rpc:
+        with ServiceRpcProxy('service', rabbit_config) as service_rpc:
             # spawn because `echo` will never respond
             eventlet.spawn(service_rpc.echo, "foo")
 
