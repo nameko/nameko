@@ -591,8 +591,8 @@ def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
     start_containers(CustomHandler, ('custom-events',))
 
     payload = {'custom': 'data'}
-    with standalone_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(ExampleEvent(payload))
+    dispatch = standalone_dispatcher(rabbit_config)
+    dispatch('srcservice', ExampleEvent.type, payload)
 
     # wait for it to arrive
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
