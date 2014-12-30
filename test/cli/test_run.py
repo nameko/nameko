@@ -1,13 +1,15 @@
+import errno
 import os
 import signal
 import socket
 
 import eventlet
+from mock import patch
 import pytest
 
 from nameko.cli.exceptions import CommandError
 from nameko.cli.main import setup_parser
-from nameko.cli.run import import_service, setup_backdoor, main
+from nameko.cli.run import import_service, setup_backdoor, main, run
 from nameko.standalone.rpc import ClusterRpcProxy
 
 from test.sample import Service
@@ -89,3 +91,55 @@ def test_backdoor():
     assert 'RuntimeError: Do not call this. Unsafe' in error
     sock.close()
     gt.kill()
+
+
+def test_stopping(rabbit_config):
+    with patch('nameko.cli.run.eventlet') as mock_eventlet:
+        # this is the service "runlet"
+        mock_eventlet.spawn().wait.side_effect = [
+            KeyboardInterrupt,
+            None,  # second wait, after stop() which returns normally
+        ]
+        gt = eventlet.spawn(run, object, rabbit_config)
+        gt.wait()
+        # should complete
+
+
+def test_stopping_twice(rabbit_config):
+    with patch('nameko.cli.run.eventlet') as mock_eventlet:
+        # this is the service "runlet"
+        mock_eventlet.spawn().wait.side_effect = [
+            KeyboardInterrupt,
+            None,  # second wait, after stop() which returns normally
+        ]
+        with patch('nameko.cli.run.ServiceRunner') as runner_cls:
+            runner = runner_cls()
+            runner.stop.side_effect = KeyboardInterrupt
+            runner.kill.return_value = None
+
+            gt = eventlet.spawn(run, object, rabbit_config)
+            gt.wait()
+
+
+def test_os_error_for_signal(rabbit_config):
+    with patch('nameko.cli.run.eventlet') as mock_eventlet:
+        # this is the service "runlet"
+        mock_eventlet.spawn().wait.side_effect = [
+            OSError(errno.EINTR, ''),
+            None,  # second wait, after stop() which returns normally
+        ]
+        gt = eventlet.spawn(run, object, rabbit_config)
+        gt.wait()
+        # should complete
+
+
+def test_other_errors_propagate(rabbit_config):
+    with patch('nameko.cli.run.eventlet') as mock_eventlet:
+        # this is the service "runlet"
+        mock_eventlet.spawn().wait.side_effect = [
+            OSError(0, ''),
+            None,  # second wait, after stop() which returns normally
+        ]
+        gt = eventlet.spawn(run, object, rabbit_config)
+        with pytest.raises(OSError):
+            gt.wait()
