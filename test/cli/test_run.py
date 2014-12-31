@@ -73,6 +73,15 @@ def test_import_not_a_class():
     assert "Service must be a class" in str(exc)
 
 
+def recv_until_prompt(sock):
+    data = ""
+    part = ""
+    while not part.endswith('\n>>> '):
+        part = sock.recv(4096)
+        data += part
+    return data
+
+
 def test_backdoor():
     runner = object()
     green_socket, gt = setup_backdoor(runner, 0)
@@ -80,14 +89,14 @@ def test_backdoor():
     socket_name = green_socket.fd.getsockname()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(socket_name)
-    sock.recv(4096)  # banner
+    recv_until_prompt(sock)  # banner
 
     sock.sendall("runner\n")
-    runner_repr = sock.recv(4096)
+    runner_repr = recv_until_prompt(sock)
     assert str(runner) in runner_repr
 
     sock.sendall("quit()\n")
-    error = sock.recv(4096)
+    error = recv_until_prompt(sock)
     assert 'RuntimeError: Do not call this. Unsafe' in error
     sock.close()
     gt.kill()
