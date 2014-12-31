@@ -8,8 +8,8 @@ great damage if used incorrectly, so be careful!
 import os
 from subprocess import call
 
+from nameko.exceptions import CommandError
 from .actions import FlagAction
-from .exceptions import CommandError
 
 
 def main(args):

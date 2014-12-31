@@ -13,9 +13,8 @@ import sys
 
 from eventlet import backdoor
 
+from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
-
-from .exceptions import CommandError
 
 
 logger = logging.getLogger(__name__)

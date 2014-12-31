@@ -7,9 +7,9 @@ import eventlet
 from mock import patch
 import pytest
 
-from nameko.cli.exceptions import CommandError
 from nameko.cli.main import setup_parser
 from nameko.cli.run import import_service, setup_backdoor, main, run
+from nameko.exceptions import CommandError
 from nameko.standalone.rpc import ClusterRpcProxy
 
 from test.sample import Service

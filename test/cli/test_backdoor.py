@@ -3,9 +3,9 @@ from mock import patch, DEFAULT
 import pytest
 
 from nameko.cli.backdoor import main
-from nameko.cli.exceptions import CommandError
 from nameko.cli.main import setup_parser
 from nameko.cli.run import setup_backdoor
+from nameko.exceptions import CommandError
 
 
 @pytest.fixture

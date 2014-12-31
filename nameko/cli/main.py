@@ -1,7 +1,7 @@
 import argparse
 
+from nameko.exceptions import CommandError
 from . import backdoor, run, shell
-from .exceptions import CommandError
 
 
 def setup_parser():

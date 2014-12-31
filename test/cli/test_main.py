@@ -4,7 +4,7 @@ from mock import patch
 import pytest
 
 from nameko.cli.main import main, setup_parser
-from nameko.cli.exceptions import CommandError
+from nameko.exceptions import CommandError
 
 
 @pytest.yield_fixture(autouse=True)
