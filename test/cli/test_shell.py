@@ -18,4 +18,6 @@ def test_basic():
         main(args)
 
     _, kwargs = code.interact.call_args
-    assert 'n' in kwargs['local'].keys()
+    local = kwargs['local']
+    assert 'n' in local.keys()
+    local['n'].disconnect()
