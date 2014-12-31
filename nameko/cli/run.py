@@ -1,4 +1,9 @@
-"""Run a nameko service"""
+"""Run a nameko service.
+
+Given a python path to a module containing a nameko service, will host and run
+it. By default this assumes a service class named ``Service``, but this can be
+provided via ``nameko run module:ServiceClass``.
+"""
 
 import eventlet
 

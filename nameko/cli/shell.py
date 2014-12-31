@@ -1,3 +1,8 @@
+"""Launch an interactive python shell for working with remote nameko services.
+
+This is a regular interactive interpreter, with a special module ``n`` added
+to the builtin namespace, providing ``n.rpc`` and ``n.dispatch_event``.
+"""
 import code
 import os
 import sys
