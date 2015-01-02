@@ -90,8 +90,8 @@ def run(services, config, backdoor_port=None):
         service_runner.add_service(service_cls)
 
     def shutdown(signum, frame):
-        # TODO why do we need this? (if inline we get 'Cannot switch to
-        # MAINLOOP from MAINLOOP')
+        # signal handlers are run by the MAINLOOP and cannot use eventlet
+        # primitives, so we have to call `stop` in a greenlet
         eventlet.spawn_n(service_runner.stop)
 
     signal.signal(signal.SIGTERM, shutdown)
