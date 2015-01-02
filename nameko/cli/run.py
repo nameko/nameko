@@ -69,7 +69,9 @@ def import_service(module_name):
 
 def setup_backdoor(runner, port):
     def _bad_call():
-        raise RuntimeError('Do not call this. Unsafe')
+        raise RuntimeError(
+            'This would kill your service, not close the backdoor. To exit, '
+            'use ctrl-c.')
     socket = eventlet.listen(('localhost', port))
     gt = eventlet.spawn(
         backdoor.backdoor_server,

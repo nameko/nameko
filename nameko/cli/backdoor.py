@@ -1,8 +1,7 @@
 """Connect to a nameko backdoor.
 
 If a backdoor is running this will connect to a remote shell.  The
-runner is generally available as `runner`.  Note that this can do
-great damage if used incorrectly, so be careful!
+runner is generally available as `runner`.
 """
 
 import os
