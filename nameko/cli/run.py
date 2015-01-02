@@ -81,9 +81,10 @@ def setup_backdoor(runner, port):
     return socket, gt
 
 
-def run(service_cls, config, backdoor_port=None):
+def run(services, config, backdoor_port=None):
     service_runner = ServiceRunner(config)
-    service_runner.add_service(service_cls)
+    for service_cls in services:
+        service_runner.add_service(service_cls)
 
     def shutdown(signum, frame):
         # TODO why do we need this? (if inline we get 'Cannot switch to
@@ -132,7 +133,7 @@ def main(args):
     cls = import_service(args.service)
 
     config = {'AMQP_URI': args.broker}
-    run(cls, config, backdoor_port=args.backdoor_port)
+    run([cls], config, backdoor_port=args.backdoor_port)
 
 
 def init_parser(parser):

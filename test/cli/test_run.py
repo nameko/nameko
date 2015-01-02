@@ -109,7 +109,7 @@ def test_stopping(rabbit_config):
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, object, rabbit_config)
+        gt = eventlet.spawn(run, [object], rabbit_config)
         gt.wait()
         # should complete
 
@@ -126,7 +126,7 @@ def test_stopping_twice(rabbit_config):
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
 
-            gt = eventlet.spawn(run, object, rabbit_config)
+            gt = eventlet.spawn(run, [object], rabbit_config)
             gt.wait()
 
 
@@ -137,7 +137,7 @@ def test_os_error_for_signal(rabbit_config):
             OSError(errno.EINTR, ''),
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, object, rabbit_config)
+        gt = eventlet.spawn(run, [object], rabbit_config)
         gt.wait()
         # should complete
 
@@ -149,6 +149,6 @@ def test_other_errors_propagate(rabbit_config):
             OSError(0, ''),
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, object, rabbit_config)
+        gt = eventlet.spawn(run, [object], rabbit_config)
         with pytest.raises(OSError):
             gt.wait()
