@@ -97,7 +97,7 @@ def test_backdoor():
 
     sock.sendall("quit()\n")
     error = recv_until_prompt(sock)
-    assert 'RuntimeError: Do not call this. Unsafe' in error
+    assert 'RuntimeError: This would kill your service' in error
     sock.close()
     gt.kill()
 
