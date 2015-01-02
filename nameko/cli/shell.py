@@ -8,6 +8,7 @@ import os
 import sys
 from types import ModuleType
 
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.standalone.events import event_dispatcher
 
@@ -47,7 +48,7 @@ def main(args):
         sys.platform,
         args.broker.encode('utf-8'),
     )
-    config = {'AMQP_URI': args.broker}
+    config = {AMQP_URI_CONFIG_KEY: args.broker}
 
     ctx = {}
     ctx['n'] = make_nameko_helper(config)

@@ -18,6 +18,7 @@ import sys
 
 from eventlet import backdoor
 
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 
@@ -132,7 +133,7 @@ def main(args):
 
     cls = import_service(args.service)
 
-    config = {'AMQP_URI': args.broker}
+    config = {AMQP_URI_CONFIG_KEY: args.broker}
     run([cls], config, backdoor_port=args.backdoor_port)
 
 

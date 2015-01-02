@@ -1,8 +1,8 @@
 from mock import ANY, Mock, patch
 import pytest
 
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import serialize
-from nameko.messaging import AMQP_URI_CONFIG_KEY
 from nameko.rpc import Responder
 
 
