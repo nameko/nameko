@@ -79,6 +79,7 @@ def test_stop(running_backdoor):
     with patch.multiple(
         'nameko.cli.backdoor', call=DEFAULT, os=DEFAULT
     ) as mocks:
-        mocks['os'].system.return_value = 0
+        # choose telnet (skip nc and netcat) and find rlwrap
+        mocks['os'].system.side_effect = [-1, -1, 0, 0]
         mocks['call'].side_effect = [KeyboardInterrupt, 0]
         main(args)

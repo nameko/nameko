@@ -42,7 +42,7 @@ def main(args):
             )
     except (EOFError, KeyboardInterrupt):
         print
-        if rlwrap:
+        if choice == 'telnet' and rlwrap:
             call(['reset'])
 
 
