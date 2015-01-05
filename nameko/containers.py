@@ -16,7 +16,7 @@ from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
 
 from nameko.dependencies import (
-    prepare_dependencies, DependencySet, is_entrypoint_provider,
+    prepare_dependencies, ExtensionSet, is_entrypoint_provider,
     is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
@@ -127,7 +127,7 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
-        self.dependencies = DependencySet()
+        self.dependencies = ExtensionSet()
         for dep in prepare_dependencies(self):
             self.dependencies.add(dep)
 
@@ -208,8 +208,8 @@ class ServiceContainer(object):
             # active worker which could be using it
             dependencies.injections.all.stop()
 
-            # finally, stop nested dependencies
-            dependencies.nested.all.stop()
+            # finally, stop remaining dependencies
+            dependencies.other.all.stop()
 
             # just in case there was a provider not taking care of its workers,
             # or a dependency not taking care of its protected threads

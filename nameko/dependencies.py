@@ -35,10 +35,10 @@ class DependencyTypeError(TypeError):
 class Extension(object):
 
     bound = False
-    name = "<unbound-provider>"
+    name = "<unbound-extension>"
 
     def before_start(self):
-        """ Called when the service container starts.
+        """ Called before the service container starts.
 
         Extensions should do any required initialisation here.
         """
@@ -46,9 +46,9 @@ class Extension(object):
     def start(self):
         """ Called when the service container has successfully started.
 
-        This is only called after all other Extensions have
-        successfully initialised. If the Extension listens to
-        external events, they may now start acting upon them.
+        This is only called after all other Extensions have successfully
+        returned from :meth:`Extension.before_start`. If the Extension
+        listens to external events, it should now start acting upon them.
         """
 
     def stop(self):
@@ -58,7 +58,7 @@ class Extension(object):
         """
 
     def kill(self):
-        """ Called to stop this dependency without grace.
+        """ Called to stop this extension without grace.
 
         Extensions should urgently shut down here. This means
         stopping as soon as possible by omitting cleanup.
@@ -227,7 +227,7 @@ class ProviderCollector(object):
         self.wait_for_providers()
 
 
-class DependencySet(SpawningSet):
+class ExtensionSet(SpawningSet):
 
     @property
     def injections(self):
@@ -246,8 +246,8 @@ class DependencySet(SpawningSet):
                            if is_entrypoint_provider(item))
 
     @property
-    def nested(self):
-        """ A ``SpawningSet`` of any nested dependency instances in this set.
+    def other(self):
+        """ A ``SpawningSet`` of any other dependency instances in this set.
         """
         all_deps = self
         return all_deps - self.injections - self.entrypoints
