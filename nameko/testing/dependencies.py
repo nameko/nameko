@@ -1,5 +1,5 @@
 """
-Utilities for testing DependencyProviders
+Utilities for testing Extensions
 """
 
 from contextlib import contextmanager

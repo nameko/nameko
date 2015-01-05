@@ -8,15 +8,15 @@ from nameko.dependencies import (
     entrypoint, Entrypoint, prepare_entrypoint_providers,
     injection, InjectionProvider, prepare_injection_providers,
     DependencyFactory, DependencyTypeError, dependency,
-    DependencyProvider, PROCESS_SHARED, CONTAINER_SHARED, ProviderCollector)
+    Extension, PROCESS_SHARED, CONTAINER_SHARED, ProviderCollector)
 from nameko.containers import ServiceContainer, WorkerContext
 
 
-class SharedProvider(DependencyProvider):
+class SharedProvider(Extension):
     pass
 
 
-class NestedProvider(DependencyProvider):
+class NestedProvider(Extension):
     pass
 
 
@@ -218,13 +218,13 @@ def test_decorated_functions_must_return_dependency_factories():
 
 
 def test_str():
-    dep = DependencyProvider()
-    assert str(dep).startswith('<DependencyProvider [unbound] at')
+    dep = Extension()
+    assert str(dep).startswith('<Extension [unbound] at')
 
     container = Mock()
     container.service_name = u'föbar'
     dep.bind('spam', container)
-    assert str(dep).startswith("<DependencyProvider [föbar.spam] at")
+    assert str(dep).startswith("<Extension [föbar.spam] at")
 
 
 def test_provider_collector():

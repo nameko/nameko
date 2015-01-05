@@ -19,7 +19,7 @@ from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, Entrypoint,
-    DependencyFactory, dependency, ProviderCollector, DependencyProvider,
+    DependencyFactory, dependency, ProviderCollector, Extension,
     CONTAINER_SHARED)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
 from nameko.utils import repr_safe_str
@@ -40,7 +40,7 @@ def get_rpc_exchange(container):
 
 
 # pylint: disable=E1101,E1123
-class RpcConsumer(DependencyProvider, ProviderCollector):
+class RpcConsumer(Extension, ProviderCollector):
 
     queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
 
@@ -247,7 +247,7 @@ class Responder(object):
 
 
 # pylint: disable=E1101,E1123
-class ReplyListener(DependencyProvider):
+class ReplyListener(Extension):
 
     queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
 

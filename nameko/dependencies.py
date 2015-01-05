@@ -32,7 +32,7 @@ class DependencyTypeError(TypeError):
     pass
 
 
-class DependencyProvider(object):
+class Extension(object):
 
     bound = False
     name = "<unbound-provider>"
@@ -40,27 +40,27 @@ class DependencyProvider(object):
     def before_start(self):
         """ Called when the service container starts.
 
-        DependencyProviders should do any required initialisation here.
+        Extensions should do any required initialisation here.
         """
 
     def start(self):
         """ Called when the service container has successfully started.
 
-        This is only called after all other DependencyProviders have
-        successfully initialised. If the DependencyProvider listens to
+        This is only called after all other Extensions have
+        successfully initialised. If the Extension listens to
         external events, they may now start acting upon them.
         """
 
     def stop(self):
         """ Called when the service container begins to shut down.
 
-        DependencyProviders should do any graceful shutdown here.
+        Extensions should do any graceful shutdown here.
         """
 
     def kill(self):
         """ Called to stop this dependency without grace.
 
-        DependencyProviders should urgently shut down here. This means
+        Extensions should urgently shut down here. This means
         stopping as soon as possible by omitting cleanup.
         This may be distinct from ``stop()`` for certain dependencies.
 
@@ -68,17 +68,17 @@ class DependencyProvider(object):
         processed and pending message acks. Its ``kill`` implementation
         discards these and disconnects from rabbit as soon as possible.
 
-        DependencyProviders should not raise during kill, since the container
+        Extensions should not raise during kill, since the container
         is already dying. Instead they should log what is appropriate and
         swallow the exception to allow the container kill to continue.
         """
 
     def worker_setup(self, worker_ctx):
         """ Called before a service worker executes a task. This method is
-        called for all DependencyProviders, not just the one that triggered
+        called for all Extensions, not just the one that triggered
         the worker spawn.
 
-        DependencyProviders should do any pre-processing here, raising
+        Extensions should do any pre-processing here, raising
         exceptions in the event of failure.
 
         Example: ...
@@ -90,10 +90,10 @@ class DependencyProvider(object):
 
     def worker_teardown(self, worker_ctx):
         """ Called after a service worker has executed a task. This method is
-        called for all DependencyProviders, not just the one that triggered
+        called for all Extensions, not just the one that triggered
         the worker spawn.
 
-        DependencyProviders should do any post-processing here, raising
+        Extensions should do any post-processing here, raising
         exceptions in the event of failure.
 
         Example: a database session provider may commit the session
@@ -104,10 +104,10 @@ class DependencyProvider(object):
         """
 
     def bind(self, name, container):
-        """ Bind this DependencyProvider instance to ``container`` using the
+        """ Bind this Extension instance to ``container`` using the
         given ``name`` to identify the resource on the hosted service.
 
-        Called during ServiceContainer initialisation. The DependencyProvider
+        Called during ServiceContainer initialisation. The Extension
         instance is created and then bound to the ServiceContainer instance
         controlling its lifecyle.
         """
@@ -117,7 +117,7 @@ class DependencyProvider(object):
 
     @property
     def nested_dependencies(self):
-        """ Recusively yield nested dependencies of DependencyProvider.
+        """ Recusively yield nested dependencies of Extension.
 
         For example, with an instance of `:class:~nameko.rpc.RpcProvider`
         called ``rpc``::
@@ -129,7 +129,7 @@ class DependencyProvider(object):
             >>>
         """
         for _, attr in inspect.getmembers(self):
-            if isinstance(attr, DependencyProvider):
+            if isinstance(attr, Extension):
                 yield attr
                 for nested_dep in attr.nested_dependencies:
                     yield nested_dep
@@ -146,11 +146,11 @@ class DependencyProvider(object):
             type(self).__name__, service_name, name, id(self))
 
 
-class Entrypoint(DependencyProvider):
+class Entrypoint(Extension):
     pass
 
 
-class InjectionProvider(DependencyProvider):
+class InjectionProvider(Extension):
 
     def acquire_injection(self, worker_ctx):
         """ Called before worker execution. An InjectionProvider should return
@@ -221,7 +221,7 @@ class ProviderCollector(object):
             _log.debug('all providers unregistered %s', self)
 
     def stop(self):
-        """ Default `:meth:DependencyProvider.stop()` implementation for
+        """ Default `:meth:Extension.stop()` implementation for
         subclasses using `ProviderCollector` as a mixin.
         """
         self.wait_for_providers()
@@ -297,7 +297,7 @@ class DependencyFactory(object):
     def create_and_bind_instance(self, name, container):
         """ Instantiate ``dep_cls`` and bind it to ``container``.
 
-        See `:meth:~DependencyProvider.bind`.
+        See `:meth:~Extension.bind`.
         """
         sharing_key = self.sharing_key
         if sharing_key is not None:

@@ -18,7 +18,7 @@ from kombu.mixins import ConsumerMixin
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.dependencies import (
     InjectionProvider, Entrypoint, entrypoint, injection,
-    DependencyProvider, ProviderCollector, DependencyFactory, dependency,
+    Extension, ProviderCollector, DependencyFactory, dependency,
     CONTAINER_SHARED)
 from nameko.exceptions import ContainerBeingKilled
 
@@ -141,7 +141,7 @@ def queue_consumer():
     return DependencyFactory(QueueConsumer)
 
 
-class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
+class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
     def __init__(self):
         super(QueueConsumer, self).__init__()
         self._connection = None
