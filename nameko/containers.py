@@ -349,7 +349,7 @@ class ServiceContainer(object):
         with _log_time('ran worker %s', worker_ctx):
 
             self.dependencies.injections.all.inject(worker_ctx)
-            self.dependencies.all.worker_setup(worker_ctx)
+            self.dependencies.injections.all.worker_setup(worker_ctx)
 
             result = exc_info = None
             method = getattr(worker_ctx.service, worker_ctx.provider.name)
@@ -382,7 +382,7 @@ class ServiceContainer(object):
                 # gc sweep
                 del exc_info
 
-                self.dependencies.all.worker_teardown(worker_ctx)
+                self.dependencies.injections.all.worker_teardown(worker_ctx)
                 self.dependencies.injections.all.release(worker_ctx)
 
     def _kill_active_threads(self):

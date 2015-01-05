@@ -73,36 +73,6 @@ class Extension(object):
         swallow the exception to allow the container kill to continue.
         """
 
-    def worker_setup(self, worker_ctx):
-        """ Called before a service worker executes a task. This method is
-        called for all Extensions, not just the one that triggered
-        the worker spawn.
-
-        Extensions should do any pre-processing here, raising
-        exceptions in the event of failure.
-
-        Example: ...
-
-        Args:
-            - worker_ctx: see
-                ``nameko.containers.ServiceContainer.spawn_worker``
-        """
-
-    def worker_teardown(self, worker_ctx):
-        """ Called after a service worker has executed a task. This method is
-        called for all Extensions, not just the one that triggered
-        the worker spawn.
-
-        Extensions should do any post-processing here, raising
-        exceptions in the event of failure.
-
-        Example: a database session provider may commit the session
-
-        Args:
-            - worker_ctx: see
-                ``nameko.containers.ServiceContainer.spawn_worker``
-        """
-
     def bind(self, name, container):
         """ Bind this Extension instance to ``container`` using the
         given ``name`` to identify the resource on the hosted service.
@@ -165,6 +135,36 @@ class InjectionProvider(Extension):
         worker.
 
         Example: a database session provider may flush the transaction
+
+        Args:
+            - worker_ctx: see
+                ``nameko.containers.ServiceContainer.spawn_worker``
+        """
+
+    def worker_setup(self, worker_ctx):
+        """ Called before a service worker executes a task. This method is
+        called for all Extensions, not just the one that triggered
+        the worker spawn.
+
+        Extensions should do any pre-processing here, raising
+        exceptions in the event of failure.
+
+        Example: ...
+
+        Args:
+            - worker_ctx: see
+                ``nameko.containers.ServiceContainer.spawn_worker``
+        """
+
+    def worker_teardown(self, worker_ctx):
+        """ Called after a service worker has executed a task. This method is
+        called for all Extensions, not just the one that triggered
+        the worker spawn.
+
+        Extensions should do any post-processing here, raising
+        exceptions in the event of failure.
+
+        Example: a database session provider may commit the session
 
         Args:
             - worker_ctx: see

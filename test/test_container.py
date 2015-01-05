@@ -195,20 +195,6 @@ def test_worker_life_cycle(container):
         ('teardown', egg_worker_ctx),
     ]
 
-    assert ham_dep.calls == [
-        ('setup', ham_worker_ctx),
-        ('teardown', ham_worker_ctx),
-        ('setup', egg_worker_ctx),
-        ('teardown', egg_worker_ctx),
-    ]
-
-    assert egg_dep.calls == [
-        ('setup', ham_worker_ctx),
-        ('teardown', ham_worker_ctx),
-        ('setup', egg_worker_ctx),
-        ('teardown', egg_worker_ctx),
-    ]
-
     assert handle_result.call_args_list == [
         call(ham_worker_ctx, "ham", None),
         call(egg_worker_ctx, None, (Exception, egg_error, ANY))
