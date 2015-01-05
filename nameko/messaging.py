@@ -106,7 +106,7 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
         conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
         return producers[conn].acquire(block=True)
 
-    def prepare(self):
+    def before_start(self):
         exchange = self.exchange
         queue = self.queue
 
@@ -433,7 +433,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def prepare(self):
+    def before_start(self):
         self.queue_consumer.register_provider(self)
 
     def stop(self):

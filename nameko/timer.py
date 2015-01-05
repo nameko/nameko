@@ -38,7 +38,7 @@ class TimerProvider(EntrypointProvider):
         self.should_stop = Event()
         self.gt = None
 
-    def prepare(self):
+    def before_start(self):
         interval = self._default_interval
 
         if self.config_key:

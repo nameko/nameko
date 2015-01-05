@@ -218,7 +218,7 @@ class RpcProxy(object):
         self.stop()
 
     def start(self):
-        self._reply_listener.prepare()
+        self._reply_listener.before_start()
         return self._service_proxy
 
     def stop(self):

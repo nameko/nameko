@@ -37,7 +37,7 @@ class DependencyProvider(object):
     bound = False
     name = "<unbound-provider>"
 
-    def prepare(self):
+    def before_start(self):
         """ Called when the service container starts.
 
         DependencyProviders should do any required initialisation here.

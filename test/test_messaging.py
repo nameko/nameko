@@ -71,7 +71,7 @@ def test_consume_provider(empty_config):
     message = Mock(headers={})
 
     # test lifecycle
-    consume_provider.prepare()
+    consume_provider.before_start()
     queue_consumer.register_provider.assert_called_once_with(
         consume_provider)
 
@@ -133,7 +133,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.prepare()
+    publisher.before_start()
     maybe_declare.assert_called_once_with(foobar_ex, connection)
 
     # test publish
@@ -171,7 +171,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.prepare()
+    publisher.before_start()
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -211,7 +211,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.prepare()
+    publisher.before_start()
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -295,7 +295,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
     publisher.bind("publish", container)
 
     # test queue, exchange and binding created in rabbit
-    publisher.prepare()
+    publisher.before_start()
     publisher.start()
 
     exchanges = rabbit_manager.get_exchanges(vhost)
@@ -338,7 +338,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
     publisher.bind("publish", container)
 
-    publisher.prepare()
+    publisher.before_start()
     publisher.start()
 
     publisher.inject(worker_ctx)
@@ -373,8 +373,8 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
     consumer = factory.create_and_bind_instance("injection_name", container)
 
     # prepare and start dependencies
-    consumer.prepare()
-    consumer.queue_consumer.prepare()
+    consumer.before_start()
+    consumer.queue_consumer.before_start()
     consumer.start()
     consumer.queue_consumer.start()
 

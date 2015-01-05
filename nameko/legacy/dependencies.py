@@ -66,7 +66,7 @@ class NovaRpcConsumer(RpcConsumer):
     name and handle the nova message payload.
     Ensures result is handled by a NovaResponder.
     """
-    def prepare(self):
+    def before_start(self):
         if self.queue is None:
             container = self.container
 

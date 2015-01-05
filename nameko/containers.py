@@ -154,7 +154,7 @@ class ServiceContainer(object):
         self.started = True
 
         with _log_time('started %s', self):
-            self.dependencies.all.prepare()
+            self.dependencies.all.before_start()
             self.dependencies.all.start()
 
     def stop(self):

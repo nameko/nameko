@@ -50,7 +50,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         self._unregistered_from_queue_consumer = Event()
         self.queue = None
 
-    def prepare(self):
+    def before_start(self):
         if self.queue is None:
 
             container = self.container
@@ -143,7 +143,7 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
         self.expected_exceptions = expected_exceptions
         super(RpcProvider, self).__init__()
 
-    def prepare(self):
+    def before_start(self):
         self.rpc_consumer.register_provider(self)
 
     def stop(self):
@@ -255,7 +255,7 @@ class ReplyListener(DependencyProvider):
         super(ReplyListener, self).__init__()
         self._reply_events = {}
 
-    def prepare(self):
+    def before_start(self):
 
         service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
         container = self.container
