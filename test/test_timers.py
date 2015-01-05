@@ -16,11 +16,9 @@ def test_provider():
 
     timer = TimerProvider(interval=0, config_key=None)
     timer.bind('foobar', container)
-    timer.before_start()
+    timer.start()
 
     assert timer.interval == 0
-
-    timer.start()
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         with Timeout(1):
@@ -41,9 +39,10 @@ def test_provider_uses_config_for_interval():
 
     timer = TimerProvider(interval=None, config_key='spam-conf')
     timer.bind('foobar', container)
-    timer.before_start()
+    timer.start()
 
     assert timer.interval == 10
+    timer.stop()
 
 
 def test_provider_interval_as_config_fallback():
@@ -53,9 +52,10 @@ def test_provider_interval_as_config_fallback():
 
     timer = TimerProvider(interval=1, config_key='spam-conf')
     timer.bind('foobar', container)
-    timer.before_start()
+    timer.start()
 
     assert timer.interval == 1
+    timer.stop()
 
 
 def test_stop_timer_immediatly():
@@ -65,7 +65,6 @@ def test_stop_timer_immediatly():
 
     timer = TimerProvider(interval=5, config_key=None)
     timer.bind('foobar', container)
-    timer.before_start()
     timer.start()
     eventlet.sleep(0.1)
     timer.stop()
@@ -81,7 +80,6 @@ def test_kill_stops_timer():
 
     timer = TimerProvider(interval=0, config_key=None)
     timer.bind('foobar', container)
-    timer.before_start()
     timer.start()
 
     with wait_for_call(1, container.spawn_worker):

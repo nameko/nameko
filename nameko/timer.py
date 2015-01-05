@@ -38,7 +38,8 @@ class TimerProvider(Entrypoint):
         self.should_stop = Event()
         self.gt = None
 
-    def before_start(self):
+    def start(self):
+        _log.debug('starting %s', self)
         interval = self._default_interval
 
         if self.config_key:
@@ -46,9 +47,6 @@ class TimerProvider(Entrypoint):
             interval = config.get(self.config_key, interval)
 
         self.interval = interval
-
-    def start(self):
-        _log.debug('starting %s', self)
         self.gt = self.container.spawn_managed_thread(self._run)
 
     def stop(self):
