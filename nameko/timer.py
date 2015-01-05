@@ -6,7 +6,7 @@ from eventlet import Timeout
 from eventlet.event import Event
 
 from nameko.dependencies import (
-    entrypoint, EntrypointProvider, DependencyFactory)
+    entrypoint, Entrypoint, DependencyFactory)
 
 _log = getLogger(__name__)
 
@@ -31,7 +31,7 @@ def timer(interval=None, config_key=None):
     return DependencyFactory(TimerProvider, interval, config_key)
 
 
-class TimerProvider(EntrypointProvider):
+class TimerProvider(Entrypoint):
     def __init__(self, interval, config_key):
         self._default_interval = interval
         self.config_key = config_key

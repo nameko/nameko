@@ -18,7 +18,7 @@ from nameko.exceptions import (
 from nameko.messaging import (
     queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
-    entrypoint, injection, InjectionProvider, EntrypointProvider,
+    entrypoint, injection, InjectionProvider, Entrypoint,
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
     CONTAINER_SHARED)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
@@ -135,7 +135,7 @@ def rpc_consumer():
 
 
 # pylint: disable=E1101,E1123
-class RpcProvider(EntrypointProvider, HeaderDecoder):
+class RpcProvider(Entrypoint, HeaderDecoder):
 
     rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
 

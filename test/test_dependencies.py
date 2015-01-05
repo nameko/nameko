@@ -5,7 +5,7 @@ from mock import Mock, patch
 import pytest
 
 from nameko.dependencies import (
-    entrypoint, EntrypointProvider, prepare_entrypoint_providers,
+    entrypoint, Entrypoint, prepare_entrypoint_providers,
     injection, InjectionProvider, prepare_injection_providers,
     DependencyFactory, DependencyTypeError, dependency,
     DependencyProvider, PROCESS_SHARED, CONTAINER_SHARED, ProviderCollector)
@@ -30,7 +30,7 @@ def nested_provider(*args, **kwargs):
     return DependencyFactory(NestedProvider, *args, **kwargs)
 
 
-class FooProvider(EntrypointProvider):
+class FooProvider(Entrypoint):
 
     shared_provider = shared_provider(shared=CONTAINER_SHARED)
 

@@ -12,7 +12,7 @@ from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
 from nameko.dependencies import (
-    DependencyFactory, InjectionProvider, EntrypointProvider, entrypoint)
+    DependencyFactory, InjectionProvider, Entrypoint, entrypoint)
 from nameko.exceptions import DependencyNotFound
 from nameko.testing.utils import get_dependency, wait_for_worker_idle
 
@@ -33,7 +33,7 @@ def entrypoint_hook(container, name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = get_dependency(container, EntrypointProvider, name=name)
+    provider = get_dependency(container, Entrypoint, name=name)
     if provider is None:
         raise DependencyNotFound("No entrypoint called '{}' found "
                                  "on container {}.".format(name, container))
@@ -101,7 +101,7 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
     """
 
     waiter = EntrypointWaiter(entrypoint)
-    if not get_dependency(container, EntrypointProvider, name=entrypoint):
+    if not get_dependency(container, Entrypoint, name=entrypoint):
         raise RuntimeError("{} has no entrypoint `{}`".format(
             container.service_name, entrypoint))
     if get_dependency(container, EntrypointWaiter, entrypoint=entrypoint):
@@ -331,7 +331,7 @@ def restrict_entrypoints(container, *entrypoints):
             container.dependencies.remove(dependency)
 
 
-class DummyEntrypoint(EntrypointProvider):
+class DummyEntrypoint(Entrypoint):
     pass
 
 

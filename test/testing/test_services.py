@@ -2,7 +2,7 @@ from mock import Mock
 import pytest
 
 from nameko.dependencies import (
-    injection, entrypoint, InjectionProvider, EntrypointProvider,
+    injection, entrypoint, InjectionProvider, Entrypoint,
     DependencyFactory)
 from nameko.events import Event, event_handler
 from nameko.exceptions import DependencyNotFound, MethodNotFound
@@ -280,7 +280,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
 
     method_called = Mock()
 
-    class OnceProvider(EntrypointProvider):
+    class OnceProvider(Entrypoint):
         """ Entrypoint that spawns a worker exactly once, as soon as
         the service container started.
         """

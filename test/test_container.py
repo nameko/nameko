@@ -10,7 +10,7 @@ import pytest
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.dependencies import(
-    InjectionProvider, EntrypointProvider, entrypoint, injection,
+    InjectionProvider, Entrypoint, entrypoint, injection,
     DependencyFactory)
 from nameko.testing.utils import AnyInstanceOf, get_dependency
 
@@ -61,8 +61,8 @@ class CallCollectorMixin(object):
         super(CallCollectorMixin, self).worker_teardown(worker_ctx)
 
 
-class CallCollectingEntrypointProvider(
-        CallCollectorMixin, EntrypointProvider):
+class CallCollectingEntrypoint(
+        CallCollectorMixin, Entrypoint):
     instances = set()
 
 
@@ -77,7 +77,7 @@ class CallCollectingInjectionProvider(
 
 @entrypoint
 def foobar():
-    return DependencyFactory(CallCollectingEntrypointProvider)
+    return DependencyFactory(CallCollectingEntrypoint)
 
 
 @injection
@@ -128,7 +128,7 @@ def logger():
 def test_collects_dependencies(container):
     assert len(container.dependencies) == 4
     assert container.dependencies == (
-        CallCollectingEntrypointProvider.instances |
+        CallCollectingEntrypoint.instances |
         CallCollectingInjectionProvider.instances)
 
 
@@ -241,7 +241,7 @@ def test_container_doesnt_exhaust_max_workers(container):
                                  worker_ctx_cls=WorkerContext,
                                  config={MAX_WORKERS_CONFIG_KEY: 1})
 
-    dep = get_dependency(container, EntrypointProvider)
+    dep = get_dependency(container, Entrypoint)
 
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, ['ham'], {})
@@ -341,7 +341,7 @@ def test_kill_container_with_active_workers(container_factory):
             wait_forever.wait()
 
     container = container_factory(Service, {})
-    dep = get_dependency(container, EntrypointProvider)
+    dep = get_dependency(container, Entrypoint)
 
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, (), {})
@@ -358,7 +358,7 @@ def test_kill_container_with_active_workers(container_factory):
 
 def test_handle_killed_worker(container, logger):
 
-    dep = get_dependency(container, EntrypointProvider)
+    dep = get_dependency(container, Entrypoint)
     container.spawn_worker(dep, ['sleep'], {})
 
     assert len(container._active_threads) == 1
@@ -547,7 +547,7 @@ def test_stop_during_kill(container, logger):
 def test_container_entrypoint_property(container):
     entrypoints = container.entrypoints
     assert {dep.name for dep in entrypoints} == {'wait', 'ham', 'egg'}
-    assert entrypoints == 3 * [AnyInstanceOf(CallCollectingEntrypointProvider)]
+    assert entrypoints == 3 * [AnyInstanceOf(CallCollectingEntrypoint)]
 
 
 def test_container_injection_property(container):

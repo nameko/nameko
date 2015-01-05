@@ -146,7 +146,7 @@ class DependencyProvider(object):
             type(self).__name__, service_name, name, id(self))
 
 
-class EntrypointProvider(DependencyProvider):
+class Entrypoint(DependencyProvider):
     pass
 
 
@@ -239,7 +239,7 @@ class DependencySet(SpawningSet):
 
     @property
     def entrypoints(self):
-        """ A ``SpawningSet`` of just the ``EntrypointProvider`` instances in
+        """ A ``SpawningSet`` of just the ``Entrypoint`` instances in
         this set.
         """
         return SpawningSet(item for item in self
@@ -327,10 +327,10 @@ def entrypoint(decorator_func):
     entrypoints.
 
     The callable must return a DependencyFactory that creates the
-    EntrypointProvider instance.
+    Entrypoint instance.
 
     The returned ``wrapper`` function has a ``provider_cls`` attribute that
-    references the EntrypointProvider subclass returned by its factory. This
+    references the Entrypoint subclass returned by its factory. This
     helps separate the ``@entrypoint`` decorated methods from the class
     that implements the dependency - users only need to refer to the method
     and nameko can determine the implementing class.
@@ -438,7 +438,7 @@ def is_injection_provider(obj):
 
 
 def is_entrypoint_provider(obj):
-    return isinstance(obj, EntrypointProvider)
+    return isinstance(obj, Entrypoint)
 
 
 def prepare_injection_providers(container, include_dependencies=False):
