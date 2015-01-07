@@ -3,11 +3,11 @@ Provides classes and method to deal with dependency injection.
 """
 from __future__ import absolute_import
 
-from functools import wraps, partial
+from functools import partial
 import inspect
 from itertools import chain
 import types
-from weakref import WeakSet, WeakKeyDictionary
+from weakref import WeakKeyDictionary
 
 from eventlet.event import Event
 from nameko.utils import SpawningSet, repr_safe_str
@@ -15,27 +15,21 @@ from nameko.utils import SpawningSet, repr_safe_str
 from logging import getLogger
 _log = getLogger(__name__)
 
-ENTRYPOINT_PROVIDERS_ATTR = 'nameko_entrypoints'
+ENTRYPOINT_EXTENSIONS_ATTR = 'nameko_entrypoints'
 
 
-# constants for dependency sharing
-CONTAINER_SHARED = object()
-# PROCESS_SHARED also serves as weakref-able sentinel obj
-PROCESS_SHARED = type('process', (), {})()
-
-
-class NotInitializedError(Exception):
-    pass
-
-
-class DependencyTypeError(TypeError):
-    pass
+shared_extensions = WeakKeyDictionary()
 
 
 class Extension(object):
 
     bound = False
     name = "<unbound-extension>"
+    shared = False
+
+    def __init__(self, shared=False):
+        self.shared = shared
+        super(Extension, self).__init__()
 
     def before_start(self):
         """ Called before the service container starts.
@@ -81,9 +75,27 @@ class Extension(object):
         instance is created and then bound to the ServiceContainer instance
         controlling its lifecyle.
         """
-        self.name = name
-        self.container = container
-        self.bound = True
+        shared_extensions.setdefault(container, {})
+        bind_instance = self
+
+        if self.shared:
+            bind_instance = shared_extensions[container].get(self.sharing_key)
+            if not bind_instance:
+                shared_extensions[container][self.sharing_key] = self
+                bind_instance = self
+
+        for child_name, child_ext in inspect.getmembers(self, is_extension):
+            for ext in child_ext.bind(child_name, container):
+                yield ext
+
+        bind_instance.name = name
+        bind_instance.container = container
+        bind_instance.bound = True
+        yield bind_instance
+
+    @property
+    def sharing_key(self):
+        return type(self)
 
     @property
     def nested_dependencies(self):
@@ -114,10 +126,6 @@ class Extension(object):
 
         return '<{} [{}.{}] at 0x{:x}>'.format(
             type(self).__name__, service_name, name, id(self))
-
-
-class Entrypoint(Extension):
-    pass
 
 
 class InjectionProvider(Extension):
@@ -253,184 +261,46 @@ class ExtensionSet(SpawningSet):
         return all_deps - self.injections - self.entrypoints
 
 
-registered_dependencies = WeakSet()
-registered_injections = WeakSet()
-
-
-def register_dependency(factory):
-    registered_dependencies.add(factory)
-
-
-def register_injection(factory):
-    registered_injections.add(factory)
-
-
 def register_entrypoint(fn, provider):
-    descriptors = getattr(fn, ENTRYPOINT_PROVIDERS_ATTR, None)
+    descriptors = getattr(fn, ENTRYPOINT_EXTENSIONS_ATTR, None)
 
     if descriptors is None:
         descriptors = set()
-        setattr(fn, ENTRYPOINT_PROVIDERS_ATTR, descriptors)
+        setattr(fn, ENTRYPOINT_EXTENSIONS_ATTR, descriptors)
 
     descriptors.add(provider)
 
 
-shared_dependencies = WeakKeyDictionary()
+class Entrypoint(Extension):
 
+    def __init__(self):
+        # entrypoints cannot be shared
+        super(Entrypoint, self).__init__(shared=False)
 
-class DependencyFactory(object):
+    @classmethod
+    def entrypoint(cls, *args, **kwargs):
 
-    sharing_key = None
+        def registering_decorator(fn, args, kwargs):
+            instance = cls(*args, **kwargs)
+            register_entrypoint(fn, instance)
+            return fn
 
-    def __init__(self, dep_cls, *init_args, **init_kwargs):
-        self.dep_cls = dep_cls
-        self.args = init_args
-        self.kwargs = init_kwargs
-
-        # keep a reference to every created instance
-        self.instances = WeakSet()
-
-    @property
-    def key(self):
-        return (self.dep_cls, str(self.args), str(self.kwargs))
-
-    def create_and_bind_instance(self, name, container):
-        """ Instantiate ``dep_cls`` and bind it to ``container``.
-
-        See `:meth:~Extension.bind`.
-        """
-        sharing_key = self.sharing_key
-        if sharing_key is not None:
-            if sharing_key is CONTAINER_SHARED:
-                sharing_key = container
-
-            shared_dependencies.setdefault(sharing_key, {})
-            instance = shared_dependencies[sharing_key].get(self.key)
-            if instance is None:
-                instance = self.dep_cls(*self.args, **self.kwargs)
-                shared_dependencies[sharing_key][self.key] = instance
-        else:
-            instance = self.dep_cls(*self.args, **self.kwargs)
-        instance.bind(name, container)
-
-        for name, attr in inspect.getmembers(instance):
-            if isinstance(attr, DependencyFactory):
-                prov = attr.create_and_bind_instance(name, container)
-                setattr(instance, name, prov)
-
-        self.instances.add(instance)
-        return instance
-
-
-def entrypoint(decorator_func):
-    """ Transform a callable into a decorator that can be used to declare
-    entrypoints.
-
-    The callable must return a DependencyFactory that creates the
-    Entrypoint instance.
-
-    The returned ``wrapper`` function has a ``provider_cls`` attribute that
-    references the Entrypoint subclass returned by its factory. This
-    helps separate the ``@entrypoint`` decorated methods from the class
-    that implements the dependency - users only need to refer to the method
-    and nameko can determine the implementing class.
-
-    e.g::
-
-        @entrypoint
-        def http(bind_port=80):
-            return DependencyFactory(HttpEntrypoint, bind_port)
-
-        class Service(object):
-
-            @http
-            def foobar():
-                pass
-
-    """
-    def registering_decorator(wrapper, fn, args, kwargs):
-        """ Verify that ``decorator_func`` returns a DependencyFactory and
-        register ``fn`` as an entrypoint.
-
-        Saves a reference to the provider class of the factory onto
-        the ``wrapper`` function that wraps ``decorator_func``.
-        """
-        factory = decorator_func(*args, **kwargs)
-        if not isinstance(factory, DependencyFactory):
-            raise DependencyTypeError('Arguments to `entrypoint` must return '
-                                      'DependencyFactory instances')
-        register_entrypoint(fn, factory)
-        wrapper.provider_cls = factory.dep_cls
-
-        return fn
-
-    @wraps(decorator_func)
-    def wrapper(*args, **kwargs):
         if len(args) == 1 and isinstance(args[0], types.FunctionType):
             # usage without arguments to the decorator:
             # @foobar
             # def spam():
             #     pass
-            return registering_decorator(wrapper, args[0], tuple(), {})
+            return registering_decorator(args[0], args=(), kwargs={})
         else:
             # usage with arguments to the decorator:
             # @foobar('shrub', ...)
             # def spam():
             #     pass
-            return partial(registering_decorator,
-                           wrapper, args=args, kwargs=kwargs)
-
-    return wrapper
+            return partial(registering_decorator, args=args, kwargs=kwargs)
 
 
-def injection(fn):
-    """ Transform a callable into a function that can be used to create
-    injections.
-
-    The callable must return a DependencyFactory that creates the
-    InjectionProvider instance.
-
-    The returned ``wrapped`` function has a ``provider_cls`` attribute that
-    references the InjectionProvider subclass returned by the factory. This
-    helps separate the ``@injection`` decorated methods from the class
-    that implements the dependency - users only need to refer to the method
-    and nameko can determine the implementing class.
-
-    e.g::
-
-        @injection
-        def database(*args, **kwargs):
-            return DependencyFactory(DatabaseProvider, *args, **kwargs)
-
-        class Service(object):
-
-            db = database()
-    """
-    @wraps(fn)
-    def wrapped(*args, **kwargs):
-        factory = fn(*args, **kwargs)
-        if not isinstance(factory, DependencyFactory):
-            raise DependencyTypeError('Arguments to `injection` must return '
-                                      'DependencyFactory instances')
-        register_injection(factory)
-        wrapped.provider_cls = factory.dep_cls
-        return factory
-    return wrapped
-
-
-def dependency(fn):
-    @wraps(fn)
-    def wrapped(*args, **kwargs):
-        sharing_key = kwargs.pop('shared', None)
-
-        factory = fn(*args, **kwargs)
-        if not isinstance(factory, DependencyFactory):
-            raise DependencyTypeError('Arguments to `dependency` must return '
-                                      'DependencyFactory instances')
-        factory.sharing_key = sharing_key
-        register_dependency(factory)
-        return factory
-    return wrapped
+def is_extension(obj):
+    return isinstance(obj, Extension)
 
 
 def is_injection_provider(obj):
@@ -441,31 +311,23 @@ def is_entrypoint_provider(obj):
     return isinstance(obj, Entrypoint)
 
 
-def prepare_injection_providers(container, include_dependencies=False):
+def prepare_injection_providers(container):
     service_cls = container.service_cls
-    for name, attr in inspect.getmembers(service_cls):
-        if attr in registered_injections:
-            factory = attr
-            provider = factory.create_and_bind_instance(name, container)
-            yield provider
-            if include_dependencies:
-                for dependency in provider.nested_dependencies:
-                    yield dependency
+    for name, prov in inspect.getmembers(service_cls, is_injection_provider):
+        for ext in prov.bind(name, container):
+            yield ext
 
 
-def prepare_entrypoint_providers(container, include_dependencies=False):
+def prepare_entrypoint_providers(container):
     service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
-        factories = getattr(attr, ENTRYPOINT_PROVIDERS_ATTR, [])
-        for factory in factories:
-            provider = factory.create_and_bind_instance(name, container)
-            yield provider
-            if include_dependencies:
-                for dependency in provider.nested_dependencies:
-                    yield dependency
-
+        entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
+        for entrypoint in entrypoints:
+            for ext in entrypoint.bind(name, container):
+                yield ext
 
 def prepare_dependencies(container):
     return chain(
-        prepare_injection_providers(container, include_dependencies=True),
-        prepare_entrypoint_providers(container, include_dependencies=True))
+        prepare_injection_providers(container),
+        prepare_entrypoint_providers(container)
+    )

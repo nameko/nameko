@@ -94,3 +94,6 @@ class TimerProvider(Entrypoint):
         # triggered `kill` is a no-op, since the container is alredy
         # `_being_killed`.
         self.container.spawn_worker(self, args, kwargs)
+
+# for decorator
+timer = TimerProvider

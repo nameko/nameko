@@ -5,7 +5,7 @@ from collections import defaultdict
 from mock import Mock, patch
 
 from nameko.containers import WorkerContext, ServiceContainer
-from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
+from nameko.dependencies import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.events import (
     EventDispatcher, Event, EventTypeTooLong, EventTypeMissing,
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
@@ -46,7 +46,7 @@ def test_event_handler_decorator():
     """
     decorator = event_handler("servicename", "eventtype")
     handler = decorator(lambda: None)
-    descr = list(getattr(handler, ENTRYPOINT_PROVIDERS_ATTR))[0]
+    descr = list(getattr(handler, ENTRYPOINT_EXTENSIONS_ATTR))[0]
     assert descr.dep_cls is EventHandler
 
 
