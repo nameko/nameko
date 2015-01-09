@@ -58,7 +58,6 @@ class NovaResponder(Responder):
         return result, exc_info
 
 
-# pylint: disable=E1101
 class NovaRpcConsumer(RpcConsumer):
     """ Extend RpcConsumer to modify the routing key, queue name, exchange
     name and handle the nova message payload.
@@ -96,7 +95,6 @@ class NovaRpcConsumer(RpcConsumer):
         return result, exc_info
 
 
-# pylint: disable=E1101,E1123
 class NovaRpc(Rpc):
     """ Extend :class:`nameko.rpc.Rpc` to handle the nova message payload.
     Works in combination with the NovaRpcConsumer.

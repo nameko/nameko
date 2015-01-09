@@ -37,7 +37,6 @@ def get_rpc_exchange(container):
     return exchange
 
 
-# pylint: disable=E1101,E1123
 class RpcConsumer(Extension, ProviderCollector):
 
     queue_consumer = QueueConsumer(shared=True)
@@ -127,7 +126,6 @@ class RpcConsumer(Extension, ProviderCollector):
         self.queue_consumer.requeue_message(message)
 
 
-# pylint: disable=E1101,E1123
 class Rpc(Entrypoint, HeaderDecoder):
 
     rpc_consumer = RpcConsumer(shared=True)
@@ -238,7 +236,6 @@ class Responder(object):
         return result, exc_info
 
 
-# pylint: disable=E1101,E1123
 class ReplyListener(Extension):
 
     queue_consumer = QueueConsumer(shared=True)

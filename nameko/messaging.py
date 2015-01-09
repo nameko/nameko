@@ -397,7 +397,6 @@ class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
                     elapsed = 0
 
 
-# pylint: disable=E1101,E1123
 class Consumer(Entrypoint, HeaderDecoder):
 
     queue_consumer = QueueConsumer(shared=True)
