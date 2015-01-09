@@ -5,7 +5,6 @@ from collections import defaultdict
 from mock import Mock, patch
 
 from nameko.containers import WorkerContext, ServiceContainer
-from nameko.dependencies import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.events import (
     EventDispatcher, Event, EventTypeTooLong, EventTypeMissing,
     EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
@@ -39,15 +38,6 @@ def test_reliable_broadcast_config_error():
             'foo', 'bar', reliable_delivery=True, handler_type=BROADCAST)
         def foo():
             pass
-
-
-def test_event_handler_decorator():
-    """ Verify that the event_handler decorator generates an EventProvider
-    """
-    decorator = event_handler("servicename", "eventtype")
-    handler = decorator(lambda: None)
-    descr = list(getattr(handler, ENTRYPOINT_EXTENSIONS_ATTR))[0]
-    assert descr.dep_cls is EventHandler
 
 
 def test_event_dispatcher(empty_config):
@@ -128,7 +118,8 @@ def test_event_handler(handler_factory):
             "evt-srcservice-eventtype--destservice.foobar")
 
     # test broadcast handler
-    event_handler = handler_factory(queue_consumer, handler_type=BROADCAST)
+    event_handler = handler_factory(queue_consumer, reliable_delivery=False,
+                                    handler_type=BROADCAST)
     event_handler.bind("foobar", container)
     event_handler.before_start()
     assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
@@ -177,6 +168,8 @@ class CustomEventHandler(EventHandler):
             message, worker_ctx, result, exc_info)
         self._calls.append(message)
         return result, exc_info
+
+custome_event_handler = CustomEventHandler.entrypoint
 
 
 class HandlerService(object):
@@ -240,8 +233,7 @@ class UnreliableHandler(HandlerService):
 
 
 class CustomHandler(HandlerService):
-    @event_handler('srcservice', 'eventtype',
-                   event_handler_cls=CustomEventHandler)
+    @custome_event_handler('srcservice', 'eventtype')
     def handle(self, evt):
         super(CustomHandler, self).handle(evt)
 

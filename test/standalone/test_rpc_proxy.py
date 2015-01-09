@@ -5,7 +5,7 @@ import pytest
 import socket
 
 from nameko.containers import WorkerContext
-from nameko.dependencies import injection, InjectionProvider, DependencyFactory
+from nameko.dependencies import InjectionProvider
 from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import RpcProxy
@@ -25,15 +25,10 @@ class ContextReader(InjectionProvider):
         return get_context_value
 
 
-@injection
-def context_reader():
-    return DependencyFactory(ContextReader)
-
-
 class FooService(object):
     name = 'foobar'
 
-    get_context_value = context_reader()
+    get_context_value = ContextReader()
 
     @rpc
     def spam(self, ham):

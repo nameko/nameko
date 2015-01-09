@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import Session
 
-from nameko.contrib.sqlalchemy import orm_session, OrmSession, ORM_DB_URIS_KEY
+from nameko.contrib.sqlalchemy import OrmSession, ORM_DB_URIS_KEY
 from nameko.containers import WorkerContext
 from nameko.testing.utils import DummyProvider
 
@@ -19,7 +19,7 @@ class FooModel(DeclBase):
 
 
 class FooService(object):
-    session = orm_session(DeclBase)
+    session = OrmSession(DeclBase)
 
 
 config = {

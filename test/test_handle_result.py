@@ -4,8 +4,7 @@ import sys
 from mock import ANY
 import pytest
 
-from nameko.dependencies import (
-    InjectionProvider, DependencyFactory, injection, entrypoint)
+from nameko.dependencies import InjectionProvider
 from nameko.exceptions import RemoteError
 from nameko.rpc import RpcProvider
 from nameko.standalone.rpc import RpcProxy
@@ -20,16 +19,11 @@ def reset():
     del worker_result_called[:]
 
 
-class CollectorInjection(InjectionProvider):
+class ResultCollector(InjectionProvider):
     """ InjectionProvider that collects worker results
     """
     def worker_result(self, worker_ctx, res, exc_info):
         worker_result_called.append((res, exc_info))
-
-
-@injection
-def result_collector():
-    return DependencyFactory(CollectorInjection)
 
 
 class CustomRpcProvider(RpcProvider):
@@ -47,14 +41,12 @@ class CustomRpcProvider(RpcProvider):
             message, worker_ctx, result, exc_info)
 
 
-@entrypoint
-def custom_rpc():
-    return DependencyFactory(CustomRpcProvider)
+custom_rpc = CustomRpcProvider.entrypoint
 
 
 class ExampleService(object):
 
-    collector = result_collector()
+    collector = ResultCollector()
 
     @custom_rpc
     def echo(self, arg):

@@ -5,7 +5,6 @@ from kombu import Exchange, Queue
 from mock import patch, Mock
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.dependencies import DependencyFactory
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
     PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
@@ -368,9 +367,9 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
 
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 
-    factory = DependencyFactory(ConsumeProvider, queue=foobar_queue,
-                                requeue_on_error=False)
-    consumer = factory.create_and_bind_instance("injection_name", container)
+    consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
+    consumer.bind("injection_name", container)  # no longer recursive
+    consumer.queue_consumer.bind("queue_consumer", container)
 
     # prepare and start dependencies
     consumer.before_start()

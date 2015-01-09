@@ -2,33 +2,25 @@ from nameko.constants import (
     LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
     AUTH_TOKEN_CONTEXT_KEY,
 )
-from nameko.dependencies import InjectionProvider, DependencyFactory, injection
+from nameko.dependencies import InjectionProvider
 
 
 class ContextDataProvider(InjectionProvider):
-
-    def __init__(self, context_key):
-        self.context_key = context_key
-
     def acquire_injection(self, worker_ctx):
         return worker_ctx.data.get(self.context_key)
 
 
-@injection
-def language():
-    return DependencyFactory(ContextDataProvider, LANGUAGE_CONTEXT_KEY)
+class language(ContextDataProvider):
+    context_key = LANGUAGE_CONTEXT_KEY
 
 
-@injection
-def user_id():
-    return DependencyFactory(ContextDataProvider, USER_ID_CONTEXT_KEY)
+class user_id(ContextDataProvider):
+    context_key = USER_ID_CONTEXT_KEY
 
 
-@injection
-def user_agent():
-    return DependencyFactory(ContextDataProvider, USER_AGENT_CONTEXT_KEY)
+class user_agent(ContextDataProvider):
+    context_key = USER_AGENT_CONTEXT_KEY
 
 
-@injection
-def auth_token():
-    return DependencyFactory(ContextDataProvider, AUTH_TOKEN_CONTEXT_KEY)
+class auth_token(ContextDataProvider):
+    context_key = AUTH_TOKEN_CONTEXT_KEY

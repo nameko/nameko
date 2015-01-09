@@ -10,11 +10,8 @@ log = logging.getLogger(__name__)
 
 def is_rpc_method(method):
     if inspect.ismethod(method) and hasattr(method, 'nameko_entrypoints'):
-        entrypoint_dep_classes = {
-            factory.dep_cls for factory in method.nameko_entrypoints
-        }
-        if any(issubclass(dep_cls, RpcProvider)
-               for dep_cls in entrypoint_dep_classes):
+        if any(isinstance(entrypoint, RpcProvider)
+               for entrypoint in method.nameko_entrypoints):
             # It's an RPC method
             return True
 

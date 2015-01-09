@@ -11,8 +11,7 @@ from eventlet import event
 from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
-from nameko.dependencies import (
-    DependencyFactory, InjectionProvider, Entrypoint, entrypoint)
+from nameko.dependencies import InjectionProvider, Entrypoint
 from nameko.exceptions import DependencyNotFound
 from nameko.testing.utils import get_dependency, wait_for_worker_idle
 
@@ -130,7 +129,7 @@ def worker_factory(service_cls, **injections):
     The following example service proxies calls to a "math" service via
     and ``rpc_proxy`` injection::
 
-        from nameko.rpc import rpc_proxy, rpc
+        from nameko.rpc import RpcProxy, rpc
 
         class ConversionService(object):
             math = rpc_proxy("math_service")
@@ -182,14 +181,12 @@ def worker_factory(service_cls, **injections):
     """
     service = service_cls()
     for name, attr in inspect.getmembers(service_cls):
-        if isinstance(attr, DependencyFactory):
-            factory = attr
-            if issubclass(factory.dep_cls, InjectionProvider):
-                try:
-                    injection = injections.pop(name)
-                except KeyError:
-                    injection = MagicMock()
-                setattr(service, name, injection)
+        if isinstance(attr, InjectionProvider):
+            try:
+                injection = injections.pop(name)
+            except KeyError:
+                injection = MagicMock()
+            setattr(service, name, injection)
 
     if injections:
         raise DependencyNotFound("Injection(s) '{}' not found on {}.".format(
@@ -224,7 +221,7 @@ def replace_injections(container, *injections):
 
     ::
 
-        from nameko.rpc import rpc_proxy, rpc
+        from nameko.rpc import RpcProxy, rpc
         from nameko.standalone.rpc import RpcProxy
 
         class ConversionService(object):
@@ -331,10 +328,5 @@ def restrict_entrypoints(container, *entrypoints):
             container.dependencies.remove(dependency)
 
 
-class DummyEntrypoint(Entrypoint):
-    pass
-
-
-@entrypoint
-def dummy():
-    return DependencyFactory(DummyEntrypoint)
+# dummy entrypoint
+dummy = Entrypoint.entrypoint

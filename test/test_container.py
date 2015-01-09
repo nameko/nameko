@@ -9,9 +9,7 @@ import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.dependencies import(
-    InjectionProvider, Entrypoint, entrypoint, injection,
-    DependencyFactory)
+from nameko.dependencies import InjectionProvider, Entrypoint
 from nameko.testing.utils import AnyInstanceOf, get_dependency
 
 
@@ -19,8 +17,12 @@ class CallCollectorMixin(object):
     call_counter = 0
 
     def __init__(self):
-        self.instances.add(self)
         self._reset_calls()
+        super(CallCollectorMixin, self).__init__()
+
+    def bind(self, name, container):
+        self.instances.add(self)
+        super(CallCollectorMixin, self).bind(name, container)
 
     def _reset_calls(self):
         self.calls = []
@@ -47,19 +49,6 @@ class CallCollectorMixin(object):
         self._log_call(('kill'))
         super(CallCollectorMixin, self).stop()
 
-    def worker_setup(self, worker_ctx):
-        self._log_call(('setup', worker_ctx))
-        super(CallCollectorMixin, self).worker_setup(worker_ctx)
-
-    def worker_result(self, worker_ctx, result=None, exc_info=None):
-        self._log_call(('result', worker_ctx, (result, exc_info)))
-        super(CallCollectorMixin, self).worker_result(
-            worker_ctx, result, exc_info)
-
-    def worker_teardown(self, worker_ctx):
-        self._log_call(('teardown', worker_ctx))
-        super(CallCollectorMixin, self).worker_teardown(worker_ctx)
-
 
 class CallCollectingEntrypoint(
         CallCollectorMixin, Entrypoint):
@@ -74,16 +63,24 @@ class CallCollectingInjectionProvider(
         self._log_call(('acquire', worker_ctx))
         return 'spam-attr'
 
+    def worker_setup(self, worker_ctx):
+        self._log_call(('setup', worker_ctx))
+        super(CallCollectorMixin, self).worker_setup(worker_ctx)
 
-@entrypoint
-def foobar():
-    return DependencyFactory(CallCollectingEntrypoint)
+    def worker_result(self, worker_ctx, result=None, exc_info=None):
+        self._log_call(('result', worker_ctx, (result, exc_info)))
+        super(CallCollectorMixin, self).worker_result(
+            worker_ctx, result, exc_info)
+
+    def worker_teardown(self, worker_ctx):
+        self._log_call(('teardown', worker_ctx))
+        super(CallCollectorMixin, self).worker_teardown(worker_ctx)
 
 
-@injection
-def call_collector():
-    return DependencyFactory(CallCollectingInjectionProvider)
+foobar = CallCollectingEntrypoint.entrypoint
 
+# compat
+call_collector = CallCollectingInjectionProvider
 
 egg_error = Exception('broken')
 

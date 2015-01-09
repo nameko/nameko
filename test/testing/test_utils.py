@@ -5,7 +5,7 @@ from pyrabbit.http import HTTPError
 import pytest
 
 from nameko.constants import DEFAULT_MAX_WORKERS
-from nameko.rpc import rpc
+from nameko.rpc import rpc, RpcProvider
 from nameko.testing.utils import (
     AnyInstanceOf, get_dependency, get_container, wait_for_call,
     reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle,
@@ -219,7 +219,7 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
         wait_for_worker_idle(container)
 
     # spawn a worker
-    wait_for_event = get_dependency(container, rpc.provider_cls)
+    wait_for_event = get_dependency(container, RpcProvider)
     container.spawn_worker(wait_for_event, [], {})
 
     # verify that wait_for_worker_idle does not return while worker active

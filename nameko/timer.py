@@ -5,38 +5,33 @@ import time
 from eventlet import Timeout
 from eventlet.event import Event
 
-from nameko.dependencies import (
-    entrypoint, Entrypoint, DependencyFactory)
+from nameko.dependencies import Entrypoint
 
 _log = getLogger(__name__)
 
 
-@entrypoint
-def timer(interval=None, config_key=None):
-    '''
-    Decorates a method as a timer, which will be called every `interval` sec.
-
-    Either the `interval` or the `config_key` have to be provided or both.
-    If the `config_key` is given the value for that key in the config will be
-    used as the interval otherwise the `interval` provided will be used.
-
-    Example::
-
-        class Foobar(object):
-
-            @timer(interval=5, config_key='foobar_interval')
-            def handle_timer(self):
-                self.shrub(body)
-    '''
-    return DependencyFactory(TimerProvider, interval, config_key)
-
-
 class TimerProvider(Entrypoint):
-    def __init__(self, interval, config_key):
+    def __init__(self, interval=None, config_key=None):
+        """
+        Decorates a method as a timer, which will be called every `interval` sec.
+
+        Either the `interval` or the `config_key` have to be provided or both.
+        If the `config_key` is given the value for that key in the config will be
+        used as the interval otherwise the `interval` provided will be used.
+
+        Example::
+
+            class Foobar(object):
+
+                @timer(interval=5, config_key='foobar_interval')
+                def handle_timer(self):
+                    self.shrub(body)
+        """
         self._default_interval = interval
         self.config_key = config_key
         self.should_stop = Event()
         self.gt = None
+        super(TimerProvider, self).__init__(interval, config_key)
 
     def start(self):
         _log.debug('starting %s', self)
@@ -95,5 +90,5 @@ class TimerProvider(Entrypoint):
         # `_being_killed`.
         self.container.spawn_worker(self, args, kwargs)
 
-# for decorator
-timer = TimerProvider
+
+timer = TimerProvider.entrypoint

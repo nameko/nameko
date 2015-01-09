@@ -10,7 +10,7 @@ import tempfile
 
 from kombu import Exchange, Queue
 
-from nameko.dependencies import InjectionProvider, injection, DependencyFactory
+from nameko.dependencies import InjectionProvider
 from nameko.messaging import consume
 from nameko.runners import ServiceRunner
 
@@ -23,13 +23,20 @@ class InvalidPath(Exception):
     pass
 
 
-class LogFile(InjectionProvider):
-    """ Developer docs for LogFile InjectionProvider
-    """
+class FileLogger(InjectionProvider):
     def __init__(self, path):
+        """ Docs for FileLogger
+        """
         if path is None:
             path = os.path.join(tempfile.mkdtemp(), 'nameko.log')
-        self.path = path
+        else:
+            check_path = path
+            if not os.path.exists(check_path):
+                check_path = os.path.dirname(path)
+            if not os.access(check_path, os.W_OK):
+                raise InvalidPath("File or dir not writable: {}".format(path))
+            self.path = path
+        super(FileLogger, self).__init__(path)
 
     def before_start(self):
         self.file_handle = open(self.path, 'w')
@@ -46,23 +53,9 @@ class LogFile(InjectionProvider):
         self.file_handle.flush()
 
 
-@injection
-def file_logger(path=None):
-    """ User docs for file logger
-    """
-    if path is not None:
-        check_path = path
-        if not os.path.exists(check_path):
-            check_path = os.path.dirname(path)
-        if not os.access(check_path, os.W_OK):
-            raise InvalidPath("File or dir not writable: {}".format(path))
-
-    return DependencyFactory(LogFile, path)
-
-
 class MessagingConsumer(object):
 
-    log = file_logger('/tmp/nameko.log')
+    log = FileLogger('/tmp/nameko.log')
 
     @consume(demo_queue)
     def process(self, payload):

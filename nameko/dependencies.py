@@ -5,9 +5,8 @@ from __future__ import absolute_import
 
 from functools import partial
 import inspect
-from itertools import chain
 import types
-from weakref import WeakKeyDictionary
+import weakref
 
 from eventlet.event import Event
 from nameko.utils import SpawningSet, repr_safe_str
@@ -15,20 +14,24 @@ from nameko.utils import SpawningSet, repr_safe_str
 from logging import getLogger
 _log = getLogger(__name__)
 
+
 ENTRYPOINT_EXTENSIONS_ATTR = 'nameko_entrypoints'
 
 
-shared_extensions = WeakKeyDictionary()
+shared_extensions = weakref.WeakKeyDictionary()
 
 
 class Extension(object):
+
+    __state = None
 
     bound = False
     name = "<unbound-extension>"
     shared = False
 
-    def __init__(self, shared=False):
-        self.shared = shared
+    def __init__(self, *args, **kwargs):
+        self.shared = kwargs.pop('shared', False)
+        self.__state = (args, kwargs)
         super(Extension, self).__init__()
 
     def before_start(self):
@@ -68,53 +71,47 @@ class Extension(object):
         """
 
     def bind(self, name, container):
-        """ Bind this Extension instance to ``container`` using the
-        given ``name`` to identify the resource on the hosted service.
+        self.name = name
+        self.container = container
+        self.bound = True
 
-        Called during ServiceContainer initialisation. The Extension
-        instance is created and then bound to the ServiceContainer instance
-        controlling its lifecyle.
-        """
+    def clone(self):
+        # clones have no notion of sharing? non-clones cannot be bound?
+        if self.__state is None:
+            raise Exception('forgot to call super().__init__?')
+
+        cls = type(self)
+        args, kwargs = self.__state
+        return cls(*args, **kwargs)
+
+    def attach(self, name, container):
+
         shared_extensions.setdefault(container, {})
-        bind_instance = self
+        clone = self.clone()
+        bind_instance = clone
 
         if self.shared:
             bind_instance = shared_extensions[container].get(self.sharing_key)
             if not bind_instance:
-                shared_extensions[container][self.sharing_key] = self
-                bind_instance = self
+                bind_instance = clone
+                shared_extensions[container][self.sharing_key] = bind_instance
 
         for child_name, child_ext in inspect.getmembers(self, is_extension):
-            for ext in child_ext.bind(child_name, container):
+            for ext in child_ext.attach(child_name, container):
+                setattr(bind_instance, child_name, ext)  # update w/ clone
                 yield ext
 
-        bind_instance.name = name
-        bind_instance.container = container
-        bind_instance.bound = True
+        # use a weakref proxy to the container to avoid cycles where the
+        # values in the shared_extensions weakref dict refer to their keys
+        # container_ref = weakref.proxy(container)
+
+        # results in double-bind and double-yield for shared instances...
+        bind_instance.bind(name, container)
         yield bind_instance
 
     @property
     def sharing_key(self):
         return type(self)
-
-    @property
-    def nested_dependencies(self):
-        """ Recusively yield nested dependencies of Extension.
-
-        For example, with an instance of `:class:~nameko.rpc.RpcProvider`
-        called ``rpc``::
-
-            >>> deps = list(rpc.nested_dependencies)
-            >>> deps
-            [<nameko.rpc.RpcConsumer object at 0x10d125690>,
-             <nameko.messaging.QueueConsumer object at 0x10d5b8f50>]
-            >>>
-        """
-        for _, attr in inspect.getmembers(self):
-            if isinstance(attr, Extension):
-                yield attr
-                for nested_dep in attr.nested_dependencies:
-                    yield nested_dep
 
     def __repr__(self):
         if not self.bound:
@@ -129,6 +126,11 @@ class Extension(object):
 
 
 class InjectionProvider(Extension):
+
+    def __init__(self, *args, **kwargs):
+        # injectionproviders cannot be shared
+        kwargs.pop('shared', False)
+        super(InjectionProvider, self).__init__(*args, **kwargs)
 
     def acquire_injection(self, worker_ctx):
         """ Called before worker execution. An InjectionProvider should return
@@ -250,8 +252,7 @@ class ExtensionSet(SpawningSet):
         """ A ``SpawningSet`` of just the ``Entrypoint`` instances in
         this set.
         """
-        return SpawningSet(item for item in self
-                           if is_entrypoint_provider(item))
+        return SpawningSet(item for item in self if is_entrypoint(item))
 
     @property
     def other(self):
@@ -271,11 +272,16 @@ def register_entrypoint(fn, provider):
     descriptors.add(provider)
 
 
+# metaclass to allow sharing key always?
+# or prefer explicit shared=None in all __init__s
+# or require/encourage **kwargs in __init__s
+
 class Entrypoint(Extension):
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         # entrypoints cannot be shared
-        super(Entrypoint, self).__init__(shared=False)
+        kwargs.pop('shared', False)
+        super(Entrypoint, self).__init__(*args, **kwargs)
 
     @classmethod
     def entrypoint(cls, *args, **kwargs):
@@ -307,27 +313,17 @@ def is_injection_provider(obj):
     return isinstance(obj, InjectionProvider)
 
 
-def is_entrypoint_provider(obj):
+def is_entrypoint(obj):
     return isinstance(obj, Entrypoint)
 
 
-def prepare_injection_providers(container):
+def attach_extensions(container):
     service_cls = container.service_cls
     for name, prov in inspect.getmembers(service_cls, is_injection_provider):
-        for ext in prov.bind(name, container):
+        for ext in prov.attach(name, container):
             yield ext
-
-
-def prepare_entrypoint_providers(container):
-    service_cls = container.service_cls
     for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
         entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
         for entrypoint in entrypoints:
-            for ext in entrypoint.bind(name, container):
+            for ext in entrypoint.attach(name, container):
                 yield ext
-
-def prepare_dependencies(container):
-    return chain(
-        prepare_injection_providers(container),
-        prepare_entrypoint_providers(container)
-    )

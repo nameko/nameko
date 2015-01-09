@@ -16,11 +16,9 @@ from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
     MalformedRequest, RpcConnectionError, serialize, deserialize)
 from nameko.messaging import (
-    queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
+    QueueConsumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
-    entrypoint, injection, InjectionProvider, Entrypoint,
-    DependencyFactory, dependency, ProviderCollector, Extension,
-    CONTAINER_SHARED)
+    InjectionProvider, Entrypoint, ProviderCollector, Extension)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
 from nameko.utils import repr_safe_str
 
@@ -42,13 +40,13 @@ def get_rpc_exchange(container):
 # pylint: disable=E1101,E1123
 class RpcConsumer(Extension, ProviderCollector):
 
-    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
+    queue_consumer = QueueConsumer(shared=True)
 
-    def __init__(self):
-        super(RpcConsumer, self).__init__()
+    def __init__(self, **kwargs):
         self._unregistering_providers = set()
         self._unregistered_from_queue_consumer = Event()
         self.queue = None
+        super(RpcConsumer, self).__init__(**kwargs)
 
     def before_start(self):
         if self.queue is None:
@@ -129,19 +127,22 @@ class RpcConsumer(Extension, ProviderCollector):
         self.queue_consumer.requeue_message(message)
 
 
-@dependency
-def rpc_consumer():
-    return DependencyFactory(RpcConsumer)
-
-
 # pylint: disable=E1101,E1123
 class RpcProvider(Entrypoint, HeaderDecoder):
 
-    rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
+    rpc_consumer = RpcConsumer(shared=True)
 
-    def __init__(self, expected_exceptions=()):
+    def __init__(self, expected_exceptions=(), **kwargs):
+        """ Mark a method to be exposed over rpc
+
+        :Parameters:
+            expected_exceptions : exception class or tuple of exception classes
+                Stashed on the provider instance for later inspection by other
+                dependencies in the worker lifecycle. Use for exceptions caused
+                by the caller (e.g. bad arguments).
+        """
         self.expected_exceptions = expected_exceptions
-        super(RpcProvider, self).__init__()
+        super(RpcProvider, self).__init__(expected_exceptions, **kwargs)
 
     def before_start(self):
         self.rpc_consumer.register_provider(self)
@@ -184,19 +185,6 @@ class RpcProvider(Entrypoint, HeaderDecoder):
         result, exc_info = self.rpc_consumer.handle_result(
             message, container, result, exc_info)
         return result, exc_info
-
-
-@entrypoint
-def rpc(expected_exceptions=()):
-    """ Mark a method to be exposed over rpc
-
-    :Parameters:
-        expected_exceptions : exception class or tuple of exception classes
-            Stashed on the provider instance for later inspection by other
-            dependencies in the worker lifecycle. Use for exceptions caused
-            by the caller (e.g. bad arguments).
-    """
-    return DependencyFactory(RpcProvider, expected_exceptions)
 
 
 class Responder(object):
@@ -249,11 +237,11 @@ class Responder(object):
 # pylint: disable=E1101,E1123
 class ReplyListener(Extension):
 
-    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
+    queue_consumer = QueueConsumer(shared=True)
 
-    def __init__(self):
-        super(ReplyListener, self).__init__()
+    def __init__(self, **kwargs):
         self._reply_events = {}
+        super(ReplyListener, self).__init__(**kwargs)
 
     def before_start(self):
 
@@ -310,26 +298,20 @@ class ReplyListener(Extension):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-@dependency
-def reply_listener():
-    return DependencyFactory(ReplyListener)
+class RpcProxy(InjectionProvider):
 
-
-class RpcProxyProvider(InjectionProvider):
-
-    rpc_reply_listener = reply_listener(shared=CONTAINER_SHARED)
+    rpc_reply_listener = ReplyListener(shared=True)
 
     def __init__(self, service_name):
         self.service_name = service_name
+        super(RpcProxy, self).__init__(service_name)
 
     def acquire_injection(self, worker_ctx):
         return ServiceProxy(worker_ctx, self.service_name,
                             self.rpc_reply_listener)
 
-
-@injection
-def rpc_proxy(service_name):
-    return DependencyFactory(RpcProxyProvider, service_name)
+# backwards compat
+rpc_proxy = RpcProxy
 
 
 class ServiceProxy(object):
@@ -449,3 +431,6 @@ class MethodProxy(HeaderEncoder):
         service_name = repr_safe_str(self.service_name)
         method_name = repr_safe_str(self.method_name)
         return '<proxy method: {}.{}>'.format(service_name, method_name)
+
+
+rpc = RpcProvider.entrypoint

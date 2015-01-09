@@ -7,8 +7,6 @@ from kombu.pools import producers
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import ContainerBeingKilled
-from nameko.dependencies import (
-    dependency, entrypoint, DependencyFactory, CONTAINER_SHARED)
 from nameko.legacy.nova import get_topic_queue, parse_message
 from nameko.messaging import AMQP_URI_CONFIG_KEY
 from nameko.rpc import RpcConsumer, RpcProvider, Responder
@@ -98,18 +96,13 @@ class NovaRpcConsumer(RpcConsumer):
         return result, exc_info
 
 
-@dependency
-def nova_rpc_consumer():
-    return DependencyFactory(NovaRpcConsumer)
-
-
 # pylint: disable=E1101,E1123
 class NovaRpcProvider(RpcProvider):
     """ Extend RpcProvider to handle the nova message payload.
     Works in combination with the NovaRpcConsumer.
     """
 
-    rpc_consumer = nova_rpc_consumer(shared=CONTAINER_SHARED)
+    rpc_consumer = NovaRpcConsumer(shared=True)
 
     def handle_message(self, body, message):
         container = self.container
@@ -135,6 +128,4 @@ class NovaRpcProvider(RpcProvider):
             message, msgid, self.container, result, exc_info)
 
 
-@entrypoint
-def rpc():
-    return DependencyFactory(NovaRpcProvider)
+rpc = NovaRpcProvider.entrypoint

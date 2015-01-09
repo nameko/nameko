@@ -1,9 +1,7 @@
 from mock import Mock
 import pytest
 
-from nameko.dependencies import (
-    injection, entrypoint, InjectionProvider, Entrypoint,
-    DependencyFactory)
+from nameko.dependencies import InjectionProvider, Entrypoint
 from nameko.events import Event, event_handler
 from nameko.exceptions import DependencyNotFound, MethodNotFound
 from nameko.rpc import rpc_proxy, rpc
@@ -24,11 +22,6 @@ class LanguageReporter(InjectionProvider):
         return get_language
 
 
-@injection
-def language_reporter():
-    return DependencyFactory(LanguageReporter)
-
-
 handle_event = Mock()
 
 
@@ -40,7 +33,7 @@ def reset_mock():
 class Service(object):
 
     a = rpc_proxy("service_a")
-    language = language_reporter()
+    language = LanguageReporter()
 
     @rpc
     def working(self, value):
@@ -159,12 +152,8 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
         def worker_setup(self, worker_ctx):
             raise InjectionError("Boom")
 
-    @injection
-    def bad_injection():
-        return DependencyFactory(BadInjection)
-
     class BadService(Service):
-        bad = bad_injection()
+        bad = BadInjection()
 
     container = container_factory(BadService, rabbit_config)
     container.start()
@@ -230,7 +219,7 @@ def test_replace_injections(container_factory, rabbit_config):
     assert len([x for x in replacements]) == 2
 
     # verify that container.dependencies doesn't include an rpc_proxy anymore
-    assert all([not isinstance(dependency, rpc_proxy.provider_cls)
+    assert all([not isinstance(dependency, rpc_proxy)
                 for dependency in container.dependencies])
 
     container.start()
@@ -287,13 +276,12 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
         def __init__(self, *args, **kwargs):
             self.args = args
             self.kwargs = kwargs
+            super(OnceProvider, self).__init__()
 
         def start(self):
             self.container.spawn_worker(self, self.args, self.kwargs)
 
-    @entrypoint
-    def once(*args, **kwargs):
-        return DependencyFactory(OnceProvider, args, kwargs)
+    once = OnceProvider.entrypoint
 
     class ExampleEvent(Event):
         type = "eventtype"

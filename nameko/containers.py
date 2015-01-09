@@ -16,8 +16,7 @@ from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
 
 from nameko.dependencies import (
-    prepare_dependencies, ExtensionSet, is_entrypoint_provider,
-    is_injection_provider)
+    attach_extensions, ExtensionSet, is_entrypoint, is_injection_provider)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import repr_safe_str
@@ -128,8 +127,14 @@ class ServiceContainer(object):
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
         self.dependencies = ExtensionSet()
-        for dep in prepare_dependencies(self):
+        for dep in attach_extensions(self):
             self.dependencies.add(dep)
+
+        # for name, provider in inspect.getmembers(service_cls, is_injection_provider):
+        #     for ext in provider.discover(name, self):
+        #         self.extensions.extend()
+
+
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -141,7 +146,7 @@ class ServiceContainer(object):
 
     @property
     def entrypoints(self):
-        return filter(is_entrypoint_provider, self.dependencies)
+        return filter(is_entrypoint, self.dependencies)
 
     @property
     def injections(self):

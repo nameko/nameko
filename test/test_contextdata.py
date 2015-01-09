@@ -7,15 +7,13 @@ from nameko.constants import (
 )
 from nameko.contextdata import (
     language, user_id, user_agent, auth_token, ContextDataProvider)
-from nameko.dependencies import DependencyFactory, injection
 from nameko.testing.utils import get_dependency
 
 CUSTOM_CONTEXT_KEY = "custom"
 
 
-@injection
-def custom_value():
-    return DependencyFactory(ContextDataProvider, CUSTOM_CONTEXT_KEY)
+class CustomValue(ContextDataProvider):
+    context_key = CUSTOM_CONTEXT_KEY
 
 
 class CustomWorkerContext(WorkerContext):
@@ -31,7 +29,7 @@ class Service(object):
     user_agent = user_agent()
 
     # custom context data provider
-    custom_value = custom_value()
+    custom_value = CustomValue()
 
 
 @pytest.fixture

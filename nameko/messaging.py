@@ -17,9 +17,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.dependencies import (
-    InjectionProvider, Entrypoint, entrypoint, injection,
-    Extension, ProviderCollector, DependencyFactory, dependency,
-    CONTAINER_SHARED)
+    InjectionProvider, Entrypoint, Extension, ProviderCollector)
 from nameko.exceptions import ContainerBeingKilled
 
 _log = getLogger(__name__)
@@ -68,11 +66,6 @@ class HeaderDecoder(object):
         return worker_ctx_cls.get_context_data(stripped)
 
 
-@injection
-def publisher(exchange=None, queue=None):
-    return DependencyFactory(PublishProvider, exchange, queue)
-
-
 class PublishProvider(InjectionProvider, HeaderEncoder):
     """
     Provides a message publisher method via dependency injection.
@@ -96,6 +89,7 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
     def __init__(self, exchange=None, queue=None):
         self.exchange = exchange
         self.queue = queue
+        super(PublishProvider, self).__init__(exchange, queue)
 
     def get_connection(self):
         # TODO: should this live outside of the class or be a class method?
@@ -136,14 +130,12 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
         return publish
 
 
-@dependency
-def queue_consumer():
-    return DependencyFactory(QueueConsumer)
+# backwards compat
+publisher = PublishProvider
 
 
 class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
-    def __init__(self):
-        super(QueueConsumer, self).__init__()
+    def __init__(self, **kwargs):
         self._connection = None
 
         self._consumers = {}
@@ -157,6 +149,7 @@ class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
         self._starting = False
 
         self._consumers_ready = Event()
+        super(QueueConsumer, self).__init__(**kwargs)
 
     @property
     def _amqp_uri(self):
@@ -396,42 +389,38 @@ class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
                     elapsed = 0
 
 
-@entrypoint
-def consume(queue, requeue_on_error=False):
-    """
-    Decorates a method as a message consumer.
-
-    Messages from the queue will be deserialized depending on their content
-    type and passed to the the decorated method.
-    When the consumer method returns without raising any exceptions,
-    the message will automatically be acknowledged.
-    If any exceptions are raised during the consumption and
-    `requeue_on_error` is True, the message will be requeued.
-
-    Example::
-
-        @consume(...)
-        def handle_message(self, body):
-
-            if not self.spam(body):
-                raise Exception('message will be requeued')
-
-            self.shrub(body)
-
-    Args:
-        queue: The queue to consume from.
-    """
-    return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
-
-
 # pylint: disable=E1101,E1123
 class ConsumeProvider(Entrypoint, HeaderDecoder):
 
-    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
+    queue_consumer = QueueConsumer(shared=True)
 
-    def __init__(self, queue, requeue_on_error):
+    def __init__(self, queue, requeue_on_error=False, **kwargs):
+        """
+        Decorates a method as a message consumer.
+
+        Messages from the queue will be deserialized depending on their content
+        type and passed to the the decorated method.
+        When the consumer method returns without raising any exceptions,
+        the message will automatically be acknowledged.
+        If any exceptions are raised during the consumption and
+        `requeue_on_error` is True, the message will be requeued.
+
+        Example::
+
+            @consume(...)
+            def handle_message(self, body):
+
+                if not self.spam(body):
+                    raise Exception('message will be requeued')
+
+                self.shrub(body)
+
+        Args:
+            queue: The queue to consume from.
+        """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
+        super(ConsumeProvider, self).__init__(queue=queue, requeue_on_error=requeue_on_error, **kwargs)
 
     def before_start(self):
         self.queue_consumer.register_provider(self)
@@ -464,6 +453,8 @@ class ConsumeProvider(Entrypoint, HeaderDecoder):
             self.queue_consumer.requeue_message(message)
         else:
             self.queue_consumer.ack_message(message)
+
+consume = ConsumeProvider.entrypoint
 
 
 class QueueConsumerStopped(Exception):

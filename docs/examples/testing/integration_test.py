@@ -1,7 +1,7 @@
 """ Service integration testing best practice.
 """
 
-from nameko.rpc import rpc, rpc_proxy
+from nameko.rpc import rpc, RpcProxy
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import get_container
 from nameko.testing.services import entrypoint_hook
@@ -10,7 +10,7 @@ from nameko.testing.services import entrypoint_hook
 class ServiceX(object):
     name = "service_x"
 
-    y = rpc_proxy("service_y")
+    y = RpcProxy("service_y")
 
     @rpc
     def remote_method(self, value):

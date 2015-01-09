@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from nameko.dependencies import InjectionProvider, injection, DependencyFactory
+from nameko.dependencies import InjectionProvider
 
 ORM_DB_URIS_KEY = 'ORM_DB_URIS'
 
@@ -12,6 +12,7 @@ class OrmSession(InjectionProvider):
     def __init__(self, declarative_base):
         self.declarative_base = declarative_base
         self.sessions = {}
+        super(OrmSession, self).__init__(declarative_base)
 
     def acquire_injection(self, worker_ctx):
         service_name = self.container.service_name
@@ -34,8 +35,3 @@ class OrmSession(InjectionProvider):
     def worker_teardown(self, worker_ctx):
         session = self.sessions.pop(worker_ctx)
         session.close()
-
-
-@injection
-def orm_session(declarative_base):
-    return DependencyFactory(OrmSession, declarative_base)

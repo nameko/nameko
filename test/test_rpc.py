@@ -7,7 +7,7 @@ import pytest
 
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
-from nameko.dependencies import InjectionProvider, injection, DependencyFactory
+from nameko.dependencies import InjectionProvider
 from nameko.events import event_handler
 from nameko.exceptions import (
     RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
@@ -42,11 +42,6 @@ class Translator(InjectionProvider):
         return translate
 
 
-@injection
-def translator():
-    return DependencyFactory(Translator)
-
-
 class WorkerErrorLogger(InjectionProvider):
 
     expected = {}
@@ -66,11 +61,6 @@ class WorkerErrorLogger(InjectionProvider):
             self.unexpected[worker_ctx.provider.name] = type(exc)
 
 
-@injection
-def worker_logger():
-    return DependencyFactory(WorkerErrorLogger)
-
-
 class CustomWorkerContext(WorkerContextBase):
     context_keys = NAMEKO_CONTEXT_KEYS + ('custom_header',)
 
@@ -78,8 +68,8 @@ class CustomWorkerContext(WorkerContextBase):
 class ExampleService(object):
     name = 'exampleservice'
 
-    logger = worker_logger()
-    translate = translator()
+    logger = WorkerErrorLogger()
+    translate = Translator()
     example_rpc = rpc_proxy('exampleservice')
     unknown_rpc = rpc_proxy('unknown_service')
 

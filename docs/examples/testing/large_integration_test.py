@@ -18,8 +18,7 @@ from collections import defaultdict
 
 import pytest
 
-from nameko.dependencies import (
-    InjectionProvider, injection, DependencyFactory)
+from nameko.dependencies import InjectionProvider
 from nameko.events import event_dispatcher, Event, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, rpc_proxy
@@ -47,6 +46,7 @@ class ShoppingBasket(InjectionProvider):
     """
     def __init__(self):
         self.baskets = defaultdict(list)
+        super(ShoppingBasket, self).__init__()
 
     def acquire_injection(self, worker_ctx):
 
@@ -69,13 +69,6 @@ class ShoppingBasket(InjectionProvider):
         return Basket(self.baskets[user_id])
 
 
-@injection
-def shopping_basket():
-    """ A shopping basket tied to the current user.
-    """
-    return DependencyFactory(ShoppingBasket)
-
-
 class ItemAddedToBasket(Event):
     """ Dispatched when an item is added to a shopping basket.
     """
@@ -90,7 +83,7 @@ class CheckoutComplete(Event):
 
 class AcmeShopService(object):
 
-    user_basket = shopping_basket()
+    user_basket = ShoppingBasket()
     stock_service = rpc_proxy('stockservice')
     invoice_service = rpc_proxy('invoiceservice')
     payment_service = rpc_proxy('paymentservice')
@@ -157,21 +150,15 @@ class Warehouse(InjectionProvider):
                 'stock': 0
             }
         }
+        super(Warehouse, self).__init__()
 
     def acquire_injection(self, worker_ctx):
         return self.database
 
 
-@injection
-def warehouse():
-    """ A shopping basket tied to the current user.
-    """
-    return DependencyFactory(Warehouse)
-
-
 class StockService(object):
 
-    warehouse = warehouse()
+    warehouse = Warehouse()
 
     @rpc
     def check_price(self, item_code):
@@ -223,6 +210,7 @@ class AddressBook(InjectionProvider):
                 'address': '12 Long Road, High Cliffs, Utah',
             },
         }
+        super(AddressBook, self).__init__()
 
     def acquire_injection(self, worker_ctx):
         def get_user_details():
@@ -234,16 +222,9 @@ class AddressBook(InjectionProvider):
         return get_user_details
 
 
-@injection
-def address_book():
-    """ Provides the address of the current user.
-    """
-    return DependencyFactory(AddressBook)
-
-
 class InvoiceService(object):
 
-    get_user_details = address_book()
+    get_user_details = AddressBook()
 
     @rpc
     def prepare_invoice(self, amount):
@@ -295,7 +276,9 @@ def runner_factory(rabbit_config):
 
     for r in all_runners:
         try:
+            print "stopping runner",r
             r.stop()
+            print "stopped runner", r
         except:
             pass
 
@@ -318,7 +301,9 @@ def rpc_proxy_factory(rabbit_config):
     yield make_proxy
 
     for proxy in all_proxies:
+        print "stopping", proxy
         proxy.stop()
+        print "stopped", proxy
 
 
 def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
@@ -378,6 +363,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
 
     # verify events fired as expected
     assert fire_event.call_count == 3
+    print "DONE"
 
 
 if __name__ == "__main__":
