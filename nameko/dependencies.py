@@ -9,6 +9,8 @@ import types
 import weakref
 
 from eventlet.event import Event
+
+from nameko.exceptions import ExtensionError
 from nameko.utils import SpawningSet, repr_safe_str
 
 from logging import getLogger
@@ -78,7 +80,7 @@ class Extension(object):
     def clone(self):
         # clones have no notion of sharing? non-clones cannot be bound?
         if self.__state is None:
-            raise Exception('forgot to call super().__init__?')
+            raise ExtensionError('forgot to call super().__init__?')
 
         cls = type(self)
         args, kwargs = self.__state
@@ -103,10 +105,10 @@ class Extension(object):
 
         # use a weakref proxy to the container to avoid cycles where the
         # values in the shared_extensions weakref dict refer to their keys
-        # container_ref = weakref.proxy(container)
+        container_ref = weakref.proxy(container)
 
         # results in double-bind and double-yield for shared instances...
-        bind_instance.bind(name, container)
+        bind_instance.bind(name, container_ref)
         yield bind_instance
 
     @property

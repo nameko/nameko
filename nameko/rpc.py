@@ -128,7 +128,7 @@ class RpcConsumer(Extension, ProviderCollector):
 
 
 # pylint: disable=E1101,E1123
-class RpcProvider(Entrypoint, HeaderDecoder):
+class Rpc(Entrypoint, HeaderDecoder):
 
     rpc_consumer = RpcConsumer(shared=True)
 
@@ -142,14 +142,13 @@ class RpcProvider(Entrypoint, HeaderDecoder):
                 by the caller (e.g. bad arguments).
         """
         self.expected_exceptions = expected_exceptions
-        super(RpcProvider, self).__init__(expected_exceptions, **kwargs)
+        super(Rpc, self).__init__(expected_exceptions, **kwargs)
 
     def before_start(self):
         self.rpc_consumer.register_provider(self)
 
     def stop(self):
         self.rpc_consumer.unregister_provider(self)
-        super(RpcProvider, self).stop()
 
     def check_signature(self, args, kwargs):
         service_cls = self.container.service_cls
@@ -185,6 +184,11 @@ class RpcProvider(Entrypoint, HeaderDecoder):
         result, exc_info = self.rpc_consumer.handle_result(
             message, container, result, exc_info)
         return result, exc_info
+
+# backwards compat
+RpcProvider = Rpc
+
+rpc = Rpc.entrypoint
 
 
 class Responder(object):
@@ -431,6 +435,3 @@ class MethodProxy(HeaderEncoder):
         service_name = repr_safe_str(self.service_name)
         method_name = repr_safe_str(self.method_name)
         return '<proxy method: {}.{}>'.format(service_name, method_name)
-
-
-rpc = RpcProvider.entrypoint

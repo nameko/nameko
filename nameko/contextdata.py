@@ -6,6 +6,8 @@ from nameko.dependencies import InjectionProvider
 
 
 class ContextDataProvider(InjectionProvider):
+    context_key = None
+
     def acquire_injection(self, worker_ctx):
         return worker_ctx.data.get(self.context_key)
 

@@ -1,6 +1,10 @@
 import inspect
 
 
+class ExtensionError(Exception):
+    pass
+
+
 class DependencyNotFound(AttributeError):
     pass
 

@@ -52,7 +52,7 @@ def test_event_dispatcher(empty_config):
     event_dispatcher = EventDispatcher()
     event_dispatcher.bind("dispatch", container)
 
-    path = 'nameko.messaging.PublishProvider.before_start'
+    path = 'nameko.messaging.Publisher.before_start'
     with patch(path, autospec=True) as before_start:
 
         # test start method

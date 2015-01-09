@@ -130,12 +130,6 @@ class ServiceContainer(object):
         for dep in attach_extensions(self):
             self.dependencies.add(dep)
 
-        # for name, provider in inspect.getmembers(service_cls, is_injection_provider):
-        #     for ext in provider.discover(name, self):
-        #         self.extensions.extend()
-
-
-
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
 

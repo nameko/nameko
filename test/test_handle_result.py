@@ -6,7 +6,7 @@ import pytest
 
 from nameko.dependencies import InjectionProvider
 from nameko.exceptions import RemoteError
-from nameko.rpc import RpcProvider
+from nameko.rpc import Rpc
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.utils import wait_for_worker_idle
 
@@ -26,8 +26,8 @@ class ResultCollector(InjectionProvider):
         worker_result_called.append((res, exc_info))
 
 
-class CustomRpcProvider(RpcProvider):
-    """ RpcProvider subclass that verifies `result` can be serialized to json,
+class CustomRpc(Rpc):
+    """ Rpc subclass that verifies `result` can be serialized to json,
     and changes the `result` and `exc_info` accordingly.
     """
     def handle_result(self, message, worker_ctx, result, exc_info):
@@ -37,11 +37,11 @@ class CustomRpcProvider(RpcProvider):
             result = "something went wrong"
             exc_info = sys.exc_info()
 
-        return super(CustomRpcProvider, self).handle_result(
+        return super(CustomRpc, self).handle_result(
             message, worker_ctx, result, exc_info)
 
 
-custom_rpc = CustomRpcProvider.entrypoint
+custom_rpc = CustomRpc.entrypoint
 
 
 class ExampleService(object):

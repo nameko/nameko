@@ -32,7 +32,7 @@ import uuid
 from kombu import Exchange, Queue
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.messaging import PublishProvider, PERSISTENT, ConsumeProvider
+from nameko.messaging import Publisher, PERSISTENT, Consumer
 
 
 SERVICE_POOL = "service_pool"
@@ -114,7 +114,7 @@ class Event(object):
         self.data = data
 
 
-class EventDispatcher(PublishProvider):
+class EventDispatcher(Publisher):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,
@@ -174,64 +174,65 @@ class EventDispatcher(PublishProvider):
 event_dispatcher = EventDispatcher
 
 
-class EventHandler(ConsumeProvider):
+class EventHandler(Consumer):
 
-    def __init__(self, service_name, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=True, requeue_on_error=False, **kwargs):
+    def __init__(self, service_name=None, event_type=None,
+                 handler_type=SERVICE_POOL, reliable_delivery=True,
+                 requeue_on_error=False, **kwargs):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``service_name``. ``event_type`` must be either a subclass of
-        :class:`~.Event` with a class attribute ``type`` or a string matching the
+        :class:`~.Event` with a class attribute ``type`` or a string matching
+        the
         value of this attribute.
         ``handler_type`` determines the behaviour of the handler:
 
             - ``events.SERVICE_POOL``:
 
-                Event handlers will be pooled by service type and handler-method
-                and one from each pool will receive the event. ::
+                Event handlers are pooled by service type and method,
+                and one service instance from each pool receives the event. ::
 
-                               .-[queue]- (service X handler-method-1)
+                               .-[queue]- (service X handler-meth-1)
                               /
-                    exchange o --[queue]- (service X handler-method-2)
+                    exchange o --[queue]- (service X handler-meth-2)
                               \
-                               \          (service Y(instance 1) hanlder-method)
+                               \          (service Y(instance 1) handler-meth)
                                 \       /
                                  [queue]
                                         \
-                                          (service Y(instance 2) handler-method)
+                                          (service Y(instance 2) handler-meth)
 
 
             - ``events.SINGLETON``:
 
-                Events will be received by only one registered handler.
-                If requeued on error, they may be given to a different
-                handler. ::
+                Events are received by only one registered handler, regardless
+                of service type. If requeued on error, they may be handled
+                by a different service instance. ::
 
-                                           (service X handler-method)
+                                           (service X handler-meth)
                                          /
                     exchange o -- [queue]
                                          \
-                                           (service Y handler-method)
+                                           (service Y handler-meth)
 
             - ``events.BROADCAST``:
-                Events will be received by every handler. This  will broadcast
+
+                Events will be received by every handler. Events are broadcast
                 to every service instance, not just every service type
                 - use wisely! ::
 
-                                [queue]- (service X(instance 1) handler-method)
+                                [queue]- (service X(instance 1) handler-meth)
                               /
-                    exchange o - [queue]- (service X(instance 2) handler-method)
+                    exchange o - [queue]- (service X(instance 2) handler-meth)
                               \
-                                [queue]- (service Y handler-method)
+                                [queue]- (service Y handler-meth)
 
-        If ``requeue_on_error``, handlers will return the event to the queue if an
-        error occurs while handling it. Defaults to False.
+        # TODO: this is defined by the Consumer actually...
+        If `requeue_on_error` is true, handlers will return the event to the
+        queue if an error occurs while handling it. Defaults to false.
 
-        If ``reliable_delivery``, events will be kept in the queue until there is
-        a handler to consume them. Defaults to ``True``.
-
-        ``event_handler_cls`` may be specified to use a different EventHandler
-            (sub)class for custom behaviour.
+        If `reliable_delivery` is true, events will be held in the queue
+        until there is a handler to consume them. Defaults to true.
 
         Raises an ``EventHandlerConfigurationError`` if the ``handler_type``
         is set to ``BROADCAST`` and ``reliable_delivery`` is set to ``True``.
@@ -245,8 +246,8 @@ class EventHandler(ConsumeProvider):
             event_type = event_type.type
         elif not isinstance(event_type, basestring):
             raise TypeError(
-                'event_type must be either a nameko.events.Event subclass or a '
-                'string a string matching the Event.type value. '
+                'event_type must be either a nameko.events.Event subclass or '
+                'a string a string matching the Event.type value. '
                 'Got {}'.format(type(event_type).__name__))
 
         self.service_name = service_name
@@ -255,9 +256,9 @@ class EventHandler(ConsumeProvider):
         self.reliable_delivery = reliable_delivery
 
         super(EventHandler, self).__init__(
-            queue=None, requeue_on_error=requeue_on_error,
             service_name=service_name, event_type=event_type,
-            handler_type=handler_type, reliable_delivery=reliable_delivery)
+            handler_type=handler_type, reliable_delivery=reliable_delivery,
+            requeue_on_error=requeue_on_error, **kwargs)
 
     def before_start(self):
         _log.debug('starting handler for %s', self.container)

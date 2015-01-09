@@ -2,7 +2,7 @@ import inspect
 import logging
 
 import entities
-from nameko.rpc import RpcProvider
+from nameko.rpc import Rpc
 
 
 log = logging.getLogger(__name__)
@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 def is_rpc_method(method):
     if inspect.ismethod(method) and hasattr(method, 'nameko_entrypoints'):
-        if any(isinstance(entrypoint, RpcProvider)
+        if any(isinstance(entrypoint, Rpc)
                for entrypoint in method.nameko_entrypoints):
             # It's an RPC method
             return True

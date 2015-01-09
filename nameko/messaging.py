@@ -66,30 +66,37 @@ class HeaderDecoder(object):
         return worker_ctx_cls.get_context_data(stripped)
 
 
-class PublishProvider(InjectionProvider, HeaderEncoder):
-    """
-    Provides a message publisher method via dependency injection.
+class Publisher(InjectionProvider, HeaderEncoder):
 
-    Publishers usually push messages to an exchange, which dispatches
-    them to bound queue.
-    To simplify this for various use cases a Publisher either accepts
-    a bound queue or an exchange and will ensure both are declared before
-    a message is published.
-
-    Example::
-
-        class Foobar(object):
-
-            publish = Publisher(exchange=...)
-
-            def spam(self, data):
-                self.publish('spam:' + data)
-
-    """
     def __init__(self, exchange=None, queue=None):
+        """ Provides an AMQP message publisher method via dependency injection.
+
+        In AMQP messages are published to *exchanges* and routed to bound
+        *queues*. This injection accepts either an `exchange` or a bound
+        `queue`, and will ensure both are declared before publishing.
+
+        :Parameters:
+            exchange : :class:`kombu.Exchange`
+                Destination exchange
+            queue : :class:`kombu.Queue`
+                Bound queue. The event will be published to this queue's
+                exchange.
+
+        If neither `queue` nor `exchange` are provided, the message will be
+        published to the default exchange.
+
+        Example::
+
+            class Foobar(object):
+
+                publish = Publisher(exchange=...)
+
+                def spam(self, data):
+                    self.publish('spam:' + data)
+        """
         self.exchange = exchange
         self.queue = queue
-        super(PublishProvider, self).__init__(exchange, queue)
+        super(Publisher, self).__init__(exchange, queue)
 
     def get_connection(self):
         # TODO: should this live outside of the class or be a class method?
@@ -131,7 +138,8 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
 
 
 # backwards compat
-publisher = PublishProvider
+PublishProvider = Publisher
+publisher = Publisher
 
 
 class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
@@ -390,11 +398,11 @@ class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
 
 
 # pylint: disable=E1101,E1123
-class ConsumeProvider(Entrypoint, HeaderDecoder):
+class Consumer(Entrypoint, HeaderDecoder):
 
     queue_consumer = QueueConsumer(shared=True)
 
-    def __init__(self, queue, requeue_on_error=False, **kwargs):
+    def __init__(self, queue=None, requeue_on_error=False, **kwargs):
         """
         Decorates a method as a message consumer.
 
@@ -404,6 +412,9 @@ class ConsumeProvider(Entrypoint, HeaderDecoder):
         the message will automatically be acknowledged.
         If any exceptions are raised during the consumption and
         `requeue_on_error` is True, the message will be requeued.
+
+        If `requeue_on_error` is true, handlers will return the event to the
+        queue if an error occurs while handling it. Defaults to false.
 
         Example::
 
@@ -420,7 +431,8 @@ class ConsumeProvider(Entrypoint, HeaderDecoder):
         """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
-        super(ConsumeProvider, self).__init__(queue=queue, requeue_on_error=requeue_on_error, **kwargs)
+        super(Consumer, self).__init__(
+            queue=queue, requeue_on_error=requeue_on_error, **kwargs)
 
     def before_start(self):
         self.queue_consumer.register_provider(self)
@@ -454,7 +466,10 @@ class ConsumeProvider(Entrypoint, HeaderDecoder):
         else:
             self.queue_consumer.ack_message(message)
 
-consume = ConsumeProvider.entrypoint
+# backwards compat
+ConsumeProvider = Consumer
+
+consume = Consumer.entrypoint
 
 
 class QueueConsumerStopped(Exception):

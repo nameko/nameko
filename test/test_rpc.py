@@ -14,7 +14,7 @@ from nameko.exceptions import (
     MalformedRequest)
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener,
+    rpc, rpc_proxy, RpcConsumer, Rpc, ReplyListener,
 )
 from nameko.standalone.rpc import RpcProxy
 from nameko.testing.services import entrypoint_hook
@@ -137,11 +137,11 @@ def test_rpc_consumer(get_rpc_exchange):
     consumer.queue_consumer = queue_consumer
     consumer.bind("rpc_consumer", container)
 
-    provider = RpcProvider()
-    provider.rpc_consumer = consumer
-    provider.bind("rpcmethod", container)
+    entrypoint = Rpc()
+    entrypoint.rpc_consumer = consumer
+    entrypoint.bind("rpcmethod", container)
 
-    provider.before_start()
+    entrypoint.before_start()
     consumer.before_start()
     queue_consumer.before_start()
 
@@ -153,17 +153,17 @@ def test_rpc_consumer(get_rpc_exchange):
 
     queue_consumer.register_provider.assert_called_once_with(consumer)
 
-    consumer.register_provider(provider)
-    assert consumer._providers == set([provider])
+    consumer.register_provider(entrypoint)
+    assert consumer._providers == set([entrypoint])
 
     routing_key = "exampleservice.rpcmethod"
-    assert consumer.get_provider_for_method(routing_key) == provider
+    assert consumer.get_provider_for_method(routing_key) == entrypoint
 
     routing_key = "exampleservice.invalidmethod"
     with pytest.raises(MethodNotFound):
         consumer.get_provider_for_method(routing_key)
 
-    consumer.unregister_provider(provider)
+    consumer.unregister_provider(entrypoint)
     assert consumer._providers == set()
 
 
@@ -221,10 +221,10 @@ def test_reply_listener(get_rpc_exchange):
 def test_expected_exceptions(rabbit_config):
     container = ServiceContainer(ExampleService, WorkerContext, rabbit_config)
 
-    broken = get_dependency(container, RpcProvider, name="broken")
+    broken = get_dependency(container, Rpc, name="broken")
     assert broken.expected_exceptions == ExampleError
 
-    very_broken = get_dependency(container, RpcProvider, name="very_broken")
+    very_broken = get_dependency(container, Rpc, name="very_broken")
     assert very_broken.expected_exceptions == (KeyError, ValueError)
 
 
@@ -489,9 +489,9 @@ def test_rpc_missing_method(container_factory, rabbit_config):
 
 
 def test_rpc_invalid_message():
-    provider = RpcProvider()
+    entrypoint = Rpc()
     with pytest.raises(MalformedRequest) as exc:
-        provider.handle_message({'args': ()}, None)  # missing 'kwargs'
+        entrypoint.handle_message({'args': ()}, None)  # missing 'kwargs'
     assert 'Message missing `args` or `kwargs`' in str(exc)
 
 
@@ -566,7 +566,7 @@ def test_rpc_container_being_killed_retries(
 
     container._being_killed = True
 
-    rpc_provider = get_dependency(container, RpcProvider, name='task_a')
+    rpc_provider = get_dependency(container, Rpc, name='task_a')
 
     with patch.object(
         rpc_provider,
@@ -592,10 +592,10 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, RpcProvider, name="task_a")
+    task_a = get_dependency(container, Rpc, name="task_a")
     task_a_stop = task_a.stop
 
-    task_b = get_dependency(container, RpcProvider, name="task_b")
+    task_b = get_dependency(container, Rpc, name="task_b")
     task_b_stop = task_b.stop
 
     task_a_stopped = Event()
@@ -633,7 +633,7 @@ def test_rpc_consumer_cannot_exit_with_providers(
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, RpcProvider, name="task_a")
+    task_a = get_dependency(container, Rpc, name="task_a")
 
     def never_stops():
         while True:

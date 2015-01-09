@@ -10,28 +10,35 @@ from nameko.dependencies import Entrypoint
 _log = getLogger(__name__)
 
 
-class TimerProvider(Entrypoint):
+class Timer(Entrypoint):
     def __init__(self, interval=None, config_key=None):
         """
-        Decorates a method as a timer, which will be called every `interval` sec.
+        Timer entrypoint implementation. Fires every :attr:`self.interval`
+        seconds.
 
-        Either the `interval` or the `config_key` have to be provided or both.
-        If the `config_key` is given the value for that key in the config will be
-        used as the interval otherwise the `interval` provided will be used.
+        Either `interval` or `config_key` must be provided. If given,
+        `config_key` specifies a key in the config will be used as the
+        interval.
 
         Example::
 
+            timer = Timer.entrypoint
+
             class Foobar(object):
 
-                @timer(interval=5, config_key='foobar_interval')
-                def handle_timer(self):
+                @timer(interval=5)
+                def tick(self):
+                    self.shrub(body)
+
+                @timer(config_key='tock_interval')
+                def tock(self):
                     self.shrub(body)
         """
         self._default_interval = interval
         self.config_key = config_key
         self.should_stop = Event()
         self.gt = None
-        super(TimerProvider, self).__init__(interval, config_key)
+        super(Timer, self).__init__(interval, config_key)
 
     def start(self):
         _log.debug('starting %s', self)
@@ -91,4 +98,7 @@ class TimerProvider(Entrypoint):
         self.container.spawn_worker(self, args, kwargs)
 
 
-timer = TimerProvider.entrypoint
+# backwards compat
+TimerProvider = Timer
+
+timer = Timer.entrypoint

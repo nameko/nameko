@@ -6,8 +6,7 @@ from mock import patch, Mock
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import ContainerBeingKilled
-from nameko.messaging import (
-    PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
+from nameko.messaging import Publisher, Consumer, HeaderEncoder, HeaderDecoder
 from nameko.containers import (
     WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS, ServiceContainer)
 from nameko.testing.utils import (
@@ -62,8 +61,7 @@ def test_consume_provider(empty_config):
 
     queue_consumer = Mock()
 
-    consume_provider = ConsumeProvider(queue=foobar_queue,
-                                       requeue_on_error=False)
+    consume_provider = Consumer(queue=foobar_queue, requeue_on_error=False)
     consume_provider.queue_consumer = queue_consumer
     consume_provider.bind("name", container)
 
@@ -120,7 +118,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("publish"))
 
-    publisher = PublishProvider(exchange=foobar_ex)
+    publisher = Publisher(exchange=foobar_ex)
     publisher.bind("publish", container)
 
     producer = Mock()
@@ -158,7 +156,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     worker_ctx = WorkerContext(
         container, service, DummyProvider("publish"), data=ctx_data)
 
-    publisher = PublishProvider(queue=foobar_queue)
+    publisher = Publisher(queue=foobar_queue)
     publisher.bind("publish", container)
 
     producer = Mock()
@@ -198,7 +196,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = PublishProvider(queue=foobar_queue)
+    publisher = Publisher(queue=foobar_queue)
     publisher.bind("publish", container)
 
     producer = Mock()
@@ -290,7 +288,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
+    publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
     publisher.bind("publish", container)
 
     # test queue, exchange and binding created in rabbit
@@ -334,7 +332,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
+    publisher = Publisher(exchange=foobar_ex, queue=foobar_queue)
     publisher.bind("publish", container)
 
     publisher.before_start()
@@ -367,7 +365,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
 
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 
-    consumer = ConsumeProvider(queue=foobar_queue, requeue_on_error=False)
+    consumer = Consumer(queue=foobar_queue, requeue_on_error=False)
     consumer.bind("injection_name", container)  # no longer recursive
     consumer.queue_consumer.bind("queue_consumer", container)
 

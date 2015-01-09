@@ -4,7 +4,7 @@ from eventlet import Timeout
 from mock import Mock
 
 from nameko.containers import ServiceContainer
-from nameko.timer import TimerProvider
+from nameko.timer import Timer
 from nameko.testing.utils import wait_for_call
 
 
@@ -14,7 +14,7 @@ def test_provider():
     container.config = Mock()
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = TimerProvider(interval=0, config_key=None)
+    timer = Timer(interval=0, config_key=None)
     timer.bind('foobar', container)
     timer.start()
 
@@ -37,7 +37,7 @@ def test_provider_uses_config_for_interval():
     container.config = {'spam-conf': 10}
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = TimerProvider(interval=None, config_key='spam-conf')
+    timer = Timer(interval=None, config_key='spam-conf')
     timer.bind('foobar', container)
     timer.start()
 
@@ -50,7 +50,7 @@ def test_provider_interval_as_config_fallback():
     container.service_name = "service"
     container.config = {}
 
-    timer = TimerProvider(interval=1, config_key='spam-conf')
+    timer = Timer(interval=1, config_key='spam-conf')
     timer.bind('foobar', container)
     timer.start()
 
@@ -63,7 +63,7 @@ def test_stop_timer_immediatly():
     container.service_name = "service"
     container.config = {}
 
-    timer = TimerProvider(interval=5, config_key=None)
+    timer = Timer(interval=5, config_key=None)
     timer.bind('foobar', container)
     timer.start()
     eventlet.sleep(0.1)
@@ -78,7 +78,7 @@ def test_kill_stops_timer():
     container.service_name = "service"
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = TimerProvider(interval=0, config_key=None)
+    timer = Timer(interval=0, config_key=None)
     timer.bind('foobar', container)
     timer.start()
 

@@ -5,7 +5,7 @@ import pytest
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.exceptions import RemoteError, ContainerBeingKilled
 from nameko.legacy.dependencies import (
-    rpc, NovaRpcProvider, NovaResponder, NovaRpcConsumer)
+    rpc, NovaRpc, NovaResponder, NovaRpcConsumer)
 from nameko.legacy.proxy import RPCProxy
 from nameko.messaging import AMQP_URI_CONFIG_KEY
 
@@ -68,12 +68,12 @@ def test_nova_rpc_provider(empty_config):
     container.service_name = "service"
     container.config = empty_config
 
-    rpc_provider = NovaRpcProvider()
-    rpc_provider.rpc_consumer = rpc_consumer
-    rpc_provider.bind("method", container)
+    entrypoint = NovaRpc()
+    entrypoint.rpc_consumer = rpc_consumer
+    entrypoint.bind("method", container)
 
     container.spawn_worker.side_effect = ContainerBeingKilled()
-    rpc_provider.handle_message(message_body, message)
+    entrypoint.handle_message(message_body, message)
     assert rpc_consumer.requeue_message.called
 
 

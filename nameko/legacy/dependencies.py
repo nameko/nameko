@@ -9,7 +9,7 @@ from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import ContainerBeingKilled
 from nameko.legacy.nova import get_topic_queue, parse_message
 from nameko.messaging import AMQP_URI_CONFIG_KEY
-from nameko.rpc import RpcConsumer, RpcProvider, Responder
+from nameko.rpc import RpcConsumer, Rpc, Responder
 
 
 class NovaResponder(Responder):
@@ -97,8 +97,8 @@ class NovaRpcConsumer(RpcConsumer):
 
 
 # pylint: disable=E1101,E1123
-class NovaRpcProvider(RpcProvider):
-    """ Extend RpcProvider to handle the nova message payload.
+class NovaRpc(Rpc):
+    """ Extend :class:`nameko.rpc.Rpc` to handle the nova message payload.
     Works in combination with the NovaRpcConsumer.
     """
 
@@ -127,5 +127,7 @@ class NovaRpcProvider(RpcProvider):
         return self.rpc_consumer.handle_result(
             message, msgid, self.container, result, exc_info)
 
+# backwards compat
+NovaRpcProvider = NovaRpc
 
-rpc = NovaRpcProvider.entrypoint
+rpc = NovaRpc.entrypoint
