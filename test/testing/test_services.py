@@ -1,15 +1,15 @@
 from mock import Mock
 import pytest
 
-from nameko.dependencies import InjectionProvider, Entrypoint
+from nameko.dependencies import InjectionProvider
 from nameko.events import Event, event_handler
 from nameko.exceptions import DependencyNotFound, MethodNotFound
 from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    entrypoint_hook, worker_factory,
-    replace_injections, restrict_entrypoints, entrypoint_waiter)
+    entrypoint_hook, worker_factory, replace_injections, restrict_entrypoints,
+    entrypoint_waiter, once)
 from nameko.testing.utils import get_container
 
 
@@ -268,20 +268,6 @@ def test_replace_injections_container_already_started(container_factory,
 def test_restrict_entrypoints(container_factory, rabbit_config):
 
     method_called = Mock()
-
-    class OnceProvider(Entrypoint):
-        """ Entrypoint that spawns a worker exactly once, as soon as
-        the service container started.
-        """
-        def __init__(self, *args, **kwargs):
-            self.args = args
-            self.kwargs = kwargs
-            super(OnceProvider, self).__init__()
-
-        def start(self):
-            self.container.spawn_worker(self, self.args, self.kwargs)
-
-    once = OnceProvider.entrypoint
 
     class ExampleEvent(Event):
         type = "eventtype"

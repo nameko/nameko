@@ -328,5 +328,19 @@ def restrict_entrypoints(container, *entrypoints):
             container.dependencies.remove(dependency)
 
 
+class Once(Entrypoint):
+    """ Entrypoint that spawns a worker exactly once, as soon as
+    the service container started.
+    """
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        super(Once, self).__init__()
+
+    def start(self):
+        self.container.spawn_worker(self, self.args, self.kwargs)
+
+once = Once.entrypoint
+
 # dummy entrypoint
 dummy = Entrypoint.entrypoint
