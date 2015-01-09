@@ -16,7 +16,7 @@ from nameko.messaging import QueueConsumer
 from nameko.rpc import (
     rpc, rpc_proxy, RpcConsumer, Rpc, ReplyListener,
 )
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import (
     get_dependency, wait_for_call, wait_for_worker_idle)
@@ -341,7 +341,9 @@ def test_rpc_headers(container_factory, rabbit_config):
         container.start()
 
     # use a standalone rpc proxy to call exampleservice.say_hello()
-    with RpcProxy("exampleservice", rabbit_config, context_data) as proxy:
+    with ServiceRpcProxy(
+        "exampleservice", rabbit_config, context_data
+    ) as proxy:
         proxy.say_hello()
 
     # bogus_header dropped
@@ -376,8 +378,10 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
 
     # use a standalone rpc proxy to call exampleservice.say_hello(),
     # with a worker context that enables "custom_header"
-    with RpcProxy("exampleservice", rabbit_config,
-                  context_data, worker_ctx_cls=CustomWorkerContext) as proxy:
+    with ServiceRpcProxy(
+        "exampleservice", rabbit_config, context_data,
+        worker_ctx_cls=CustomWorkerContext
+    ) as proxy:
         proxy.say_hello()
 
     # bogus_header dropped, custom_header present
@@ -393,7 +397,7 @@ def test_rpc_existing_method(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with RpcProxy("exampleservice", rabbit_config) as proxy:
+    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         assert proxy.task_a() == "result_a"
         assert proxy.task_b() == "result_b"
 
@@ -467,7 +471,7 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
 
         method_name, args, kwargs = signature
 
-        with RpcProxy("service", rabbit_config) as proxy:
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
             method = getattr(proxy, method_name)
 
             if not is_valid_call:
@@ -482,7 +486,7 @@ def test_rpc_missing_method(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with RpcProxy("exampleservice", rabbit_config) as proxy:
+    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(MethodNotFound) as exc_info:
             proxy.task_c()
     assert exc_info.value.message == "task_c"
@@ -503,7 +507,7 @@ def test_handle_message_raise_malformed_request(
     with pytest.raises(MalformedRequest):
         with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
             handle_message.side_effect = MalformedRequest('bad request')
-            with RpcProxy("exampleservice", rabbit_config) as proxy:
+            with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 proxy.task_a()
 
 
@@ -515,7 +519,7 @@ def test_handle_message_raise_other_exception(
     with pytest.raises(RemoteError):
         with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
             handle_message.side_effect = Exception('broken')
-            with RpcProxy("exampleservice", rabbit_config) as proxy:
+            with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 proxy.task_a()
 
 
@@ -524,7 +528,7 @@ def test_rpc_broken_method(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with RpcProxy("exampleservice", rabbit_config) as proxy:
+    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(RemoteError) as exc_info:
             proxy.broken()
     assert exc_info.value.exc_type == "ExampleError"
@@ -534,7 +538,7 @@ def test_rpc_unknown_service(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with RpcProxy("exampleservice", rabbit_config) as proxy:
+    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         # success
         assert proxy.task_a()
 
@@ -547,7 +551,7 @@ def test_rpc_unknown_service(container_factory, rabbit_config):
 
 def test_rpc_unknown_service_standalone(rabbit_config):
 
-    with RpcProxy("unknown_service", rabbit_config) as proxy:
+    with ServiceRpcProxy("unknown_service", rabbit_config) as proxy:
         with pytest.raises(UnknownService) as exc_info:
             proxy.anything()
 
@@ -561,7 +565,7 @@ def test_rpc_container_being_killed_retries(
     container.start()
 
     def wait_for_result():
-        with RpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             return proxy.task_a()
 
     container._being_killed = True
@@ -618,7 +622,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
         # try to call task_a.
         # should timeout, rather than raising MethodNotFound
-        with RpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             with pytest.raises(eventlet.Timeout):
                 with eventlet.Timeout(1):
                     proxy.task_a()

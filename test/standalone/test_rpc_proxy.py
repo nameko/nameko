@@ -8,7 +8,7 @@ from nameko.containers import WorkerContext
 from nameko.dependencies import InjectionProvider
 from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.rpc import rpc, Responder
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 from nameko.exceptions import RpcConnectionError
 
@@ -61,7 +61,7 @@ def test_proxy(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config) as foo:
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'  # test re-use
 
@@ -71,7 +71,7 @@ def test_proxy_manual_start_stop(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    foobar_proxy = RpcProxy('foobar', rabbit_config)
+    foobar_proxy = ServiceRpcProxy('foobar', rabbit_config)
     foo = foobar_proxy.start()
     assert foo.spam(ham='eggs') == 'eggs'
     assert foo.spam(ham='eggs') == 'eggs'  # test re-use
@@ -84,11 +84,11 @@ def test_proxy_context_data(container_factory, rabbit_config):
     container.start()
 
     context_data = {'language': 'en'}
-    with RpcProxy('foobar', rabbit_config, context_data) as foo:
+    with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
         assert foo.get_context_data('language') == 'en'
 
     context_data = {'language': 'fr'}
-    with RpcProxy('foobar', rabbit_config, context_data) as foo:
+    with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
         assert foo.get_context_data('language') == 'fr'
 
 
@@ -100,11 +100,13 @@ def test_proxy_worker_context(container_factory, rabbit_config):
 
     context_data = {'custom_header': 'custom_value'}
 
-    with RpcProxy('foobar', rabbit_config, context_data,
-                  worker_ctx_cls=CustomWorkerContext) as foo:
+    with ServiceRpcProxy(
+        'foobar', rabbit_config, context_data,
+        worker_ctx_cls=CustomWorkerContext
+    ) as foo:
         assert foo.get_context_data('custom_header') == "custom_value"
 
-    with RpcProxy('foobar', rabbit_config, context_data) as foo:
+    with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
         assert foo.get_context_data('custom_header') is None
 
 
@@ -113,7 +115,7 @@ def test_proxy_remote_error(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy("foobar", rabbit_config) as proxy:
+    with ServiceRpcProxy("foobar", rabbit_config) as proxy:
         with pytest.raises(RemoteError) as exc_info:
             proxy.broken()
         assert exc_info.value.exc_type == "ExampleError"
@@ -124,7 +126,7 @@ def test_proxy_connection_error(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy("foobar", rabbit_config) as proxy:
+    with ServiceRpcProxy("foobar", rabbit_config) as proxy:
         queue_consumer = proxy.reply_listener.queue_consumer
         with patch.object(queue_consumer, 'get_message', autospec=True) as get:
             get.side_effect = socket.error
@@ -147,14 +149,14 @@ def test_reply_queue_autodelete(
 
     queues_before = list_queues()
 
-    with RpcProxy('foobar', rabbit_config) as foo:
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
 
     queues_after = list_queues()
     assert queues_after == queues_before
 
     # check proxy re-use
-    with RpcProxy('foobar', rabbit_config) as foo:
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'
 
@@ -166,7 +168,7 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy("foobar", rabbit_config) as proxy:
+    with ServiceRpcProxy("foobar", rabbit_config) as proxy:
 
         message = Message(channel=None, properties={
             'reply_to': proxy.reply_listener.routing_key,
@@ -184,7 +186,7 @@ def test_async_rpc(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config) as foo:
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
         rep1 = foo.spam.async(ham=1)
         rep2 = foo.spam.async(ham=2)
         rep3 = foo.spam.async(ham=3)
@@ -201,10 +203,10 @@ def test_multiple_proxies(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config) as proxy1:
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy1:
         res1 = proxy1.spam.async(ham=1)
 
-        with RpcProxy('foobar', rabbit_config) as proxy2:
+        with ServiceRpcProxy('foobar', rabbit_config) as proxy2:
             res2 = proxy2.spam.async(ham=2)
 
             assert res1.result() == 1
@@ -215,7 +217,7 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy:
         res = proxy.spam.async(ham=1)
         res.result()
         res.result()
@@ -246,7 +248,7 @@ def test_disconnect_with_pending_reply(
     assert len(connections) == 1
     container_connection = connections[0]
 
-    with RpcProxy('exampleservice', rabbit_config) as proxy:
+    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
         connections = get_rabbit_connections(vhost, rabbit_manager)
         assert len(connections) == 2
         proxy_connection = [
@@ -280,7 +282,7 @@ def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config, timeout=1) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=1) as proxy:
         assert proxy.sleep() == 0
 
 
@@ -288,7 +290,7 @@ def test_timeout(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
         with pytest.raises(RpcTimeout):
             proxy.sleep(seconds=1)
 
@@ -302,7 +304,7 @@ def test_no_timeout(
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy:
         with pytest.raises(eventlet.Timeout):
             with eventlet.Timeout(.1):
                 proxy.sleep(seconds=1)
@@ -314,7 +316,7 @@ def test_async_timeout(
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with RpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
         result = proxy.sleep.async(seconds=1)
         with pytest.raises(RpcTimeout):
             result.result()
@@ -324,9 +326,30 @@ def test_async_timeout(
         result.result()
 
 
+def test_use_after_close(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy:
+        proxy.spam(ham=1)
+        pass
+
+    with pytest.raises(RuntimeError) as exc:
+        proxy.spam(ham=1)
+    assert 'can no longer be used' in str(exc)
+
+
 def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
-    with RpcProxy('exampleservice', rabbit_config):
+    with ServiceRpcProxy('exampleservice', rabbit_config):
         assert len(rabbit_manager.get_queues(vhost)) == 1
 
     assert len(rabbit_manager.get_queues(vhost)) == 0
+
+
+def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        assert proxy.foobar.spam(ham=1) == 1

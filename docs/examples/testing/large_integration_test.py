@@ -23,7 +23,7 @@ from nameko.events import event_dispatcher, Event, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, rpc_proxy
 from nameko.runners import ServiceRunner
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import replace_injections, restrict_entrypoints
 from nameko.testing.utils import get_container
 from nameko.timer import timer
@@ -294,7 +294,7 @@ def rpc_proxy_factory(rabbit_config):
     all_proxies = []
 
     def make_proxy(service_name, **kwargs):
-        proxy = RpcProxy(service_name, rabbit_config, **kwargs)
+        proxy = ServiceRpcProxy(service_name, rabbit_config, **kwargs)
         all_proxies.append(proxy)
         return proxy.start()
 

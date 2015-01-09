@@ -7,7 +7,7 @@ import pytest
 from nameko.dependencies import InjectionProvider
 from nameko.exceptions import RemoteError
 from nameko.rpc import Rpc
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.utils import wait_for_worker_idle
 
 
@@ -64,7 +64,7 @@ def test_handle_result(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with RpcProxy('exampleservice', rabbit_config) as proxy:
+    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
 
         assert proxy.echo("hello") == "hello"
         with pytest.raises(RemoteError) as exc:

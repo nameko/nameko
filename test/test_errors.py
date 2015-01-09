@@ -8,7 +8,7 @@ import pytest
 from nameko.exceptions import RemoteError
 from nameko.events import event_dispatcher, EventDispatcher
 from nameko.rpc import rpc, rpc_proxy, RpcConsumer
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.utils import get_dependency, get_container
 from nameko.testing.services import entrypoint_hook
 
@@ -79,7 +79,7 @@ def test_handle_result_error(container_factory, rabbit_config):
         handle_result.side_effect = Exception(err)
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with RpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will never return, so give up almost immediately
             try:
                 with eventlet.Timeout(0):
@@ -107,7 +107,7 @@ def test_dependency_call_lifecycle_errors(
         method.side_effect = Exception(err)
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with RpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
             # in the remote container (so never receives a response).
             # generate and then swallow a timeout as soon as the thread yields
@@ -138,7 +138,7 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         handle_result.side_effect = exception
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with RpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
             # in the remote container (so never receives a response).
             # generate and then swallow a timeout as soon as the thread yields
@@ -171,7 +171,7 @@ def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
             handle_result.side_effect = exception
 
             # use a standalone rpc proxy to call exampleservice.task()
-            with RpcProxy("exampleservice", rabbit_config) as proxy:
+            with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 # proxy.task() will hang forever because it generates an error
                 # in the remote container (so never receives a response).
                 # generate and then swallow a timeout as soon as the thread

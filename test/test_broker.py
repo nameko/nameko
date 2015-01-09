@@ -8,7 +8,7 @@ from nameko.events import event_handler, Event
 from nameko.exceptions import RpcConnectionError
 from nameko.rpc import rpc, rpc_proxy
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, dummy
 from nameko.testing.utils import (
     assert_stops_raising, get_rabbit_connections, reset_rabbit_connections)
@@ -105,7 +105,7 @@ def test_idle_disconnect(container_factory, rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     reset_rabbit_connections(vhost, rabbit_manager)
 
-    with RpcProxy('exampleservice', rabbit_config) as proxy:
+    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
         assert proxy.echo("hello") == "hello"
 
 
@@ -170,8 +170,8 @@ def test_service_disconnect_with_active_async_worker(
 
     # dispatch an event
     data = uuid.uuid4().hex
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(ExampleEvent(data))
+    dispatch = event_dispatcher(rabbit_config)
+    dispatch('srcservice', ExampleEvent, data)
 
     # `handle` will have been called twice with the same the `data`, because
     # rabbit will have redelivered the un-ack'd message from the first call
@@ -199,7 +199,7 @@ def test_service_disconnect_with_active_rpc_worker(
     queue_consumer_conn = connections[0]['name']
 
     # create a standalone RPC proxy towards the target service
-    rpc_proxy = RpcProxy('exampleservice', rabbit_config)
+    rpc_proxy = ServiceRpcProxy('exampleservice', rabbit_config)
     proxy = rpc_proxy.start()
 
     # there should now be two connections:

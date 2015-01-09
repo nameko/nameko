@@ -3,7 +3,7 @@ import pytest
 
 from nameko.events import event_handler, Event, BROADCAST
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
 from nameko.testing.utils import assert_stops_raising, get_container
@@ -201,8 +201,8 @@ def test_multiple_runners_coexist(runner_factory, rabbit_config,
 
     # test events (both services will receive if in "broadcast" mode)
     event_data = "msg"
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(TestEvent(event_data))
+    dispatch = event_dispatcher(rabbit_config)
+    dispatch('srcservice', TestEvent, event_data)
 
     with eventlet.Timeout(1):
         while len(received) < 2:
@@ -217,7 +217,7 @@ def test_multiple_runners_coexist(runner_factory, rabbit_config,
     # test rpc (only one service will respond)
     del received[:]
     arg = "msg"
-    with RpcProxy('service', rabbit_config) as proxy:
+    with ServiceRpcProxy('service', rabbit_config) as proxy:
         proxy.handle(arg)
 
     with eventlet.Timeout(1):
@@ -240,8 +240,8 @@ def test_runner_with_duplicate_services(runner_factory, rabbit_config):
 
     # test events (only one service is hosted)
     event_data = "msg"
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        dispatch(TestEvent(event_data))
+    dispatch = event_dispatcher(rabbit_config)
+    dispatch('srcservice', TestEvent, event_data)
 
     with eventlet.Timeout(1):
         while len(received) == 0:
@@ -253,7 +253,7 @@ def test_runner_with_duplicate_services(runner_factory, rabbit_config):
     arg = "msg"
     del received[:]
 
-    with RpcProxy("service", rabbit_config) as proxy:
+    with ServiceRpcProxy("service", rabbit_config) as proxy:
         proxy.handle(arg)
 
     with eventlet.Timeout(1):

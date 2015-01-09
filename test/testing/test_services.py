@@ -6,7 +6,7 @@ from nameko.events import Event, event_handler
 from nameko.exceptions import DependencyNotFound, MethodNotFound
 from nameko.rpc import rpc_proxy, rpc
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import RpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
     entrypoint_hook, worker_factory,
     replace_injections, restrict_entrypoints, entrypoint_waiter)
@@ -226,7 +226,7 @@ def test_replace_injections(container_factory, rabbit_config):
 
     # verify that the mock injection collects calls
     msg = "msg"
-    with RpcProxy("service", rabbit_config) as service_proxy:
+    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
         service_proxy.method(msg)
 
     foo_proxy.remote_method.assert_called_once_with(msg)
@@ -304,17 +304,17 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     container.start()
 
     # verify the rpc entrypoint on handler_one is disabled
-    with RpcProxy("service", rabbit_config) as service_proxy:
+    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
         with pytest.raises(MethodNotFound) as exc_info:
             service_proxy.handler_one("msg")
         assert exc_info.value.message == "handler_one"
 
     # dispatch an event to handler_two
     msg = "msg"
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
+    dispatch = event_dispatcher(rabbit_config)
 
-        with entrypoint_waiter(container, 'handler_two'):
-            dispatch(ExampleEvent(msg))
+    with entrypoint_waiter(container, 'handler_two'):
+        dispatch('srcservice', ExampleEvent, msg)
 
     # method_called should have exactly one call, derived from the event
     # handler and not from the disabled @once entrypoint
@@ -356,9 +356,9 @@ def test_entrypoint_waiter(container_factory, rabbit_config):
     class ExampleEvent(Event):
         type = "eventtype"
 
-    with event_dispatcher('srcservice', rabbit_config) as dispatch:
-        with entrypoint_waiter(container, 'handle'):
-            dispatch(ExampleEvent(""))
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle'):
+        dispatch('srcservice', ExampleEvent, "")
 
 
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
