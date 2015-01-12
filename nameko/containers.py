@@ -141,11 +141,12 @@ class ServiceContainer(object):
 
         # the relationship between extensions and the container is symbiotic;
         # containers are responsible for starting and stopping their
-        # extensions, and extensions are able to trigger work (i.e.
-        # spawn_worker on the container).
+        # extensions, and extensions are able to interact with the container
+        # via its :attr:`ServiceContainer.interface`.
         self.dependencies = ExtensionSet()
         for name, ext in discover_extensions(service_cls):
-            ext.bind(name, self)
+            bound = ext.bind(name, self.interface)
+            self.dependencies.update(bound.extensions)
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -155,8 +156,10 @@ class ServiceContainer(object):
         self._being_killed = False
         self._died = Event()
 
-    def register_extension(self, extension):
-        self.dependencies.add(extension)
+    @property
+    def interface(self):
+        # TODO: a safe subset of the container to make available to extensions
+        return self
 
     @property
     def entrypoints(self):

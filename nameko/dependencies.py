@@ -93,7 +93,6 @@ class Extension(object):
         clone = self.clone()
         clone.name = name
         clone.container = container
-        container.register_extension(clone)
 
         # recursively bind nested extensions
         for ext_name, ext in inspect.getmembers(self, is_extension):
@@ -119,6 +118,14 @@ class Extension(object):
         instance.__clone = True
         # alternative: del clone.clone; del clone.bind
         return instance
+
+    @property
+    def extensions(self):
+        """ A generator that yields all nested extensions, including `self`
+        """
+        for _, ext in iter_extensions(self):
+            yield ext
+        yield self
 
     @property
     def sharing_key(self):
@@ -326,3 +333,10 @@ def is_injection_provider(obj):
 
 def is_entrypoint(obj):
     return isinstance(obj, Entrypoint)
+
+
+def iter_extensions(extension):
+    for name, ext in inspect.getmembers(extension, is_extension):
+        for item in iter_extensions(ext):
+            yield item
+        yield name, ext
