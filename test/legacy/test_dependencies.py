@@ -68,9 +68,8 @@ def test_nova_rpc_provider(empty_config):
     container.service_name = "service"
     container.config = empty_config
 
-    entrypoint = NovaRpc()
+    entrypoint = NovaRpc().bind("method", container)
     entrypoint.rpc_consumer = rpc_consumer
-    entrypoint.bind("method", container)
 
     container.spawn_worker.side_effect = ContainerBeingKilled()
     entrypoint.handle_message(message_body, message)

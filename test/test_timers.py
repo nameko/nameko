@@ -14,8 +14,7 @@ def test_provider():
     container.config = Mock()
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = Timer(interval=0, config_key=None)
-    timer.bind('foobar', container)
+    timer = Timer(interval=0, config_key=None).bind('foobar', container)
     timer.start()
 
     assert timer.interval == 0
@@ -37,8 +36,8 @@ def test_provider_uses_config_for_interval():
     container.config = {'spam-conf': 10}
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = Timer(interval=None, config_key='spam-conf')
-    timer.bind('foobar', container)
+    timer = Timer(
+        interval=None, config_key='spam-conf').bind('foobar', container)
     timer.start()
 
     assert timer.interval == 10
@@ -50,8 +49,7 @@ def test_provider_interval_as_config_fallback():
     container.service_name = "service"
     container.config = {}
 
-    timer = Timer(interval=1, config_key='spam-conf')
-    timer.bind('foobar', container)
+    timer = Timer(interval=1, config_key='spam-conf').bind('foobar', container)
     timer.start()
 
     assert timer.interval == 1
@@ -63,8 +61,7 @@ def test_stop_timer_immediatly():
     container.service_name = "service"
     container.config = {}
 
-    timer = Timer(interval=5, config_key=None)
-    timer.bind('foobar', container)
+    timer = Timer(interval=5, config_key=None).bind('foobar', container)
     timer.start()
     eventlet.sleep(0.1)
     timer.stop()
@@ -78,8 +75,7 @@ def test_kill_stops_timer():
     container.service_name = "service"
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = Timer(interval=0, config_key=None)
-    timer.bind('foobar', container)
+    timer = Timer(interval=0, config_key=None).bind('foobar', container)
     timer.start()
 
     with wait_for_call(1, container.spawn_worker):

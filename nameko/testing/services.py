@@ -335,7 +335,7 @@ class Once(Entrypoint):
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
-        super(Once, self).__init__()
+        super(Once, self).__init__(*args, **kwargs)
 
     def start(self):
         self.container.spawn_worker(self, self.args, self.kwargs)

@@ -121,7 +121,15 @@ def get_rpc_exchange():
         yield patched
 
 
-def test_rpc_consumer(get_rpc_exchange):
+@pytest.yield_fixture
+def queue_consumer():
+    queue_consumer = Mock(spec=QueueConsumer)
+    with patch.object(QueueConsumer, 'bind') as bind:
+        bind.return_value = queue_consumer
+        yield queue_consumer
+
+
+def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "exampleservice"
@@ -130,16 +138,10 @@ def test_rpc_consumer(get_rpc_exchange):
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    queue_consumer = Mock(spec=QueueConsumer)
-    queue_consumer.bind("queue_consumer", container)
+    consumer = RpcConsumer().bind("rpc_consumer", container)
 
-    consumer = RpcConsumer()
-    consumer.queue_consumer = queue_consumer
-    consumer.bind("rpc_consumer", container)
-
-    entrypoint = Rpc()
+    entrypoint = Rpc().bind("rpcmethod", container)
     entrypoint.rpc_consumer = consumer
-    entrypoint.bind("rpcmethod", container)
 
     entrypoint.before_start()
     consumer.before_start()
@@ -167,7 +169,7 @@ def test_rpc_consumer(get_rpc_exchange):
     assert consumer._providers == set()
 
 
-def test_reply_listener(get_rpc_exchange):
+def test_reply_listener(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "exampleservice"
@@ -175,12 +177,7 @@ def test_reply_listener(get_rpc_exchange):
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    queue_consumer = Mock(spec=QueueConsumer)
-    queue_consumer.bind("queue_consumer", container)
-
-    reply_listener = ReplyListener()
-    reply_listener.queue_consumer = queue_consumer
-    reply_listener.bind("reply_listener", container)
+    reply_listener = ReplyListener().bind("reply_listener", container)
 
     forced_uuid = uuid.uuid4().hex
 

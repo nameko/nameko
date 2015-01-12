@@ -10,7 +10,6 @@ import weakref
 
 from eventlet.event import Event
 
-from nameko.exceptions import ExtensionError
 from nameko.utils import SpawningSet, repr_safe_str
 
 from logging import getLogger
@@ -18,7 +17,7 @@ _log = getLogger(__name__)
 
 
 ENTRYPOINT_EXTENSIONS_ATTR = 'nameko_entrypoints'
-
+UNBOUND_NAME = "<unbound-extension>"
 
 shared_extensions = weakref.WeakKeyDictionary()
 
@@ -26,13 +25,16 @@ shared_extensions = weakref.WeakKeyDictionary()
 class Extension(object):
 
     __state = None
+    __shared = False
+    __clone = False
 
-    bound = False
-    name = "<unbound-extension>"
-    shared = False
+    name = UNBOUND_NAME  # property, knows if clone?
+    container = None
 
     def __init__(self, *args, **kwargs):
-        self.shared = kwargs.pop('shared', False)
+        # sharing status is not persisted into state;
+        # cloned extensions will never be shared
+        self.__shared = kwargs.pop('shared', False)
         self.__state = (args, kwargs)
         super(Extension, self).__init__()
 
@@ -73,51 +75,58 @@ class Extension(object):
         """
 
     def bind(self, name, container):
-        self.name = name
-        self.container = container
-        self.bound = True
+        """ Bind a clone of this extension to `container` with the given
+        `name`.
+        """
+        if self.__clone:  # TODO: prefer this over check in clone?
+            raise RuntimeError('Cloned extensions cannot be bound.')
+
+        # if this extension is shared and there's already a cloned instance,
+        # return that
+        if self.__shared:
+            shared_extensions.setdefault(container, {})
+            shared = shared_extensions[container].get(self.sharing_key)
+            if shared:
+                return shared
+
+        # clone this extension and associate it with the container
+        clone = self.clone()
+        clone.name = name
+        clone.container = container
+        container.register_extension(clone)
+
+        # recursively bind nested extensions
+        for ext_name, ext in inspect.getmembers(self, is_extension):
+            setattr(clone, ext_name, ext.bind(ext_name, container))
+
+        # if this extension is shared, save the cloned instance
+        if self.__shared:
+            shared_extensions[container][self.sharing_key] = clone
+
+        return clone
 
     def clone(self):
-        # clones have no notion of sharing? non-clones cannot be bound?
         if self.__state is None:
-            raise ExtensionError('forgot to call super().__init__?')
+            raise RuntimeError('Undefined extension state. Did you forget to '
+                               'call super().__init__() in your subclass?')
+
+        if self.__clone:  # TODO: need this even with the check in bind above?
+            raise RuntimeError('Cloned extensions cannot be cloned.')
 
         cls = type(self)
         args, kwargs = self.__state
-        return cls(*args, **kwargs)
-
-    def attach(self, name, container):
-
-        shared_extensions.setdefault(container, {})
-        clone = self.clone()
-        bind_instance = clone
-
-        if self.shared:
-            bind_instance = shared_extensions[container].get(self.sharing_key)
-            if not bind_instance:
-                bind_instance = clone
-                shared_extensions[container][self.sharing_key] = bind_instance
-
-        for child_name, child_ext in inspect.getmembers(self, is_extension):
-            for ext in child_ext.attach(child_name, container):
-                setattr(bind_instance, child_name, ext)  # update w/ clone
-                yield ext
-
-        # use a weakref proxy to the container to avoid cycles where the
-        # values in the shared_extensions weakref dict refer to their keys
-        container_ref = weakref.proxy(container)
-
-        # results in double-bind and double-yield for shared instances...
-        bind_instance.bind(name, container_ref)
-        yield bind_instance
+        instance = cls(*args, **kwargs)
+        instance.__clone = True
+        # alternative: del clone.clone; del clone.bind
+        return instance
 
     @property
     def sharing_key(self):
         return type(self)
 
     def __repr__(self):
-        if not self.bound:
-            return '<{} [unbound] at 0x{:x}>'.format(
+        if self.name is UNBOUND_NAME:
+            return '<{} [unbound] at 0x{:x}>'.format(  # declaration?
                 type(self).__name__, id(self))
 
         service_name = repr_safe_str(self.container.service_name)
@@ -130,7 +139,7 @@ class Extension(object):
 class InjectionProvider(Extension):
 
     def __init__(self, *args, **kwargs):
-        # injectionproviders cannot be shared
+        # InjectionProviders cannot be shared
         kwargs.pop('shared', False)
         super(InjectionProvider, self).__init__(*args, **kwargs)
 
@@ -281,7 +290,7 @@ def register_entrypoint(fn, provider):
 class Entrypoint(Extension):
 
     def __init__(self, *args, **kwargs):
-        # entrypoints cannot be shared
+        # Entrypoints cannot be shared
         kwargs.pop('shared', False)
         super(Entrypoint, self).__init__(*args, **kwargs)
 
@@ -317,15 +326,3 @@ def is_injection_provider(obj):
 
 def is_entrypoint(obj):
     return isinstance(obj, Entrypoint)
-
-
-def attach_extensions(container):
-    service_cls = container.service_cls
-    for name, prov in inspect.getmembers(service_cls, is_injection_provider):
-        for ext in prov.attach(name, container):
-            yield ext
-    for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
-        entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
-        for entrypoint in entrypoints:
-            for ext in entrypoint.attach(name, container):
-                yield ext

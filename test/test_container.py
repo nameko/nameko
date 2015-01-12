@@ -20,9 +20,10 @@ class CallCollectorMixin(object):
         self._reset_calls()
         super(CallCollectorMixin, self).__init__()
 
-    def bind(self, name, container):
-        self.instances.add(self)
-        super(CallCollectorMixin, self).bind(name, container)
+    def clone(self):
+        res = super(CallCollectorMixin, self).clone()
+        self.instances.add(res)
+        return res
 
     def _reset_calls(self):
         self.calls = []

@@ -60,8 +60,9 @@ def test_str():
 
     container = Mock()
     container.service_name = u'föbar'
-    dep.bind('spam', container)
-    assert str(dep).startswith("<Extension [föbar.spam] at")
+    bound = dep.bind('spam', container)
+    assert str(dep).startswith("<Extension [unbound] at")
+    assert str(bound).startswith("<Extension [föbar.spam] at")
 
 
 def test_provider_collector():

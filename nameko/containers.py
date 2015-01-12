@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 from abc import ABCMeta, abstractproperty
+import inspect
 from logging import getLogger
 import sys
 import uuid
@@ -16,7 +17,8 @@ from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
 
 from nameko.dependencies import (
-    attach_extensions, ExtensionSet, is_entrypoint, is_injection_provider)
+    ExtensionSet, is_entrypoint, is_injection_provider,
+    ENTRYPOINT_EXTENSIONS_ATTR)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import repr_safe_str
@@ -113,6 +115,17 @@ class WorkerContext(WorkerContextBase):
     context_keys = NAMEKO_CONTEXT_KEYS
 
 
+def discover_extensions(service_cls):
+    """ Yield :class:`nameko.dependencies.Extension`s declared on `service_cls`
+    """
+    for name, inj in inspect.getmembers(service_cls, is_injection_provider):
+        yield name, inj
+    for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
+        entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
+        for entrypoint in entrypoints:
+            yield name, entrypoint
+
+
 class ServiceContainer(object):
 
     def __init__(self, service_cls, worker_ctx_cls, config):
@@ -126,9 +139,13 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
+        # the relationship between extensions and the container is symbiotic;
+        # containers are responsible for starting and stopping their
+        # extensions, and extensions are able to trigger work (i.e.
+        # spawn_worker on the container).
         self.dependencies = ExtensionSet()
-        for dep in attach_extensions(self):
-            self.dependencies.add(dep)
+        for name, ext in discover_extensions(service_cls):
+            ext.bind(name, self)
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -137,6 +154,9 @@ class ServiceContainer(object):
         self._protected_threads = set()
         self._being_killed = False
         self._died = Event()
+
+    def register_extension(self, extension):
+        self.dependencies.add(extension)
 
     @property
     def entrypoints(self):
