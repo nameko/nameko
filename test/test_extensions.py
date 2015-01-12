@@ -126,3 +126,26 @@ def test_require_super_init():
     with pytest.raises(RuntimeError) as exc_info:
         ext.clone()
     assert "forget to call super().__init__()" in exc_info.value.message
+
+
+def test_extension_defined_on_instance(container_factory):
+
+    class ExtensionWithParams(Extension):
+        def __init__(self, arg):
+            self.arg = arg
+            super(ExtensionWithParams, self).__init__(arg)
+
+    class DynamicInjection(InjectionProvider):
+        def __init__(self, ext_arg):
+            self.ext = ExtensionWithParams(ext_arg)
+            super(DynamicInjection, self).__init__(ext_arg)
+
+    class Service(object):
+        inj = DynamicInjection("argument_for_extension")
+
+    container = container_factory(Service, {})
+    container.start()
+
+    assert len(container.dependencies) == 2
+    dyn_inj = get_dependency(container, DynamicInjection)
+    assert dyn_inj.ext.arg == "argument_for_extension"
