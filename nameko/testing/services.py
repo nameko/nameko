@@ -100,6 +100,7 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
     """
 
     waiter = EntrypointWaiter(entrypoint)
+    container.mappings[waiter] = waiter.name
     if not get_dependency(container, Entrypoint, name=entrypoint):
         raise RuntimeError("{} has no entrypoint `{}`".format(
             container.service_name, entrypoint))
@@ -269,6 +270,7 @@ def replace_injections(container, *injections):
         replacements[dependency] = replacement
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
+        container.mappings[replacement] = name
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator

@@ -139,14 +139,29 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
+        self.mappings = {}
+
         # the relationship between extensions and the container is symbiotic;
         # containers are responsible for starting and stopping their
         # extensions, and extensions are able to interact with the container
         # via its :attr:`ServiceContainer.interface`.
+        # self.dependencies = ExtensionSet()
+        # for name, ext in discover_extensions(service_cls):
+        #     bound = ext.bind(name, self.interface)
+        #     self.dependencies.update(bound.extensions)
+
         self.dependencies = ExtensionSet()
-        for name, ext in discover_extensions(service_cls):
-            bound = ext.bind(name, self.interface)
+        for name, inj in inspect.getmembers(
+                service_cls, is_injection_provider):
+            bound = inj.bind(name, self.interface)
+            self.mappings[bound] = name
             self.dependencies.update(bound.extensions)
+        for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
+            entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
+            for entrypoint in entrypoints:
+                bound = entrypoint.bind(name, self.interface)
+                self.mappings[bound] = name
+                self.dependencies.update(bound.extensions)
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -370,11 +385,15 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            self.dependencies.injections.all.inject(worker_ctx)
+            for ext in self.injections:
+                inj = ext.acquire_injection(worker_ctx)
+                setattr(worker_ctx.service, self.mappings[ext], inj)
+
             self.dependencies.injections.all.worker_setup(worker_ctx)
 
             result = exc_info = None
-            method = getattr(worker_ctx.service, worker_ctx.provider.name)
+            method_name = self.mappings[worker_ctx.provider]
+            method = getattr(worker_ctx.service, method_name)
             try:
 
                 _log.debug('calling handler for %s', worker_ctx)
@@ -405,7 +424,7 @@ class ServiceContainer(object):
                 del exc_info
 
                 self.dependencies.injections.all.worker_teardown(worker_ctx)
-                self.dependencies.injections.all.release(worker_ctx)
+                # release?
 
     def _kill_active_threads(self):
         """ Kill all managed threads that were not marked as "protected" when

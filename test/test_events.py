@@ -69,7 +69,7 @@ def test_event_dispatcher(empty_config):
         assert before_start.called
 
     evt = Mock(type="eventtype", data="msg")
-    event_dispatcher.inject(worker_ctx)
+    service.dispatch = event_dispatcher.acquire_injection(worker_ctx)
 
     producer = Mock()
 
@@ -610,7 +610,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
                                   rt_key=ExampleEvent.type)
 
-    dispatcher.inject(worker_ctx)
+    service.dispatch = dispatcher.acquire_injection(worker_ctx)
     service.dispatch(ExampleEvent("msg"))
 
     # test event receieved on manually added queue

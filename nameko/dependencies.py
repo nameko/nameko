@@ -201,19 +201,6 @@ class InjectionProvider(Extension):
                 ``nameko.containers.ServiceContainer.spawn_worker``
         """
 
-    def inject(self, worker_ctx):
-        injection = self.acquire_injection(worker_ctx)
-
-        injection_name = self.name
-        service = worker_ctx.service
-        setattr(service, injection_name, injection)
-
-    def release(self, worker_ctx):
-
-        service = worker_ctx.service
-        injection_name = self.name
-        delattr(service, injection_name)
-
 
 class ProviderCollector(object):
     def __init__(self, *args, **kwargs):

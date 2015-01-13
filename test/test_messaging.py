@@ -134,7 +134,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
 
     # test publish
     msg = "msg"
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     headers = {
         'nameko.call_id_stack': ['srcservice.publish.0']
@@ -175,7 +175,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
         'nameko.language': 'en',
         'nameko.call_id_stack': ['srcservice.publish.0'],
     }
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
@@ -213,7 +213,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     headers = {'nameko.language': 'en',
                'nameko.customheader': 'customvalue',
                'nameko.call_id_stack': ['srcservice.method.0']}
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
@@ -301,7 +301,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message published to queue
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['msg'] == [msg['payload'] for msg in messages]
@@ -335,7 +335,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     publisher.before_start()
     publisher.start()
 
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
 
