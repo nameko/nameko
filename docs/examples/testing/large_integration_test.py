@@ -46,7 +46,6 @@ class ShoppingBasket(InjectionProvider):
     """
     def __init__(self):
         self.baskets = defaultdict(list)
-        super(ShoppingBasket, self).__init__()
 
     def acquire_injection(self, worker_ctx):
 
@@ -150,7 +149,6 @@ class Warehouse(InjectionProvider):
                 'stock': 0
             }
         }
-        super(Warehouse, self).__init__()
 
     def acquire_injection(self, worker_ctx):
         return self.database
@@ -210,7 +208,6 @@ class AddressBook(InjectionProvider):
                 'address': '12 Long Road, High Cliffs, Utah',
             },
         }
-        super(AddressBook, self).__init__()
 
     def acquire_injection(self, worker_ctx):
         def get_user_details():

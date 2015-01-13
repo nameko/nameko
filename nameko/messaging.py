@@ -96,7 +96,6 @@ class Publisher(InjectionProvider, HeaderEncoder):
         """
         self.exchange = exchange
         self.queue = queue
-        super(Publisher, self).__init__(exchange, queue)
 
     def get_connection(self):
         # TODO: should this live outside of the class or be a class method?
@@ -401,7 +400,7 @@ class Consumer(Entrypoint, HeaderDecoder):
 
     queue_consumer = QueueConsumer(shared=True)
 
-    def __init__(self, queue=None, requeue_on_error=False, **kwargs):
+    def __init__(self, queue, requeue_on_error=False):
         """
         Decorates a method as a message consumer.
 
@@ -430,8 +429,6 @@ class Consumer(Entrypoint, HeaderDecoder):
         """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
-        super(Consumer, self).__init__(
-            queue=queue, requeue_on_error=requeue_on_error, **kwargs)
 
     def before_start(self):
         self.queue_consumer.register_provider(self)

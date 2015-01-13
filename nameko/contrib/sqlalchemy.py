@@ -12,7 +12,6 @@ class OrmSession(InjectionProvider):
     def __init__(self, declarative_base):
         self.declarative_base = declarative_base
         self.sessions = {}
-        super(OrmSession, self).__init__(declarative_base)
 
     def acquire_injection(self, worker_ctx):
         service_name = self.container.service_name

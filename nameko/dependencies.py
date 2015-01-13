@@ -24,19 +24,29 @@ shared_extensions = weakref.WeakKeyDictionary()
 
 class Extension(object):
 
-    __state = None
-    __shared = False
     __clone = False
+    __params = None
+    __shared = False
 
     name = UNBOUND_NAME  # property, knows if clone?
     container = None
 
-    def __init__(self, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         # sharing status is not persisted into state;
         # cloned extensions will never be shared
-        self.__shared = kwargs.pop('shared', False)
-        self.__state = (args, kwargs)
-        super(Extension, self).__init__()
+        shared = kwargs.pop('shared', False)
+        inst = super(Extension, cls).__new__(cls, *args, **kwargs)
+        inst.__shared = shared
+        inst.__params = (args, kwargs)
+        return inst
+        # called during bind?
+
+    def __init__(self, *args, **kwargs):
+        """ This is called both at class declaration time and at bind time,
+        so avoid side-effects. You probably only want to bind paramters here.
+        Do work in `{before_,}start.
+        """
+        super(Extension, self).__init__(*args, **kwargs)
 
     def before_start(self):
         """ Called before the service container starts.
@@ -105,15 +115,11 @@ class Extension(object):
         return clone
 
     def clone(self):
-        if self.__state is None:
-            raise RuntimeError('Undefined extension state. Did you forget to '
-                               'call super().__init__() in your subclass?')
-
         if self.__clone:  # TODO: need this even with the check in bind above?
             raise RuntimeError('Cloned extensions cannot be cloned.')
 
         cls = type(self)
-        args, kwargs = self.__state
+        args, kwargs = self.__params
         instance = cls(*args, **kwargs)
         instance.__clone = True
         # alternative: del clone.clone; del clone.bind
@@ -141,6 +147,10 @@ class Extension(object):
 
         return '<{} [{}.{}] at 0x{:x}>'.format(
             type(self).__name__, service_name, name, id(self))
+
+
+class SharedExtension():
+    pass
 
 
 class InjectionProvider(Extension):

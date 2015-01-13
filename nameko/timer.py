@@ -38,7 +38,6 @@ class Timer(Entrypoint):
         self.config_key = config_key
         self.should_stop = Event()
         self.gt = None
-        super(Timer, self).__init__(interval, config_key)
 
     def start(self):
         _log.debug('starting %s', self)

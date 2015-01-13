@@ -81,7 +81,7 @@ def test_clones_never_shared():
 
     ext = SimpleExtension(shared=True)
     assert ext._Extension__shared is True
-    assert "shared" not in ext._Extension__state
+    assert "shared" not in ext._Extension__params
 
     ext_clone = ext.clone()
     assert ext_clone._Extension__shared is False
@@ -115,30 +115,15 @@ def test_clones_cannot_be_cloned():
     assert exc_info.value.message == "Cloned extensions cannot be cloned."
 
 
-def test_require_super_init():
-
-    class BrokenExtension(Extension):
-        def __init__(self):
-            pass
-
-    ext = BrokenExtension()
-
-    with pytest.raises(RuntimeError) as exc_info:
-        ext.clone()
-    assert "forget to call super().__init__()" in exc_info.value.message
-
-
 def test_extension_defined_on_instance(container_factory):
 
     class ExtensionWithParams(Extension):
         def __init__(self, arg):
             self.arg = arg
-            super(ExtensionWithParams, self).__init__(arg)
 
     class DynamicInjection(InjectionProvider):
         def __init__(self, ext_arg):
             self.ext = ExtensionWithParams(ext_arg)
-            super(DynamicInjection, self).__init__(ext_arg)
 
     class Service(object):
         inj = DynamicInjection("argument_for_extension")

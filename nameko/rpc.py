@@ -130,7 +130,7 @@ class Rpc(Entrypoint, HeaderDecoder):
 
     rpc_consumer = RpcConsumer(shared=True)
 
-    def __init__(self, expected_exceptions=(), **kwargs):
+    def __init__(self, expected_exceptions=()):
         """ Mark a method to be exposed over rpc
 
         :Parameters:
@@ -140,7 +140,6 @@ class Rpc(Entrypoint, HeaderDecoder):
                 by the caller (e.g. bad arguments).
         """
         self.expected_exceptions = expected_exceptions
-        super(Rpc, self).__init__(expected_exceptions, **kwargs)
 
     def before_start(self):
         self.rpc_consumer.register_provider(self)
@@ -305,7 +304,6 @@ class RpcProxy(InjectionProvider):
 
     def __init__(self, service_name):
         self.service_name = service_name
-        super(RpcProxy, self).__init__(service_name)
 
     def acquire_injection(self, worker_ctx):
         return ServiceProxy(worker_ctx, self.service_name,

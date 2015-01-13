@@ -176,9 +176,8 @@ event_dispatcher = EventDispatcher
 
 class EventHandler(Consumer):
 
-    def __init__(self, service_name=None, event_type=None,
-                 handler_type=SERVICE_POOL, reliable_delivery=True,
-                 requeue_on_error=False, **kwargs):
+    def __init__(self, service_name, event_type, handler_type=SERVICE_POOL,
+                 reliable_delivery=True, requeue_on_error=False):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``service_name``. ``event_type`` must be either a subclass of
@@ -256,9 +255,7 @@ class EventHandler(Consumer):
         self.reliable_delivery = reliable_delivery
 
         super(EventHandler, self).__init__(
-            service_name=service_name, event_type=event_type,
-            handler_type=handler_type, reliable_delivery=reliable_delivery,
-            requeue_on_error=requeue_on_error, **kwargs)
+            queue=None, requeue_on_error=requeue_on_error)
 
     def before_start(self):
         _log.debug('starting handler for %s', self.container)

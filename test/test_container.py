@@ -18,7 +18,6 @@ class CallCollectorMixin(object):
 
     def __init__(self):
         self._reset_calls()
-        super(CallCollectorMixin, self).__init__()
 
     def clone(self):
         res = super(CallCollectorMixin, self).clone()

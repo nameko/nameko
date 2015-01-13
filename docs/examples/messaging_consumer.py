@@ -36,7 +36,6 @@ class FileLogger(InjectionProvider):
             if not os.access(check_path, os.W_OK):
                 raise InvalidPath("File or dir not writable: {}".format(path))
             self.path = path
-        super(FileLogger, self).__init__(path)
 
     def before_start(self):
         self.file_handle = open(self.path, 'w')
