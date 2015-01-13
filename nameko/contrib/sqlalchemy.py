@@ -13,18 +13,20 @@ class OrmSession(InjectionProvider):
         self.declarative_base = declarative_base
         self.sessions = {}
 
-    def acquire_injection(self, worker_ctx):
+    def before_start(self):
         service_name = self.container.service_name
         decl_base_name = self.declarative_base.__name__
         uri_key = '{}:{}'.format(service_name, decl_base_name)
 
-        db_uris = worker_ctx.config[ORM_DB_URIS_KEY]
-        db_uri = db_uris[uri_key].format({
+        db_uris = self.container.config[ORM_DB_URIS_KEY]
+        self.db_uri = db_uris[uri_key].format({
             'service_name': service_name,
             'declarative_base_name': decl_base_name,
         })
 
-        engine = create_engine(db_uri)
+    def acquire_injection(self, worker_ctx):
+
+        engine = create_engine(self.db_uri)
         Session = sessionmaker(bind=engine)
         session = Session()
 

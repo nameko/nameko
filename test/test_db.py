@@ -39,8 +39,8 @@ def test_concurrency():
     service_instance = Mock()
 
     def inject(worker_ctx):
-        orm_session = OrmSession(DeclBase)
-        orm_session.container = container
+        orm_session = OrmSession(DeclBase).bind("session", container)
+        orm_session.before_start()
         return orm_session.acquire_injection(worker_ctx)
 
     # get injections concurrently
@@ -57,6 +57,7 @@ def test_concurrency():
 def test_db(container_factory):
 
     container = container_factory(FooService, config)
+    container.start()
     provider = next(iter(container.dependencies.injections))
 
     # fake instance creation and provider injection
