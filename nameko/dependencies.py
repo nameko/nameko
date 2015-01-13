@@ -26,20 +26,14 @@ class Extension(object):
 
     __clone = False
     __params = None
-    __shared = False
 
     name = UNBOUND_NAME  # property, knows if clone?
     container = None
 
     def __new__(cls, *args, **kwargs):
-        # sharing status is not persisted into state;
-        # cloned extensions will never be shared
-        shared = kwargs.pop('shared', False)
         inst = super(Extension, cls).__new__(cls, *args, **kwargs)
-        inst.__shared = shared
         inst.__params = (args, kwargs)
         return inst
-        # called during bind?
 
     def __init__(self, *args, **kwargs):
         """ This is called both at class declaration time and at bind time,
@@ -91,14 +85,6 @@ class Extension(object):
         if self.__clone:  # TODO: prefer this over check in clone?
             raise RuntimeError('Cloned extensions cannot be bound.')
 
-        # if this extension is shared and there's already a cloned instance,
-        # return that
-        if self.__shared:
-            shared_extensions.setdefault(container, {})
-            shared = shared_extensions[container].get(self.sharing_key)
-            if shared:
-                return shared
-
         # clone this extension and associate it with the container
         clone = self.clone()
         clone.name = name
@@ -107,10 +93,6 @@ class Extension(object):
         # recursively bind nested extensions
         for ext_name, ext in inspect.getmembers(self, is_extension):
             setattr(clone, ext_name, ext.bind(ext_name, container))
-
-        # if this extension is shared, save the cloned instance
-        if self.__shared:
-            shared_extensions[container][self.sharing_key] = clone
 
         return clone
 
@@ -133,10 +115,6 @@ class Extension(object):
             yield ext
         yield self
 
-    @property
-    def sharing_key(self):
-        return type(self)
-
     def __repr__(self):
         if self.name is UNBOUND_NAME:
             return '<{} [unbound] at 0x{:x}>'.format(  # declaration?
@@ -149,16 +127,30 @@ class Extension(object):
             type(self).__name__, service_name, name, id(self))
 
 
-class SharedExtension():
-    pass
+class SharedExtension(Extension):
+
+    @property
+    def sharing_key(self):
+        return type(self)
+
+    def bind(self, name, container):
+        """ Bind implementation that supports sharing.
+        """
+        # if there's already a cloned instance, return that
+        shared_extensions.setdefault(container, {})
+        shared = shared_extensions[container].get(self.sharing_key)
+        if shared:
+            return shared
+
+        bound = super(SharedExtension, self).bind(name, container)
+
+        # save the cloned instance
+        shared_extensions[container][self.sharing_key] = bound
+
+        return bound
 
 
 class InjectionProvider(Extension):
-
-    def __init__(self, *args, **kwargs):
-        # InjectionProviders cannot be shared
-        kwargs.pop('shared', False)
-        super(InjectionProvider, self).__init__(*args, **kwargs)
 
     def acquire_injection(self, worker_ctx):
         """ Called before worker execution. An InjectionProvider should return
@@ -300,16 +292,7 @@ def register_entrypoint(fn, provider):
     descriptors.add(provider)
 
 
-# metaclass to allow sharing key always?
-# or prefer explicit shared=None in all __init__s
-# or require/encourage **kwargs in __init__s
-
 class Entrypoint(Extension):
-
-    def __init__(self, *args, **kwargs):
-        # Entrypoints cannot be shared
-        kwargs.pop('shared', False)
-        super(Entrypoint, self).__init__(*args, **kwargs)
 
     @classmethod
     def entrypoint(cls, *args, **kwargs):

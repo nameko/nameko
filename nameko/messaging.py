@@ -17,7 +17,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.dependencies import (
-    InjectionProvider, Entrypoint, Extension, ProviderCollector)
+    InjectionProvider, Entrypoint, SharedExtension, ProviderCollector)
 from nameko.exceptions import ContainerBeingKilled
 
 _log = getLogger(__name__)
@@ -141,8 +141,8 @@ PublishProvider = Publisher
 publisher = Publisher
 
 
-class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
-    def __init__(self, **kwargs):
+class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
+    def __init__(self):
         self._connection = None
 
         self._consumers = {}
@@ -156,7 +156,7 @@ class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
         self._starting = False
 
         self._consumers_ready = Event()
-        super(QueueConsumer, self).__init__(**kwargs)
+        super(QueueConsumer, self).__init__()
 
     @property
     def _amqp_uri(self):
@@ -398,7 +398,7 @@ class QueueConsumer(Extension, ProviderCollector, ConsumerMixin):
 
 class Consumer(Entrypoint, HeaderDecoder):
 
-    queue_consumer = QueueConsumer(shared=True)
+    queue_consumer = QueueConsumer()
 
     def __init__(self, queue, requeue_on_error=False):
         """

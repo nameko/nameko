@@ -77,16 +77,6 @@ def test_extension_uniqueness(container_factory):
     assert inj1.ext != inj2.ext
 
 
-def test_clones_never_shared():
-
-    ext = SimpleExtension(shared=True)
-    assert ext._Extension__shared is True
-    assert "shared" not in ext._Extension__params
-
-    ext_clone = ext.clone()
-    assert ext_clone._Extension__shared is False
-
-
 def test_clones_marked_as_clones():
 
     ext = SimpleExtension()

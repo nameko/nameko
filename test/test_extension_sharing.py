@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from mock import call
 
-from nameko.dependencies import InjectionProvider, Entrypoint, Extension
+from nameko.dependencies import InjectionProvider, SharedExtension, Extension
 from nameko.testing.utils import get_dependency
 
 
@@ -15,41 +15,13 @@ class CallCollectorMixin(object):
         super(CallCollectorMixin, self).start(*args, **kwargs)
 
 
-def test_injections_cannot_be_shared():
-
-    class SimpleInjection(InjectionProvider):
-        pass
-
-    class Service(object):
-        inj = SimpleInjection(shared=True)
-
-    assert Service.inj._Extension__shared is False
-
-
-def test_entrypoints_cannot_be_shared():
-
-    class SimpleEntrypoint(Entrypoint):
-        pass
-
-    simple = SimpleEntrypoint.entrypoint
-
-    class Service(object):
-
-        @simple(shared=True)
-        def method(self):
-            pass
-
-    entrypoint = list(Service.method.nameko_entrypoints)[0]
-    assert entrypoint._Extension__shared is False
-
-
 def test_simple_sharing(container_factory):
 
-    class SharedExtension(CallCollectorMixin, Extension):
+    class SimpleSharedExtension(CallCollectorMixin, SharedExtension):
         pass
 
     class SimpleInjection(CallCollectorMixin, InjectionProvider):
-        ext = SharedExtension(shared=True)
+        ext = SimpleSharedExtension()
 
     class Service(object):
         inj_1 = SimpleInjection()
@@ -60,23 +32,22 @@ def test_simple_sharing(container_factory):
 
     assert len(container.dependencies) == 3
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
-    assert len(CallCollectorMixin.calls[SharedExtension]['start']) == 1
+    assert len(CallCollectorMixin.calls[SimpleSharedExtension]['start']) == 1
 
 
 def test_custom_sharing_key(container_factory):
 
-    class SharedExtension(CallCollectorMixin, Extension):
-        def __init__(self, arg, **kwargs):
+    class CustomSharedExtension(CallCollectorMixin, SharedExtension):
+        def __init__(self, arg):
             self.arg = arg
-            super(SharedExtension, self).__init__(arg, **kwargs)
 
         @property
         def sharing_key(self):
             return (type(self), self.arg)
 
     class SimpleInjection(CallCollectorMixin, InjectionProvider):
-        ext_a = SharedExtension("a", shared=True)
-        ext_b = SharedExtension("b", shared=True)
+        ext_a = CustomSharedExtension("a")
+        ext_b = CustomSharedExtension("b")
 
     class Service(object):
         inj_1 = SimpleInjection()
@@ -87,7 +58,7 @@ def test_custom_sharing_key(container_factory):
 
     assert len(container.dependencies) == 4
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
-    assert len(CallCollectorMixin.calls[SharedExtension]['start']) == 2
+    assert len(CallCollectorMixin.calls[CustomSharedExtension]['start']) == 2
 
     inj_1 = get_dependency(container, SimpleInjection, name="inj_1")
     inj_2 = get_dependency(container, SimpleInjection, name="inj_2")
@@ -102,11 +73,11 @@ def test_shared_intermediate(container_factory):
     class DedicatedExtension(CallCollectorMixin, Extension):
         pass
 
-    class SharedExtension(CallCollectorMixin, Extension):
+    class SharedIntermediate(CallCollectorMixin, SharedExtension):
         ext = DedicatedExtension()
 
     class SimpleInjection(CallCollectorMixin, InjectionProvider):
-        ext = SharedExtension(shared=True)
+        ext = SharedIntermediate()
 
     class Service(object):
         inj_1 = SimpleInjection()
@@ -117,17 +88,17 @@ def test_shared_intermediate(container_factory):
 
     assert len(container.dependencies) == 4
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
-    assert len(CallCollectorMixin.calls[SharedExtension]['start']) == 1
+    assert len(CallCollectorMixin.calls[SharedIntermediate]['start']) == 1
     assert len(CallCollectorMixin.calls[DedicatedExtension]['start']) == 1
 
 
 def test_shared_extension_uniqueness(container_factory):
 
-    class SharedExtension(CallCollectorMixin, Extension):
+    class SimpleSharedExtension(CallCollectorMixin, SharedExtension):
         pass
 
     class SimpleInjection(CallCollectorMixin, InjectionProvider):
-        ext = SharedExtension(shared=True)
+        ext = SimpleSharedExtension()
 
     class Service(object):
         inj_1 = SimpleInjection()
@@ -140,6 +111,6 @@ def test_shared_extension_uniqueness(container_factory):
     assert c1.service_cls.inj_1.ext == c2.service_cls.inj_1.ext
 
     # extension instances are different between containers
-    shared_1 = get_dependency(c1, SharedExtension)
-    shared_2 = get_dependency(c2, SharedExtension)
+    shared_1 = get_dependency(c1, SimpleSharedExtension)
+    shared_2 = get_dependency(c2, SimpleSharedExtension)
     assert shared_1 is not shared_2

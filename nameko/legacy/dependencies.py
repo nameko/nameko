@@ -100,7 +100,7 @@ class NovaRpc(Rpc):
     Works in combination with the NovaRpcConsumer.
     """
 
-    rpc_consumer = NovaRpcConsumer(shared=True)
+    rpc_consumer = NovaRpcConsumer()
 
     def handle_message(self, body, message):
         container = self.container

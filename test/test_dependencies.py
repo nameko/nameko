@@ -5,10 +5,11 @@ from mock import Mock
 import pytest
 
 from nameko.dependencies import (
-    Extension, Entrypoint, InjectionProvider, ProviderCollector)
+    Extension, SharedExtension, Entrypoint, InjectionProvider,
+    ProviderCollector)
 
 
-class SharedProvider(Extension):
+class SharedProvider(SharedExtension):
     pass
 
 
@@ -17,7 +18,7 @@ class NestedProvider(Extension):
 
 
 class FooProvider(Entrypoint):
-    shared_provider = SharedProvider(shared=True)
+    shared_provider = SharedProvider()
 
     def __init__(self, *args, **kwargs):
         self.args = args
@@ -30,7 +31,7 @@ foobar = FooProvider.entrypoint
 class BarProvider(InjectionProvider):
 
     nested_provider = NestedProvider()
-    shared_provider = SharedProvider(shared=True)
+    shared_provider = SharedProvider()
 
     def __init__(self, *args, **kwargs):
         self.args = args

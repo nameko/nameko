@@ -1,4 +1,5 @@
 import socket
+import uuid
 
 import eventlet
 from eventlet.event import Event
@@ -230,8 +231,13 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer1 = QueueConsumer().bind("queue_consumer", container)
-    queue_consumer2 = QueueConsumer().bind("queue_consumer", container)
+    class NonShared(QueueConsumer):
+        @property
+        def sharing_key(self):
+            return uuid.uuid4()
+
+    queue_consumer1 = NonShared().bind("queue_consumer1", container)
+    queue_consumer2 = NonShared().bind("queue_consumer2", container)
 
     consumer_continue = Event()
 

@@ -18,7 +18,7 @@ from nameko.exceptions import (
 from nameko.messaging import (
     QueueConsumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.dependencies import (
-    InjectionProvider, Entrypoint, ProviderCollector, Extension)
+    InjectionProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
 from nameko.utils import repr_safe_str
 
@@ -37,15 +37,15 @@ def get_rpc_exchange(container):
     return exchange
 
 
-class RpcConsumer(Extension, ProviderCollector):
+class RpcConsumer(SharedExtension, ProviderCollector):
 
-    queue_consumer = QueueConsumer(shared=True)
+    queue_consumer = QueueConsumer()
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         self._unregistering_providers = set()
         self._unregistered_from_queue_consumer = Event()
         self.queue = None
-        super(RpcConsumer, self).__init__(**kwargs)
+        super(RpcConsumer, self).__init__()
 
     def before_start(self):
         if self.queue is None:
@@ -128,7 +128,7 @@ class RpcConsumer(Extension, ProviderCollector):
 
 class Rpc(Entrypoint, HeaderDecoder):
 
-    rpc_consumer = RpcConsumer(shared=True)
+    rpc_consumer = RpcConsumer()
 
     def __init__(self, expected_exceptions=()):
         """ Mark a method to be exposed over rpc
@@ -235,9 +235,9 @@ class Responder(object):
         return result, exc_info
 
 
-class ReplyListener(Extension):
+class ReplyListener(SharedExtension):
 
-    queue_consumer = QueueConsumer(shared=True)
+    queue_consumer = QueueConsumer()
 
     def __init__(self, **kwargs):
         self._reply_events = {}
@@ -300,7 +300,7 @@ class ReplyListener(Extension):
 
 class RpcProxy(InjectionProvider):
 
-    rpc_reply_listener = ReplyListener(shared=True)
+    rpc_reply_listener = ReplyListener()
 
     def __init__(self, service_name):
         self.service_name = service_name
