@@ -174,9 +174,9 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
             'reply_to': proxy.reply_listener.routing_key,
             'correlation_id': 'invalid',
         })
-        responder = Responder(message)
+        responder = Responder(container.config, message)
         with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
-            responder.send_response(container, None, None)
+            responder.send_response(None, None)
             assert proxy.spam(ham='eggs') == 'eggs'
             assert logger.debug.call_count == 1
 

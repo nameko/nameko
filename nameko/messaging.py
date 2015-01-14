@@ -68,6 +68,8 @@ class HeaderDecoder(object):
 
 class Publisher(InjectionProvider, HeaderEncoder):
 
+    amqp_uri = None
+
     def __init__(self, exchange=None, queue=None):
         """ Provides an AMQP message publisher method via dependency injection.
 
@@ -97,16 +99,20 @@ class Publisher(InjectionProvider, HeaderEncoder):
         self.exchange = exchange
         self.queue = queue
 
+    # TODO: should be a module level function
     def get_connection(self):
-        # TODO: should this live outside of the class or be a class method?
-        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.amqp_uri)
         return connections[conn].acquire(block=True)
 
+    # TODO: should be a module level function
     def get_producer(self):
-        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.amqp_uri)
         return producers[conn].acquire(block=True)
 
-    def before_start(self):
+    def setup(self, container):
+
+        self.amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
+
         exchange = self.exchange
         queue = self.queue
 
@@ -142,6 +148,10 @@ publisher = Publisher
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
+
+    amqp_uri = None
+    prefetch_count = None
+
     def __init__(self):
         self._connection = None
 
@@ -158,14 +168,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         self._consumers_ready = Event()
         super(QueueConsumer, self).__init__()
 
-    @property
-    def _amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def _prefetch_count(self):
-        return self.container.max_workers
-
     def _handle_thread_exited(self, gt):
         exc = None
         try:
@@ -176,13 +178,18 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         if not self._consumers_ready.ready():
             self._consumers_ready.send_exception(exc)
 
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
+        self.amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
+        self.prefetch_count = container.max_workers
+
     def start(self):
         if not self._starting:
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self.container.spawn_managed_thread(
-                self.run, protected=True)
+            self._gt = self.container.spawn_managed_thread(self.run,
+                                                           protected=True)
             self._gt.link(self._handle_thread_exited)
         try:
             _log.debug('waiting for consumer ready %s', self)
@@ -311,8 +318,11 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     @property
     def connection(self):
         """ Kombu requirement """
+        if self.amqp_uri is None:
+            return   # don't cache a connection during introspection
+
         if self._connection is None:
-            self._connection = Connection(self._amqp_uri)
+            self._connection = Connection(self.amqp_uri)
 
         return self._connection
 
@@ -327,7 +337,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             callbacks = [self._on_message, provider.handle_message]
 
             consumer = Consumer(queues=[provider.queue], callbacks=callbacks)
-            consumer.qos(prefetch_count=self._prefetch_count)
+            consumer.qos(prefetch_count=self.prefetch_count)
 
             self._consumers[provider] = consumer
 
@@ -430,7 +440,8 @@ class Consumer(Entrypoint, HeaderDecoder):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def before_start(self):
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
         self.queue_consumer.register_provider(self)
 
     def stop(self):
@@ -440,6 +451,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         args = (body,)
         kwargs = {}
 
+        # TODO: get valid headers from config, not worker_ctx_cls
         worker_ctx_cls = self.container.worker_ctx_cls
         context_data = self.unpack_message_headers(worker_ctx_cls, message)
 

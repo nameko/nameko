@@ -69,6 +69,7 @@ def test_nova_rpc_provider(empty_config):
     container.config = empty_config
 
     entrypoint = NovaRpc().bind("method", container)
+    entrypoint.setup(container)
     entrypoint.rpc_consumer = rpc_consumer
 
     container.spawn_worker.side_effect = ContainerBeingKilled()
@@ -78,13 +79,11 @@ def test_nova_rpc_provider(empty_config):
 
 def test_nova_responder(mock_publish):
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = NovaResponder("msgid")
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = NovaResponder(config, "msgid")
 
     # serialisable result
-    result, exc_info = responder.send_response(container, True, None)
+    result, exc_info = responder.send_response(True, None)
     assert result is True
     assert exc_info is None
 
@@ -107,14 +106,12 @@ def test_nova_responder(mock_publish):
 
 def test_nova_responder_unserializale_result(mock_publish):
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = NovaResponder("msgid")
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = NovaResponder(config, "msgid")
 
     # unserialisable result
     obj = object()
-    result, exc_info = responder.send_response(container, obj, None)
+    result, exc_info = responder.send_response(obj, None)
     assert result is None
     assert exc_info == (TypeError, ANY, ANY)
 
@@ -131,10 +128,8 @@ def test_nova_responder_unserializale_result(mock_publish):
 
 def test_nova_responder_cannot_str_exc(mock_publish):
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = NovaResponder("msgid")
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = NovaResponder(config, "msgid")
 
     class BadException(Exception):
         def __str__(self):
@@ -143,7 +138,7 @@ def test_nova_responder_cannot_str_exc(mock_publish):
     # un-str-able exception
     exc = BadException()
     result, exc_info = responder.send_response(
-        container, True, (BadException, exc, "tb"))
+        True, (BadException, exc, "tb"))
     assert result is True
     assert exc_info == (BadException, exc, "tb")
 

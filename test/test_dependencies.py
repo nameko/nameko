@@ -55,15 +55,15 @@ def test_entrypoint_decorator_does_not_mutate_service():
     assert service.echo(1) == 1
 
 
-def test_str():
-    dep = Extension()
-    assert str(dep).startswith('<Extension [unbound] at')
+# def test_str():
+#     dep = Extension()
+#     assert str(dep).startswith('<Extension [unbound] at')
 
-    container = Mock()
-    container.service_name = u'föbar'
-    bound = dep.bind('spam', container)
-    assert str(dep).startswith("<Extension [unbound] at")
-    assert str(bound).startswith("<Extension [föbar.spam] at")
+#     container = Mock()
+#     container.service_name = u'föbar'
+#     bound = dep.bind('spam', container)
+#     assert str(dep).startswith("<Extension [unbound] at")
+#     assert str(bound).startswith("<Extension [föbar.spam] at")
 
 
 def test_provider_collector():

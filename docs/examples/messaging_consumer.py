@@ -37,7 +37,7 @@ class FileLogger(InjectionProvider):
                 raise InvalidPath("File or dir not writable: {}".format(path))
             self.path = path
 
-    def before_start(self):
+    def setup(self, container):
         self.file_handle = open(self.path, 'w')
 
     def stop(self):

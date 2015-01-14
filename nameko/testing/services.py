@@ -338,6 +338,9 @@ class Once(Entrypoint):
         self.args = args
         self.kwargs = kwargs
 
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
+
     def start(self):
         self.container.spawn_worker(self, self.args, self.kwargs)
 

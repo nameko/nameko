@@ -27,8 +27,7 @@ class Extension(object):
     __clone = False
     __params = None
 
-    name = UNBOUND_NAME  # property, knows if clone?
-    container = None
+    name = None
 
     def __new__(cls, *args, **kwargs):
         inst = super(Extension, cls).__new__(cls, *args, **kwargs)
@@ -42,7 +41,7 @@ class Extension(object):
         """
         super(Extension, self).__init__(*args, **kwargs)
 
-    def before_start(self):
+    def setup(self, container):
         """ Called before the service container starts.
 
         Extensions should do any required initialisation here.
@@ -52,8 +51,8 @@ class Extension(object):
         """ Called when the service container has successfully started.
 
         This is only called after all other Extensions have successfully
-        returned from :meth:`Extension.before_start`. If the Extension
-        listens to external events, it should now start acting upon them.
+        returned from :meth:`Extension.setup`. If the Extension reacts
+        to external events, it should now start acting upon them.
         """
 
     def stop(self):
@@ -88,7 +87,6 @@ class Extension(object):
         # clone this extension and associate it with the container
         clone = self.clone()
         clone.name = name
-        clone.container = container
 
         # recursively bind nested extensions
         for ext_name, ext in inspect.getmembers(self, is_extension):
@@ -104,7 +102,6 @@ class Extension(object):
         args, kwargs = self.__params
         instance = cls(*args, **kwargs)
         instance.__clone = True
-        # alternative: del clone.clone; del clone.bind
         return instance
 
     @property
@@ -115,16 +112,16 @@ class Extension(object):
             yield ext
         yield self
 
-    def __repr__(self):
-        if self.name is UNBOUND_NAME:
-            return '<{} [unbound] at 0x{:x}>'.format(  # declaration?
-                type(self).__name__, id(self))
+    # def __repr__(self):
+    #     if self.__container is None:
+    #         return '<{} [unbound] at 0x{:x}>'.format(  # declaration?
+    #             type(self).__name__, id(self))
 
-        service_name = repr_safe_str(self.container.service_name)
-        name = repr_safe_str(self.name)
+    #     service_name = repr_safe_str(self.__container.service_name)
+    #     name = repr_safe_str(self.name)
 
-        return '<{} [{}.{}] at 0x{:x}>'.format(
-            type(self).__name__, service_name, name, id(self))
+    #     return '<{} [{}.{}] at 0x{:x}>'.format(
+    #         type(self).__name__, service_name, name, id(self))
 
 
 class SharedExtension(Extension):

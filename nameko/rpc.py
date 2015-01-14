@@ -31,8 +31,8 @@ RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
 
-def get_rpc_exchange(container):
-    exchange_name = container.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
+def get_rpc_exchange(config):
+    exchange_name = config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
     exchange = Exchange(exchange_name, durable=True, type="topic")
     return exchange
 
@@ -47,14 +47,15 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         self.queue = None
         super(RpcConsumer, self).__init__()
 
-    def before_start(self):
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
         if self.queue is None:
 
-            container = self.container
             service_name = container.service_name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
-            exchange = get_rpc_exchange(container)
+
+            exchange = get_rpc_exchange(container.config)
 
             self.queue = Queue(
                 queue_name,
@@ -113,11 +114,11 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             provider.handle_message(body, message)
         except Exception:
             exc_info = sys.exc_info()
-            self.handle_result(message, self.container, None, exc_info)
+            self.handle_result(message, None, exc_info)
 
-    def handle_result(self, message, container, result, exc_info):
-        responder = Responder(message)
-        result, exc_info = responder.send_response(container, result, exc_info)
+    def handle_result(self, message, result, exc_info):
+        responder = Responder(self.container.config, message)
+        result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
         return result, exc_info
@@ -141,7 +142,8 @@ class Rpc(Entrypoint, HeaderDecoder):
         """
         self.expected_exceptions = expected_exceptions
 
-    def before_start(self):
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
         self.rpc_consumer.register_provider(self)
 
     def stop(self):
@@ -177,9 +179,8 @@ class Rpc(Entrypoint, HeaderDecoder):
             self.rpc_consumer.requeue_message(message)
 
     def handle_result(self, message, worker_ctx, result, exc_info):
-        container = self.container
         result, exc_info = self.rpc_consumer.handle_result(
-            message, container, result, exc_info)
+            message, result, exc_info)
         return result, exc_info
 
 # backwards compat
@@ -190,10 +191,11 @@ rpc = Rpc.entrypoint
 
 class Responder(object):
 
-    def __init__(self, message):
+    def __init__(self, config, message):
+        self.config = config
         self.message = message
 
-    def send_response(self, container, result, exc_info, **kwargs):
+    def send_response(self, result, exc_info, **kwargs):
 
         error = None
         if exc_info is not None:
@@ -212,9 +214,9 @@ class Responder(object):
                 # `error` below is guaranteed to serialize to json
                 error = serialize(UnserializableValueError(item))
 
-        conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.config[AMQP_URI_CONFIG_KEY])
 
-        exchange = get_rpc_exchange(container)
+        exchange = get_rpc_exchange(self.config)
 
         retry = kwargs.pop('retry', True)
         retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
@@ -243,11 +245,9 @@ class ReplyListener(SharedExtension):
         self._reply_events = {}
         super(ReplyListener, self).__init__(**kwargs)
 
-    def before_start(self):
+    def setup(self, container):
 
         service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
-        container = self.container
-
         service_name = container.service_name
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
@@ -255,7 +255,7 @@ class ReplyListener(SharedExtension):
 
         self.routing_key = str(service_uuid)
 
-        exchange = get_rpc_exchange(container)
+        exchange = get_rpc_exchange(container.config)
 
         self.queue = Queue(
             queue_name,
@@ -389,7 +389,7 @@ class MethodProxy(HeaderEncoder):
 
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
-        exchange = get_rpc_exchange(container)
+        exchange = get_rpc_exchange(container.config)
 
         with producers[conn].acquire(block=True) as producer:
 

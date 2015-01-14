@@ -33,9 +33,9 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
-    def before_start(self):
-        self._log_call(('prepare'))
-        super(CallCollectorMixin, self).before_start()
+    def setup(self, container):
+        self._log_call(('setup'))
+        super(CallCollectorMixin, self).setup(container)
 
     def start(self):
         self._log_call(('start'))
@@ -60,20 +60,20 @@ class CallCollectingInjectionProvider(
     instances = set()
 
     def acquire_injection(self, worker_ctx):
-        self._log_call(('acquire', worker_ctx))
+        self._log_call(('acquire_injection', worker_ctx))
         return 'spam-attr'
 
     def worker_setup(self, worker_ctx):
-        self._log_call(('setup', worker_ctx))
+        self._log_call(('worker_setup', worker_ctx))
         super(CallCollectorMixin, self).worker_setup(worker_ctx)
 
     def worker_result(self, worker_ctx, result=None, exc_info=None):
-        self._log_call(('result', worker_ctx, (result, exc_info)))
+        self._log_call(('worker_result', worker_ctx, (result, exc_info)))
         super(CallCollectorMixin, self).worker_result(
             worker_ctx, result, exc_info)
 
     def worker_teardown(self, worker_ctx):
-        self._log_call(('teardown', worker_ctx))
+        self._log_call(('worker_teardown', worker_ctx))
         super(CallCollectorMixin, self).worker_teardown(worker_ctx)
 
 
@@ -138,7 +138,7 @@ def test_starts_dependencies(container):
 
     for dep in container.dependencies:
         assert dep.calls == [
-            ('prepare'),
+            ('setup'),
             ('start')
         ]
 
@@ -182,14 +182,14 @@ def test_worker_life_cycle(container):
     container._worker_pool.waitall()
 
     assert spam_dep.calls == [
-        ('acquire', ham_worker_ctx),
-        ('setup', ham_worker_ctx),
-        ('result', ham_worker_ctx, ('ham', None)),
-        ('teardown', ham_worker_ctx),
-        ('acquire', egg_worker_ctx),
-        ('setup', egg_worker_ctx),
-        ('result', egg_worker_ctx, (None, (Exception, egg_error, ANY))),
-        ('teardown', egg_worker_ctx),
+        ('acquire_injection', ham_worker_ctx),
+        ('worker_setup', ham_worker_ctx),
+        ('worker_result', ham_worker_ctx, ('ham', None)),
+        ('worker_teardown', ham_worker_ctx),
+        ('acquire_injection', egg_worker_ctx),
+        ('worker_setup', egg_worker_ctx),
+        ('worker_result', egg_worker_ctx, (None, (Exception, egg_error, ANY))),
+        ('worker_teardown', egg_worker_ctx),
     ]
 
     assert handle_result.call_args_list == [

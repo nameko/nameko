@@ -172,17 +172,16 @@ class ServiceContainer(object):
         self._died = Event()
 
     @property
-    def interface(self):
-        # TODO: a safe subset of the container to make available to extensions
-        return self
-
-    @property
     def entrypoints(self):
         return filter(is_entrypoint, self.dependencies)
 
     @property
     def injections(self):
         return filter(is_injection_provider, self.dependencies)
+
+    @property
+    def interface(self):
+        return self  # TEMP
 
     def start(self):
         """ Start a container by starting all the dependency providers.
@@ -191,7 +190,7 @@ class ServiceContainer(object):
         self.started = True
 
         with _log_time('started %s', self):
-            self.dependencies.all.before_start()
+            self.dependencies.all.setup(self.interface)
             self.dependencies.all.start()
 
     def stop(self):

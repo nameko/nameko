@@ -15,6 +15,7 @@ def test_provider():
     container.spawn_managed_thread = eventlet.spawn
 
     timer = Timer(interval=0, config_key=None).bind('foobar', container)
+    timer.setup(container)
     timer.start()
 
     assert timer.interval == 0
@@ -26,7 +27,6 @@ def test_provider():
     # the timer should have stopped and should only have spawned
     # a single worker
     spawn_worker.assert_called_once_with(timer, (), {})
-
     assert timer.gt.dead
 
 
@@ -38,6 +38,7 @@ def test_provider_uses_config_for_interval():
 
     timer = Timer(
         interval=None, config_key='spam-conf').bind('foobar', container)
+    timer.setup(container)
     timer.start()
 
     assert timer.interval == 10
@@ -50,6 +51,7 @@ def test_provider_interval_as_config_fallback():
     container.config = {}
 
     timer = Timer(interval=1, config_key='spam-conf').bind('foobar', container)
+    timer.setup(container)
     timer.start()
 
     assert timer.interval == 1
@@ -62,7 +64,9 @@ def test_stop_timer_immediatly():
     container.config = {}
 
     timer = Timer(interval=5, config_key=None).bind('foobar', container)
+    timer.setup(container)
     timer.start()
+
     eventlet.sleep(0.1)
     timer.stop()
 
@@ -76,6 +80,7 @@ def test_kill_stops_timer():
     container.spawn_managed_thread = eventlet.spawn
 
     timer = Timer(interval=0, config_key=None).bind('foobar', container)
+    timer.setup(container)
     timer.start()
 
     with wait_for_call(1, container.spawn_worker):

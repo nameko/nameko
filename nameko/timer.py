@@ -39,13 +39,15 @@ class Timer(Entrypoint):
         self.should_stop = Event()
         self.gt = None
 
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
+
     def start(self):
         _log.debug('starting %s', self)
         interval = self._default_interval
 
         if self.config_key:
-            config = self.container.config
-            interval = config.get(self.config_key, interval)
+            interval = self.container.config.get(self.config_key, interval)
 
         self.interval = interval
         self.gt = self.container.spawn_managed_thread(self._run)

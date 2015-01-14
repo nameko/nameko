@@ -68,7 +68,7 @@ def test_consume_provider(empty_config):
     message = Mock(headers={})
 
     # test lifecycle
-    consume_provider.before_start()
+    consume_provider.setup(container)
     queue_consumer.register_provider.assert_called_once_with(
         consume_provider)
 
@@ -129,7 +129,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.before_start()
+    publisher.setup(container)
     maybe_declare.assert_called_once_with(foobar_ex, connection)
 
     # test publish
@@ -166,7 +166,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.before_start()
+    publisher.setup(container)
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -205,7 +205,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.before_start()
+    publisher.setup(container)
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -289,7 +289,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
         exchange=foobar_ex, queue=foobar_queue).bind("publish", container)
 
     # test queue, exchange and binding created in rabbit
-    publisher.before_start()
+    publisher.setup(container)
     publisher.start()
 
     exchanges = rabbit_manager.get_exchanges(vhost)
@@ -332,7 +332,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     publisher = Publisher(
         exchange=foobar_ex, queue=foobar_queue).bind("publish", container)
 
-    publisher.before_start()
+    publisher.setup(container)
     publisher.start()
 
     service.publish = publisher.acquire_injection(worker_ctx)
@@ -367,8 +367,8 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
             "injection_name", container)
 
     # prepare and start dependencies
-    consumer.before_start()
-    consumer.queue_consumer.before_start()
+    consumer.setup(container)
+    consumer.queue_consumer.setup(container)
     consumer.start()
     consumer.queue_consumer.start()
 
