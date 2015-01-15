@@ -2,9 +2,8 @@ from kombu.common import maybe_declare
 from kombu.pools import producers, connections
 from kombu import Connection
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.events import get_event_exchange, Event
-from nameko.messaging import AMQP_URI_CONFIG_KEY
 
 
 def event_dispatcher(nameko_config, **kwargs):

@@ -10,12 +10,11 @@ from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
     MalformedRequest, RpcConnectionError, serialize, deserialize)
-from nameko.messaging import (
-    queue_consumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
+from nameko.messaging import queue_consumer, HeaderEncoder, HeaderDecoder
 from nameko.dependencies import (
     entrypoint, injection, InjectionProvider, EntrypointProvider,
     DependencyFactory, dependency, ProviderCollector, DependencyProvider,
