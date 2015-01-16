@@ -170,9 +170,6 @@ class EventDispatcher(Publisher):
 
         return dispatch
 
-# backwards compat
-event_dispatcher = EventDispatcher
-
 
 class EventHandler(Consumer):
 

@@ -19,9 +19,9 @@ from collections import defaultdict
 import pytest
 
 from nameko.dependencies import InjectionProvider
-from nameko.events import event_dispatcher, Event, event_handler
+from nameko.events import EventDispatcher, Event, event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc, rpc_proxy
+from nameko.rpc import rpc, RpcProxy
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import replace_injections, restrict_entrypoints
@@ -83,11 +83,11 @@ class CheckoutComplete(Event):
 class AcmeShopService(object):
 
     user_basket = ShoppingBasket()
-    stock_service = rpc_proxy('stockservice')
-    invoice_service = rpc_proxy('invoiceservice')
-    payment_service = rpc_proxy('paymentservice')
+    stock_service = RpcProxy('stockservice')
+    invoice_service = RpcProxy('invoiceservice')
+    payment_service = RpcProxy('paymentservice')
 
-    fire_event = event_dispatcher()
+    fire_event = EventDispatcher()
 
     @rpc
     def add_to_basket(self, item_code):

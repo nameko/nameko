@@ -7,7 +7,7 @@ from nameko.constants import (
     USER_AGENT_CONTEXT_KEY,
 )
 from nameko.contextdata import (
-    language, user_id, user_agent, auth_token, ContextDataProvider)
+    Language, UserId, UserAgent, AuthToken, ContextDataProvider)
 from nameko.testing.utils import get_dependency
 
 CUSTOM_CONTEXT_KEY = "custom"
@@ -24,10 +24,10 @@ class CustomWorkerContext(WorkerContext):
 class Service(object):
 
     # builtin context data providers
-    auth_token = auth_token()
-    language = language()
-    user_id = user_id()
-    user_agent = user_agent()
+    auth_token = AuthToken()
+    language = Language()
+    user_id = UserId()
+    user_agent = UserAgent()
 
     # custom context data provider
     custom_value = CustomValue()

@@ -14,7 +14,7 @@ from nameko.exceptions import (
     MalformedRequest)
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, RpcConsumer, Rpc, ReplyListener,
+    rpc, RpcProxy, RpcConsumer, Rpc, ReplyListener,
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook
@@ -70,8 +70,8 @@ class ExampleService(object):
 
     logger = WorkerErrorLogger()
     translate = Translator()
-    example_rpc = rpc_proxy('exampleservice')
-    unknown_rpc = rpc_proxy('unknown_service')
+    example_rpc = RpcProxy('exampleservice')
+    unknown_rpc = RpcProxy('unknown_service')
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -505,7 +505,7 @@ def test_handle_message_raise_malformed_request(
     container.start()
 
     with pytest.raises(MalformedRequest):
-        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+        with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = MalformedRequest('bad request')
             with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 proxy.task_a()
@@ -517,7 +517,7 @@ def test_handle_message_raise_other_exception(
     container.start()
 
     with pytest.raises(RemoteError):
-        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+        with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = Exception('broken')
             with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 proxy.task_a()

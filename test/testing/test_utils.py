@@ -57,7 +57,7 @@ def test_wait_for_call():
 def test_get_dependency(rabbit_config):
 
     from nameko.messaging import QueueConsumer
-    from nameko.rpc import RpcProvider, RpcConsumer
+    from nameko.rpc import Rpc, RpcConsumer
     from nameko.containers import ServiceContainer, WorkerContext
 
     class Service(object):
@@ -73,8 +73,8 @@ def test_get_dependency(rabbit_config):
 
     rpc_consumer = get_dependency(container, RpcConsumer)
     queue_consumer = get_dependency(container, QueueConsumer)
-    foo_rpc = get_dependency(container, RpcProvider, method_name="foo")
-    bar_rpc = get_dependency(container, RpcProvider, method_name="bar")
+    foo_rpc = get_dependency(container, Rpc, method_name="foo")
+    bar_rpc = get_dependency(container, Rpc, method_name="bar")
 
     all_deps = container.dependencies
     assert all_deps == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])

@@ -124,7 +124,5 @@ class NovaRpc(Rpc):
         return self.rpc_consumer.handle_result(
             message, msgid, result, exc_info)
 
-# backwards compat
-NovaRpcProvider = NovaRpc
 
 rpc = NovaRpc.entrypoint

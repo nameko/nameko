@@ -70,7 +70,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         """ Stop the RpcConsumer.
 
         The RpcConsumer ordinary unregisters from the QueueConsumer when the
-        last RpcProvider unregisters from it. If no providers were registered,
+        last Rpc subclass unregisters from it. If no providers were registered,
         we should unregister ourself from the QueueConsumer as soon as we're
         asked to stop.
         """
@@ -183,8 +183,6 @@ class Rpc(Entrypoint, HeaderDecoder):
             message, result, exc_info)
         return result, exc_info
 
-# backwards compat
-RpcProvider = Rpc
 
 rpc = Rpc.entrypoint
 
@@ -308,9 +306,6 @@ class RpcProxy(InjectionProvider):
     def acquire_injection(self, worker_ctx):
         return ServiceProxy(worker_ctx, self.target_service,
                             self.rpc_reply_listener)
-
-# backwards compat
-rpc_proxy = RpcProxy
 
 
 class ServiceProxy(object):

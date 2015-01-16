@@ -128,12 +128,12 @@ def worker_factory(service_cls, **injections):
     **Usage**
 
     The following example service proxies calls to a "math" service via
-    and ``rpc_proxy`` injection::
+    and ``RpcProxy`` dependency::
 
         from nameko.rpc import RpcProxy, rpc
 
         class ConversionService(object):
-            math = rpc_proxy("math_service")
+            math = RpcProxy("math_service")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -223,10 +223,10 @@ def replace_injections(container, *injections):
     ::
 
         from nameko.rpc import RpcProxy, rpc
-        from nameko.standalone.rpc import RpcProxy
+        from nameko.standalone.rpc import RpcProxy as StandaloneRpcProxy
 
         class ConversionService(object):
-            math = rpc_proxy("math_service")
+            math = RpcProxy("math_service")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -241,7 +241,7 @@ def replace_injections(container, *injections):
 
         container.start()
 
-        with RpcProxy('conversionservice', config) as proxy:
+        with StandaloneRpcProxy('conversionservice', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the injection was called as expected

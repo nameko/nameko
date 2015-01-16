@@ -3,8 +3,8 @@ import pytest
 
 from nameko.containers import WorkerContext
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
-from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
-from nameko.rpc import rpc, rpc_proxy
+from nameko.events import event_handler, EventDispatcher, Event as NamekoEvent
+from nameko.rpc import rpc, RpcProxy
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import (
     get_container, worker_context_factory, DummyProvider)
@@ -84,14 +84,14 @@ def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
             return 1
 
     class Parent(object):
-        child_service = rpc_proxy('child')
+        child_service = RpcProxy('child')
 
         @rpc
         def parent_do(self):
             return self.child_service.child_do()
 
     class Grandparent(object):
-        parent_service = rpc_proxy('parent')
+        parent_service = RpcProxy('parent')
 
         @rpc
         def grandparent_do(self):
@@ -145,7 +145,7 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
 
     class EventRaisingService(object):
         name = "event_raiser"
-        dispatch = event_dispatcher()
+        dispatch = EventDispatcher()
 
         @rpc
         def say_hello(self):

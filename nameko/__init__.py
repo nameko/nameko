@@ -40,7 +40,7 @@ called. Let's create ``FriendlyService`` now:
 
 .. code:: python
 
-    from nameko.events import Event, event_dispatcher
+    from nameko.events import Event, EventDispatcher
     from nameko.timer import timer
 
     class HelloEvent(Event):
@@ -49,14 +49,14 @@ called. Let's create ``FriendlyService`` now:
     class FriendlyService(object):
 
         name = "friendlyservice"
-        dispatch = event_dispatcher()
+        dispatch = EventDispatcher()
 
         @timer(interval=5)
         def say_hello(self):
             self.dispatch(HelloEvent(self.name))
 
 FriendlyService declares itself to be an event dispatcher with the
-``event_dispatcher`` function. This gives it the ability to send events using
+``EventDispatcher`` dependency. This gives it the ability to send events using
 its ``dispatch`` method.
 
 Using the nameko ``timer``, another declaration, instances of
@@ -92,7 +92,7 @@ The complete source for this example is available here:
    service. When they're triggered, some logic created by the service
    developer is invoked.
 
-   ``event_dispatcher`` is an example of an *injection dependency*. It declares
+   ``EventDispatcher`` is an example of an *injection dependency*. It declares
    a dependency of the service that will be *injected* into the service
    instance when it is hosted by nameko.
 
@@ -115,7 +115,7 @@ Adder service:
             return x + y
 
 If your service needs to call an RPC method in another service, you can use
-the ``rpc_proxy`` injection to access it.
+the ``RpcProxy`` dependency to access it.
 
 Adder client:
 
@@ -123,13 +123,13 @@ Adder client:
 
     import random
 
-    from nameko.rpc import rpc, rpc_proxy
+    from nameko.rpc import rpc, RpcProxy
     from nameko.timer import timer
 
 
     class RpcClient(object):
 
-        adder = rpc_proxy('adderservice')
+        adder = RpcProxy('adderservice')
 
         @timer(interval=2)
         def add(self):
@@ -162,7 +162,7 @@ consume from AMQP directly.
 
     class MessagingPublisher(object):
         "Publish messages to the ``demo_ex`` exchange every two seconds."
-        publish = publisher(exchange=demo_ex)
+        publish = Publisher(exchange=demo_ex)
 
         @timer(interval=2)
         def send_msg(self):

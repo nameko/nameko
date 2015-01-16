@@ -99,7 +99,4 @@ class Timer(Entrypoint):
         self.container.spawn_worker(self, args, kwargs)
 
 
-# backwards compat
-TimerProvider = Timer
-
 timer = Timer.entrypoint

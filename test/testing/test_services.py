@@ -4,7 +4,7 @@ import pytest
 from nameko.dependencies import InjectionProvider
 from nameko.events import Event, event_handler
 from nameko.exceptions import DependencyNotFound, MethodNotFound
-from nameko.rpc import rpc_proxy, rpc
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
@@ -32,7 +32,7 @@ def reset_mock():
 
 class Service(object):
 
-    a = rpc_proxy("service_a")
+    a = RpcProxy("service_a")
     language = LanguageReporter()
 
     @rpc
@@ -55,7 +55,7 @@ class Service(object):
 class ServiceA(object):
 
     name = "service_a"
-    b = rpc_proxy("service_b")
+    b = RpcProxy("service_b")
 
     @rpc
     def remote_method(self, value):
@@ -66,7 +66,7 @@ class ServiceA(object):
 class ServiceB(object):
 
     name = "service_b"
-    c = rpc_proxy("service_c")
+    c = RpcProxy("service_c")
 
     @rpc
     def remote_method(self, value):
@@ -166,8 +166,8 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
 def test_worker_factory():
 
     class Service(object):
-        foo_proxy = rpc_proxy("foo_service")
-        bar_proxy = rpc_proxy("bar_service")
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
 
     class OtherService(object):
         pass
@@ -197,9 +197,9 @@ def test_worker_factory():
 def test_replace_injections(container_factory, rabbit_config):
 
     class Service(object):
-        foo_proxy = rpc_proxy("foo_service")
-        bar_proxy = rpc_proxy("bar_service")
-        baz_proxy = rpc_proxy("baz_service")
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
+        baz_proxy = RpcProxy("baz_service")
 
         @rpc
         def method(self, arg):
@@ -218,8 +218,8 @@ def test_replace_injections(container_factory, rabbit_config):
     replacements = replace_injections(container, "bar_proxy", "baz_proxy")
     assert len([x for x in replacements]) == 2
 
-    # verify that container.dependencies doesn't include an rpc_proxy anymore
-    assert all([not isinstance(dependency, rpc_proxy)
+    # verify that container.dependencies doesn't include an RpcProxy anymore
+    assert all([not isinstance(dependency, RpcProxy)
                 for dependency in container.dependencies])
 
     container.start()
@@ -235,7 +235,7 @@ def test_replace_injections(container_factory, rabbit_config):
 def test_replace_non_injection(container_factory, rabbit_config):
 
     class Service(object):
-        proxy = rpc_proxy("foo_service")
+        proxy = RpcProxy("foo_service")
 
         @rpc
         def method(self):
@@ -256,7 +256,7 @@ def test_replace_injections_container_already_started(container_factory,
                                                       rabbit_config):
 
     class Service(object):
-        proxy = rpc_proxy("foo_service")
+        proxy = RpcProxy("foo_service")
 
     container = container_factory(Service, rabbit_config)
     container.start()

@@ -12,17 +12,17 @@ class ContextDataProvider(InjectionProvider):
         return worker_ctx.data.get(self.context_key)
 
 
-class language(ContextDataProvider):
+class Language(ContextDataProvider):
     context_key = LANGUAGE_CONTEXT_KEY
 
 
-class user_id(ContextDataProvider):
+class UserId(ContextDataProvider):
     context_key = USER_ID_CONTEXT_KEY
 
 
-class user_agent(ContextDataProvider):
+class UserAgent(ContextDataProvider):
     context_key = USER_AGENT_CONTEXT_KEY
 
 
-class auth_token(ContextDataProvider):
+class AuthToken(ContextDataProvider):
     context_key = AUTH_TOKEN_CONTEXT_KEY

@@ -142,11 +142,6 @@ class Publisher(InjectionProvider, HeaderEncoder):
         return publish
 
 
-# backwards compat
-PublishProvider = Publisher
-publisher = Publisher
-
-
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     amqp_uri = None
@@ -474,8 +469,6 @@ class Consumer(Entrypoint, HeaderDecoder):
         else:
             self.queue_consumer.ack_message(message)
 
-# backwards compat
-ConsumeProvider = Consumer
 
 consume = Consumer.entrypoint
 
