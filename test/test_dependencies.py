@@ -55,15 +55,40 @@ def test_entrypoint_decorator_does_not_mutate_service():
     assert service.echo(1) == 1
 
 
-# def test_str():
-#     dep = Extension()
-#     assert str(dep).startswith('<Extension [unbound] at')
+def test_extension_str():
+    container = Mock()
 
-#     container = Mock()
-#     container.service_name = u'föbar'
-#     bound = dep.bind('spam', container)
-#     assert str(dep).startswith("<Extension [unbound] at")
-#     assert str(bound).startswith("<Extension [föbar.spam] at")
+    ext = Extension()
+    assert str(ext).startswith('<Extension [declaration] at')
+
+    clone = ext.clone(container)
+    assert str(clone).startswith("<Extension at")
+
+
+def test_entrypoint_str():
+    container = Mock()
+
+    ext = Entrypoint()
+    assert str(ext).startswith('<Entrypoint [declaration] at')
+
+    clone = ext.clone(container)
+    assert str(clone).startswith("<Entrypoint [unbound] at")
+
+    clone.bind("sérvice", "føbar")
+    assert str(clone).startswith("<Entrypoint [sérvice.føbar] at")
+
+
+def test_injection_str():
+    container = Mock()
+
+    ext = InjectionProvider()
+    assert str(ext).startswith('<InjectionProvider [declaration] at')
+
+    clone = ext.clone(container)
+    assert str(clone).startswith("<InjectionProvider [unbound] at")
+
+    clone.bind("sérvice", "føbar")
+    assert str(clone).startswith("<InjectionProvider [sérvice.føbar] at")
 
 
 def test_provider_collector():

@@ -176,11 +176,11 @@ event_dispatcher = EventDispatcher
 
 class EventHandler(Consumer):
 
-    def __init__(self, service_name, event_type, handler_type=SERVICE_POOL,
+    def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
                  reliable_delivery=True, requeue_on_error=False):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
-        called ``service_name``. ``event_type`` must be either a subclass of
+        called ``source_service``. ``event_type`` must be either a subclass of
         :class:`~.Event` with a class attribute ``type`` or a string matching
         the
         value of this attribute.
@@ -249,7 +249,7 @@ class EventHandler(Consumer):
                 'a string a string matching the Event.type value. '
                 'Got {}'.format(type(event_type).__name__))
 
-        self.service_name = service_name
+        self.source_service = source_service
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
@@ -263,21 +263,21 @@ class EventHandler(Consumer):
         # handler_type determines queue name
         service_name = container.service_name
         if self.handler_type is SERVICE_POOL:
-            queue_name = "evt-{}-{}--{}.{}".format(self.service_name,
+            queue_name = "evt-{}-{}--{}.{}".format(self.source_service,
                                                    self.event_type,
                                                    service_name,
-                                                   self.name)
+                                                   self.method_name)
         elif self.handler_type is SINGLETON:
-            queue_name = "evt-{}-{}".format(self.service_name,
+            queue_name = "evt-{}-{}".format(self.source_service,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
-            queue_name = "evt-{}-{}--{}.{}-{}".format(self.service_name,
+            queue_name = "evt-{}-{}--{}.{}-{}".format(self.source_service,
                                                       self.event_type,
                                                       service_name,
-                                                      self.name,
+                                                      self.method_name,
                                                       uuid.uuid4().hex)
 
-        exchange = get_event_exchange(self.service_name)
+        exchange = get_event_exchange(self.source_service)
 
         # auto-delete queues if events are not reliably delivered
         auto_delete = not self.reliable_delivery

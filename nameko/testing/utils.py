@@ -12,6 +12,7 @@ from pyrabbit.http import HTTPError
 
 
 from nameko.containers import WorkerContextBase
+from nameko.dependencies import Entrypoint
 
 
 def get_dependency(container, dependency_cls, **match_attrs):
@@ -114,9 +115,9 @@ class AnyInstanceOf(object):
 ANY_PARTIAL = AnyInstanceOf(partial)
 
 
-class DummyProvider(object):
-    def __init__(self, name=None):
-        self.name = name
+class DummyProvider(Entrypoint):
+    def __init__(self, method_name=None):
+        self.method_name = method_name
 
 
 def worker_context_factory(*keys):

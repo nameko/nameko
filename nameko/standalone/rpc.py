@@ -7,6 +7,7 @@ from kombu import Connection
 from kombu.common import maybe_declare
 
 from nameko.containers import WorkerContext
+from nameko.dependencies import Entrypoint
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.kombu_helpers import queue_iterator
 from nameko.rpc import ServiceProxy, ReplyListener
@@ -166,8 +167,8 @@ class StandaloneProxyBase(object):
         def __init__(self, config):
             self.config = config
 
-    class DummyProvider(object):
-        name = "call"
+    class Dummy(Entrypoint):
+        method_name = "call"
 
     _proxy = None
 
@@ -177,11 +178,11 @@ class StandaloneProxyBase(object):
     ):
         self.container = self.ServiceContainer(config)
 
-        reply_listener = SingleThreadedReplyListener(
-            timeout=timeout).bind("reply_listener", self.container)
+        reply_listener = SingleThreadedReplyListener(timeout=timeout).clone(
+            self.container)
 
         self._worker_ctx = worker_ctx_cls(
-            self.container, service=None, provider=self.DummyProvider,
+            self.container, service=None, provider=self.Dummy,
             data=context_data)
         self._reply_listener = reply_listener
 

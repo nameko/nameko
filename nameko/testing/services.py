@@ -17,7 +17,7 @@ from nameko.testing.utils import get_dependency, wait_for_worker_idle
 
 
 @contextmanager
-def entrypoint_hook(container, name, context_data=None):
+def entrypoint_hook(container, method_name, context_data=None):
     """ Yield a function providing an entrypoint into a hosted service.
 
     The yielded function may be called as if it were the bare method defined
@@ -32,10 +32,11 @@ def entrypoint_hook(container, name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = get_dependency(container, Entrypoint, name=name)
+    provider = get_dependency(container, Entrypoint, method_name=method_name)
     if provider is None:
-        raise DependencyNotFound("No entrypoint called '{}' found "
-                                 "on container {}.".format(name, container))
+        raise DependencyNotFound(
+            "No entrypoint for '{}' found on container {}.".format(
+                method_name, container))
 
     def hook(*args, **kwargs):
         result = event.Event()
@@ -75,13 +76,13 @@ class EntrypointWaiter(InjectionProvider):
     """
 
     def __init__(self, entrypoint):
-        self.name = '_entrypoint_waiter_{}'.format(entrypoint)
+        self.attr_name = '_entrypoint_waiter_{}'.format(entrypoint)
         self.entrypoint = entrypoint
         self.done = Semaphore(value=0)
 
     def worker_teardown(self, worker_ctx):
         provider = worker_ctx.provider
-        if provider.name == self.entrypoint:
+        if provider.method_name == self.entrypoint:
             self.done.release()
 
     def wait(self):
@@ -100,8 +101,7 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
     """
 
     waiter = EntrypointWaiter(entrypoint)
-    container.mappings[waiter] = waiter.name
-    if not get_dependency(container, Entrypoint, name=entrypoint):
+    if not get_dependency(container, Entrypoint, method_name=entrypoint):
         raise RuntimeError("{} has no entrypoint `{}`".format(
             container.service_name, entrypoint))
     if get_dependency(container, EntrypointWaiter, entrypoint=entrypoint):
@@ -198,7 +198,7 @@ def worker_factory(service_cls, **injections):
 
 class MockInjection(InjectionProvider):
     def __init__(self, name):
-        self.name = name
+        self.attr_name = name
         self.injection = MagicMock()
 
     def acquire_injection(self, worker_ctx):
@@ -253,7 +253,7 @@ def replace_injections(container, *injections):
                            'container is started.')
 
     injection_deps = list(container.injections)
-    injection_names = {dep.name for dep in injection_deps}
+    injection_names = {dep.attr_name for dep in injection_deps}
 
     missing = set(injections) - injection_names
     if missing:
@@ -262,15 +262,14 @@ def replace_injections(container, *injections):
 
     replacements = OrderedDict()
 
-    named_injections = {dep.name: dep for dep in container.injections
-                        if dep.name in injections}
+    named_injections = {dep.attr_name: dep for dep in container.injections
+                        if dep.attr_name in injections}
     for name in injections:
         dependency = named_injections[name]
         replacement = MockInjection(name)
         replacements[dependency] = replacement
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
-        container.mappings[replacement] = name
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
@@ -318,7 +317,7 @@ def restrict_entrypoints(container, *entrypoints):
                            'container is started.')
 
     entrypoint_deps = list(container.entrypoints)
-    entrypoint_names = {dep.name for dep in entrypoint_deps}
+    entrypoint_names = {dep.method_name for dep in entrypoint_deps}
 
     missing = set(entrypoints) - entrypoint_names
     if missing:
@@ -326,7 +325,7 @@ def restrict_entrypoints(container, *entrypoints):
             missing, container))
 
     for dependency in entrypoint_deps:
-        if dependency.name not in entrypoints:
+        if dependency.method_name not in entrypoints:
             container.dependencies.remove(dependency)
 
 

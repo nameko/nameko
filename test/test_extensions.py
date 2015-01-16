@@ -1,3 +1,4 @@
+from mock import Mock
 import pytest
 
 from nameko.dependencies import Extension, Entrypoint, InjectionProvider
@@ -40,13 +41,13 @@ def test_entrypoint_uniqueness(container_factory):
     assert c1_meth1_entrypoints == c2_meth1_entrypoints
 
     # entrypoint instances are different between containers
-    c1_simple_meth1 = get_dependency(c1, SimpleEntrypoint, name="meth1")
-    c2_simple_meth1 = get_dependency(c2, SimpleEntrypoint, name="meth1")
+    c1_simple_meth1 = get_dependency(c1, SimpleEntrypoint, method_name="meth1")
+    c2_simple_meth1 = get_dependency(c2, SimpleEntrypoint, method_name="meth1")
     assert c1_simple_meth1 != c2_simple_meth1
 
     # entrypoint instances are different within a container
-    simple_meth1 = get_dependency(c1, SimpleEntrypoint, name="meth1")
-    simple_meth2 = get_dependency(c1, SimpleEntrypoint, name="meth2")
+    simple_meth1 = get_dependency(c1, SimpleEntrypoint, method_name="meth1")
+    simple_meth2 = get_dependency(c1, SimpleEntrypoint, method_name="meth2")
     assert simple_meth1 != simple_meth2
 
 
@@ -78,30 +79,22 @@ def test_extension_uniqueness(container_factory):
 
 
 def test_clones_marked_as_clones():
+    container = Mock()
 
     ext = SimpleExtension()
     assert ext._Extension__clone is False
-    ext_clone = ext.clone()
+    ext_clone = ext.clone(container)
     assert ext_clone._Extension__clone is True
 
 
-def test_clones_cannot_be_bound():
-
-    ext = SimpleExtension()
-    ext_clone = ext.clone()
-
-    with pytest.raises(RuntimeError) as exc_info:
-        ext_clone.bind("name", None)
-    assert exc_info.value.message == "Cloned extensions cannot be bound."
-
-
 def test_clones_cannot_be_cloned():
+    container = Mock()
 
     ext = SimpleExtension()
-    ext_clone = ext.clone()
+    ext_clone = ext.clone(container)
 
     with pytest.raises(RuntimeError) as exc_info:
-        ext_clone.clone()
+        ext_clone.clone(container)
     assert exc_info.value.message == "Cloned extensions cannot be cloned."
 
 

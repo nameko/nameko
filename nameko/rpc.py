@@ -100,7 +100,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         service_name = self.container.service_name
 
         for provider in self._providers:
-            key = '{}.{}'.format(service_name, provider.name)
+            key = '{}.{}'.format(service_name, provider.method_name)
             if key == routing_key:
                 return provider
         else:
@@ -151,7 +151,7 @@ class Rpc(Entrypoint, HeaderDecoder):
 
     def check_signature(self, args, kwargs):
         service_cls = self.container.service_cls
-        fn = getattr(service_cls, self.name)
+        fn = getattr(service_cls, self.method_name)
         try:
             service_instance = None  # fn is unbound
             inspect.getcallargs(fn, service_instance, *args, **kwargs)
@@ -302,11 +302,11 @@ class RpcProxy(InjectionProvider):
 
     rpc_reply_listener = ReplyListener()
 
-    def __init__(self, service_name):
-        self.service_name = service_name
+    def __init__(self, target_service):
+        self.target_service = target_service
 
     def acquire_injection(self, worker_ctx):
-        return ServiceProxy(worker_ctx, self.service_name,
+        return ServiceProxy(worker_ctx, self.target_service,
                             self.rpc_reply_listener)
 
 # backwards compat

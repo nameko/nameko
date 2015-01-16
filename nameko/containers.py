@@ -61,7 +61,7 @@ class WorkerContextBase(object):
 
         self.parent_call_stack, self.unique_id = self._init_call_id()
         self.call_id = '{}.{}.{}'.format(
-            self.service_name, self.provider.name, self.unique_id
+            self.service_name, self.provider.method_name, self.unique_id
         )
         n = -self.parent_calls_tracked
         self.call_id_stack = self.parent_call_stack[n:]
@@ -99,8 +99,8 @@ class WorkerContextBase(object):
     def __repr__(self):
         cls_name = type(self).__name__
         service_name = repr_safe_str(self.service_name)
-        provider_name = repr_safe_str(self.provider.name)
-        return '<{} {}.{} at 0x{:x}>'.format(
+        provider_name = repr_safe_str(self.provider.method_name)
+        return '<{} [{}.{}] at 0x{:x}>'.format(
             cls_name, service_name, provider_name, id(self))
 
     def _init_call_id(self):
@@ -113,17 +113,6 @@ class WorkerContext(WorkerContextBase):
     """ Default WorkerContext implementation
     """
     context_keys = NAMEKO_CONTEXT_KEYS
-
-
-def discover_extensions(service_cls):
-    """ Yield :class:`nameko.dependencies.Extension`s declared on `service_cls`
-    """
-    for name, inj in inspect.getmembers(service_cls, is_injection_provider):
-        yield name, inj
-    for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
-        entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
-        for entrypoint in entrypoints:
-            yield name, entrypoint
 
 
 class ServiceContainer(object):
@@ -139,29 +128,20 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
-        self.mappings = {}
-
-        # the relationship between extensions and the container is symbiotic;
-        # containers are responsible for starting and stopping their
-        # extensions, and extensions are able to interact with the container
-        # via its :attr:`ServiceContainer.interface`.
-        # self.dependencies = ExtensionSet()
-        # for name, ext in discover_extensions(service_cls):
-        #     bound = ext.bind(name, self.interface)
-        #     self.dependencies.update(bound.extensions)
-
         self.dependencies = ExtensionSet()
-        for name, inj in inspect.getmembers(
+
+        for attr_name, dependency in inspect.getmembers(
                 service_cls, is_injection_provider):
-            bound = inj.bind(name, self.interface)
-            self.mappings[bound] = name
-            self.dependencies.update(bound.extensions)
+            self.dependencies.update(
+                dependency.clone(self).bind(self.service_name, attr_name)
+            )
+
         for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
             entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
-                bound = entrypoint.bind(name, self.interface)
-                self.mappings[bound] = name
-                self.dependencies.update(bound.extensions)
+                self.dependencies.update(
+                    entrypoint.clone(self).bind(self.service_name, name)
+                )
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -384,14 +364,14 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            for ext in self.injections:
-                inj = ext.acquire_injection(worker_ctx)
-                setattr(worker_ctx.service, self.mappings[ext], inj)
+            for dependency in self.injections:
+                inj = dependency.acquire_injection(worker_ctx)
+                setattr(worker_ctx.service, dependency.attr_name, inj)
 
             self.dependencies.injections.all.worker_setup(worker_ctx)
 
             result = exc_info = None
-            method_name = self.mappings[worker_ctx.provider]
+            method_name = worker_ctx.provider.method_name
             method = getattr(worker_ctx.service, method_name)
             try:
 
@@ -440,9 +420,7 @@ class ServiceContainer(object):
             _log.warning('killing %s active thread(s)', num_active_threads)
             for gt, provider in list(self._active_threads.items()):
                 if provider is not MANAGED_THREAD:
-                    description = '{}.{}'.format(
-                        self.service_name, provider.name)
-                    _log.warning('killing active thread for %s', description)
+                    _log.warning('killing active thread for %s', provider)
                 gt.kill()
 
     def _kill_protected_threads(self):

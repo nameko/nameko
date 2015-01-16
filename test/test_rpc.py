@@ -56,9 +56,9 @@ class WorkerErrorLogger(InjectionProvider):
             worker_ctx.provider, 'expected_exceptions', ())
 
         if isinstance(exc, expected_exceptions):
-            self.expected[worker_ctx.provider.name] = type(exc)
+            self.expected[worker_ctx.provider.method_name] = type(exc)
         else:
-            self.unexpected[worker_ctx.provider.name] = type(exc)
+            self.unexpected[worker_ctx.provider.method_name] = type(exc)
 
 
 class CustomWorkerContext(WorkerContextBase):
@@ -124,8 +124,8 @@ def get_rpc_exchange():
 @pytest.yield_fixture
 def queue_consumer():
     queue_consumer = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind') as bind:
-        bind.return_value = queue_consumer
+    with patch.object(QueueConsumer, 'clone') as clone:
+        clone.return_value = queue_consumer
         yield queue_consumer
 
 
@@ -139,9 +139,10 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    consumer = RpcConsumer().bind("rpc_consumer", container)
+    consumer = RpcConsumer().clone(container)
 
-    entrypoint = Rpc().bind("rpcmethod", container)
+    entrypoint = Rpc().clone(container)
+    entrypoint.bind(container.service_name, "rpcmethod")
     entrypoint.rpc_consumer = consumer
 
     entrypoint.setup(container)
@@ -179,7 +180,7 @@ def test_reply_listener(get_rpc_exchange, queue_consumer):
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    reply_listener = ReplyListener().bind("reply_listener", container)
+    reply_listener = ReplyListener().clone(container)
 
     forced_uuid = uuid.uuid4().hex
 
@@ -220,10 +221,10 @@ def test_reply_listener(get_rpc_exchange, queue_consumer):
 def test_expected_exceptions(rabbit_config):
     container = ServiceContainer(ExampleService, WorkerContext, rabbit_config)
 
-    broken = get_dependency(container, Rpc, name="broken")
+    broken = get_dependency(container, Rpc, method_name="broken")
     assert broken.expected_exceptions == ExampleError
 
-    very_broken = get_dependency(container, Rpc, name="very_broken")
+    very_broken = get_dependency(container, Rpc, method_name="very_broken")
     assert very_broken.expected_exceptions == (KeyError, ValueError)
 
 
@@ -569,7 +570,7 @@ def test_rpc_container_being_killed_retries(
 
     container._being_killed = True
 
-    rpc_provider = get_dependency(container, Rpc, name='task_a')
+    rpc_provider = get_dependency(container, Rpc, method_name='task_a')
 
     with patch.object(
         rpc_provider,
@@ -595,10 +596,10 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, Rpc, name="task_a")
+    task_a = get_dependency(container, Rpc, method_name="task_a")
     task_a_stop = task_a.stop
 
-    task_b = get_dependency(container, Rpc, name="task_b")
+    task_b = get_dependency(container, Rpc, method_name="task_b")
     task_b_stop = task_b.stop
 
     task_a_stopped = Event()
@@ -636,7 +637,7 @@ def test_rpc_consumer_cannot_exit_with_providers(
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, Rpc, name="task_a")
+    task_a = get_dependency(container, Rpc, method_name="task_a")
 
     def never_stops():
         while True:

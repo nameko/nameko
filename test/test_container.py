@@ -19,8 +19,8 @@ class CallCollectorMixin(object):
     def __init__(self):
         self._reset_calls()
 
-    def clone(self):
-        res = super(CallCollectorMixin, self).clone()
+    def clone(self, container):
+        res = super(CallCollectorMixin, self).clone(container)
         self.instances.add(res)
         return res
 
@@ -163,11 +163,10 @@ def test_stops_entrypoints_before_injections(container):
 
 
 def test_worker_life_cycle(container):
-    dependencies = container.dependencies
 
-    (spam_dep,) = [dep for dep in dependencies if dep.name == 'spam']
-    (ham_dep,) = [dep for dep in dependencies if dep.name == 'ham']
-    (egg_dep,) = [dep for dep in dependencies if dep.name == 'egg']
+    spam_dep = get_dependency(container, InjectionProvider)
+    ham_dep = get_dependency(container, Entrypoint, method_name="ham")
+    egg_dep = get_dependency(container, Entrypoint, method_name="egg")
 
     handle_result = Mock()
     handle_result.side_effect = (
@@ -335,7 +334,7 @@ def test_kill_container_with_active_workers(container_factory):
         container.kill()
     calls = logger.warning.call_args_list
     assert call(
-        'killing active thread for %s', 'kill-with-active-workers.spam'
+        'killing active thread for %s', dep
     ) in calls
 
 
@@ -529,11 +528,11 @@ def test_stop_during_kill(container, logger):
 
 def test_container_entrypoint_property(container):
     entrypoints = container.entrypoints
-    assert {dep.name for dep in entrypoints} == {'wait', 'ham', 'egg'}
+    assert {dep.method_name for dep in entrypoints} == {'wait', 'ham', 'egg'}
     assert entrypoints == 3 * [AnyInstanceOf(CallCollectingEntrypoint)]
 
 
 def test_container_injection_property(container):
     injections = container.injections
-    assert {dep.name for dep in injections} == {'spam'}
+    assert {dep.attr_name for dep in injections} == {'spam'}
     assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]

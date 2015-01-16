@@ -60,8 +60,8 @@ def test_custom_sharing_key(container_factory):
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
     assert len(CallCollectorMixin.calls[CustomSharedExtension]['start']) == 2
 
-    inj_1 = get_dependency(container, SimpleInjection, name="inj_1")
-    inj_2 = get_dependency(container, SimpleInjection, name="inj_2")
+    inj_1 = get_dependency(container, SimpleInjection, attr_name="inj_1")
+    inj_2 = get_dependency(container, SimpleInjection, attr_name="inj_2")
 
     assert inj_1.ext_a != inj_1.ext_b
     assert inj_1.ext_a is inj_2.ext_a

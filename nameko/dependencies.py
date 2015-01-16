@@ -10,7 +10,7 @@ import weakref
 
 from eventlet.event import Event
 
-from nameko.utils import SpawningSet, repr_safe_str
+from nameko.utils import SpawningSet
 
 from logging import getLogger
 _log = getLogger(__name__)
@@ -26,8 +26,6 @@ class Extension(object):
 
     __clone = False
     __params = None
-
-    name = None
 
     def __new__(cls, *args, **kwargs):
         inst = super(Extension, cls).__new__(cls, *args, **kwargs)
@@ -77,32 +75,24 @@ class Extension(object):
         swallow the exception to allow the container kill to continue.
         """
 
-    def bind(self, name, container):
-        """ Bind a clone of this extension to `container` with the given
-        `name`.
-        """
-        if self.__clone:  # TODO: prefer this over check in clone?
-            raise RuntimeError('Cloned extensions cannot be bound.')
-
-        # clone this extension and associate it with the container
-        clone = self.clone()
-        clone.name = name
-
-        # recursively bind nested extensions
-        for ext_name, ext in inspect.getmembers(self, is_extension):
-            setattr(clone, ext_name, ext.bind(ext_name, container))
-
-        return clone
-
-    def clone(self):
-        if self.__clone:  # TODO: need this even with the check in bind above?
+    def clone(self, container):
+        if self.is_clone:
             raise RuntimeError('Cloned extensions cannot be cloned.')
 
         cls = type(self)
         args, kwargs = self.__params
         instance = cls(*args, **kwargs)
         instance.__clone = True
+
+        # recursive over sub-extensions
+        for ext_name, ext in inspect.getmembers(self, is_extension):
+            setattr(instance, ext_name, ext.clone(container))
+
         return instance
+
+    @property
+    def is_clone(self):
+        return self.__clone is True
 
     @property
     def extensions(self):
@@ -112,16 +102,13 @@ class Extension(object):
             yield ext
         yield self
 
-    # def __repr__(self):
-    #     if self.__container is None:
-    #         return '<{} [unbound] at 0x{:x}>'.format(  # declaration?
-    #             type(self).__name__, id(self))
+    def __repr__(self):
+        if not self.is_clone:
+            return '<{} [declaration] at 0x{:x}>'.format(
+                type(self).__name__, id(self))
 
-    #     service_name = repr_safe_str(self.__container.service_name)
-    #     name = repr_safe_str(self.name)
-
-    #     return '<{} [{}.{}] at 0x{:x}>'.format(
-    #         type(self).__name__, service_name, name, id(self))
+        return '<{} at 0x{:x}>'.format(
+            type(self).__name__, id(self))
 
 
 class SharedExtension(Extension):
@@ -130,8 +117,8 @@ class SharedExtension(Extension):
     def sharing_key(self):
         return type(self)
 
-    def bind(self, name, container):
-        """ Bind implementation that supports sharing.
+    def clone(self, container):
+        """ Clone implementation that supports sharing.
         """
         # if there's already a cloned instance, return that
         shared_extensions.setdefault(container, {})
@@ -139,15 +126,25 @@ class SharedExtension(Extension):
         if shared:
             return shared
 
-        bound = super(SharedExtension, self).bind(name, container)
+        instance = super(SharedExtension, self).clone(container)
 
-        # save the cloned instance
-        shared_extensions[container][self.sharing_key] = bound
+        # save the new instance
+        shared_extensions[container][self.sharing_key] = instance
 
-        return bound
+        return instance
 
 
 class InjectionProvider(Extension):
+
+    service_name = None
+    attr_name = None
+
+    def bind(self, service_name, attr_name):
+        """
+        """
+        self.service_name = service_name
+        self.attr_name = attr_name
+        return list(self.extensions)
 
     def acquire_injection(self, worker_ctx):
         """ Called before worker execution. An InjectionProvider should return
@@ -197,6 +194,18 @@ class InjectionProvider(Extension):
             - worker_ctx: see
                 ``nameko.containers.ServiceContainer.spawn_worker``
         """
+
+    def __repr__(self):
+        if not self.is_clone:
+            return '<{} [declaration] at 0x{:x}>'.format(
+                type(self).__name__, id(self))
+
+        if self.service_name is None or self.attr_name is None:
+            return '<{} [unbound] at 0x{:x}>'.format(
+                type(self).__name__, id(self))
+
+        return '<{} [{}.{}] at 0x{:x}>'.format(
+            type(self).__name__, self.service_name, self.attr_name, id(self))
 
 
 class ProviderCollector(object):
@@ -278,6 +287,16 @@ def register_entrypoint(fn, provider):
 
 class Entrypoint(Extension):
 
+    service_name = None
+    method_name = None
+
+    def bind(self, service_name, method_name):
+        """
+        """
+        self.service_name = service_name
+        self.method_name = method_name
+        return list(self.extensions)
+
     @classmethod
     def entrypoint(cls, *args, **kwargs):
 
@@ -298,6 +317,18 @@ class Entrypoint(Extension):
             # def spam():
             #     pass
             return partial(registering_decorator, args=args, kwargs=kwargs)
+
+    def __repr__(self):
+        if not self.is_clone:
+            return '<{} [declaration] at 0x{:x}>'.format(
+                type(self).__name__, id(self))
+
+        if self.service_name is None or self.method_name is None:
+            return '<{} [unbound] at 0x{:x}>'.format(
+                type(self).__name__, id(self))
+
+        return '<{} [{}.{}] at 0x{:x}>'.format(
+            type(self).__name__, self.service_name, self.method_name, id(self))
 
 
 def is_extension(obj):
