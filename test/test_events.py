@@ -166,7 +166,7 @@ class CustomEventHandler(EventHandler):
         self._calls.append(message)
         return result, exc_info
 
-custome_event_handler = CustomEventHandler.entrypoint
+custome_event_handler = CustomEventHandler.decorator
 
 
 class HandlerService(object):

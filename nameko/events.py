@@ -284,4 +284,4 @@ class EventHandler(Consumer):
 
         super(EventHandler, self).setup(container)
 
-event_handler = EventHandler.entrypoint
+event_handler = EventHandler.decorator

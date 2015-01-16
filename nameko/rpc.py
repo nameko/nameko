@@ -184,7 +184,7 @@ class Rpc(Entrypoint, HeaderDecoder):
         return result, exc_info
 
 
-rpc = Rpc.entrypoint
+rpc = Rpc.decorator
 
 
 class Responder(object):

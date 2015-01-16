@@ -342,7 +342,7 @@ class Once(Entrypoint):
     def start(self):
         self.container.spawn_worker(self, self.args, self.kwargs)
 
-once = Once.entrypoint
+once = Once.decorator
 
 # dummy entrypoint
-dummy = Entrypoint.entrypoint
+dummy = Entrypoint.decorator

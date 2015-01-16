@@ -22,7 +22,7 @@ class Timer(Entrypoint):
 
         Example::
 
-            timer = Timer.entrypoint
+            timer = Timer.decorator
 
             class Service(object):
 
@@ -99,4 +99,4 @@ class Timer(Entrypoint):
         self.container.spawn_worker(self, args, kwargs)
 
 
-timer = Timer.entrypoint
+timer = Timer.decorator

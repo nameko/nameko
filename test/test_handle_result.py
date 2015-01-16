@@ -41,7 +41,7 @@ class CustomRpc(Rpc):
             message, worker_ctx, result, exc_info)
 
 
-custom_rpc = CustomRpc.entrypoint
+custom_rpc = CustomRpc.decorator
 
 
 class ExampleService(object):

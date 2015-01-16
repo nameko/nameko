@@ -21,7 +21,7 @@ class SimpleDependency(Dependency):
 class SimpleEntrypoint(Entrypoint):
     pass
 
-simple = SimpleEntrypoint.entrypoint
+simple = SimpleEntrypoint.decorator
 
 
 class Service(object):
@@ -164,7 +164,7 @@ def test_entrypoint_decorator(method_name, expected_args, expected_kwargs,
             self.args = args
             self.kwargs = kwargs
 
-    configurable = ConfigurableEntrypoint.entrypoint
+    configurable = ConfigurableEntrypoint.decorator
 
     class Service():
 

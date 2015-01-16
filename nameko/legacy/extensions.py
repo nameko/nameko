@@ -125,4 +125,4 @@ class NovaRpc(Rpc):
             message, msgid, result, exc_info)
 
 
-rpc = NovaRpc.entrypoint
+rpc = NovaRpc.decorator

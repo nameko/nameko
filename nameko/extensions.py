@@ -256,7 +256,7 @@ class Entrypoint(Extension):
         self.method_name = method_name
 
     @classmethod
-    def entrypoint(cls, *args, **kwargs):
+    def decorator(cls, *args, **kwargs):
 
         def registering_decorator(fn, args, kwargs):
             instance = cls(*args, **kwargs)

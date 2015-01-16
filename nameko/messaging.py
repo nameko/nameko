@@ -470,7 +470,7 @@ class Consumer(Entrypoint, HeaderDecoder):
             self.queue_consumer.ack_message(message)
 
 
-consume = Consumer.entrypoint
+consume = Consumer.decorator
 
 
 class QueueConsumerStopped(Exception):

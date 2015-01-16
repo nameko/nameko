@@ -77,7 +77,7 @@ class CallCollectingDependency(
         super(CallCollectorMixin, self).worker_teardown(worker_ctx)
 
 
-foobar = CallCollectingEntrypoint.entrypoint
+foobar = CallCollectingEntrypoint.decorator
 
 # compat
 call_collector = CallCollectingDependency
