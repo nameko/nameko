@@ -16,7 +16,7 @@ from nameko.constants import (
     MAX_WORKERS_CONFIG_KEY, DEFAULT_MAX_WORKERS,
     CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
 
-from nameko.dependencies import (
+from nameko.extensions import (
     ExtensionSet, is_entrypoint, is_injection_provider,
     ENTRYPOINT_EXTENSIONS_ATTR)
 from nameko.exceptions import ContainerBeingKilled
@@ -128,18 +128,18 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
-        self.dependencies = ExtensionSet()
+        self.extensions = ExtensionSet()
 
         for attr_name, dependency in inspect.getmembers(
                 service_cls, is_injection_provider):
-            self.dependencies.update(
+            self.extensions.update(
                 dependency.clone(self).bind(self.service_name, attr_name)
             )
 
         for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
             entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
-                self.dependencies.update(
+                self.extensions.update(
                     entrypoint.clone(self).bind(self.service_name, name)
                 )
 
@@ -153,25 +153,26 @@ class ServiceContainer(object):
 
     @property
     def entrypoints(self):
-        return filter(is_entrypoint, self.dependencies)
+        return filter(is_entrypoint, self.extensions)
 
     @property
     def injections(self):
-        return filter(is_injection_provider, self.dependencies)
+        return filter(is_injection_provider, self.extensions)
 
     @property
     def interface(self):
-        return self  # TEMP
+        # TODO: design interface to expose to extensions
+        return self
 
     def start(self):
-        """ Start a container by starting all the dependency providers.
+        """ Start a container by starting all of its extensions.
         """
         _log.debug('starting %s', self)
         self.started = True
 
         with _log_time('started %s', self):
-            self.dependencies.all.setup(self.interface)
-            self.dependencies.all.start()
+            self.extensions.all.setup(self.interface)
+            self.extensions.all.start()
 
     def stop(self):
         """ Stop the container gracefully.
@@ -210,7 +211,7 @@ class ServiceContainer(object):
         _log.debug('stopping %s', self)
 
         with _log_time('stopped %s', self):
-            dependencies = self.dependencies
+            dependencies = self.extensions
 
             # entrypoint deps have to be stopped before injection deps
             # to ensure that running workers can successfully complete
@@ -228,7 +229,7 @@ class ServiceContainer(object):
             dependencies.other.all.stop()
 
             # just in case there was a provider not taking care of its workers,
-            # or a dependency not taking care of its protected threads
+            # or an extension not taking care of its protected threads
             self._kill_active_threads()
             self._kill_protected_threads()
 
@@ -276,9 +277,9 @@ class ServiceContainer(object):
             except Exception as exc:
                 _log.warning('Dependency raised `%s` during kill', exc)
 
-        safely_kill_dependencies(self.dependencies.entrypoints.all)
+        safely_kill_dependencies(self.extensions.entrypoints.all)
         self._kill_active_threads()
-        safely_kill_dependencies(self.dependencies.all)
+        safely_kill_dependencies(self.extensions.all)
         self._kill_protected_threads()
 
         self.started = False
@@ -368,7 +369,7 @@ class ServiceContainer(object):
                 inj = dependency.acquire_injection(worker_ctx)
                 setattr(worker_ctx.service, dependency.attr_name, inj)
 
-            self.dependencies.injections.all.worker_setup(worker_ctx)
+            self.extensions.injections.all.worker_setup(worker_ctx)
 
             result = exc_info = None
             method_name = worker_ctx.provider.method_name
@@ -394,7 +395,7 @@ class ServiceContainer(object):
             with _log_time('tore down worker %s', worker_ctx):
 
                 _log.debug('signalling result for %s', worker_ctx)
-                self.dependencies.injections.all.worker_result(
+                self.extensions.injections.all.worker_result(
                     worker_ctx, result, exc_info)
 
                 # we don't need this any more, and breaking the cycle means
@@ -402,7 +403,7 @@ class ServiceContainer(object):
                 # gc sweep
                 del exc_info
 
-                self.dependencies.injections.all.worker_teardown(worker_ctx)
+                self.extensions.injections.all.worker_teardown(worker_ctx)
                 # release?
 
     def _kill_active_threads(self):

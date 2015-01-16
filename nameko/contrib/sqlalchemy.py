@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 
 ORM_DB_URIS_KEY = 'ORM_DB_URIS'
 

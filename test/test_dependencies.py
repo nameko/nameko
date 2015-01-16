@@ -4,7 +4,7 @@ import eventlet
 from mock import Mock
 import pytest
 
-from nameko.dependencies import (
+from nameko.extensions import (
     Extension, SharedExtension, Entrypoint, InjectionProvider,
     ProviderCollector)
 

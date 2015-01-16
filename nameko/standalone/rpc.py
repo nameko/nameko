@@ -7,7 +7,7 @@ from kombu import Connection
 from kombu.common import maybe_declare
 
 from nameko.containers import WorkerContext
-from nameko.dependencies import Entrypoint
+from nameko.extensions import Entrypoint
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.kombu_helpers import queue_iterator
 from nameko.rpc import ServiceProxy, ReplyListener

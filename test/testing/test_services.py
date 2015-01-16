@@ -1,7 +1,7 @@
 from mock import Mock
 import pytest
 
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 from nameko.events import Event, event_handler
 from nameko.exceptions import DependencyNotFound, MethodNotFound
 from nameko.rpc import RpcProxy, rpc
@@ -218,9 +218,9 @@ def test_replace_injections(container_factory, rabbit_config):
     replacements = replace_injections(container, "bar_proxy", "baz_proxy")
     assert len([x for x in replacements]) == 2
 
-    # verify that container.dependencies doesn't include an RpcProxy anymore
+    # verify that container.extensions doesn't include an RpcProxy anymore
     assert all([not isinstance(dependency, RpcProxy)
-                for dependency in container.dependencies])
+                for dependency in container.extensions])
 
     container.start()
 

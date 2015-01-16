@@ -17,7 +17,7 @@ from nameko.exceptions import (
     MalformedRequest, RpcConnectionError, serialize, deserialize)
 from nameko.messaging import (
     QueueConsumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
-from nameko.dependencies import (
+from nameko.extensions import (
     InjectionProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
 from nameko.utils import repr_safe_str

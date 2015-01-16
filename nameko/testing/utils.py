@@ -12,18 +12,18 @@ from pyrabbit.http import HTTPError
 
 
 from nameko.containers import WorkerContextBase
-from nameko.dependencies import Entrypoint
+from nameko.extensions import Entrypoint
 
 
-def get_dependency(container, dependency_cls, **match_attrs):
-    """ Inspect ``container.dependencies`` and return the first item that is
+def get_dependency(container, extension_cls, **match_attrs):
+    """ Inspect ``container.extensions`` and return the first item that is
     an instance of ``dependency_cls``.
 
     Optionally also require that the instance has an attribute with a
     particular value as given in the ``match_attrs`` kwargs.
     """
-    for dep in container.dependencies:
-        if isinstance(dep, dependency_cls):
+    for dep in container.extensions:
+        if isinstance(dep, extension_cls):
             if not match_attrs:
                 return dep
 

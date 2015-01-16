@@ -1,7 +1,7 @@
 from mock import Mock
 import pytest
 
-from nameko.dependencies import Extension, Entrypoint, InjectionProvider
+from nameko.extensions import Extension, Entrypoint, InjectionProvider
 from nameko.testing.utils import get_dependency
 
 
@@ -114,6 +114,6 @@ def test_extension_defined_on_instance(container_factory):
     container = container_factory(Service, {})
     container.start()
 
-    assert len(container.dependencies) == 2
+    assert len(container.extensions) == 2
     dyn_inj = get_dependency(container, DynamicInjection)
     assert dyn_inj.ext.arg == "argument_for_extension"

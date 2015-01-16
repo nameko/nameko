@@ -4,7 +4,7 @@ import sys
 from mock import ANY
 import pytest
 
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 from nameko.exceptions import RemoteError
 from nameko.rpc import Rpc
 from nameko.standalone.rpc import ServiceRpcProxy

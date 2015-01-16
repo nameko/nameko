@@ -18,7 +18,7 @@ from collections import defaultdict
 
 import pytest
 
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 from nameko.events import EventDispatcher, Event, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, RpcProxy

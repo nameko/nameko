@@ -11,7 +11,7 @@ from eventlet import event
 from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
-from nameko.dependencies import InjectionProvider, Entrypoint
+from nameko.extensions import InjectionProvider, Entrypoint
 from nameko.exceptions import DependencyNotFound
 from nameko.testing.utils import get_dependency, wait_for_worker_idle
 
@@ -108,9 +108,9 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
         raise RuntimeError("Waiter already registered for {}".format(
             entrypoint))
 
-    # can't mess with dependencies while container is running
+    # can't mess with extensions while container is running
     wait_for_worker_idle(container)
-    container.dependencies.add(waiter)
+    container.extensions.add(waiter)
 
     try:
         yield
@@ -118,7 +118,7 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
             waiter.wait()
     finally:
         wait_for_worker_idle(container)
-        container.dependencies.remove(waiter)
+        container.extensions.remove(waiter)
 
 
 def worker_factory(service_cls, **injections):
@@ -268,8 +268,8 @@ def replace_injections(container, *injections):
         dependency = named_injections[name]
         replacement = MockInjection(name)
         replacements[dependency] = replacement
-        container.dependencies.remove(dependency)
-        container.dependencies.add(replacement)
+        container.extensions.remove(dependency)
+        container.extensions.add(replacement)
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
@@ -326,7 +326,7 @@ def restrict_entrypoints(container, *entrypoints):
 
     for dependency in entrypoint_deps:
         if dependency.method_name not in entrypoints:
-            container.dependencies.remove(dependency)
+            container.extensions.remove(dependency)
 
 
 class Once(Entrypoint):

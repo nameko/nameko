@@ -9,7 +9,7 @@ import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.dependencies import InjectionProvider, Entrypoint
+from nameko.extensions import InjectionProvider, Entrypoint
 from nameko.testing.utils import AnyInstanceOf, get_dependency
 
 
@@ -109,8 +109,8 @@ def container():
     container = ServiceContainer(service_cls=Service,
                                  worker_ctx_cls=WorkerContext,
                                  config={})
-    for dep in container.dependencies:
-        dep._reset_calls()
+    for ext in container.extensions:
+        ext._reset_calls()
 
     CallCollectorMixin.call_counter = 0
     return container
@@ -122,32 +122,32 @@ def logger():
         yield patched
 
 
-def test_collects_dependencies(container):
-    assert len(container.dependencies) == 4
-    assert container.dependencies == (
+def test_collects_extensions(container):
+    assert len(container.extensions) == 4
+    assert container.extensions == (
         CallCollectingEntrypoint.instances |
         CallCollectingInjectionProvider.instances)
 
 
-def test_starts_dependencies(container):
+def test_starts_extensions(container):
 
-    for dep in container.dependencies:
-        assert dep.calls == []
+    for ext in container.extensions:
+        assert ext.calls == []
 
     container.start()
 
-    for dep in container.dependencies:
-        assert dep.calls == [
+    for ext in container.extensions:
+        assert ext.calls == [
             ('setup'),
             ('start')
         ]
 
 
-def test_stops_dependencies(container):
+def test_stops_extensions(container):
 
     container.stop()
-    for dep in container.dependencies:
-        assert dep.calls == [
+    for ext in container.extensions:
+        assert ext.calls == [
             ('stop')
         ]
 
@@ -155,11 +155,10 @@ def test_stops_dependencies(container):
 def test_stops_entrypoints_before_injections(container):
     container.stop()
 
-    dependencies = container.dependencies
-    spam_dep = get_dependency(container, InjectionProvider)
+    dependency = get_dependency(container, InjectionProvider)
 
-    for dec_dep in dependencies.entrypoints:
-        assert dec_dep.call_ids[0] < spam_dep.call_ids[0]
+    for entrypoint in container.extensions.entrypoints:
+        assert entrypoint.call_ids[0] < dependency.call_ids[0]
 
 
 def test_worker_life_cycle(container):

@@ -7,7 +7,7 @@ import pytest
 
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 from nameko.events import event_handler
 from nameko.exceptions import (
     RemoteError, MethodNotFound, UnknownService, IncorrectSignature,

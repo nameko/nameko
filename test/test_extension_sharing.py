@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from mock import call
 
-from nameko.dependencies import InjectionProvider, SharedExtension, Extension
+from nameko.extensions import InjectionProvider, SharedExtension, Extension
 from nameko.testing.utils import get_dependency
 
 
@@ -30,7 +30,7 @@ def test_simple_sharing(container_factory):
     container = container_factory(Service, {})
     container.start()
 
-    assert len(container.dependencies) == 3
+    assert len(container.extensions) == 3
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
     assert len(CallCollectorMixin.calls[SimpleSharedExtension]['start']) == 1
 
@@ -56,7 +56,7 @@ def test_custom_sharing_key(container_factory):
     container = container_factory(Service, {})
     container.start()
 
-    assert len(container.dependencies) == 4
+    assert len(container.extensions) == 4
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
     assert len(CallCollectorMixin.calls[CustomSharedExtension]['start']) == 2
 
@@ -86,7 +86,7 @@ def test_shared_intermediate(container_factory):
     container = container_factory(Service, {})
     container.start()
 
-    assert len(container.dependencies) == 4
+    assert len(container.extensions) == 4
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
     assert len(CallCollectorMixin.calls[SharedIntermediate]['start']) == 1
     assert len(CallCollectorMixin.calls[DedicatedExtension]['start']) == 1

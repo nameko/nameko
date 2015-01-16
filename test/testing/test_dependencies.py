@@ -1,6 +1,6 @@
 from mock import Mock
 
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 from nameko.testing.dependencies import patch_injection_provider
 
 

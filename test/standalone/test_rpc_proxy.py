@@ -5,7 +5,7 @@ import pytest
 import socket
 
 from nameko.containers import WorkerContext
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy

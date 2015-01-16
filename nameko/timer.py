@@ -5,7 +5,7 @@ import time
 from eventlet import Timeout
 from eventlet.event import Event
 
-from nameko.dependencies import Entrypoint
+from nameko.extensions import Entrypoint
 
 _log = getLogger(__name__)
 
@@ -24,7 +24,7 @@ class Timer(Entrypoint):
 
             timer = Timer.entrypoint
 
-            class Foobar(object):
+            class Service(object):
 
                 @timer(interval=5)
                 def tick(self):

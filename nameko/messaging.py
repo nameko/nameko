@@ -16,7 +16,7 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.dependencies import (
+from nameko.extensions import (
     InjectionProvider, Entrypoint, SharedExtension, ProviderCollector)
 from nameko.exceptions import ContainerBeingKilled
 

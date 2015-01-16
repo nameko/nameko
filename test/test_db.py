@@ -6,7 +6,7 @@ from sqlalchemy.orm.session import Session
 
 from nameko.contrib.sqlalchemy import OrmSession, ORM_DB_URIS_KEY
 from nameko.containers import WorkerContext
-from nameko.testing.utils import DummyProvider
+from nameko.testing.utils import DummyProvider, get_dependency
 
 CONCURRENT_REQUESTS = 10
 
@@ -58,12 +58,12 @@ def test_db(container_factory):
 
     container = container_factory(FooService, config)
     container.start()
-    provider = next(iter(container.dependencies.injections))
+    orm_session = get_dependency(container, OrmSession)
 
     # fake instance creation and provider injection
     service = FooService()
     worker_ctx = WorkerContext(container, service, DummyProvider())
-    service.session = provider.acquire_injection(worker_ctx)
+    service.session = orm_session.acquire_injection(worker_ctx)
 
     assert isinstance(service.session, Session)
 
@@ -71,6 +71,6 @@ def test_db(container_factory):
     session.add(FooModel())
     assert session.new
 
-    provider.worker_teardown(worker_ctx)
+    orm_session.worker_teardown(worker_ctx)
     # if we had not closed the session we would still have new objects
     assert not session.new

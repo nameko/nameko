@@ -10,7 +10,7 @@ import tempfile
 
 from kombu import Exchange, Queue
 
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import InjectionProvider
 from nameko.messaging import consume
 from nameko.runners import ServiceRunner
 

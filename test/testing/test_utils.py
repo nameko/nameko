@@ -76,8 +76,8 @@ def test_get_dependency(rabbit_config):
     foo_rpc = get_dependency(container, Rpc, method_name="foo")
     bar_rpc = get_dependency(container, Rpc, method_name="bar")
 
-    all_deps = container.dependencies
-    assert all_deps == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
+    extensions = container.extensions
+    assert extensions == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
 
 
 def test_get_container(runner_factory, rabbit_config):
