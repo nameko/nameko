@@ -10,7 +10,7 @@ import pytest
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.extensions import InjectionProvider, Entrypoint
-from nameko.testing.utils import AnyInstanceOf, get_extension
+from nameko.testing.utils import get_extension
 
 
 class CallCollectorMixin(object):
