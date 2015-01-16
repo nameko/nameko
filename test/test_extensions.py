@@ -6,6 +6,7 @@ import pytest
 from nameko.extensions import (
     Extension, Entrypoint, Dependency,
     is_dependency, is_entrypoint, is_extension)
+from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_extension
 
 
@@ -147,6 +148,51 @@ def test_entrypoint_decorator_does_not_mutate_service():
 
     service = Service()
     assert service.echo(1) == 1
+
+
+@pytest.mark.parametrize("method_name, expected_args, expected_kwargs", [
+    ("implicit_no_args", (), {}),
+    ("explicit_no_args", (), {}),
+    ("args", ("arg",), {}),
+    ("kwargs", ("arg",), {"kwarg": "kwarg"}),
+])
+def test_entrypoint_decorator(method_name, expected_args, expected_kwargs,
+                              container_factory):
+
+    class ConfigurableEntrypoint(Entrypoint):
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+    configurable = ConfigurableEntrypoint.entrypoint
+
+    class Service():
+
+        @configurable
+        def implicit_no_args(self):
+            return True
+
+        @configurable()
+        def explicit_no_args(self):
+            return True
+
+        @configurable('arg')
+        def args(self):
+            return True
+
+        @configurable('arg', kwarg="kwarg")
+        def kwargs(self):
+            return True
+
+    container = container_factory(Service, {})
+    container.start()
+
+    with entrypoint_hook(container, method_name) as method:
+        assert method()
+
+    entrypoint = get_extension(container, Entrypoint, method_name=method_name)
+    assert entrypoint.args == expected_args
+    assert entrypoint.kwargs == expected_kwargs
 
 
 def test_extension_str():
