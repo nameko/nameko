@@ -33,9 +33,9 @@ class Extension(object):
         return inst
 
     def __init__(self, *args, **kwargs):
-        """ This is called both at class declaration time and at bind time,
-        so avoid side-effects. You probably only want to bind paramters here.
-        Do work in `{before_,}start.
+        """ Note that Extension.__init__ is called during :meth:`clone` as
+        well as at instantiation time, so avoid side-effects in this method.
+        Use :meth:`setup` instead.
         """
         super(Extension, self).__init__(*args, **kwargs)
 
