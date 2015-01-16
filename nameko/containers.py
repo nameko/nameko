@@ -138,11 +138,12 @@ class ServiceContainer(object):
             self.dependencies.add(clone)
             self.subextensions.update(iter_extensions(clone))
 
-        for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
-            entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
+        for method_name, method in inspect.getmembers(service_cls,
+                                                      inspect.ismethod):
+            entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
                 clone = entrypoint.clone(self)
-                clone.bind(self.service_name, name)
+                clone.bind(self.service_name, method_name)
                 self.entrypoints.add(clone)
                 self.subextensions.update(iter_extensions(clone))
 
