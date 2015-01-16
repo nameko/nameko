@@ -141,8 +141,7 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 
     consumer = RpcConsumer().clone(container)
 
-    entrypoint = Rpc().clone(container)
-    entrypoint.bind(container.service_name, "rpcmethod")
+    entrypoint = Rpc().bind(container, "rpcmethod")
     entrypoint.rpc_consumer = consumer
 
     entrypoint.setup(container)

@@ -207,6 +207,7 @@ def test_extension_str():
 
 def test_entrypoint_str():
     container = Mock()
+    container.service_name = "sérvice"
 
     ext = Entrypoint()
     assert str(ext).startswith('<Entrypoint [declaration] at')
@@ -214,12 +215,13 @@ def test_entrypoint_str():
     clone = ext.clone(container)
     assert str(clone).startswith("<Entrypoint [unbound] at")
 
-    clone.bind("sérvice", "føbar")
-    assert str(clone).startswith("<Entrypoint [sérvice.føbar] at")
+    bound = ext.bind(container, "føbar")
+    assert str(bound).startswith("<Entrypoint [sérvice.føbar] at")
 
 
 def test_dependency_str():
     container = Mock()
+    container.service_name = "sérvice"
 
     ext = Dependency()
     assert str(ext).startswith('<Dependency [declaration] at')
@@ -227,5 +229,5 @@ def test_dependency_str():
     clone = ext.clone(container)
     assert str(clone).startswith("<Dependency [unbound] at")
 
-    clone.bind("sérvice", "føbar")
-    assert str(clone).startswith("<Dependency [sérvice.føbar] at")
+    bound = ext.bind(container, "føbar")
+    assert str(bound).startswith("<Dependency [sérvice.føbar] at")

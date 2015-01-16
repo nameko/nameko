@@ -128,11 +128,14 @@ class Dependency(Extension):
     service_name = None
     attr_name = None
 
-    def bind(self, service_name, attr_name):
+    def bind(self, container, attr_name):
+        """ Get an instance of this Dependency to bind to `container` with
+        `attr_name`.
         """
-        """
-        self.service_name = service_name
-        self.attr_name = attr_name
+        instance = self.clone(container)
+        instance.service_name = container.service_name
+        instance.attr_name = attr_name
+        return instance
 
     def acquire_injection(self, worker_ctx):
         """ Called before worker execution. An Dependency should return
@@ -249,11 +252,14 @@ class Entrypoint(Extension):
     service_name = None
     method_name = None
 
-    def bind(self, service_name, method_name):
+    def bind(self, container, method_name):
+        """ Get an instance of this Entrypoint to bind to `container` with
+        `method_name`.
         """
-        """
-        self.service_name = service_name
-        self.method_name = method_name
+        instance = self.clone(container)
+        instance.service_name = container.service_name
+        instance.method_name = method_name
+        return instance
 
     @classmethod
     def decorator(cls, *args, **kwargs):
