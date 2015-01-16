@@ -21,6 +21,7 @@ shared_extensions = weakref.WeakKeyDictionary()
 
 class Extension(object):
 
+    container = None
     __clone = False
     __params = None
 
@@ -79,6 +80,7 @@ class Extension(object):
         cls = type(self)
         args, kwargs = self.__params
         instance = cls(*args, **kwargs)
+        instance.container = container
         instance.__clone = True
 
         # recursive over sub-extensions

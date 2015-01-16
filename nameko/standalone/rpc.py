@@ -146,10 +146,6 @@ class SingleThreadedReplyListener(ReplyListener):
         self.queue_consumer = PollingQueueConsumer(timeout=timeout)
         super(SingleThreadedReplyListener, self).__init__()
 
-    def setup(self, container):
-        self.container = container  # stash container (TEMP?)
-        super(SingleThreadedReplyListener, self).setup(container)
-
     def get_reply_event(self, correlation_id):
         reply_event = ConsumeEvent(self.queue_consumer, correlation_id)
         self._reply_events[correlation_id] = reply_event
