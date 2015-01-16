@@ -3,7 +3,7 @@ import pytest
 
 from nameko.extensions import InjectionProvider
 from nameko.events import Event, event_handler
-from nameko.exceptions import DependencyNotFound, MethodNotFound
+from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -139,7 +139,7 @@ def test_entrypoint_hook_dependency_not_found(container_factory,
 
     method = 'nonexistent_method'
 
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         with entrypoint_hook(container, method):
             pass
 
@@ -190,7 +190,7 @@ def test_worker_factory():
     assert instance.bar_proxy is bar_injection
 
     # non-applicable injection
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         worker_factory(Service, nonexist=object())
 
 
@@ -244,11 +244,11 @@ def test_replace_non_injection(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
 
     # error if dependency doesn't exit
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         replace_injections(container, "nonexist")
 
     # error if dependency is not an injection
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         replace_injections(container, "method")
 
 
@@ -316,7 +316,7 @@ def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
 
     container = container_factory(Service, rabbit_config)
 
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         restrict_entrypoints(container, "nonexist")
 
 

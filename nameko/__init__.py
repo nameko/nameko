@@ -3,8 +3,8 @@ Getting Started
 ---------------
 
 Nameko makes writing services easier by taking care of lifecycle management
-and interface plumbing. Just declare your dependencies, specify a configuration
-and write your business logic.
+and interface plumbing. Just declare your entrypoints and dependencies,
+specify a configuration and write your business logic.
 
 Let's create a simple example.
 
@@ -84,17 +84,6 @@ in your AMQP broker and see messages passing through it.
 The complete source for this example is available here:
 :ref:`hello-world-example`.
 
-.. note::
-
-   ``@event_handler`` and ``@timer`` are examples of *entrypoint dependencies*.
-   That is, they declare things on which the service *depends* to function as
-   intended, and they provide an *entrypoint* into the business logic of the
-   service. When they're triggered, some logic created by the service
-   developer is invoked.
-
-   ``EventDispatcher`` is an example of an *injection dependency*. It declares
-   a dependency of the service that will be *injected* into the service
-   instance when it is hosted by nameko.
 
 RPC Example
 ===========
@@ -175,8 +164,8 @@ consume from AMQP directly.
         def process(self, payload):
             print payload
 
-The source for this example, expanded with a custom injection dependency,
-is available here: :ref:`messaging-example`.
+The source for this example, expanded with a custom dependency, is available
+here: :ref:`messaging-example`.
 
 
 API - reference
@@ -190,7 +179,7 @@ API - reference
     Messaging (low level AMQP messaging) <nameko.messaging>
     Server                               <nameko.runners>
     Lifecycle Management                 <nameko.containers>
-    Dependency Injection                 <nameko.dependencies>
+    Extensions                           <nameko.extensions>
 
 
 Examples

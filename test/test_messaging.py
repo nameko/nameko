@@ -365,7 +365,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
     consumer = Consumer(
         queue=foobar_queue, requeue_on_error=False).clone(container)
 
-    # prepare and start dependencies
+    # prepare and start extensions
     consumer.setup(container)
     consumer.queue_consumer.setup(container)
     consumer.start()

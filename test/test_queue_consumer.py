@@ -10,7 +10,7 @@ import pytest
 
 from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
 from nameko.testing.utils import (
-    assert_stops_raising, get_rabbit_connections, get_dependency)
+    assert_stops_raising, get_rabbit_connections, get_extension)
 from nameko.rpc import rpc, RpcConsumer
 from nameko.standalone.rpc import ServiceRpcProxy
 
@@ -341,8 +341,8 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
             return arg
 
     container = container_factory(Service, rabbit_config)
-    queue_consumer = get_dependency(container, QueueConsumer)
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    queue_consumer = get_extension(container, QueueConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
 
     # an error in rpc_consumer.handle_message will kill the queue_consumer's
     # greenthread. when the container suicides and kills the queue_consumer,

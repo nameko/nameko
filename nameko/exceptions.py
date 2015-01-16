@@ -1,7 +1,7 @@
 import inspect
 
 
-class DependencyNotFound(AttributeError):
+class ExtensionNotFound(AttributeError):
     pass
 
 

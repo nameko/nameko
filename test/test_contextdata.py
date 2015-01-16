@@ -8,7 +8,7 @@ from nameko.constants import (
 )
 from nameko.contextdata import (
     Language, UserId, UserAgent, AuthToken, ContextDataProvider)
-from nameko.testing.utils import get_dependency
+from nameko.testing.utils import get_extension
 
 CUSTOM_CONTEXT_KEY = "custom"
 
@@ -39,7 +39,7 @@ def container():
 
 
 def test_get_custom_context_value(container):
-    provider = get_dependency(
+    provider = get_extension(
         container, ContextDataProvider, attr_name="custom_value")
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={CUSTOM_CONTEXT_KEY: "hello"})
@@ -48,7 +48,7 @@ def test_get_custom_context_value(container):
 
 
 def test_get_unset_value(container):
-    provider = get_dependency(
+    provider = get_extension(
         container, ContextDataProvider, attr_name="custom_value")
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={})
@@ -64,7 +64,7 @@ def test_get_unset_value(container):
 
 ])
 def test_get_builtin_providers(provider_name, context_key, container):
-    provider = get_dependency(
+    provider = get_extension(
         container, ContextDataProvider, attr_name=provider_name)
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={context_key: 'value'})

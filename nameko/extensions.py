@@ -94,14 +94,6 @@ class Extension(object):
     def is_clone(self):
         return self.__clone is True
 
-    @property
-    def extensions(self):
-        """ A generator that yields all nested extensions, including `self`
-        """
-        for _, ext in iter_extensions(self):
-            yield ext
-        yield self
-
     def __repr__(self):
         if not self.is_clone:
             return '<{} [declaration] at 0x{:x}>'.format(
@@ -144,7 +136,6 @@ class InjectionProvider(Extension):
         """
         self.service_name = service_name
         self.attr_name = attr_name
-        return list(self.extensions)
 
     def acquire_injection(self, worker_ctx):
         """ Called before worker execution. An InjectionProvider should return
@@ -250,31 +241,6 @@ class ProviderCollector(object):
         self.wait_for_providers()
 
 
-class ExtensionSet(SpawningSet):
-
-    @property
-    def injections(self):
-        """ A ``SpawningSet`` of just the ``InjectionProvider`` instances in
-        this set.
-        """
-        return SpawningSet(item for item in self
-                           if is_injection_provider(item))
-
-    @property
-    def entrypoints(self):
-        """ A ``SpawningSet`` of just the ``Entrypoint`` instances in
-        this set.
-        """
-        return SpawningSet(item for item in self if is_entrypoint(item))
-
-    @property
-    def other(self):
-        """ A ``SpawningSet`` of any other dependency instances in this set.
-        """
-        all_deps = self
-        return all_deps - self.injections - self.entrypoints
-
-
 def register_entrypoint(fn, provider):
     descriptors = getattr(fn, ENTRYPOINT_EXTENSIONS_ATTR, None)
 
@@ -295,7 +261,6 @@ class Entrypoint(Extension):
         """
         self.service_name = service_name
         self.method_name = method_name
-        return list(self.extensions)
 
     @classmethod
     def entrypoint(cls, *args, **kwargs):
@@ -344,7 +309,7 @@ def is_entrypoint(obj):
 
 
 def iter_extensions(extension):
-    for name, ext in inspect.getmembers(extension, is_extension):
+    for _, ext in inspect.getmembers(extension, is_extension):
         for item in iter_extensions(ext):
             yield item
-        yield name, ext
+        yield ext

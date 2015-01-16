@@ -11,7 +11,7 @@ bottom of the file.
 ``test_shop_integration`` is a  full integration test of the ACME shop
 "checkout" flow. It demonstrates how to test the multiple ACME services in
 combination with each other, including limiting service interactions by
-replacing certain entrypoint and injection dependencies.
+replacing certain entrypoints and dependencies.
 """
 
 from collections import defaultdict

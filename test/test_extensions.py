@@ -2,7 +2,7 @@ from mock import Mock
 import pytest
 
 from nameko.extensions import Extension, Entrypoint, InjectionProvider
-from nameko.testing.utils import get_dependency
+from nameko.testing.utils import get_extension
 
 
 class SimpleExtension(Extension):
@@ -41,13 +41,13 @@ def test_entrypoint_uniqueness(container_factory):
     assert c1_meth1_entrypoints == c2_meth1_entrypoints
 
     # entrypoint instances are different between containers
-    c1_simple_meth1 = get_dependency(c1, SimpleEntrypoint, method_name="meth1")
-    c2_simple_meth1 = get_dependency(c2, SimpleEntrypoint, method_name="meth1")
+    c1_simple_meth1 = get_extension(c1, SimpleEntrypoint, method_name="meth1")
+    c2_simple_meth1 = get_extension(c2, SimpleEntrypoint, method_name="meth1")
     assert c1_simple_meth1 != c2_simple_meth1
 
     # entrypoint instances are different within a container
-    simple_meth1 = get_dependency(c1, SimpleEntrypoint, method_name="meth1")
-    simple_meth2 = get_dependency(c1, SimpleEntrypoint, method_name="meth2")
+    simple_meth1 = get_extension(c1, SimpleEntrypoint, method_name="meth1")
+    simple_meth2 = get_extension(c1, SimpleEntrypoint, method_name="meth2")
     assert simple_meth1 != simple_meth2
 
 
@@ -59,16 +59,16 @@ def test_injection_uniqueness(container_factory):
     assert c1.service_cls.inj == c2.service_cls.inj
 
     # injection instances are different between containers
-    inj1 = get_dependency(c1, SimpleInjection)
-    inj2 = get_dependency(c2, SimpleInjection)
+    inj1 = get_extension(c1, SimpleInjection)
+    inj2 = get_extension(c2, SimpleInjection)
     assert inj1 != inj2
 
 
 def test_extension_uniqueness(container_factory):
     c1 = container_factory(Service, config={})
     c2 = container_factory(Service, config={})
-    inj1 = get_dependency(c1, SimpleInjection)
-    inj2 = get_dependency(c2, SimpleInjection)
+    inj1 = get_extension(c1, SimpleInjection)
+    inj2 = get_extension(c2, SimpleInjection)
 
     # extension declarations are identical between containers
     assert c1.service_cls.inj.ext == c2.service_cls.inj.ext
@@ -115,5 +115,5 @@ def test_extension_defined_on_instance(container_factory):
     container.start()
 
     assert len(container.extensions) == 2
-    dyn_inj = get_dependency(container, DynamicInjection)
+    dyn_inj = get_extension(container, DynamicInjection)
     assert dyn_inj.ext.arg == "argument_for_extension"

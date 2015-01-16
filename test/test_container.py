@@ -10,7 +10,7 @@ import pytest
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.extensions import InjectionProvider, Entrypoint
-from nameko.testing.utils import AnyInstanceOf, get_dependency
+from nameko.testing.utils import AnyInstanceOf, get_extension
 
 
 class CallCollectorMixin(object):
@@ -155,17 +155,17 @@ def test_stops_extensions(container):
 def test_stops_entrypoints_before_injections(container):
     container.stop()
 
-    dependency = get_dependency(container, InjectionProvider)
+    dependency = get_extension(container, InjectionProvider)
 
-    for entrypoint in container.extensions.entrypoints:
+    for entrypoint in container.entrypoints:
         assert entrypoint.call_ids[0] < dependency.call_ids[0]
 
 
 def test_worker_life_cycle(container):
 
-    spam_dep = get_dependency(container, InjectionProvider)
-    ham_dep = get_dependency(container, Entrypoint, method_name="ham")
-    egg_dep = get_dependency(container, Entrypoint, method_name="egg")
+    spam_dep = get_extension(container, InjectionProvider)
+    ham_dep = get_extension(container, Entrypoint, method_name="ham")
+    egg_dep = get_extension(container, Entrypoint, method_name="egg")
 
     handle_result = Mock()
     handle_result.side_effect = (
@@ -222,7 +222,7 @@ def test_container_doesnt_exhaust_max_workers(container):
                                  worker_ctx_cls=WorkerContext,
                                  config={MAX_WORKERS_CONFIG_KEY: 1})
 
-    dep = get_dependency(container, Entrypoint)
+    dep = get_extension(container, Entrypoint)
 
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, ['ham'], {})
@@ -322,7 +322,7 @@ def test_kill_container_with_active_workers(container_factory):
             wait_forever.wait()
 
     container = container_factory(Service, {})
-    dep = get_dependency(container, Entrypoint)
+    dep = get_extension(container, Entrypoint)
 
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, (), {})
@@ -339,7 +339,7 @@ def test_kill_container_with_active_workers(container_factory):
 
 def test_handle_killed_worker(container, logger):
 
-    dep = get_dependency(container, Entrypoint)
+    dep = get_extension(container, Entrypoint)
     container.spawn_worker(dep, ['sleep'], {})
 
     assert len(container._active_threads) == 1
@@ -478,7 +478,7 @@ def test_kill_bad_dependency(container):
     """ Verify that an exception from a badly-behaved dependency.kill()
     doesn't stop the container's kill process.
     """
-    dep = get_dependency(container, InjectionProvider)
+    dep = get_extension(container, InjectionProvider)
     with patch.object(dep, 'kill') as dep_kill:
         dep_kill.side_effect = Exception('dependency error')
 
@@ -523,15 +523,3 @@ def test_stop_during_kill(container, logger):
         assert logger.debug.call_args_list == [
             call("already being killed %s", container),
         ]
-
-
-def test_container_entrypoint_property(container):
-    entrypoints = container.entrypoints
-    assert {dep.method_name for dep in entrypoints} == {'wait', 'ham', 'egg'}
-    assert entrypoints == 3 * [AnyInstanceOf(CallCollectingEntrypoint)]
-
-
-def test_container_injection_property(container):
-    injections = container.injections
-    assert {dep.attr_name for dep in injections} == {'spam'}
-    assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]

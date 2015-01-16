@@ -7,7 +7,7 @@ import pytest
 from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import rpc, Rpc
 from nameko.testing.utils import (
-    AnyInstanceOf, get_dependency, get_container, wait_for_call,
+    AnyInstanceOf, get_extension, get_container, wait_for_call,
     reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle,
     reset_rabbit_connections)
 
@@ -54,7 +54,7 @@ def test_wait_for_call():
             pass
 
 
-def test_get_dependency(rabbit_config):
+def test_get_extension(rabbit_config):
 
     from nameko.messaging import QueueConsumer
     from nameko.rpc import Rpc, RpcConsumer
@@ -71,10 +71,10 @@ def test_get_dependency(rabbit_config):
 
     container = ServiceContainer(Service, WorkerContext, rabbit_config)
 
-    rpc_consumer = get_dependency(container, RpcConsumer)
-    queue_consumer = get_dependency(container, QueueConsumer)
-    foo_rpc = get_dependency(container, Rpc, method_name="foo")
-    bar_rpc = get_dependency(container, Rpc, method_name="bar")
+    rpc_consumer = get_extension(container, RpcConsumer)
+    queue_consumer = get_extension(container, QueueConsumer)
+    foo_rpc = get_extension(container, Rpc, method_name="foo")
+    bar_rpc = get_extension(container, Rpc, method_name="bar")
 
     extensions = container.extensions
     assert extensions == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
@@ -219,7 +219,7 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
         wait_for_worker_idle(container)
 
     # spawn a worker
-    wait_for_event = get_dependency(container, Rpc)
+    wait_for_event = get_extension(container, Rpc)
     container.spawn_worker(wait_for_event, [], {})
 
     # verify that wait_for_worker_idle does not return while worker active

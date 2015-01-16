@@ -12,8 +12,8 @@ from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
 from nameko.extensions import InjectionProvider, Entrypoint
-from nameko.exceptions import DependencyNotFound
-from nameko.testing.utils import get_dependency, wait_for_worker_idle
+from nameko.exceptions import ExtensionNotFound
+from nameko.testing.utils import get_extension, wait_for_worker_idle
 
 
 @contextmanager
@@ -32,9 +32,9 @@ def entrypoint_hook(container, method_name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = get_dependency(container, Entrypoint, method_name=method_name)
+    provider = get_extension(container, Entrypoint, method_name=method_name)
     if provider is None:
-        raise DependencyNotFound(
+        raise ExtensionNotFound(
             "No entrypoint for '{}' found on container {}.".format(
                 method_name, container))
 
@@ -101,16 +101,16 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
     """
 
     waiter = EntrypointWaiter(entrypoint)
-    if not get_dependency(container, Entrypoint, method_name=entrypoint):
+    if not get_extension(container, Entrypoint, method_name=entrypoint):
         raise RuntimeError("{} has no entrypoint `{}`".format(
             container.service_name, entrypoint))
-    if get_dependency(container, EntrypointWaiter, entrypoint=entrypoint):
+    if get_extension(container, EntrypointWaiter, entrypoint=entrypoint):
         raise RuntimeError("Waiter already registered for {}".format(
             entrypoint))
 
-    # can't mess with extensions while container is running
+    # can't mess with dependencies while container is running
     wait_for_worker_idle(container)
-    container.extensions.add(waiter)
+    container.dependencies.add(waiter)
 
     try:
         yield
@@ -118,7 +118,7 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
             waiter.wait()
     finally:
         wait_for_worker_idle(container)
-        container.extensions.remove(waiter)
+        container.dependencies.remove(waiter)
 
 
 def worker_factory(service_cls, **injections):
@@ -177,7 +177,7 @@ def worker_factory(service_cls, **injections):
     .. literalinclude:: examples/testing/unit_with_provided_injection_test.py
 
     If a given injection does not exist on ``service_cls``, a
-    ``DependencyNotFound`` exception is raised.
+    ``ExtensionNotFound`` exception is raised.
 
     """
     service = service_cls()
@@ -190,7 +190,7 @@ def worker_factory(service_cls, **injections):
             setattr(service, name, injection)
 
     if injections:
-        raise DependencyNotFound("Injection(s) '{}' not found on {}.".format(
+        raise ExtensionNotFound("Injection(s) '{}' not found on {}.".format(
             injections.keys(), service_cls))
 
     return service
@@ -252,24 +252,23 @@ def replace_injections(container, *injections):
         raise RuntimeError('You must replace injections before the '
                            'container is started.')
 
-    injection_deps = list(container.injections)
-    injection_names = {dep.attr_name for dep in injection_deps}
+    dependency_names = {dep.attr_name for dep in container.dependencies}
 
-    missing = set(injections) - injection_names
+    missing = set(injections) - dependency_names
     if missing:
-        raise DependencyNotFound("Injection(s) '{}' not found on {}.".format(
+        raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
             missing, container))
 
     replacements = OrderedDict()
 
-    named_injections = {dep.attr_name: dep for dep in container.injections
-                        if dep.attr_name in injections}
+    named_dependencies = {dep.attr_name: dep for dep in container.dependencies
+                          if dep.attr_name in injections}
     for name in injections:
-        dependency = named_injections[name]
+        dependency = named_dependencies[name]
         replacement = MockInjection(name)
         replacements[dependency] = replacement
-        container.extensions.remove(dependency)
-        container.extensions.add(replacement)
+        container.dependencies.remove(dependency)
+        container.dependencies.add(replacement)
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
@@ -317,16 +316,16 @@ def restrict_entrypoints(container, *entrypoints):
                            'container is started.')
 
     entrypoint_deps = list(container.entrypoints)
-    entrypoint_names = {dep.method_name for dep in entrypoint_deps}
+    entrypoint_names = {ext.method_name for ext in entrypoint_deps}
 
     missing = set(entrypoints) - entrypoint_names
     if missing:
-        raise DependencyNotFound("Entrypoint(s) '{}' not found on {}.".format(
+        raise ExtensionNotFound("Entrypoint(s) '{}' not found on {}.".format(
             missing, container))
 
-    for dependency in entrypoint_deps:
-        if dependency.method_name not in entrypoints:
-            container.extensions.remove(dependency)
+    for entrypoint in entrypoint_deps:
+        if entrypoint.method_name not in entrypoints:
+            container.entrypoints.remove(entrypoint)
 
 
 class Once(Entrypoint):

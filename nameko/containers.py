@@ -17,11 +17,10 @@ from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
 
 from nameko.extensions import (
-    ExtensionSet, is_entrypoint, is_injection_provider,
-    ENTRYPOINT_EXTENSIONS_ATTR)
+    is_injection_provider, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
-from nameko.utils import repr_safe_str
+from nameko.utils import repr_safe_str, SpawningSet
 
 
 _log = getLogger(__name__)
@@ -128,20 +127,24 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
-        self.extensions = ExtensionSet()
+        self.entrypoints = SpawningSet()
+        self.dependencies = SpawningSet()
+        self.subextensions = SpawningSet()
 
         for attr_name, dependency in inspect.getmembers(
                 service_cls, is_injection_provider):
-            self.extensions.update(
-                dependency.clone(self).bind(self.service_name, attr_name)
-            )
+            clone = dependency.clone(self)
+            clone.bind(self.service_name, attr_name)
+            self.dependencies.add(clone)
+            self.subextensions.update(iter_extensions(clone))
 
         for name, attr in inspect.getmembers(service_cls, inspect.ismethod):
             entrypoints = getattr(attr, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
-                self.extensions.update(
-                    entrypoint.clone(self).bind(self.service_name, name)
-                )
+                clone = entrypoint.clone(self)
+                clone.bind(self.service_name, name)
+                self.entrypoints.add(clone)
+                self.subextensions.update(iter_extensions(clone))
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -152,12 +155,8 @@ class ServiceContainer(object):
         self._died = Event()
 
     @property
-    def entrypoints(self):
-        return filter(is_entrypoint, self.extensions)
-
-    @property
-    def injections(self):
-        return filter(is_injection_provider, self.extensions)
+    def extensions(self):
+        return self.entrypoints | self.dependencies | self.subextensions
 
     @property
     def interface(self):
@@ -211,22 +210,21 @@ class ServiceContainer(object):
         _log.debug('stopping %s', self)
 
         with _log_time('stopped %s', self):
-            dependencies = self.extensions
 
             # entrypoint deps have to be stopped before injection deps
             # to ensure that running workers can successfully complete
-            dependencies.entrypoints.all.stop()
+            self.entrypoints.all.stop()
 
             # there might still be some running workers, which we have to
-            # wait for to complete before we can stop injection dependencies
+            # wait for to complete before we can stop dependencies
             self._worker_pool.waitall()
 
-            # it should be safe now to stop any injection as there is no
+            # it should be safe now to stop any dependency as there is no
             # active worker which could be using it
-            dependencies.injections.all.stop()
+            self.dependencies.all.stop()
 
-            # finally, stop remaining dependencies
-            dependencies.other.all.stop()
+            # finally, stop remaining extensions
+            self.subextensions.all.stop()
 
             # just in case there was a provider not taking care of its workers,
             # or an extension not taking care of its protected threads
@@ -269,17 +267,17 @@ class ServiceContainer(object):
         else:
             _log.info('killing %s', self)
 
-        # protect against dependencies that throw during kill; the container
+        # protect against extensions that throw during kill; the container
         # is already dying with an exception, so ignore anything else
-        def safely_kill_dependencies(dep_set):
+        def safely_kill_extensions(ext_set):
             try:
-                dep_set.kill()
+                ext_set.kill()
             except Exception as exc:
-                _log.warning('Dependency raised `%s` during kill', exc)
+                _log.warning('Extension raised `%s` during kill', exc)
 
-        safely_kill_dependencies(self.extensions.entrypoints.all)
+        safely_kill_extensions(self.entrypoints.all)
         self._kill_active_threads()
-        safely_kill_dependencies(self.extensions.all)
+        safely_kill_extensions(self.extensions.all)
         self._kill_protected_threads()
 
         self.started = False
@@ -292,8 +290,9 @@ class ServiceContainer(object):
         raise it.
 
         Any unhandled exception raised in a managed thread or in the
-        life-cycle management code also causes the container to be
-        ``kill()``ed, which causes an exception to be raised from ``wait()``.
+        worker lifecycle (e.g. inside :meth:`InjectionProvider.worker_setup`)
+        results in the container being ``kill()``ed, and the exception
+        raised from ``wait()``.
         """
         return self._died.wait()
 
@@ -333,8 +332,8 @@ class ServiceContainer(object):
         """ Spawn a managed thread to run ``run_method``.
 
         Threads can be marked as ``protected``, which means the container will
-        not forcibly kill them until after all dependencies have been killed.
-        Dependencies that require a managed thread to complete their kill
+        not forcibly kill them until after all extensions have been killed.
+        Extensions that require a managed thread to complete their kill
         procedure should ensure to mark them as ``protected``.
 
         Any uncaught errors inside ``run_method`` cause the container to be
@@ -342,10 +341,9 @@ class ServiceContainer(object):
 
         It is the caller's responsibility to terminate their spawned threads.
         Threads are killed automatically if they are still running after
-        all dependencies are stopped during :meth:`ServiceContainer.stop`.
+        all extensions are stopped during :meth:`ServiceContainer.stop`.
 
-        Entrypoints may only create separate threads using this method,
-        to ensure they are life-cycle managed.
+        Extensions should delegate all thread spawning to the container.
         """
         gt = eventlet.spawn(run_method)
         if not protected:
@@ -365,11 +363,11 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            for dependency in self.injections:
-                inj = dependency.acquire_injection(worker_ctx)
-                setattr(worker_ctx.service, dependency.attr_name, inj)
+            for dependency in self.dependencies:
+                injection = dependency.acquire_injection(worker_ctx)
+                setattr(worker_ctx.service, dependency.attr_name, injection)
 
-            self.extensions.injections.all.worker_setup(worker_ctx)
+            self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc_info = None
             method_name = worker_ctx.provider.method_name
@@ -395,7 +393,7 @@ class ServiceContainer(object):
             with _log_time('tore down worker %s', worker_ctx):
 
                 _log.debug('signalling result for %s', worker_ctx)
-                self.extensions.injections.all.worker_result(
+                self.dependencies.all.worker_result(
                     worker_ctx, result, exc_info)
 
                 # we don't need this any more, and breaking the cycle means
@@ -403,7 +401,7 @@ class ServiceContainer(object):
                 # gc sweep
                 del exc_info
 
-                self.extensions.injections.all.worker_teardown(worker_ctx)
+                self.dependencies.all.worker_teardown(worker_ctx)
                 # release?
 
     def _kill_active_threads(self):

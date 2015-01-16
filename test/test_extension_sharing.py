@@ -3,7 +3,7 @@ from collections import defaultdict
 from mock import call
 
 from nameko.extensions import InjectionProvider, SharedExtension, Extension
-from nameko.testing.utils import get_dependency
+from nameko.testing.utils import get_extension
 
 
 class CallCollectorMixin(object):
@@ -60,8 +60,8 @@ def test_custom_sharing_key(container_factory):
     assert len(CallCollectorMixin.calls[SimpleInjection]['start']) == 2
     assert len(CallCollectorMixin.calls[CustomSharedExtension]['start']) == 2
 
-    inj_1 = get_dependency(container, SimpleInjection, attr_name="inj_1")
-    inj_2 = get_dependency(container, SimpleInjection, attr_name="inj_2")
+    inj_1 = get_extension(container, SimpleInjection, attr_name="inj_1")
+    inj_2 = get_extension(container, SimpleInjection, attr_name="inj_2")
 
     assert inj_1.ext_a != inj_1.ext_b
     assert inj_1.ext_a is inj_2.ext_a
@@ -111,6 +111,6 @@ def test_shared_extension_uniqueness(container_factory):
     assert c1.service_cls.inj_1.ext == c2.service_cls.inj_1.ext
 
     # extension instances are different between containers
-    shared_1 = get_dependency(c1, SimpleSharedExtension)
-    shared_2 = get_dependency(c2, SimpleSharedExtension)
+    shared_1 = get_extension(c1, SimpleSharedExtension)
+    shared_2 = get_extension(c2, SimpleSharedExtension)
     assert shared_1 is not shared_2

@@ -6,7 +6,7 @@ from sqlalchemy.orm.session import Session
 
 from nameko.contrib.sqlalchemy import OrmSession, ORM_DB_URIS_KEY
 from nameko.containers import WorkerContext
-from nameko.testing.utils import DummyProvider, get_dependency
+from nameko.testing.utils import DummyProvider, get_extension
 
 CONCURRENT_REQUESTS = 10
 
@@ -58,7 +58,7 @@ def test_db(container_factory):
 
     container = container_factory(FooService, config)
     container.start()
-    orm_session = get_dependency(container, OrmSession)
+    orm_session = get_extension(container, OrmSession)
 
     # fake instance creation and provider injection
     service = FooService()

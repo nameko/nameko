@@ -4,7 +4,7 @@ import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.exceptions import RemoteError, ContainerBeingKilled
-from nameko.legacy.dependencies import (
+from nameko.legacy.extensions import (
     rpc, NovaRpc, NovaResponder, NovaRpcConsumer)
 from nameko.legacy.proxy import RPCProxy
 from nameko.messaging import AMQP_URI_CONFIG_KEY
@@ -19,7 +19,7 @@ class NovaService(object):
 
 @pytest.yield_fixture
 def mock_publish():
-    path = 'nameko.legacy.dependencies.producers'
+    path = 'nameko.legacy.extensions.producers'
     with patch(path) as patched:
         publish = patched[ANY].acquire().__enter__().publish
         yield publish

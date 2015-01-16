@@ -19,7 +19,7 @@ from nameko.rpc import (
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import (
-    get_dependency, wait_for_call, wait_for_worker_idle)
+    get_extension, wait_for_call, wait_for_worker_idle)
 
 
 class ExampleError(Exception):
@@ -221,10 +221,10 @@ def test_reply_listener(get_rpc_exchange, queue_consumer):
 def test_expected_exceptions(rabbit_config):
     container = ServiceContainer(ExampleService, WorkerContext, rabbit_config)
 
-    broken = get_dependency(container, Rpc, method_name="broken")
+    broken = get_extension(container, Rpc, method_name="broken")
     assert broken.expected_exceptions == ExampleError
 
-    very_broken = get_dependency(container, Rpc, method_name="very_broken")
+    very_broken = get_extension(container, Rpc, method_name="very_broken")
     assert very_broken.expected_exceptions == (KeyError, ValueError)
 
 
@@ -236,7 +236,7 @@ def test_expected_exceptions_integration(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    worker_logger = get_dependency(container, WorkerErrorLogger)
+    worker_logger = get_extension(container, WorkerErrorLogger)
 
     with entrypoint_hook(container, 'broken') as broken:
         with pytest.raises(ExampleError):
@@ -328,7 +328,7 @@ def test_rpc_headers(container_factory, rabbit_config):
     }
 
     headers = {}
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(
@@ -364,7 +364,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     }
 
     headers = {}
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(
@@ -570,7 +570,7 @@ def test_rpc_container_being_killed_retries(
 
     container._being_killed = True
 
-    rpc_provider = get_dependency(container, Rpc, method_name='task_a')
+    rpc_provider = get_extension(container, Rpc, method_name='task_a')
 
     with patch.object(
         rpc_provider,
@@ -596,10 +596,10 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, Rpc, method_name="task_a")
+    task_a = get_extension(container, Rpc, method_name="task_a")
     task_a_stop = task_a.stop
 
-    task_b = get_dependency(container, Rpc, method_name="task_b")
+    task_b = get_extension(container, Rpc, method_name="task_b")
     task_b_stop = task_b.stop
 
     task_a_stopped = Event()
@@ -637,7 +637,7 @@ def test_rpc_consumer_cannot_exit_with_providers(
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, Rpc, method_name="task_a")
+    task_a = get_extension(container, Rpc, method_name="task_a")
 
     def never_stops():
         while True:

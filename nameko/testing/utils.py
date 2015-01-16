@@ -15,22 +15,22 @@ from nameko.containers import WorkerContextBase
 from nameko.extensions import Entrypoint
 
 
-def get_dependency(container, extension_cls, **match_attrs):
+def get_extension(container, extension_cls, **match_attrs):
     """ Inspect ``container.extensions`` and return the first item that is
-    an instance of ``dependency_cls``.
+    an instance of ``extension_cls``.
 
     Optionally also require that the instance has an attribute with a
     particular value as given in the ``match_attrs`` kwargs.
     """
-    for dep in container.extensions:
-        if isinstance(dep, extension_cls):
+    for ext in container.extensions:
+        if isinstance(ext, extension_cls):
             if not match_attrs:
-                return dep
+                return ext
 
-            has_attribute = lambda name, value: getattr(dep, name) == value
+            has_attribute = lambda name, value: getattr(ext, name) == value
             if all([has_attribute(name, value)
                     for name, value in match_attrs.items()]):
-                return dep
+                return ext
 
 
 def get_container(runner, service_cls):
