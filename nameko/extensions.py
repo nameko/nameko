@@ -73,20 +73,26 @@ class Extension(object):
         swallow the exception to allow the container kill to continue.
         """
 
-    def clone(self, container):
-        if self.is_clone:
-            raise RuntimeError('Cloned extensions cannot be cloned.')
+    def bind(self, container):
+        """ Get an instance of this Extension to bind to `container`.
+        """
 
-        cls = type(self)
-        args, kwargs = self.__params
-        instance = cls(*args, **kwargs)
-        instance.container = container
-        instance.__clone = True
+        def clone(prototype):
+            if prototype.is_clone:
+                raise RuntimeError('Cloned extensions cannot be cloned.')
 
-        # recursive over sub-extensions
-        for ext_name, ext in inspect.getmembers(self, is_extension):
-            setattr(instance, ext_name, ext.clone(container))
+            cls = type(prototype)
+            args, kwargs = prototype.__params
+            instance = cls(*args, **kwargs)
+            instance.container = container
+            instance.__clone = True
+            return instance
 
+        instance = clone(self)
+
+        # recurse over sub-extensions
+        for name, ext in inspect.getmembers(self, is_extension):
+            setattr(instance, name, ext.bind(container))
         return instance
 
     @property
@@ -108,8 +114,8 @@ class SharedExtension(Extension):
     def sharing_key(self):
         return type(self)
 
-    def clone(self, container):
-        """ Clone implementation that supports sharing.
+    def bind(self, container):
+        """ Bind implementation that supports sharing.
         """
         # if there's already a cloned instance, return that
         shared_extensions.setdefault(container, {})
@@ -117,7 +123,7 @@ class SharedExtension(Extension):
         if shared:
             return shared
 
-        instance = super(SharedExtension, self).clone(container)
+        instance = super(SharedExtension, self).bind(container)
 
         # save the new instance
         shared_extensions[container][self.sharing_key] = instance
@@ -134,7 +140,7 @@ class Dependency(Extension):
         """ Get an instance of this Dependency to bind to `container` with
         `attr_name`.
         """
-        instance = self.clone(container)
+        instance = super(Dependency, self).bind(container)
         instance.service_name = container.service_name
         instance.attr_name = attr_name
         return instance
@@ -258,7 +264,7 @@ class Entrypoint(Extension):
         """ Get an instance of this Entrypoint to bind to `container` with
         `method_name`.
         """
-        instance = self.clone(container)
+        instance = super(Entrypoint, self).bind(container)
         instance.service_name = container.service_name
         instance.method_name = method_name
         return instance

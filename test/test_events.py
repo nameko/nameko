@@ -20,8 +20,8 @@ EVENTS_TIMEOUT = 5
 @pytest.yield_fixture
 def queue_consumer():
     queue_consumer = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'clone') as clone:
-        clone.return_value = queue_consumer
+    with patch.object(QueueConsumer, 'bind') as bind:
+        bind.return_value = queue_consumer
         yield queue_consumer
 
 

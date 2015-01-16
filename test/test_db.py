@@ -39,7 +39,7 @@ def test_concurrency():
     service_instance = Mock()
 
     def inject(worker_ctx):
-        orm_session = OrmSession(DeclBase).clone(container)
+        orm_session = OrmSession(DeclBase).bind(container, "session")
         orm_session.setup(container)
         return orm_session.acquire_injection(worker_ctx)
 

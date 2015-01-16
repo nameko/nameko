@@ -50,7 +50,7 @@ def test_lifecycle(rabbit_manager, rabbit_config):
     container.max_workers = 3
     container.spawn_managed_thread.side_effect = spawn_thread
 
-    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer = QueueConsumer().bind(container)
 
     handler = MessageHandler()
 
@@ -98,7 +98,7 @@ def test_reentrant_start_stops():
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup(container)
 
     queue_consumer.start()
@@ -128,7 +128,7 @@ def test_stop_while_starting(rabbit_config):
             started.reset()
             return super(BrokenConnConsumer, self).consume(*args, **kwargs)
 
-    queue_consumer = BrokenConnConsumer().clone(container)
+    queue_consumer = BrokenConnConsumer().bind(container)
     queue_consumer.setup(container)
 
     handler = MessageHandler()
@@ -164,7 +164,7 @@ def test_error_stops_consumer_thread():
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup(container)
 
     handler = MessageHandler()
@@ -188,7 +188,7 @@ def test_on_consume_error_kills_consumer():
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup(container)
 
     handler = MessageHandler()
@@ -211,7 +211,7 @@ def test_reconnect_on_socket_error(rabbit_config):
 
     connection_revived = Mock()
 
-    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup(container)
 
     queue_consumer.on_connection_revived = connection_revived
@@ -243,9 +243,9 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
         def sharing_key(self):
             return uuid.uuid4()
 
-    queue_consumer1 = NonShared().clone(container)
+    queue_consumer1 = NonShared().bind(container)
     queue_consumer1.setup(container)
-    queue_consumer2 = NonShared().clone(container)
+    queue_consumer2 = NonShared().bind(container)
     queue_consumer2.setup(container)
 
     consumer_continue = Event()
@@ -309,7 +309,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup(container)
 
     class Handler(object):

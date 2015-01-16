@@ -273,9 +273,7 @@ def runner_factory(rabbit_config):
 
     for r in all_runners:
         try:
-            print "stopping runner",r
             r.stop()
-            print "stopped runner", r
         except:
             pass
 
@@ -298,9 +296,7 @@ def rpc_proxy_factory(rabbit_config):
     yield make_proxy
 
     for proxy in all_proxies:
-        print "stopping", proxy
         proxy.stop()
-        print "stopped", proxy
 
 
 def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
@@ -360,7 +356,6 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
 
     # verify events fired as expected
     assert fire_event.call_count == 3
-    print "DONE"
 
 
 if __name__ == "__main__":

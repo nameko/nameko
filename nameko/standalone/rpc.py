@@ -174,7 +174,7 @@ class StandaloneProxyBase(object):
     ):
         self.container = self.ServiceContainer(config)
 
-        reply_listener = SingleThreadedReplyListener(timeout=timeout).clone(
+        reply_listener = SingleThreadedReplyListener(timeout=timeout).bind(
             self.container)
 
         self._worker_ctx = worker_ctx_cls(
