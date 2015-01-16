@@ -17,7 +17,7 @@ from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
 
 from nameko.extensions import (
-    is_injection_provider, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
+    is_dependency, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import repr_safe_str, SpawningSet
@@ -41,7 +41,7 @@ class WorkerContextBase(object):
     """
     __metaclass__ = ABCMeta
 
-    def __init__(self, container, service, provider, args=None, kwargs=None,
+    def __init__(self, container, service, entrypoint, args=None, kwargs=None,
                  data=None):
         self.container = container
         self.config = container.config  # TODO: remove?
@@ -50,7 +50,7 @@ class WorkerContextBase(object):
             PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED)
 
         self.service = service
-        self.provider = provider
+        self.entrypoint = entrypoint
         self.service_name = self.container.service_name
 
         self.args = args if args is not None else ()
@@ -60,7 +60,7 @@ class WorkerContextBase(object):
 
         self.parent_call_stack, self.unique_id = self._init_call_id()
         self.call_id = '{}.{}.{}'.format(
-            self.service_name, self.provider.method_name, self.unique_id
+            self.service_name, self.entrypoint.method_name, self.unique_id
         )
         n = -self.parent_calls_tracked
         self.call_id_stack = self.parent_call_stack[n:]
@@ -98,9 +98,9 @@ class WorkerContextBase(object):
     def __repr__(self):
         cls_name = type(self).__name__
         service_name = repr_safe_str(self.service_name)
-        provider_name = repr_safe_str(self.provider.method_name)
+        method_name = repr_safe_str(self.entrypoint.method_name)
         return '<{} [{}.{}] at 0x{:x}>'.format(
-            cls_name, service_name, provider_name, id(self))
+            cls_name, service_name, method_name, id(self))
 
     def _init_call_id(self):
         parent_call_stack = self.data.pop(CALL_ID_STACK_CONTEXT_KEY, [])
@@ -131,8 +131,8 @@ class ServiceContainer(object):
         self.dependencies = SpawningSet()
         self.subextensions = SpawningSet()
 
-        for attr_name, dependency in inspect.getmembers(
-                service_cls, is_injection_provider):
+        for attr_name, dependency in inspect.getmembers(service_cls,
+                                                        is_dependency):
             clone = dependency.clone(self)
             clone.bind(self.service_name, attr_name)
             self.dependencies.add(clone)
@@ -179,7 +179,7 @@ class ServiceContainer(object):
         First all entrypoints are asked to ``stop()``.
         This ensures that no new worker threads are started.
 
-        It is the providers' responsibility to gracefully shut down when
+        It is the extensions' responsibility to gracefully shut down when
         ``stop()`` is called on them and only return when they have stopped.
 
         After all entrypoints have stopped the container waits for any
@@ -211,8 +211,8 @@ class ServiceContainer(object):
 
         with _log_time('stopped %s', self):
 
-            # entrypoint deps have to be stopped before injection deps
-            # to ensure that running workers can successfully complete
+            # entrypoint have to be stopped before dependencies to ensure
+            # that running workers can successfully complete
             self.entrypoints.all.stop()
 
             # there might still be some running workers, which we have to
@@ -226,8 +226,8 @@ class ServiceContainer(object):
             # finally, stop remaining extensions
             self.subextensions.all.stop()
 
-            # just in case there was a provider not taking care of its workers,
-            # or an extension not taking care of its protected threads
+            # just in case there was an entrypoint not taking care of its
+            # workers, or an extension not taking care of its managed threads
             self._kill_active_threads()
             self._kill_protected_threads()
 
@@ -290,16 +290,16 @@ class ServiceContainer(object):
         raise it.
 
         Any unhandled exception raised in a managed thread or in the
-        worker lifecycle (e.g. inside :meth:`InjectionProvider.worker_setup`)
+        worker lifecycle (e.g. inside :meth:`Dependency.worker_setup`)
         results in the container being ``kill()``ed, and the exception
         raised from ``wait()``.
         """
         return self._died.wait()
 
-    def spawn_worker(self, provider, args, kwargs,
+    def spawn_worker(self, entrypoint, args, kwargs,
                      context_data=None, handle_result=None):
         """ Spawn a worker thread for running the service method decorated
-        with an entrypoint ``provider``.
+        with by `entrypoint`.
 
         ``args`` and ``kwargs`` are used as arguments for the service
         method.
@@ -307,7 +307,7 @@ class ServiceContainer(object):
         ``context_data`` is used to initialize a ``WorkerContext``.
 
         ``handle_result`` is an optional function which may be passed
-        in by the entrypoint provider. It is called with the result returned
+        in by the entrypoint. It is called with the result returned
         or error raised by the service method. If provided it must return a
         value for ``result`` and ``exc_info`` to propagate to dependencies;
         these may be different to those returned by the service method.
@@ -319,12 +319,12 @@ class ServiceContainer(object):
 
         service = self.service_cls()
         worker_ctx = self.worker_ctx_cls(
-            self, service, provider, args, kwargs, data=context_data)
+            self, service, entrypoint, args, kwargs, data=context_data)
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(self._run_worker, worker_ctx,
                                      handle_result)
-        self._active_threads[gt] = provider
+        self._active_threads[gt] = entrypoint
         gt.link(self._handle_thread_exited)
         return worker_ctx
 
@@ -370,7 +370,7 @@ class ServiceContainer(object):
             self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc_info = None
-            method_name = worker_ctx.provider.method_name
+            method_name = worker_ctx.entrypoint.method_name
             method = getattr(worker_ctx.service, method_name)
             try:
 
@@ -417,9 +417,9 @@ class ServiceContainer(object):
 
         if num_active_threads:
             _log.warning('killing %s active thread(s)', num_active_threads)
-            for gt, provider in list(self._active_threads.items()):
-                if provider is not MANAGED_THREAD:
-                    _log.warning('killing active thread for %s', provider)
+            for gt, extension in list(self._active_threads.items()):
+                if extension is not MANAGED_THREAD:
+                    _log.warning('killing active thread for %s', extension)
                 gt.kill()
 
     def _kill_protected_threads(self):
@@ -445,14 +445,14 @@ class ServiceContainer(object):
 
         except GreenletExit:
             # we don't care much about threads killed by the container
-            # this can happen in stop() and kill() if providers
+            # this can happen in stop() and kill() if extensions
             # don't properly take care of their threads
             _log.warning('%s thread killed by container', self)
 
         except Exception:
             _log.error('%s thread exited with error', self, exc_info=True)
             # any error raised inside an active thread is unexpected behavior
-            # and probably a bug in the providers or container.
+            # and probably a bug in the extension or container.
             # to be safe we call self.kill() to kill our dependencies and
             # provide the exception info to be raised in self.wait().
             self.kill(sys.exc_info())

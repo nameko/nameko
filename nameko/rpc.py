@@ -18,7 +18,7 @@ from nameko.exceptions import (
 from nameko.messaging import (
     QueueConsumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
 from nameko.extensions import (
-    InjectionProvider, Entrypoint, ProviderCollector, SharedExtension)
+    Dependency, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
 from nameko.utils import repr_safe_str
 
@@ -136,9 +136,9 @@ class Rpc(Entrypoint, HeaderDecoder):
 
         :Parameters:
             expected_exceptions : exception class or tuple of exception classes
-                Stashed on the provider instance for later inspection by other
-                dependencies in the worker lifecycle. Use for exceptions caused
-                by the caller (e.g. bad arguments).
+                Stashed on the entrypoint instance for later inspection by
+                other extensions in the worker lifecycle. Use for exceptions
+                caused by the caller (e.g. bad arguments).
         """
         self.expected_exceptions = expected_exceptions
 
@@ -296,7 +296,7 @@ class ReplyListener(SharedExtension):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-class RpcProxy(InjectionProvider):
+class RpcProxy(Dependency):
 
     rpc_reply_listener = ReplyListener()
 

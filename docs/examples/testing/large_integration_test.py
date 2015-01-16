@@ -18,7 +18,7 @@ from collections import defaultdict
 
 import pytest
 
-from nameko.extensions import InjectionProvider
+from nameko.extensions import Dependency
 from nameko.events import EventDispatcher, Event, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, RpcProxy
@@ -41,7 +41,7 @@ class ItemDoesNotExist(Exception):
     pass
 
 
-class ShoppingBasket(InjectionProvider):
+class ShoppingBasket(Dependency):
     """ A shopping basket tied to the current ``user_id``.
     """
     def __init__(self):
@@ -125,7 +125,7 @@ class AcmeShopService(object):
         return total_price
 
 
-class Warehouse(InjectionProvider):
+class Warehouse(Dependency):
     """ A database of items in the warehouse.
 
     This is a toy example! A dictionary is not a database.
@@ -197,7 +197,7 @@ class StockService(object):
         raise NotImplemented()
 
 
-class AddressBook(InjectionProvider):
+class AddressBook(Dependency):
     """ A database of user details, keyed on user_id.
     """
     def __init__(self):
@@ -310,7 +310,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     to be running. Explicitly replaces the rpc proxy to PaymentService so
     that service doesn't need to be hosted.
 
-    Also replaces the event dispatcher injection on AcmeShopService and
+    Also replaces the event dispatcher dependency on AcmeShopService and
     disables the timer entrypoint on StockService. Limiting the interactions
     of services in this way reduces the scope of the integration test and
     eliminates undesirable side-effects (e.g. processing events unnecessarily).

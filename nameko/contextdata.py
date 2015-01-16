@@ -2,10 +2,10 @@ from nameko.constants import (
     LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
     AUTH_TOKEN_CONTEXT_KEY,
 )
-from nameko.extensions import InjectionProvider
+from nameko.extensions import Dependency
 
 
-class ContextDataProvider(InjectionProvider):
+class ContextDataProvider(Dependency):
     context_key = None
 
     def acquire_injection(self, worker_ctx):

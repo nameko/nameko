@@ -9,7 +9,7 @@ import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.extensions import InjectionProvider, Entrypoint
+from nameko.extensions import Dependency, Entrypoint
 from nameko.testing.utils import get_extension
 
 
@@ -55,8 +55,8 @@ class CallCollectingEntrypoint(
     instances = set()
 
 
-class CallCollectingInjectionProvider(
-        CallCollectorMixin, InjectionProvider):
+class CallCollectingDependency(
+        CallCollectorMixin, Dependency):
     instances = set()
 
     def acquire_injection(self, worker_ctx):
@@ -80,7 +80,7 @@ class CallCollectingInjectionProvider(
 foobar = CallCollectingEntrypoint.entrypoint
 
 # compat
-call_collector = CallCollectingInjectionProvider
+call_collector = CallCollectingDependency
 
 egg_error = Exception('broken')
 
@@ -126,7 +126,7 @@ def test_collects_extensions(container):
     assert len(container.extensions) == 4
     assert container.extensions == (
         CallCollectingEntrypoint.instances |
-        CallCollectingInjectionProvider.instances)
+        CallCollectingDependency.instances)
 
 
 def test_starts_extensions(container):
@@ -155,7 +155,7 @@ def test_stops_extensions(container):
 def test_stops_entrypoints_before_injections(container):
     container.stop()
 
-    dependency = get_extension(container, InjectionProvider)
+    dependency = get_extension(container, Dependency)
 
     for entrypoint in container.entrypoints:
         assert entrypoint.call_ids[0] < dependency.call_ids[0]
@@ -163,7 +163,7 @@ def test_stops_entrypoints_before_injections(container):
 
 def test_worker_life_cycle(container):
 
-    spam_dep = get_extension(container, InjectionProvider)
+    spam_dep = get_extension(container, Dependency)
     ham_dep = get_extension(container, Entrypoint, method_name="ham")
     egg_dep = get_extension(container, Entrypoint, method_name="egg")
 
@@ -478,7 +478,7 @@ def test_kill_bad_dependency(container):
     """ Verify that an exception from a badly-behaved dependency.kill()
     doesn't stop the container's kill process.
     """
-    dep = get_extension(container, InjectionProvider)
+    dep = get_extension(container, Dependency)
     with patch.object(dep, 'kill') as dep_kill:
         dep_kill.side_effect = Exception('dependency error')
 

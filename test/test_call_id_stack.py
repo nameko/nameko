@@ -13,12 +13,12 @@ from nameko.testing.services import entrypoint_hook
 
 def get_logging_worker_context(stack_request):
     class LoggingWorkerContext(WorkerContext):
-        def __init__(self, container, service, provider, args=None,
+        def __init__(self, container, service, entrypoint, args=None,
                      kwargs=None, data=None):
             parent_stack = data.get('call_id_stack') if data else None
             stack_request(parent_stack)
             super(LoggingWorkerContext, self).__init__(
-                container, service, provider, args, kwargs, data
+                container, service, entrypoint, args, kwargs, data
             )
     return LoggingWorkerContext
 

@@ -17,7 +17,7 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.extensions import (
-    InjectionProvider, Entrypoint, SharedExtension, ProviderCollector)
+    Dependency, Entrypoint, SharedExtension, ProviderCollector)
 from nameko.exceptions import ContainerBeingKilled
 
 _log = getLogger(__name__)
@@ -66,7 +66,7 @@ class HeaderDecoder(object):
         return worker_ctx_cls.get_context_data(stripped)
 
 
-class Publisher(InjectionProvider, HeaderEncoder):
+class Publisher(Dependency, HeaderEncoder):
 
     amqp_uri = None
 
@@ -74,7 +74,7 @@ class Publisher(InjectionProvider, HeaderEncoder):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP messages are published to *exchanges* and routed to bound
-        *queues*. This injection accepts either an `exchange` or a bound
+        *queues*. This dependency accepts either an `exchange` or a bound
         `queue`, and will ensure both are declared before publishing.
 
         :Parameters:

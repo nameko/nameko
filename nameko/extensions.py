@@ -15,7 +15,6 @@ _log = getLogger(__name__)
 
 
 ENTRYPOINT_EXTENSIONS_ATTR = 'nameko_entrypoints'
-UNBOUND_NAME = "<unbound-extension>"
 
 shared_extensions = weakref.WeakKeyDictionary()
 
@@ -124,7 +123,7 @@ class SharedExtension(Extension):
         return instance
 
 
-class InjectionProvider(Extension):
+class Dependency(Extension):
 
     service_name = None
     attr_name = None
@@ -136,52 +135,48 @@ class InjectionProvider(Extension):
         self.attr_name = attr_name
 
     def acquire_injection(self, worker_ctx):
-        """ Called before worker execution. An InjectionProvider should return
+        """ Called before worker execution. An Dependency should return
         an object to be injected into the worker instance by the container.
         """
 
     def worker_result(self, worker_ctx, result=None, exc_info=None):
         """ Called with the result of a service worker execution.
 
-        InjectionProvider that need to process the result should do it here.
-        This method is called for all InjectionProviders on completion of any
-        worker.
+        Dependencies that need to process the result should do it here.
+        This method is called for all `Dependency` instances on completion
+        of any worker.
 
-        Example: a database session provider may flush the transaction
+        Example: a database session dependency may flush the transaction
 
-        Args:
-            - worker_ctx: see
-                ``nameko.containers.ServiceContainer.spawn_worker``
+        :Parameters:
+            worker_ctx : WorkerContext
+                See ``nameko.containers.ServiceContainer.spawn_worker``
         """
 
     def worker_setup(self, worker_ctx):
-        """ Called before a service worker executes a task. This method is
-        called for all Extensions, not just the one that triggered
-        the worker spawn.
+        """ Called before a service worker executes a task.
 
-        Extensions should do any pre-processing here, raising
-        exceptions in the event of failure.
+        Dependencies should do any pre-processing here, raising exceptions
+        in the event of failure.
 
         Example: ...
 
-        Args:
-            - worker_ctx: see
-                ``nameko.containers.ServiceContainer.spawn_worker``
+        :Parameters:
+            worker_ctx : WorkerContext
+                See ``nameko.containers.ServiceContainer.spawn_worker``
         """
 
     def worker_teardown(self, worker_ctx):
-        """ Called after a service worker has executed a task. This method is
-        called for all Extensions, not just the one that triggered
-        the worker spawn.
+        """ Called after a service worker has executed a task.
 
-        Extensions should do any post-processing here, raising
+        Dependencies should do any post-processing here, raising
         exceptions in the event of failure.
 
-        Example: a database session provider may commit the session
+        Example: a database session dependency may commit the session
 
-        Args:
-            - worker_ctx: see
-                ``nameko.containers.ServiceContainer.spawn_worker``
+        :Parameters:
+            worker_ctx : WorkerContext
+                See ``nameko.containers.ServiceContainer.spawn_worker``
         """
 
     def __repr__(self):
@@ -239,14 +234,14 @@ class ProviderCollector(object):
         self.wait_for_providers()
 
 
-def register_entrypoint(fn, provider):
+def register_entrypoint(fn, entrypoint):
     descriptors = getattr(fn, ENTRYPOINT_EXTENSIONS_ATTR, None)
 
     if descriptors is None:
         descriptors = set()
         setattr(fn, ENTRYPOINT_EXTENSIONS_ATTR, descriptors)
 
-    descriptors.add(provider)
+    descriptors.add(entrypoint)
 
 
 class Entrypoint(Extension):
@@ -298,8 +293,8 @@ def is_extension(obj):
     return isinstance(obj, Extension)
 
 
-def is_injection_provider(obj):
-    return isinstance(obj, InjectionProvider)
+def is_dependency(obj):
+    return isinstance(obj, Dependency)
 
 
 def is_entrypoint(obj):

@@ -11,7 +11,7 @@ from eventlet import event
 from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
-from nameko.extensions import InjectionProvider, Entrypoint
+from nameko.extensions import Dependency, Entrypoint
 from nameko.exceptions import ExtensionNotFound
 from nameko.testing.utils import get_extension, wait_for_worker_idle
 
@@ -32,8 +32,8 @@ def entrypoint_hook(container, method_name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = get_extension(container, Entrypoint, method_name=method_name)
-    if provider is None:
+    entrypoint = get_extension(container, Entrypoint, method_name=method_name)
+    if entrypoint is None:
         raise ExtensionNotFound(
             "No entrypoint for '{}' found on container {}.".format(
                 method_name, container))
@@ -45,11 +45,11 @@ def entrypoint_hook(container, method_name, context_data=None):
             result.send(res, exc_info)
             return res, exc_info
 
-        container.spawn_worker(provider, args, kwargs,
+        container.spawn_worker(entrypoint, args, kwargs,
                                context_data=context_data,
                                handle_result=handle_result)
 
-        # If the container errors (e.g. due to a bad provider), handle_result
+        # If the container errors (e.g. due to a bad entrypoint), handle_result
         # is never called and we hang. To mitigate, we spawn a greenlet waiting
         # for the container, and if that throws we send the exception back
         # as our result
@@ -67,7 +67,7 @@ def entrypoint_hook(container, method_name, context_data=None):
     yield hook
 
 
-class EntrypointWaiter(InjectionProvider):
+class EntrypointWaiter(Dependency):
     """Helper for `entrypoint_waiter`
 
     Injection to be manually (and temporarily) added to an existing container.
@@ -81,8 +81,8 @@ class EntrypointWaiter(InjectionProvider):
         self.done = Semaphore(value=0)
 
     def worker_teardown(self, worker_ctx):
-        provider = worker_ctx.provider
-        if provider.method_name == self.entrypoint:
+        entrypoint = worker_ctx.entrypoint
+        if entrypoint.method_name == self.entrypoint:
             self.done.release()
 
     def wait(self):
@@ -182,7 +182,7 @@ def worker_factory(service_cls, **injections):
     """
     service = service_cls()
     for name, attr in inspect.getmembers(service_cls):
-        if isinstance(attr, InjectionProvider):
+        if isinstance(attr, Dependency):
             try:
                 injection = injections.pop(name)
             except KeyError:
@@ -196,7 +196,7 @@ def worker_factory(service_cls, **injections):
     return service
 
 
-class MockInjection(InjectionProvider):
+class MockInjection(Dependency):
     def __init__(self, name):
         self.attr_name = name
         self.injection = MagicMock()

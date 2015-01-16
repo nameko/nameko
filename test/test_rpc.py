@@ -7,7 +7,7 @@ import pytest
 
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
-from nameko.extensions import InjectionProvider
+from nameko.extensions import Dependency
 from nameko.events import event_handler
 from nameko.exceptions import (
     RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
@@ -33,7 +33,7 @@ translations = {
 }
 
 
-class Translator(InjectionProvider):
+class Translator(Dependency):
 
     def acquire_injection(self, worker_ctx):
         def translate(value):
@@ -42,7 +42,7 @@ class Translator(InjectionProvider):
         return translate
 
 
-class WorkerErrorLogger(InjectionProvider):
+class WorkerErrorLogger(Dependency):
 
     expected = {}
     unexpected = {}
@@ -53,12 +53,12 @@ class WorkerErrorLogger(InjectionProvider):
 
         exc = exc_info[1]
         expected_exceptions = getattr(
-            worker_ctx.provider, 'expected_exceptions', ())
+            worker_ctx.entrypoint, 'expected_exceptions', ())
 
         if isinstance(exc, expected_exceptions):
-            self.expected[worker_ctx.provider.method_name] = type(exc)
+            self.expected[worker_ctx.entrypoint.method_name] = type(exc)
         else:
-            self.unexpected[worker_ctx.provider.method_name] = type(exc)
+            self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
 
 
 class CustomWorkerContext(WorkerContextBase):

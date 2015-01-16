@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from mock import call
 
-from nameko.extensions import InjectionProvider, SharedExtension, Extension
+from nameko.extensions import Dependency, SharedExtension, Extension
 from nameko.testing.utils import get_extension
 
 
@@ -20,7 +20,7 @@ def test_simple_sharing(container_factory):
     class SimpleSharedExtension(CallCollectorMixin, SharedExtension):
         pass
 
-    class SimpleInjection(CallCollectorMixin, InjectionProvider):
+    class SimpleInjection(CallCollectorMixin, Dependency):
         ext = SimpleSharedExtension()
 
     class Service(object):
@@ -45,7 +45,7 @@ def test_custom_sharing_key(container_factory):
         def sharing_key(self):
             return (type(self), self.arg)
 
-    class SimpleInjection(CallCollectorMixin, InjectionProvider):
+    class SimpleInjection(CallCollectorMixin, Dependency):
         ext_a = CustomSharedExtension("a")
         ext_b = CustomSharedExtension("b")
 
@@ -76,7 +76,7 @@ def test_shared_intermediate(container_factory):
     class SharedIntermediate(CallCollectorMixin, SharedExtension):
         ext = DedicatedExtension()
 
-    class SimpleInjection(CallCollectorMixin, InjectionProvider):
+    class SimpleInjection(CallCollectorMixin, Dependency):
         ext = SharedIntermediate()
 
     class Service(object):
@@ -97,7 +97,7 @@ def test_shared_extension_uniqueness(container_factory):
     class SimpleSharedExtension(CallCollectorMixin, SharedExtension):
         pass
 
-    class SimpleInjection(CallCollectorMixin, InjectionProvider):
+    class SimpleInjection(CallCollectorMixin, Dependency):
         ext = SimpleSharedExtension()
 
     class Service(object):

@@ -60,7 +60,7 @@ def test_db(container_factory):
     container.start()
     orm_session = get_extension(container, OrmSession)
 
-    # fake instance creation and provider injection
+    # fake instance creation and dependency injection
     service = FooService()
     worker_ctx = WorkerContext(container, service, DummyProvider())
     service.session = orm_session.acquire_injection(worker_ctx)

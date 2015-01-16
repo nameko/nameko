@@ -23,13 +23,13 @@ class CustomWorkerContext(WorkerContext):
 
 class Service(object):
 
-    # builtin context data providers
+    # builtin context data dependencies
     auth_token = AuthToken()
     language = Language()
     user_id = UserId()
     user_agent = UserAgent()
 
-    # custom context data provider
+    # custom context data dependency
     custom_value = CustomValue()
 
 
@@ -39,34 +39,34 @@ def container():
 
 
 def test_get_custom_context_value(container):
-    provider = get_extension(
+    dependency = get_extension(
         container, ContextDataProvider, attr_name="custom_value")
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={CUSTOM_CONTEXT_KEY: "hello"})
 
-    assert provider.acquire_injection(worker_ctx) == "hello"
+    assert dependency.acquire_injection(worker_ctx) == "hello"
 
 
 def test_get_unset_value(container):
-    provider = get_extension(
+    dependency = get_extension(
         container, ContextDataProvider, attr_name="custom_value")
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={})
 
-    assert provider.acquire_injection(worker_ctx) is None
+    assert dependency.acquire_injection(worker_ctx) is None
 
 
-@pytest.mark.parametrize('provider_name, context_key', [
+@pytest.mark.parametrize('attr_name, context_key', [
     ('auth_token', AUTH_TOKEN_CONTEXT_KEY),
     ('language', LANGUAGE_CONTEXT_KEY),
     ('user_id', USER_ID_CONTEXT_KEY),
     ('user_agent', USER_AGENT_CONTEXT_KEY),
 
 ])
-def test_get_builtin_providers(provider_name, context_key, container):
-    provider = get_extension(
-        container, ContextDataProvider, attr_name=provider_name)
+def test_get_builtin_dependencies(attr_name, context_key, container):
+    dependency = get_extension(
+        container, ContextDataProvider, attr_name=attr_name)
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={context_key: 'value'})
 
-    assert provider.acquire_injection(worker_ctx) == "value"
+    assert dependency.acquire_injection(worker_ctx) == "value"

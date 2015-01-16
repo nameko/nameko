@@ -182,7 +182,7 @@ class StandaloneProxyBase(object):
             self.container)
 
         self._worker_ctx = worker_ctx_cls(
-            self.container, service=None, provider=self.Dummy,
+            self.container, service=None, entrypoint=self.Dummy,
             data=context_data)
         self._reply_listener = reply_listener
 

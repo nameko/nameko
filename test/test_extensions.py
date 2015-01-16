@@ -1,7 +1,11 @@
+# coding: utf-8
+
 from mock import Mock
 import pytest
 
-from nameko.extensions import Extension, Entrypoint, InjectionProvider
+from nameko.extensions import (
+    Extension, Entrypoint, Dependency,
+    is_dependency, is_entrypoint, is_extension)
 from nameko.testing.utils import get_extension
 
 
@@ -9,7 +13,7 @@ class SimpleExtension(Extension):
     pass
 
 
-class SimpleInjection(InjectionProvider):
+class SimpleDependency(Dependency):
     ext = SimpleExtension()
 
 
@@ -20,7 +24,7 @@ simple = SimpleEntrypoint.entrypoint
 
 
 class Service(object):
-    inj = SimpleInjection()
+    inj = SimpleDependency()
 
     @simple
     def meth1(self):
@@ -51,7 +55,7 @@ def test_entrypoint_uniqueness(container_factory):
     assert simple_meth1 != simple_meth2
 
 
-def test_injection_uniqueness(container_factory):
+def test_dependency_uniqueness(container_factory):
     c1 = container_factory(Service, config={})
     c2 = container_factory(Service, config={})
 
@@ -59,21 +63,21 @@ def test_injection_uniqueness(container_factory):
     assert c1.service_cls.inj == c2.service_cls.inj
 
     # injection instances are different between containers
-    inj1 = get_extension(c1, SimpleInjection)
-    inj2 = get_extension(c2, SimpleInjection)
+    inj1 = get_extension(c1, SimpleDependency)
+    inj2 = get_extension(c2, SimpleDependency)
     assert inj1 != inj2
 
 
 def test_extension_uniqueness(container_factory):
     c1 = container_factory(Service, config={})
     c2 = container_factory(Service, config={})
-    inj1 = get_extension(c1, SimpleInjection)
-    inj2 = get_extension(c2, SimpleInjection)
+    inj1 = get_extension(c1, SimpleDependency)
+    inj2 = get_extension(c2, SimpleDependency)
 
     # extension declarations are identical between containers
     assert c1.service_cls.inj.ext == c2.service_cls.inj.ext
 
-    # extension instances are different between injections
+    # extension instances are different between dependencies
     assert inj1 != inj2
     assert inj1.ext != inj2.ext
 
@@ -104,7 +108,7 @@ def test_extension_defined_on_instance(container_factory):
         def __init__(self, arg):
             self.arg = arg
 
-    class DynamicInjection(InjectionProvider):
+    class DynamicInjection(Dependency):
         def __init__(self, ext_arg):
             self.ext = ExtensionWithParams(ext_arg)
 
@@ -117,3 +121,65 @@ def test_extension_defined_on_instance(container_factory):
     assert len(container.extensions) == 2
     dyn_inj = get_extension(container, DynamicInjection)
     assert dyn_inj.ext.arg == "argument_for_extension"
+
+
+def test_is_extension():
+    ext = SimpleExtension()
+    assert is_extension(ext)
+
+
+def test_is_dependency():
+    dep = SimpleDependency()
+    assert is_dependency(dep)
+
+
+def test_is_entrypoint():
+    entry = SimpleEntrypoint()
+    assert is_entrypoint(entry)
+
+
+def test_entrypoint_decorator_does_not_mutate_service():
+
+    class Service():
+        @simple
+        def echo(self, arg):
+            return arg
+
+    service = Service()
+    assert service.echo(1) == 1
+
+
+def test_extension_str():
+    container = Mock()
+
+    ext = Extension()
+    assert str(ext).startswith('<Extension [declaration] at')
+
+    clone = ext.clone(container)
+    assert str(clone).startswith("<Extension at")
+
+
+def test_entrypoint_str():
+    container = Mock()
+
+    ext = Entrypoint()
+    assert str(ext).startswith('<Entrypoint [declaration] at')
+
+    clone = ext.clone(container)
+    assert str(clone).startswith("<Entrypoint [unbound] at")
+
+    clone.bind("sérvice", "føbar")
+    assert str(clone).startswith("<Entrypoint [sérvice.føbar] at")
+
+
+def test_dependency_str():
+    container = Mock()
+
+    ext = Dependency()
+    assert str(ext).startswith('<Dependency [declaration] at')
+
+    clone = ext.clone(container)
+    assert str(clone).startswith("<Dependency [unbound] at")
+
+    clone.bind("sérvice", "føbar")
+    assert str(clone).startswith("<Dependency [sérvice.føbar] at")

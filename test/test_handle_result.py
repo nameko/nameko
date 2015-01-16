@@ -4,7 +4,7 @@ import sys
 from mock import ANY
 import pytest
 
-from nameko.extensions import InjectionProvider
+from nameko.extensions import Dependency
 from nameko.exceptions import RemoteError
 from nameko.rpc import Rpc
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -19,8 +19,8 @@ def reset():
     del worker_result_called[:]
 
 
-class ResultCollector(InjectionProvider):
-    """ InjectionProvider that collects worker results
+class ResultCollector(Dependency):
+    """ Dependency that collects worker results
     """
     def worker_result(self, worker_ctx, res, exc_info):
         worker_result_called.append((res, exc_info))
