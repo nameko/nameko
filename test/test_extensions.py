@@ -88,18 +88,18 @@ def test_clones_marked_as_clones():
 
     ext = SimpleExtension()
     assert ext.is_clone is False
-    ext_clone = ext.clone(container)
-    assert ext_clone.is_clone is True
+    bound = ext.bind(container)
+    assert bound.is_clone is True
 
 
 def test_clones_cannot_be_cloned():
     container = Mock()
 
     ext = SimpleExtension()
-    ext_clone = ext.clone(container)
+    bound = ext.bind(container)
 
     with pytest.raises(RuntimeError) as exc_info:
-        ext_clone.clone(container)
+        bound.bind(container)
     assert exc_info.value.message == "Cloned extensions cannot be cloned."
 
 
@@ -206,31 +206,27 @@ def test_extension_str():
     ext = Extension()
     assert str(ext).startswith('<Extension [declaration] at')
 
-    clone = ext.clone(container)
-    assert str(clone).startswith("<Extension at")
+    bound = ext.bind(container)
+    assert str(bound).startswith("<Extension at")
 
 
 def test_entrypoint_str():
     container = Mock()
+    container.service_name = "sérvice"
 
     ext = Entrypoint()
     assert str(ext).startswith('<Entrypoint [declaration] at')
 
-    clone = ext.clone(container)
-    assert str(clone).startswith("<Entrypoint [unbound] at")
-
-    clone.bind("sérvice", "føbar")
-    assert str(clone).startswith("<Entrypoint [sérvice.føbar] at")
+    bound = ext.bind(container, "føbar")
+    assert str(bound).startswith("<Entrypoint [sérvice.føbar] at")
 
 
 def test_dependency_str():
     container = Mock()
+    container.service_name = "sérvice"
 
     ext = Dependency()
     assert str(ext).startswith('<Dependency [declaration] at')
 
-    clone = ext.clone(container)
-    assert str(clone).startswith("<Dependency [unbound] at")
-
-    clone.bind("sérvice", "føbar")
-    assert str(clone).startswith("<Dependency [sérvice.føbar] at")
+    bound = ext.bind(container, "føbar")
+    assert str(bound).startswith("<Dependency [sérvice.føbar] at")

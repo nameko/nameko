@@ -39,9 +39,6 @@ class Timer(Entrypoint):
         self.should_stop = Event()
         self.gt = None
 
-    def setup(self, container):
-        self.container = container  # stash container (TEMP?)
-
     def start(self):
         _log.debug('starting %s', self)
         interval = self._default_interval

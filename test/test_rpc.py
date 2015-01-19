@@ -124,8 +124,8 @@ def get_rpc_exchange():
 @pytest.yield_fixture
 def queue_consumer():
     queue_consumer = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'clone') as clone:
-        clone.return_value = queue_consumer
+    with patch.object(QueueConsumer, 'bind') as bind:
+        bind.return_value = queue_consumer
         yield queue_consumer
 
 
@@ -139,10 +139,9 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    consumer = RpcConsumer().clone(container)
+    consumer = RpcConsumer().bind(container)
 
-    entrypoint = Rpc().clone(container)
-    entrypoint.bind(container.service_name, "rpcmethod")
+    entrypoint = Rpc().bind(container, "rpcmethod")
     entrypoint.rpc_consumer = consumer
 
     entrypoint.setup(container)
@@ -180,7 +179,7 @@ def test_reply_listener(get_rpc_exchange, queue_consumer):
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    reply_listener = ReplyListener().clone(container)
+    reply_listener = ReplyListener().bind(container)
 
     forced_uuid = uuid.uuid4().hex
 

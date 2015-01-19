@@ -5,7 +5,6 @@ import inspect
 from logging import getLogger
 import sys
 import uuid
-import weakref
 
 import eventlet
 from eventlet.event import Event
@@ -134,19 +133,17 @@ class ServiceContainer(object):
 
         for attr_name, dependency in inspect.getmembers(service_cls,
                                                         is_dependency):
-            clone = dependency.clone(self)
-            clone.bind(self.service_name, attr_name)
-            self.dependencies.add(clone)
-            self.subextensions.update(iter_extensions(clone))
+            bound = dependency.bind(self.interface, attr_name)
+            self.dependencies.add(bound)
+            self.subextensions.update(iter_extensions(bound))
 
         for method_name, method in inspect.getmembers(service_cls,
                                                       inspect.ismethod):
             entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
-                clone = entrypoint.clone(self)
-                clone.bind(self.service_name, method_name)
-                self.entrypoints.add(clone)
-                self.subextensions.update(iter_extensions(clone))
+                bound = entrypoint.bind(self.interface, method_name)
+                self.entrypoints.add(bound)
+                self.subextensions.update(iter_extensions(bound))
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -164,7 +161,7 @@ class ServiceContainer(object):
     def interface(self):
         """ An interface to this container for use by extensions.
         """
-        return weakref.proxy(self)
+        return self
 
     def start(self):
         """ Start a container by starting all of its extensions.

@@ -174,7 +174,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self, container):
-        self.container = container  # stash container (TEMP?)
         self.amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
         self.prefetch_count = container.max_workers
 
@@ -436,7 +435,6 @@ class Consumer(Entrypoint, HeaderDecoder):
         self.requeue_on_error = requeue_on_error
 
     def setup(self, container):
-        self.container = container  # stash container (TEMP?)
         self.queue_consumer.register_provider(self)
 
     def stop(self):

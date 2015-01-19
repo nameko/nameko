@@ -62,7 +62,7 @@ def test_consume_provider(empty_config):
     queue_consumer = Mock()
 
     consume_provider = Consumer(
-        queue=foobar_queue, requeue_on_error=False).clone(container)
+        queue=foobar_queue, requeue_on_error=False).bind(container, "consume")
     consume_provider.queue_consumer = queue_consumer
 
     message = Mock(headers={})
@@ -118,7 +118,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("publish"))
 
-    publisher = Publisher(exchange=foobar_ex).clone(container)
+    publisher = Publisher(exchange=foobar_ex).bind(container, "publish")
 
     producer = Mock()
     connection = Mock()
@@ -155,7 +155,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     worker_ctx = WorkerContext(
         container, service, DummyProvider("publish"), data=ctx_data)
 
-    publisher = Publisher(queue=foobar_queue).clone(container)
+    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
 
     producer = Mock()
     connection = Mock()
@@ -194,7 +194,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = Publisher(queue=foobar_queue).clone(container)
+    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
 
     producer = Mock()
     connection = Mock()
@@ -286,7 +286,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
                                      DummyProvider('method'), data=ctx_data)
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).clone(container)
+        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
 
     # test queue, exchange and binding created in rabbit
     publisher.setup(container)
@@ -330,7 +330,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
                                      DummyProvider('method'), data=ctx_data)
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).clone(container)
+        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
 
     publisher.setup(container)
     publisher.start()
@@ -363,7 +363,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 
     consumer = Consumer(
-        queue=foobar_queue, requeue_on_error=False).clone(container)
+        queue=foobar_queue, requeue_on_error=False).bind(container, "publish")
 
     # prepare and start extensions
     consumer.setup(container)

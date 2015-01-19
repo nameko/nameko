@@ -48,7 +48,6 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         super(RpcConsumer, self).__init__()
 
     def setup(self, container):
-        self.container = container  # stash container (TEMP?)
         if self.queue is None:
 
             service_name = container.service_name
@@ -143,7 +142,6 @@ class Rpc(Entrypoint, HeaderDecoder):
         self.expected_exceptions = expected_exceptions
 
     def setup(self, container):
-        self.container = container  # stash container (TEMP?)
         self.rpc_consumer.register_provider(self)
 
     def stop(self):
