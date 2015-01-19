@@ -87,9 +87,9 @@ def test_clones_marked_as_clones():
     container = Mock()
 
     ext = SimpleExtension()
-    assert ext._Extension__clone is False
+    assert ext.is_clone is False
     ext_clone = ext.clone(container)
-    assert ext_clone._Extension__clone is True
+    assert ext_clone.is_clone is True
 
 
 def test_clones_cannot_be_cloned():
@@ -127,16 +127,21 @@ def test_extension_defined_on_instance(container_factory):
 def test_is_extension():
     ext = SimpleExtension()
     assert is_extension(ext)
+    assert not is_extension(object)
 
 
 def test_is_dependency():
     dep = SimpleDependency()
     assert is_dependency(dep)
+    ext = SimpleExtension()
+    assert not is_dependency(ext)
 
 
 def test_is_entrypoint():
     entry = SimpleEntrypoint()
     assert is_entrypoint(entry)
+    ext = SimpleExtension()
+    assert not is_entrypoint(ext)
 
 
 def test_entrypoint_decorator_does_not_mutate_service():

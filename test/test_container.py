@@ -79,16 +79,13 @@ class CallCollectingDependency(
 
 foobar = CallCollectingEntrypoint.decorator
 
-# compat
-call_collector = CallCollectingDependency
-
 egg_error = Exception('broken')
 
 
 class Service(object):
     name = 'test-service'
 
-    spam = call_collector()
+    spam = CallCollectingDependency()
 
     @foobar
     def ham(self):
