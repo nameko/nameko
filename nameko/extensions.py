@@ -131,7 +131,7 @@ class Dependency(Extension):
         self.attr_name = attr_name
 
     def acquire_injection(self, worker_ctx):
-        """ Called before worker execution. An Dependency should return
+        """ Called before worker execution. A Dependency should return
         an object to be injected into the worker instance by the container.
         """
 
