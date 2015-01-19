@@ -20,7 +20,10 @@ shared_extensions = weakref.WeakKeyDictionary()
 
 
 class Extension(object):
-
+    """ Note that Extension.__init__ is called during :meth:`bind` as
+    well as at instantiation time, so avoid side-effects in this method.
+    Use :meth:`setup` instead.
+    """
     __clone = False
     __params = None
 
@@ -28,13 +31,6 @@ class Extension(object):
         inst = super(Extension, cls).__new__(cls, *args, **kwargs)
         inst.__params = (args, kwargs)
         return inst
-
-    def __init__(self, *args, **kwargs):
-        """ Note that Extension.__init__ is called during :meth:`clone` as
-        well as at instantiation time, so avoid side-effects in this method.
-        Use :meth:`setup` instead.
-        """
-        super(Extension, self).__init__(*args, **kwargs)
 
     def setup(self, container):
         """ Called before the service container starts.
