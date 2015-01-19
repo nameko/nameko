@@ -5,6 +5,7 @@ import inspect
 from logging import getLogger
 import sys
 import uuid
+import weakref
 
 import eventlet
 from eventlet.event import Event
@@ -161,8 +162,9 @@ class ServiceContainer(object):
 
     @property
     def interface(self):
-        # TODO: design interface to expose to extensions
-        return self
+        """ An interface to this container for use by extensions.
+        """
+        return weakref.proxy(self)
 
     def start(self):
         """ Start a container by starting all of its extensions.
@@ -335,7 +337,11 @@ class ServiceContainer(object):
         Threads can be marked as ``protected``, which means the container will
         not forcibly kill them until after all extensions have been killed.
         Extensions that require a managed thread to complete their kill
-        procedure should ensure to mark them as ``protected``.
+        procedure should ensure to mark them as ``protected``. For example,
+        :class:`nameko.messaging.QueueConsumer` cleanly closes connections
+        to the AMQP broker even when killed; the thread that holds that
+        connection is ``protected`` so it isn't stopped until after the
+        QueueConsumer returns from its kill.
 
         Any uncaught errors inside ``run_method`` cause the container to be
         killed.
