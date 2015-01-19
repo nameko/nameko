@@ -64,6 +64,7 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
         return WebSocketWSGI(handler)
 
     def handle_websocket_request(self, socket_id, context_data, raw_req):
+        correlation_id = None
         try:
             method, data, correlation_id = \
                 self.protocol.deserialize_ws_frame(raw_req)
@@ -71,7 +72,7 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
             return self.protocol.serialize_result(
                 provider.handle_message(socket_id, data, context_data),
                 correlation_id=correlation_id, ws=True)
-        except Exception as e:
+        except Exception as e:  # TODO: can we do more granular exception handling?
             _log.error('websocket message error', exc_info=True)
             return self.protocol.serialize_result(
                 self.protocol.expose_exception(e)[1], success=False,
