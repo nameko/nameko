@@ -139,6 +139,12 @@ class Dependency(Extension):
         an object to be injected into the worker instance by the container.
         """
 
+    def inject(self, worker_ctx):
+        """
+        """
+        injection = self.acquire_injection(worker_ctx)
+        setattr(worker_ctx.service, self.attr_name, injection)
+
     def worker_result(self, worker_ctx, result=None, exc_info=None):
         """ Called with the result of a service worker execution.
 

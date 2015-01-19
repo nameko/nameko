@@ -370,10 +370,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            for dependency in self.dependencies:
-                injection = dependency.acquire_injection(worker_ctx)
-                setattr(worker_ctx.service, dependency.attr_name, injection)
-
+            self.dependencies.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc_info = None
