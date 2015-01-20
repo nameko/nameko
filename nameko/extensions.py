@@ -311,6 +311,8 @@ def is_entrypoint(obj):
 
 
 def iter_extensions(extension):
+    """ Depth-first iterator over sub-extensions on `extension`.
+    """
     for _, ext in inspect.getmembers(extension, is_extension):
         for item in iter_extensions(ext):
             yield item
