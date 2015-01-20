@@ -10,8 +10,6 @@ import weakref
 
 from eventlet.event import Event
 
-from nameko.exceptions import ExtensionNotBound
-
 from logging import getLogger
 _log = getLogger(__name__)
 
