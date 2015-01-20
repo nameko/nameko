@@ -87,9 +87,9 @@ def test_is_bound():
     container = Mock()
 
     ext = SimpleExtension()
-    assert ext.is_bound is False
+    assert not ext.is_bound()
     bound = ext.bind(container)
-    assert bound.is_bound is True
+    assert bound.is_bound()
 
 
 def test_bound_extendions_cannot_be_bound():

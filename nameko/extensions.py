@@ -23,10 +23,14 @@ class Extension(object):
     """ Note that Extension.__init__ is called during :meth:`bind` as
     well as at instantiation time, so avoid side-effects in this method.
     Use :meth:`setup` instead.
+
+    :attr:`Extension.container` gives access to the
+    :class:`~nameko.containers.ServiceContainer` instance to
+    which the Extension is bound, otherwise `None`.
     """
 
-    __container = None
     __params = None
+    container = None
 
     def __new__(cls, *args, **kwargs):
         inst = super(Extension, cls).__new__(cls, *args, **kwargs)
@@ -75,13 +79,13 @@ class Extension(object):
         """
 
         def clone(prototype):
-            if prototype.is_bound:
+            if prototype.is_bound():
                 raise RuntimeError('Bound extensions cannot be bound.')
 
             cls = type(prototype)
             args, kwargs = prototype.__params
             instance = cls(*args, **kwargs)
-            instance.__container = container
+            instance.container = container
             return instance
 
         instance = clone(self)
@@ -91,20 +95,11 @@ class Extension(object):
             setattr(instance, name, ext.bind(container))
         return instance
 
-    @property
-    def container(self):
-        """ The :class:`~nameko.containers.ServiceContainer` instance to
-        which this Extension is bound, otherwise `None`.
-        """
-        # cannot raise here; fails during introspection
-        return self.__container
-
-    @property
     def is_bound(self):
-        return self.__container is not None
+        return self.container is not None
 
     def __repr__(self):
-        if not self.is_bound:
+        if not self.is_bound():
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
@@ -199,7 +194,7 @@ class Dependency(Extension):
         """
 
     def __repr__(self):
-        if not self.is_bound:
+        if not self.is_bound():
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
@@ -294,7 +289,7 @@ class Entrypoint(Extension):
             return partial(registering_decorator, args=args, kwargs=kwargs)
 
     def __repr__(self):
-        if not self.is_bound:
+        if not self.is_bound():
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
