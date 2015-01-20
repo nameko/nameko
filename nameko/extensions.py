@@ -139,7 +139,6 @@ class SharedExtension(Extension):
 
 class Dependency(Extension):
 
-    service_name = None
     attr_name = None
 
     def bind(self, container, attr_name):
@@ -147,7 +146,6 @@ class Dependency(Extension):
         `attr_name`.
         """
         instance = super(Dependency, self).bind(container)
-        instance.service_name = container.service_name
         instance.attr_name = attr_name
         return instance
 
@@ -207,8 +205,9 @@ class Dependency(Extension):
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
+        service_name = self.container.service_name
         return '<{} [{}.{}] at 0x{:x}>'.format(
-            type(self).__name__, self.service_name, self.attr_name, id(self))
+            type(self).__name__, service_name, self.attr_name, id(self))
 
 
 class ProviderCollector(object):
@@ -265,7 +264,6 @@ def register_entrypoint(fn, entrypoint):
 
 class Entrypoint(Extension):
 
-    service_name = None
     method_name = None
 
     def bind(self, container, method_name):
@@ -273,7 +271,6 @@ class Entrypoint(Extension):
         `method_name`.
         """
         instance = super(Entrypoint, self).bind(container)
-        instance.service_name = container.service_name
         instance.method_name = method_name
         return instance
 
@@ -303,8 +300,9 @@ class Entrypoint(Extension):
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
+        service_name = self.container.service_name
         return '<{} [{}.{}] at 0x{:x}>'.format(
-            type(self).__name__, self.service_name, self.method_name, id(self))
+            type(self).__name__, service_name, self.method_name, id(self))
 
 
 def is_extension(obj):
