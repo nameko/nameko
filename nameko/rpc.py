@@ -47,14 +47,14 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         self.queue = None
         super(RpcConsumer, self).__init__()
 
-    def setup(self, container):
+    def setup(self):
         if self.queue is None:
 
-            service_name = container.service_name
+            service_name = self.container.service_name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
 
-            exchange = get_rpc_exchange(container.config)
+            exchange = get_rpc_exchange(self.container.config)
 
             self.queue = Queue(
                 queue_name,
@@ -141,7 +141,7 @@ class Rpc(Entrypoint, HeaderDecoder):
         """
         self.expected_exceptions = expected_exceptions
 
-    def setup(self, container):
+    def setup(self):
         self.rpc_consumer.register_provider(self)
 
     def stop(self):
@@ -241,17 +241,17 @@ class ReplyListener(SharedExtension):
         self._reply_events = {}
         super(ReplyListener, self).__init__(**kwargs)
 
-    def setup(self, container):
+    def setup(self):
 
         service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
-        service_name = container.service_name
+        service_name = self.container.service_name
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
             service_name, service_uuid)
 
         self.routing_key = str(service_uuid)
 
-        exchange = get_rpc_exchange(container.config)
+        exchange = get_rpc_exchange(self.container.config)
 
         self.queue = Queue(
             queue_name,

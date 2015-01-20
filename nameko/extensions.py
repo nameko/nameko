@@ -10,6 +10,8 @@ import weakref
 
 from eventlet.event import Event
 
+from nameko.exceptions import ExtensionNotBound
+
 from logging import getLogger
 _log = getLogger(__name__)
 
@@ -25,8 +27,7 @@ class Extension(object):
     Use :meth:`setup` instead.
     """
 
-    container = None
-    __clone = False
+    __container = None
     __params = None
 
     def __new__(cls, *args, **kwargs):
@@ -34,14 +35,15 @@ class Extension(object):
         inst.__params = (args, kwargs)
         return inst
 
-    def setup(self, container):
-        """ Called before the service container starts.
+    def setup(self):
+        """ Called on bound Extensions before the container starts.
 
         Extensions should do any required initialisation here.
         """
 
     def start(self):
-        """ Called when the service container has successfully started.
+        """ Called on bound Extensions when the container has successfully
+        started.
 
         This is only called after all other Extensions have successfully
         returned from :meth:`Extension.setup`. If the Extension reacts
@@ -75,14 +77,13 @@ class Extension(object):
         """
 
         def clone(prototype):
-            if prototype.is_clone:
-                raise RuntimeError('Cloned extensions cannot be cloned.')
+            if prototype.is_bound:
+                raise RuntimeError('Bound extensions cannot be bound.')
 
             cls = type(prototype)
             args, kwargs = prototype.__params
             instance = cls(*args, **kwargs)
-            instance.container = container
-            instance.__clone = True
+            instance.__container = container
             return instance
 
         instance = clone(self)
@@ -93,11 +94,19 @@ class Extension(object):
         return instance
 
     @property
-    def is_clone(self):
-        return self.__clone is True
+    def container(self):
+        """ The :class:`~nameko.containers.ServiceContainer` instance to
+        which this Extension is bound, otherwise `None`.
+        """
+        # cannot raise here; fails during introspection
+        return self.__container
+
+    @property
+    def is_bound(self):
+        return self.__container is not None
 
     def __repr__(self):
-        if not self.is_clone:
+        if not self.is_bound:
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
@@ -114,7 +123,7 @@ class SharedExtension(Extension):
     def bind(self, container):
         """ Bind implementation that supports sharing.
         """
-        # if there's already a cloned instance, return that
+        # if there's already a matching bound instance, return that
         shared_extensions.setdefault(container, {})
         shared = shared_extensions[container].get(self.sharing_key)
         if shared:
@@ -194,12 +203,8 @@ class Dependency(Extension):
         """
 
     def __repr__(self):
-        if not self.is_clone:
+        if not self.is_bound:
             return '<{} [declaration] at 0x{:x}>'.format(
-                type(self).__name__, id(self))
-
-        if self.service_name is None or self.attr_name is None:
-            return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
         return '<{} [{}.{}] at 0x{:x}>'.format(
@@ -294,12 +299,8 @@ class Entrypoint(Extension):
             return partial(registering_decorator, args=args, kwargs=kwargs)
 
     def __repr__(self):
-        if not self.is_clone:
+        if not self.is_bound:
             return '<{} [declaration] at 0x{:x}>'.format(
-                type(self).__name__, id(self))
-
-        if self.service_name is None or self.method_name is None:
-            return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
         return '<{} [{}.{}] at 0x{:x}>'.format(

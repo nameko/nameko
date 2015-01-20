@@ -69,7 +69,7 @@ def test_nova_rpc_provider(empty_config):
     container.config = empty_config
 
     entrypoint = NovaRpc().bind(container, "method")
-    entrypoint.setup(container)
+    entrypoint.setup()
     entrypoint.rpc_consumer = rpc_consumer
 
     container.spawn_worker.side_effect = ContainerBeingKilled()
@@ -154,8 +154,8 @@ def test_nova_responder_cannot_str_exc(mock_publish):
 
 
 def test_nova_consumer_bad_provider():
-    consumer = NovaRpcConsumer()
-    consumer.container = Mock()
+    container = Mock()
+    consumer = NovaRpcConsumer().bind(container)
     message = Message(
         channel=None,
         delivery_info={'routing_key': 'some route'},

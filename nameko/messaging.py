@@ -109,9 +109,9 @@ class Publisher(Dependency, HeaderEncoder):
         conn = Connection(self.amqp_uri)
         return producers[conn].acquire(block=True)
 
-    def setup(self, container):
+    def setup(self):
 
-        self.amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
+        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
 
         exchange = self.exchange
         queue = self.queue
@@ -173,9 +173,9 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         if not self._consumers_ready.ready():
             self._consumers_ready.send_exception(exc)
 
-    def setup(self, container):
-        self.amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
-        self.prefetch_count = container.max_workers
+    def setup(self):
+        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+        self.prefetch_count = self.container.max_workers
 
     def start(self):
         if not self._starting:
@@ -434,7 +434,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def setup(self, container):
+    def setup(self):
         self.queue_consumer.register_provider(self)
 
     def stop(self):

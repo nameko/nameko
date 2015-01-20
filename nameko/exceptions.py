@@ -5,6 +5,10 @@ class ExtensionNotFound(AttributeError):
     pass
 
 
+class ExtensionNotBound(Exception):
+    pass
+
+
 class RpcTimeout(Exception):
     pass
 

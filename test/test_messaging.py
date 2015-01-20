@@ -68,7 +68,7 @@ def test_consume_provider(empty_config):
     message = Mock(headers={})
 
     # test lifecycle
-    consume_provider.setup(container)
+    consume_provider.setup()
     queue_consumer.register_provider.assert_called_once_with(
         consume_provider)
 
@@ -129,7 +129,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.setup(container)
+    publisher.setup()
     maybe_declare.assert_called_once_with(foobar_ex, connection)
 
     # test publish
@@ -166,7 +166,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.setup(container)
+    publisher.setup()
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -205,7 +205,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.setup(container)
+    publisher.setup()
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -289,7 +289,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
         exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
 
     # test queue, exchange and binding created in rabbit
-    publisher.setup(container)
+    publisher.setup()
     publisher.start()
 
     exchanges = rabbit_manager.get_exchanges(vhost)
@@ -332,7 +332,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     publisher = Publisher(
         exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
 
-    publisher.setup(container)
+    publisher.setup()
     publisher.start()
 
     service.publish = publisher.acquire_injection(worker_ctx)
@@ -366,8 +366,8 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
         queue=foobar_queue, requeue_on_error=False).bind(container, "publish")
 
     # prepare and start extensions
-    consumer.setup(container)
-    consumer.queue_consumer.setup(container)
+    consumer.setup()
+    consumer.queue_consumer.setup()
     consumer.start()
     consumer.queue_consumer.start()
 

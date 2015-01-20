@@ -64,7 +64,7 @@ def test_event_dispatcher(empty_config):
     with patch(path, autospec=True) as setup:
 
         # test start method
-        event_dispatcher.setup(container)
+        event_dispatcher.setup()
         assert event_dispatcher.exchange.name == "srcservice.events"
         assert setup.called
 
@@ -93,7 +93,7 @@ def test_event_handler(queue_consumer):
     # test default configuration
     event_handler = EventHandler("srcservice", "eventtype").bind(container,
                                                                  "foobar")
-    event_handler.setup(container)
+    event_handler.setup()
 
     assert event_handler.queue.durable is True
     assert event_handler.queue.routing_key == "eventtype"
@@ -103,7 +103,7 @@ def test_event_handler(queue_consumer):
     # test service pool handler
     event_handler = EventHandler("srcservice", "eventtype").bind(container,
                                                                  "foobar")
-    event_handler.setup(container)
+    event_handler.setup()
 
     assert (event_handler.queue.name ==
             "evt-srcservice-eventtype--destservice.foobar")
@@ -113,7 +113,7 @@ def test_event_handler(queue_consumer):
                                  handler_type=BROADCAST,
                                  reliable_delivery=False).bind(container,
                                                                "foobar")
-    event_handler.setup(container)
+    event_handler.setup()
 
     assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
@@ -121,14 +121,14 @@ def test_event_handler(queue_consumer):
     event_handler = EventHandler("srcservice", "eventtype",
                                  handler_type=SINGLETON).bind(container,
                                                               "foobar")
-    event_handler.setup(container)
+    event_handler.setup()
 
     assert event_handler.queue.name == "evt-srcservice-eventtype"
 
     # test reliable delivery
     event_handler = EventHandler("srcservice", "eventtype").bind(container,
                                                                  "foobar")
-    event_handler.setup(container)
+    event_handler.setup()
 
     assert event_handler.queue.auto_delete is False
 
@@ -601,7 +601,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     worker_ctx = WorkerContext(container, service, DummyProvider())
 
     dispatcher = EventDispatcher().bind(container, 'dispatch')
-    dispatcher.setup(container)
+    dispatcher.setup()
     dispatcher.start()
 
     # we should have an exchange but no queues

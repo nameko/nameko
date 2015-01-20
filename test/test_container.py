@@ -33,9 +33,9 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
-    def setup(self, container):
+    def setup(self):
         self._log_call(('setup'))
-        super(CallCollectorMixin, self).setup(container)
+        super(CallCollectorMixin, self).setup()
 
     def start(self):
         self._log_call(('start'))

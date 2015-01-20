@@ -64,10 +64,10 @@ class NovaRpcConsumer(RpcConsumer):
     name and handle the nova message payload.
     Ensures result is handled by a NovaResponder.
     """
-    def setup(self, container):
-        self.container = container  # stash container (TEMP)
+    def setup(self):
         if self.queue is None:
 
+            container = self.container
             service_name = container.service_name
             exchange_name = container.config.get('CONTROL_EXCHANGE', 'rpc')
 

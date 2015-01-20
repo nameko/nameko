@@ -172,13 +172,13 @@ class StandaloneProxyBase(object):
         self, config, context_data=None, timeout=None,
         worker_ctx_cls=WorkerContext
     ):
-        self.container = self.ServiceContainer(config)
+        container = self.ServiceContainer(config)
 
         reply_listener = SingleThreadedReplyListener(timeout=timeout).bind(
-            self.container)
+            container)
 
         self._worker_ctx = worker_ctx_cls(
-            self.container, service=None, entrypoint=self.Dummy,
+            container, service=None, entrypoint=self.Dummy,
             data=context_data)
         self._reply_listener = reply_listener
 
@@ -189,7 +189,7 @@ class StandaloneProxyBase(object):
         self.stop()
 
     def start(self):
-        self._reply_listener.setup(self.container)
+        self._reply_listener.setup()
         return self._proxy
 
     def stop(self):

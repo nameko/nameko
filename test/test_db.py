@@ -40,7 +40,7 @@ def test_concurrency():
 
     def inject(worker_ctx):
         orm_session = OrmSession(DeclBase).bind(container, "session")
-        orm_session.setup(container)
+        orm_session.setup()
         return orm_session.acquire_injection(worker_ctx)
 
     # get injections concurrently

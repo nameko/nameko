@@ -83,16 +83,16 @@ def test_extension_uniqueness(container_factory):
     assert inj1.ext != inj2.ext
 
 
-def test_clones_marked_as_clones():
+def test_is_bound():
     container = Mock()
 
     ext = SimpleExtension()
-    assert ext.is_clone is False
+    assert ext.is_bound is False
     bound = ext.bind(container)
-    assert bound.is_clone is True
+    assert bound.is_bound is True
 
 
-def test_clones_cannot_be_cloned():
+def test_bound_extendions_cannot_be_bound():
     container = Mock()
 
     ext = SimpleExtension()
@@ -100,7 +100,7 @@ def test_clones_cannot_be_cloned():
 
     with pytest.raises(RuntimeError) as exc_info:
         bound.bind(container)
-    assert exc_info.value.message == "Cloned extensions cannot be cloned."
+    assert exc_info.value.message == "Bound extensions cannot be bound."
 
 
 def test_extension_defined_on_instance(container_factory):

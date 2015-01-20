@@ -15,7 +15,7 @@ def test_provider():
     container.spawn_managed_thread = eventlet.spawn
 
     timer = Timer(interval=0).bind(container, "method")
-    timer.setup(container)
+    timer.setup()
     timer.start()
 
     assert timer.interval == 0
@@ -37,7 +37,7 @@ def test_provider_uses_config_for_interval():
     container.spawn_managed_thread = eventlet.spawn
 
     timer = Timer(config_key='spam-conf').bind(container, "method")
-    timer.setup(container)
+    timer.setup()
     timer.start()
 
     assert timer.interval == 10
@@ -50,7 +50,7 @@ def test_provider_interval_as_config_fallback():
     container.config = {}
 
     timer = Timer(interval=1, config_key='spam-conf').bind(container, "method")
-    timer.setup(container)
+    timer.setup()
     timer.start()
 
     assert timer.interval == 1
@@ -63,7 +63,7 @@ def test_stop_timer_immediatly():
     container.config = {}
 
     timer = Timer(interval=5).bind(container, "method")
-    timer.setup(container)
+    timer.setup()
     timer.start()
 
     eventlet.sleep(0.1)
@@ -79,7 +79,7 @@ def test_kill_stops_timer():
     container.spawn_managed_thread = eventlet.spawn
 
     timer = Timer(interval=0).bind(container, "method")
-    timer.setup(container)
+    timer.setup()
     timer.start()
 
     with wait_for_call(1, container.spawn_worker):

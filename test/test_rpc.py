@@ -144,9 +144,9 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
     entrypoint = Rpc().bind(container, "rpcmethod")
     entrypoint.rpc_consumer = consumer
 
-    entrypoint.setup(container)
-    consumer.setup(container)
-    queue_consumer.setup(container)
+    entrypoint.setup()
+    consumer.setup()
+    queue_consumer.setup()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
@@ -186,8 +186,8 @@ def test_reply_listener(get_rpc_exchange, queue_consumer):
     with patch('nameko.rpc.uuid', autospec=True) as patched_uuid:
         patched_uuid.uuid4.return_value = forced_uuid
 
-        reply_listener.setup(container)
-        queue_consumer.setup(container)
+        reply_listener.setup()
+        queue_consumer.setup()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)

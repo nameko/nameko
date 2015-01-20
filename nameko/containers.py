@@ -170,7 +170,7 @@ class ServiceContainer(object):
         self.started = True
 
         with _log_time('started %s', self):
-            self.extensions.all.setup(self.interface)
+            self.extensions.all.setup()
             self.extensions.all.start()
 
     def stop(self):
