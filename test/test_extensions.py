@@ -100,7 +100,7 @@ def test_bound_extendions_cannot_be_bound():
 
     with pytest.raises(RuntimeError) as exc_info:
         bound.bind(container)
-    assert exc_info.value.message == "Bound extensions cannot be bound."
+    assert exc_info.value.message == "Cannot `bind` a bound extensions."
 
 
 def test_extension_defined_on_instance(container_factory):
