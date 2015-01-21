@@ -85,7 +85,10 @@ class Extension(object):
             cls = type(prototype)
             args, kwargs = prototype.__params
             instance = cls(*args, **kwargs)
-            instance.container = container
+            # instance.container must be a weakref to avoid a strong reference
+            # from value to key in the `shared_extensions` weakkey dict
+            # see test_extension_sharing.py: test_weakref
+            instance.container = weakref.proxy(container)
             return instance
 
         instance = clone(self)
