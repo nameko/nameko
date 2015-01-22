@@ -1,7 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
 
-import gc
 import itertools
 import logging
 import sys
