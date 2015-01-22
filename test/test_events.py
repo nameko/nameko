@@ -594,6 +594,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_name = "srcservice"
     container.config = rabbit_config
 

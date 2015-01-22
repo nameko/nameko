@@ -131,6 +131,7 @@ def queue_consumer():
 def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = {}
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
@@ -172,6 +173,7 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 def test_reply_listener(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = {}
     container.service_name = "exampleservice"
 

@@ -63,6 +63,7 @@ def test_nova_rpc_provider(empty_config):
             pass
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_cls = Service
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
@@ -154,7 +155,9 @@ def test_nova_responder_cannot_str_exc(mock_publish):
 
 
 def test_nova_consumer_bad_provider():
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
+
     consumer = NovaRpcConsumer().bind(container)
     message = Message(
         channel=None,

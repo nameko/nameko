@@ -8,6 +8,7 @@ from kombu.exceptions import TimeoutError
 from mock import patch, Mock, ANY, call
 import pytest
 
+from nameko.containers import ServiceContainer
 from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
 from nameko.testing.utils import (
     assert_stops_raising, get_rabbit_connections, get_extension)
@@ -45,7 +46,8 @@ def spawn_thread(method, protected):
 
 def test_lifecycle(rabbit_manager, rabbit_config):
 
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 3
     container.spawn_managed_thread.side_effect = spawn_thread
@@ -93,7 +95,8 @@ def test_lifecycle(rabbit_manager, rabbit_config):
 
 
 def test_reentrant_start_stops():
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
@@ -114,7 +117,8 @@ def test_reentrant_start_stops():
 def test_stop_while_starting(rabbit_config):
     started = Event()
 
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
@@ -159,7 +163,8 @@ def test_stop_while_starting(rabbit_config):
 
 
 def test_error_stops_consumer_thread():
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
@@ -183,7 +188,8 @@ def test_error_stops_consumer_thread():
 
 
 def test_on_consume_error_kills_consumer():
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
@@ -204,7 +210,8 @@ def test_on_consume_error_kills_consumer():
 
 def test_reconnect_on_socket_error(rabbit_config):
 
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
@@ -233,7 +240,8 @@ def test_reconnect_on_socket_error(rabbit_config):
 
 
 def test_prefetch_count(rabbit_manager, rabbit_config):
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
@@ -304,7 +312,8 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
 
 def test_kill_closes_connections(rabbit_manager, rabbit_config):
 
-    container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
