@@ -16,8 +16,6 @@ _log = getLogger(__name__)
 
 ENTRYPOINT_EXTENSIONS_ATTR = 'nameko_entrypoints'
 
-shared_extensions = weakref.WeakKeyDictionary()
-
 
 class Extension(object):
     """ Note that Extension.__init__ is called during :meth:`bind` as
@@ -120,15 +118,14 @@ class SharedExtension(Extension):
         """ Bind implementation that supports sharing.
         """
         # if there's already a matching bound instance, return that
-        shared_extensions.setdefault(container, {})
-        shared = shared_extensions[container].get(self.sharing_key)
+        shared = container.shared_extensions.get(self.sharing_key)
         if shared:
             return shared
 
         instance = super(SharedExtension, self).bind(container)
 
         # save the new instance
-        shared_extensions[container][self.sharing_key] = instance
+        container.shared_extensions[self.sharing_key] = instance
 
         return instance
 

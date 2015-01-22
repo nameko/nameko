@@ -1,11 +1,11 @@
 from collections import defaultdict
+import weakref
 
 from mock import call
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
-from nameko.extensions import (
-    Dependency, SharedExtension, Extension, shared_extensions)
+from nameko.extensions import Dependency, SharedExtension, Extension
 from nameko.testing.utils import get_extension
 
 
@@ -123,20 +123,3 @@ def test_shared_extension_uniqueness(container_factory):
     shared_1 = get_extension(c1, SimpleSharedExtension)
     shared_2 = get_extension(c2, SimpleSharedExtension)
     assert shared_1 is not shared_2
-
-
-def test_weakref():
-
-    class SimpleDependency(Dependency):
-        ext = SharedExtension()
-
-    class Service(object):
-        dep = SimpleDependency()
-
-    container = ServiceContainer(Service, WorkerContext, {})
-
-    # removing the last reference to `container` should remove its entry
-    # in the shared_extensions weakkey dict
-    assert shared_extensions
-    del container
-    assert not shared_extensions

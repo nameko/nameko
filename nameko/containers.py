@@ -122,6 +122,7 @@ class ServiceContainer(object):
         self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
+        self.shared_extensions = {}
 
         self.config = config
         self.max_workers = (

@@ -162,6 +162,7 @@ class StandaloneProxyBase(object):
 
         def __init__(self, config):
             self.config = config
+            self.shared_extensions = {}
 
     class Dummy(Entrypoint):
         method_name = "call"

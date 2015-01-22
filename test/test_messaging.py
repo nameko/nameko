@@ -50,6 +50,7 @@ def maybe_declare():
 def test_consume_provider(empty_config):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
     container.config = empty_config
@@ -147,6 +148,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_name = "srcservice"
     container.config = empty_config
 
@@ -346,11 +348,12 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     }
 
 
-def test_consume_from_rabbit(rabbit_manager, rabbit_config):
+def test_consume_from_rabbit(container_factory, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.worker_ctx_cls = CustomWorkerContext
     container.service_name = "service"
     container.config = rabbit_config

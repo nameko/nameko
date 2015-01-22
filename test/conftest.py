@@ -11,7 +11,6 @@ from mock import patch
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
-from nameko.extensions import shared_extensions
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
     get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
@@ -57,26 +56,6 @@ def pytest_configure(config):
     if log_level is not None:
         log_level = getattr(logging, log_level)
         logging.basicConfig(level=log_level, stream=sys.stderr)
-
-
-def check_container_cleanup():
-    """ Verify there are no ServiceContainers left in scope
-    """
-    # force garbage collection
-    while gc.collect():
-        pass
-
-    if shared_extensions:
-        containers = shared_extensions.keys()
-        shared_extensions.clear()  # clear so other tests don't also fail
-        pytest.fail("Containers remain in scope: {}".format(containers))
-
-
-def pytest_runtest_teardown(__multicall__):
-    # tear down all fixtures
-    __multicall__.execute()
-    # all containers should now have gone out of scope
-    check_container_cleanup()
 
 
 @pytest.fixture
@@ -131,10 +110,6 @@ def container_factory(rabbit_config):
         except:
             pass
 
-    # container_factory is not out of scope when `pytest_runtest_teardown`
-    # is executed, so remove references to containers early
-    del all_containers[:]
-
 
 @pytest.yield_fixture
 def runner_factory(rabbit_config):
@@ -155,9 +130,6 @@ def runner_factory(rabbit_config):
             r.stop()
         except:
             pass
-
-    # see note in :func:`container_factory`.
-    del all_runners[:]
 
 
 @pytest.yield_fixture
