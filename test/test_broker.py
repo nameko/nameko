@@ -35,6 +35,7 @@ def reset():
 def logger():
     with patch('nameko.rpc._log', autospec=True) as patched:
         yield patched
+    patched.reset_mock()
 
 
 class ExampleEvent(Event):

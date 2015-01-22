@@ -11,7 +11,8 @@ from nameko.events import (
     SERVICE_POOL, EventHandler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
-from nameko.testing.utils import as_context_manager, DummyProvider
+from nameko.testing.utils import (
+    as_context_manager, DummyProvider, mock_extension)
 
 
 EVENTS_TIMEOUT = 5
@@ -19,10 +20,8 @@ EVENTS_TIMEOUT = 5
 
 @pytest.yield_fixture
 def queue_consumer():
-    queue_consumer = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind') as bind:
-        bind.return_value = queue_consumer
-        yield queue_consumer
+    with mock_extension(QueueConsumer) as mock_ext:
+        yield mock_ext
 
 
 def test_event_type_missing():

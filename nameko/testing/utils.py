@@ -6,7 +6,7 @@ from functools import partial
 from urlparse import urlparse
 
 import eventlet
-from mock import Mock
+from mock import Mock, patch
 from pyrabbit.api import Client
 from pyrabbit.http import HTTPError
 
@@ -40,6 +40,25 @@ def get_container(runner, service_cls):
     for container in runner.containers:
         if container.service_cls == service_cls:
             return container
+
+
+@contextmanager
+def mock_extension(extension_cls):
+    """ Ensure that new bound instances of `extension_cls` are Mock objects,
+    intended to be used inside a test fixture.
+
+    This is wrapped up into a helper because the mock objects must be reset
+    after fixture teardown, or they keep strong references to any
+    ServiceContainer used in the test, which leads to memory leaks.
+    """
+    ext_mock = Mock(spec=extension_cls)
+    with patch.object(extension_cls, 'bind') as bind:
+        bind.return_value = ext_mock
+        yield ext_mock
+
+    # reset mocks to clear references to `container`
+    ext_mock.reset_mock()
+    bind.reset_mock()
 
 
 @contextmanager

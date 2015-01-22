@@ -19,7 +19,7 @@ from nameko.rpc import (
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import (
-    get_extension, wait_for_call, wait_for_worker_idle)
+    get_extension, wait_for_call, wait_for_worker_idle, mock_extension)
 
 
 class ExampleError(Exception):
@@ -123,10 +123,8 @@ def get_rpc_exchange():
 
 @pytest.yield_fixture
 def queue_consumer():
-    queue_consumer = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind') as bind:
-        bind.return_value = queue_consumer
-        yield queue_consumer
+    with mock_extension(QueueConsumer) as mock_ext:
+        yield mock_ext
 
 
 def test_rpc_consumer(get_rpc_exchange, queue_consumer):
