@@ -1,10 +1,8 @@
 from collections import defaultdict
-import weakref
 
 from mock import call
 import pytest
 
-from nameko.containers import ServiceContainer, WorkerContext
 from nameko.extensions import Dependency, SharedExtension, Extension
 from nameko.testing.utils import get_extension
 
