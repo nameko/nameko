@@ -25,8 +25,9 @@ class LanguageReporter(Dependency):
 handle_event = Mock()
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset_mock():
+    yield
     handle_event.reset_mock()
 
 

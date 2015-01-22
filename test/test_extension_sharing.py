@@ -18,8 +18,9 @@ class CallCollectorMixin(object):
         super(CallCollectorMixin, self).start(*args, **kwargs)
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset():
+    yield
     CallCollectorMixin.calls.clear()
 
 

@@ -22,8 +22,9 @@ handle_called = Mock()
 long_called = EventletEvent()
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset():
+    yield
     method_called.reset_mock()
     handle_called.reset_mock()
     for event in (disconnect_now, disconnected):

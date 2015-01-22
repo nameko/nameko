@@ -141,8 +141,9 @@ services = defaultdict(list)
 events = []
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def reset_state():
+    yield
     services.clear()
     events[:] = []
 

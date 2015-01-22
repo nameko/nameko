@@ -14,8 +14,9 @@ from nameko.testing.utils import wait_for_worker_idle
 worker_result_called = []
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset():
+    yield
     del worker_result_called[:]
 
 

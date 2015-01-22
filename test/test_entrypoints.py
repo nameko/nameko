@@ -7,8 +7,9 @@ from nameko.testing.services import once
 method_called = Mock()
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset():
+    yield
     method_called.reset_mock()
 
 
