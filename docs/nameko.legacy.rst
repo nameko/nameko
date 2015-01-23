@@ -8,9 +8,9 @@ Submodules
 
    nameko.legacy.channelhandler
    nameko.legacy.common
-   nameko.legacy.consuming
    nameko.legacy.context
    nameko.legacy.decorators
+   nameko.legacy.extensions
    nameko.legacy.nova
    nameko.legacy.proxy
    nameko.legacy.responses

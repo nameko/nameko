@@ -61,7 +61,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def empty_config(request):
-    return {}
+    return {'AMQP_URI': ""}
 
 
 @pytest.fixture(scope='session')
@@ -126,9 +126,8 @@ def websocket(web_config):
     active_sockets = []
 
     def socket_creator():
-        ws_app, wait_for_sock = \
-                make_virtual_socket('127.0.0.1',
-                                    web_config['WEB_SERVER_PORT'])
+        ws_app, wait_for_sock = make_virtual_socket(
+            '127.0.0.1', web_config['WEB_SERVER_PORT'])
         gr = eventlet.spawn(ws_app.run_forever)
         active_sockets.append((gr, ws_app))
         return wait_for_sock()

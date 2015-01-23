@@ -5,10 +5,8 @@ from kombu import Exchange, Queue
 from mock import patch, Mock
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.dependencies import DependencyFactory
 from nameko.exceptions import ContainerBeingKilled
-from nameko.messaging import (
-    PublishProvider, ConsumeProvider, HeaderEncoder, HeaderDecoder)
+from nameko.messaging import Publisher, Consumer, HeaderEncoder, HeaderDecoder
 from nameko.containers import (
     WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS, ServiceContainer)
 from nameko.testing.utils import (
@@ -63,15 +61,14 @@ def test_consume_provider(empty_config):
 
     queue_consumer = Mock()
 
-    consume_provider = ConsumeProvider(queue=foobar_queue,
-                                       requeue_on_error=False)
+    consume_provider = Consumer(
+        queue=foobar_queue, requeue_on_error=False).clone(container)
     consume_provider.queue_consumer = queue_consumer
-    consume_provider.bind("name", container)
 
     message = Mock(headers={})
 
     # test lifecycle
-    consume_provider.prepare()
+    consume_provider.setup(container)
     queue_consumer.register_provider.assert_called_once_with(
         consume_provider)
 
@@ -121,8 +118,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("publish"))
 
-    publisher = PublishProvider(exchange=foobar_ex)
-    publisher.bind("publish", container)
+    publisher = Publisher(exchange=foobar_ex).clone(container)
 
     producer = Mock()
     connection = Mock()
@@ -133,12 +129,12 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.prepare()
+    publisher.setup(container)
     maybe_declare.assert_called_once_with(foobar_ex, connection)
 
     # test publish
     msg = "msg"
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     headers = {
         'nameko.call_id_stack': ['srcservice.publish.0']
@@ -159,8 +155,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     worker_ctx = WorkerContext(
         container, service, DummyProvider("publish"), data=ctx_data)
 
-    publisher = PublishProvider(queue=foobar_queue)
-    publisher.bind("publish", container)
+    publisher = Publisher(queue=foobar_queue).clone(container)
 
     producer = Mock()
     connection = Mock()
@@ -171,7 +166,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.prepare()
+    publisher.setup(container)
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -180,7 +175,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
         'nameko.language': 'en',
         'nameko.call_id_stack': ['srcservice.publish.0'],
     }
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
@@ -199,8 +194,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = PublishProvider(queue=foobar_queue)
-    publisher.bind("publish", container)
+    publisher = Publisher(queue=foobar_queue).clone(container)
 
     producer = Mock()
     connection = Mock()
@@ -211,7 +205,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.prepare()
+    publisher.setup(container)
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -219,7 +213,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     headers = {'nameko.language': 'en',
                'nameko.customheader': 'customvalue',
                'nameko.call_id_stack': ['srcservice.method.0']}
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
@@ -291,11 +285,11 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
-    publisher.bind("publish", container)
+    publisher = Publisher(
+        exchange=foobar_ex, queue=foobar_queue).clone(container)
 
     # test queue, exchange and binding created in rabbit
-    publisher.prepare()
+    publisher.setup(container)
     publisher.start()
 
     exchanges = rabbit_manager.get_exchanges(vhost)
@@ -307,7 +301,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
     # test message published to queue
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['msg'] == [msg['payload'] for msg in messages]
@@ -335,13 +329,13 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = PublishProvider(exchange=foobar_ex, queue=foobar_queue)
-    publisher.bind("publish", container)
+    publisher = Publisher(
+        exchange=foobar_ex, queue=foobar_queue).clone(container)
 
-    publisher.prepare()
+    publisher.setup(container)
     publisher.start()
 
-    publisher.inject(worker_ctx)
+    service.publish = publisher.acquire_injection(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
 
@@ -368,13 +362,12 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
 
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 
-    factory = DependencyFactory(ConsumeProvider, queue=foobar_queue,
-                                requeue_on_error=False)
-    consumer = factory.create_and_bind_instance("injection_name", container)
+    consumer = Consumer(
+        queue=foobar_queue, requeue_on_error=False).clone(container)
 
-    # prepare and start dependencies
-    consumer.prepare()
-    consumer.queue_consumer.prepare()
+    # prepare and start extensions
+    consumer.setup(container)
+    consumer.queue_consumer.setup(container)
     consumer.start()
     consumer.queue_consumer.start()
 

@@ -7,6 +7,7 @@ from kombu import Connection
 from kombu.common import maybe_declare
 
 from nameko.containers import WorkerContext
+from nameko.extensions import Entrypoint
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.kombu_helpers import queue_iterator
 from nameko.rpc import ServiceProxy, ReplyListener
@@ -145,6 +146,10 @@ class SingleThreadedReplyListener(ReplyListener):
         self.queue_consumer = PollingQueueConsumer(timeout=timeout)
         super(SingleThreadedReplyListener, self).__init__()
 
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
+        super(SingleThreadedReplyListener, self).setup(container)
+
     def get_reply_event(self, correlation_id):
         reply_event = ConsumeEvent(self.queue_consumer, correlation_id)
         self._reply_events[correlation_id] = reply_event
@@ -162,8 +167,8 @@ class StandaloneProxyBase(object):
         def __init__(self, config):
             self.config = config
 
-    class DummyProvider(object):
-        name = "call"
+    class Dummy(Entrypoint):
+        method_name = "call"
 
     _proxy = None
 
@@ -171,13 +176,13 @@ class StandaloneProxyBase(object):
         self, config, context_data=None, timeout=None,
         worker_ctx_cls=WorkerContext
     ):
-        container = self.ServiceContainer(config)
+        self.container = self.ServiceContainer(config)
 
-        reply_listener = SingleThreadedReplyListener(timeout=timeout)
-        reply_listener.container = container
+        reply_listener = SingleThreadedReplyListener(timeout=timeout).clone(
+            self.container)
 
         self._worker_ctx = worker_ctx_cls(
-            container, service=None, provider=self.DummyProvider,
+            self.container, service=None, entrypoint=self.Dummy,
             data=context_data)
         self._reply_listener = reply_listener
 
@@ -188,7 +193,7 @@ class StandaloneProxyBase(object):
         self.stop()
 
     def start(self):
-        self._reply_listener.prepare()
+        self._reply_listener.setup(self.container)
         return self._proxy
 
     def stop(self):

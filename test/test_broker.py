@@ -6,7 +6,7 @@ import uuid
 
 from nameko.events import event_handler, Event
 from nameko.exceptions import RpcConnectionError
-from nameko.rpc import rpc, rpc_proxy
+from nameko.rpc import rpc, RpcProxy
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, dummy
@@ -68,7 +68,7 @@ class ExampleService(object):
 
 
 class ProxyService(object):
-    example_rpc = rpc_proxy('exampleservice')
+    example_rpc = RpcProxy('exampleservice')
 
     @dummy
     def echo(self, arg):

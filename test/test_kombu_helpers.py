@@ -6,7 +6,7 @@ import pytest
 
 from nameko.exceptions import RpcTimeout
 from nameko.kombu_helpers import queue_iterator, drain_consumer
-from nameko.legacy.dependencies import rpc
+from nameko.legacy.extensions import rpc
 from nameko.legacy.proxy import RPCProxy
 
 

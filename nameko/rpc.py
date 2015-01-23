@@ -14,12 +14,10 @@ from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
     MalformedRequest, RpcConnectionError, serialize, deserialize)
-from nameko.messaging import queue_consumer, HeaderEncoder, HeaderDecoder
-from nameko.dependencies import (
-    entrypoint, injection, InjectionProvider, EntrypointProvider,
-    DependencyFactory, dependency, ProviderCollector, DependencyProvider,
-    CONTAINER_SHARED)
 from nameko.exceptions import ContainerBeingKilled
+from nameko.messaging import QueueConsumer, HeaderEncoder, HeaderDecoder
+from nameko.extensions import (
+    Dependency, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.utils import repr_safe_str
 
 
@@ -31,31 +29,31 @@ RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
 
-def get_rpc_exchange(container):
-    exchange_name = container.config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
+def get_rpc_exchange(config):
+    exchange_name = config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
     exchange = Exchange(exchange_name, durable=True, type="topic")
     return exchange
 
 
-# pylint: disable=E1101,E1123
-class RpcConsumer(DependencyProvider, ProviderCollector):
+class RpcConsumer(SharedExtension, ProviderCollector):
 
-    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
+    queue_consumer = QueueConsumer()
 
     def __init__(self):
-        super(RpcConsumer, self).__init__()
         self._unregistering_providers = set()
         self._unregistered_from_queue_consumer = Event()
         self.queue = None
+        super(RpcConsumer, self).__init__()
 
-    def prepare(self):
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
         if self.queue is None:
 
-            container = self.container
             service_name = container.service_name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
-            exchange = get_rpc_exchange(container)
+
+            exchange = get_rpc_exchange(container.config)
 
             self.queue = Queue(
                 queue_name,
@@ -70,7 +68,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         """ Stop the RpcConsumer.
 
         The RpcConsumer ordinary unregisters from the QueueConsumer when the
-        last RpcProvider unregisters from it. If no providers were registered,
+        last Rpc subclass unregisters from it. If no providers were registered,
         we should unregister ourself from the QueueConsumer as soon as we're
         asked to stop.
         """
@@ -100,7 +98,7 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         service_name = self.container.service_name
 
         for provider in self._providers:
-            key = '{}.{}'.format(service_name, provider.name)
+            key = '{}.{}'.format(service_name, provider.method_name)
             if key == routing_key:
                 return provider
         else:
@@ -114,11 +112,11 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
             provider.handle_message(body, message)
         except Exception:
             exc_info = sys.exc_info()
-            self.handle_result(message, self.container, None, exc_info)
+            self.handle_result(message, None, exc_info)
 
-    def handle_result(self, message, container, result, exc_info):
-        responder = Responder(message)
-        result, exc_info = responder.send_response(container, result, exc_info)
+    def handle_result(self, message, result, exc_info):
+        responder = Responder(self.container.config, message)
+        result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
         return result, exc_info
@@ -127,26 +125,27 @@ class RpcConsumer(DependencyProvider, ProviderCollector):
         self.queue_consumer.requeue_message(message)
 
 
-@dependency
-def rpc_consumer():
-    return DependencyFactory(RpcConsumer)
+class Rpc(Entrypoint, HeaderDecoder):
 
-
-# pylint: disable=E1101,E1123
-class RpcProvider(EntrypointProvider, HeaderDecoder):
-
-    rpc_consumer = rpc_consumer(shared=CONTAINER_SHARED)
+    rpc_consumer = RpcConsumer()
 
     def __init__(self, expected_exceptions=()):
-        self.expected_exceptions = expected_exceptions
-        super(RpcProvider, self).__init__()
+        """ Mark a method to be exposed over rpc
 
-    def prepare(self):
+        :Parameters:
+            expected_exceptions : exception class or tuple of exception classes
+                Stashed on the entrypoint instance for later inspection by
+                other extensions in the worker lifecycle. Use for exceptions
+                caused by the caller (e.g. bad arguments).
+        """
+        self.expected_exceptions = expected_exceptions
+
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
         self.rpc_consumer.register_provider(self)
 
     def stop(self):
         self.rpc_consumer.unregister_provider(self)
-        super(RpcProvider, self).stop()
 
     def handle_message(self, body, message):
         try:
@@ -169,31 +168,21 @@ class RpcProvider(EntrypointProvider, HeaderDecoder):
             self.rpc_consumer.requeue_message(message)
 
     def handle_result(self, message, worker_ctx, result, exc_info):
-        container = self.container
         result, exc_info = self.rpc_consumer.handle_result(
-            message, container, result, exc_info)
+            message, result, exc_info)
         return result, exc_info
 
 
-@entrypoint
-def rpc(expected_exceptions=()):
-    """ Mark a method to be exposed over rpc
-
-    :Parameters:
-        expected_exceptions : exception class or tuple of exception classes
-            Stashed on the provider instance for later inspection by other
-            dependencies in the worker lifecycle. Use for exceptions caused
-            by the caller (e.g. bad arguments).
-    """
-    return DependencyFactory(RpcProvider, expected_exceptions)
+rpc = Rpc.decorator
 
 
 class Responder(object):
 
-    def __init__(self, message):
+    def __init__(self, config, message):
+        self.config = config
         self.message = message
 
-    def send_response(self, container, result, exc_info, **kwargs):
+    def send_response(self, result, exc_info, **kwargs):
 
         error = None
         if exc_info is not None:
@@ -212,9 +201,9 @@ class Responder(object):
                 # `error` below is guaranteed to serialize to json
                 error = serialize(UnserializableValueError(item))
 
-        conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.config[AMQP_URI_CONFIG_KEY])
 
-        exchange = get_rpc_exchange(container)
+        exchange = get_rpc_exchange(self.config)
 
         retry = kwargs.pop('retry', True)
         retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
@@ -235,20 +224,17 @@ class Responder(object):
         return result, exc_info
 
 
-# pylint: disable=E1101,E1123
-class ReplyListener(DependencyProvider):
+class ReplyListener(SharedExtension):
 
-    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
+    queue_consumer = QueueConsumer()
 
-    def __init__(self):
-        super(ReplyListener, self).__init__()
+    def __init__(self, **kwargs):
         self._reply_events = {}
+        super(ReplyListener, self).__init__(**kwargs)
 
-    def prepare(self):
+    def setup(self, container):
 
         service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
-        container = self.container
-
         service_name = container.service_name
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
@@ -256,7 +242,7 @@ class ReplyListener(DependencyProvider):
 
         self.routing_key = str(service_uuid)
 
-        exchange = get_rpc_exchange(container)
+        exchange = get_rpc_exchange(container.config)
 
         self.queue = Queue(
             queue_name,
@@ -299,26 +285,16 @@ class ReplyListener(DependencyProvider):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-@dependency
-def reply_listener():
-    return DependencyFactory(ReplyListener)
+class RpcProxy(Dependency):
 
+    rpc_reply_listener = ReplyListener()
 
-class RpcProxyProvider(InjectionProvider):
-
-    rpc_reply_listener = reply_listener(shared=CONTAINER_SHARED)
-
-    def __init__(self, service_name):
-        self.service_name = service_name
+    def __init__(self, target_service):
+        self.target_service = target_service
 
     def acquire_injection(self, worker_ctx):
-        return ServiceProxy(worker_ctx, self.service_name,
+        return ServiceProxy(worker_ctx, self.target_service,
                             self.rpc_reply_listener)
-
-
-@injection
-def rpc_proxy(service_name):
-    return DependencyFactory(RpcProxyProvider, service_name)
 
 
 class ServiceProxy(object):
@@ -397,7 +373,7 @@ class MethodProxy(HeaderEncoder):
 
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
-        exchange = get_rpc_exchange(container)
+        exchange = get_rpc_exchange(container.config)
 
         with producers[conn].acquire(block=True) as producer:
 

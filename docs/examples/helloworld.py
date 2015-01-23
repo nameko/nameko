@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from nameko.runners import ServiceRunner
-from nameko.events import Event, event_dispatcher, event_handler
+from nameko.events import Event, EventDispatcher, event_handler
 from nameko.timer import timer
 
 
@@ -27,7 +27,7 @@ class HelloWorld(object):
 class FriendlyService(object):
 
     name = "friendlyservice"
-    dispatch = event_dispatcher()
+    dispatch = EventDispatcher()
 
     @timer(interval=5)
     def say_hello(self):

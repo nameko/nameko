@@ -1,4 +1,5 @@
 import socket
+import uuid
 
 import eventlet
 from eventlet.event import Event
@@ -10,7 +11,7 @@ import pytest
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.messaging import QueueConsumer
 from nameko.testing.utils import (
-    assert_stops_raising, get_rabbit_connections, get_dependency)
+    assert_stops_raising, get_rabbit_connections, get_extension)
 from nameko.rpc import rpc, RpcConsumer
 from nameko.standalone.rpc import ServiceRpcProxy
 
@@ -50,13 +51,13 @@ def test_lifecycle(rabbit_manager, rabbit_config):
     container.max_workers = 3
     container.spawn_managed_thread.side_effect = spawn_thread
 
-    queue_consumer = QueueConsumer()
-    queue_consumer.bind("queue_consumer", container)
+    queue_consumer = QueueConsumer().clone(container)
 
     handler = MessageHandler()
 
     queue_consumer.register_provider(handler)
 
+    queue_consumer.setup(container)
     queue_consumer.start()
 
     # making sure the QueueConsumer uses the container to spawn threads
@@ -98,8 +99,8 @@ def test_reentrant_start_stops():
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer()
-    queue_consumer.bind("queue_consumer", container)
+    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer.setup(container)
 
     queue_consumer.start()
     gt = queue_consumer._gt
@@ -128,8 +129,8 @@ def test_stop_while_starting(rabbit_config):
             started.reset()
             return super(BrokenConnConsumer, self).consume(*args, **kwargs)
 
-    queue_consumer = BrokenConnConsumer()
-    queue_consumer.bind("queue_consumer", container)
+    queue_consumer = BrokenConnConsumer().clone(container)
+    queue_consumer.setup(container)
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
@@ -164,8 +165,8 @@ def test_error_stops_consumer_thread():
     container.max_workers = 3
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer()
-    queue_consumer.bind("queue_consumer", container)
+    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer.setup(container)
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
@@ -188,9 +189,8 @@ def test_on_consume_error_kills_consumer():
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer()
-
-    queue_consumer.bind("queue_consumer", container)
+    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer.setup(container)
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
@@ -212,10 +212,10 @@ def test_reconnect_on_socket_error(rabbit_config):
 
     connection_revived = Mock()
 
-    queue_consumer = QueueConsumer()
-    queue_consumer.on_connection_revived = connection_revived
+    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer.setup(container)
 
-    queue_consumer.bind("queue_consumer", container)
+    queue_consumer.on_connection_revived = connection_revived
 
     handler = MessageHandler()
     queue_consumer.register_provider(handler)
@@ -239,11 +239,15 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer1 = QueueConsumer()
-    queue_consumer1.bind("queue_consumer", container)
+    class NonShared(QueueConsumer):
+        @property
+        def sharing_key(self):
+            return uuid.uuid4()
 
-    queue_consumer2 = QueueConsumer()
-    queue_consumer2.bind("queue_consumer", container)
+    queue_consumer1 = NonShared().clone(container)
+    queue_consumer1.setup(container)
+    queue_consumer2 = NonShared().clone(container)
+    queue_consumer2.setup(container)
 
     consumer_continue = Event()
 
@@ -306,8 +310,8 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
 
-    queue_consumer = QueueConsumer()
-    queue_consumer.bind("queue_consumer", container)
+    queue_consumer = QueueConsumer().clone(container)
+    queue_consumer.setup(container)
 
     class Handler(object):
         queue = ham_queue
@@ -338,8 +342,8 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
             return arg
 
     container = container_factory(Service, rabbit_config)
-    queue_consumer = get_dependency(container, QueueConsumer)
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    queue_consumer = get_extension(container, QueueConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
 
     # an error in rpc_consumer.handle_message will kill the queue_consumer's
     # greenthread. when the container suicides and kills the queue_consumer,

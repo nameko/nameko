@@ -5,50 +5,51 @@ import time
 from eventlet import Timeout
 from eventlet.event import Event
 
-from nameko.dependencies import (
-    entrypoint, EntrypointProvider, DependencyFactory)
+from nameko.extensions import Entrypoint
 
 _log = getLogger(__name__)
 
 
-@entrypoint
-def timer(interval=None, config_key=None):
-    '''
-    Decorates a method as a timer, which will be called every `interval` sec.
+class Timer(Entrypoint):
+    def __init__(self, interval=None, config_key=None):
+        """
+        Timer entrypoint implementation. Fires every :attr:`self.interval`
+        seconds.
 
-    Either the `interval` or the `config_key` have to be provided or both.
-    If the `config_key` is given the value for that key in the config will be
-    used as the interval otherwise the `interval` provided will be used.
+        Either `interval` or `config_key` must be provided. If given,
+        `config_key` specifies a key in the config will be used as the
+        interval.
 
-    Example::
+        Example::
 
-        class Foobar(object):
+            timer = Timer.decorator
 
-            @timer(interval=5, config_key='foobar_interval')
-            def handle_timer(self):
-                self.shrub(body)
-    '''
-    return DependencyFactory(TimerProvider, interval, config_key)
+            class Service(object):
 
+                @timer(interval=5)
+                def tick(self):
+                    self.shrub(body)
 
-class TimerProvider(EntrypointProvider):
-    def __init__(self, interval, config_key):
+                @timer(config_key='tock_interval')
+                def tock(self):
+                    self.shrub(body)
+        """
         self._default_interval = interval
         self.config_key = config_key
         self.should_stop = Event()
         self.gt = None
 
-    def prepare(self):
-        interval = self._default_interval
-
-        if self.config_key:
-            config = self.container.config
-            interval = config.get(self.config_key, interval)
-
-        self.interval = interval
+    def setup(self, container):
+        self.container = container  # stash container (TEMP?)
 
     def start(self):
         _log.debug('starting %s', self)
+        interval = self._default_interval
+
+        if self.config_key:
+            interval = self.container.config.get(self.config_key, interval)
+
+        self.interval = interval
         self.gt = self.container.spawn_managed_thread(self._run)
 
     def stop(self):
@@ -96,3 +97,6 @@ class TimerProvider(EntrypointProvider):
         # triggered `kill` is a no-op, since the container is alredy
         # `_being_killed`.
         self.container.spawn_worker(self, args, kwargs)
+
+
+timer = Timer.decorator

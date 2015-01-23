@@ -11,18 +11,17 @@ bottom of the file.
 ``test_shop_integration`` is a  full integration test of the ACME shop
 "checkout" flow. It demonstrates how to test the multiple ACME services in
 combination with each other, including limiting service interactions by
-replacing certain entrypoint and injection dependencies.
+replacing certain entrypoints and dependencies.
 """
 
 from collections import defaultdict
 
 import pytest
 
-from nameko.dependencies import (
-    InjectionProvider, injection, DependencyFactory)
-from nameko.events import event_dispatcher, Event, event_handler
+from nameko.extensions import Dependency
+from nameko.events import EventDispatcher, Event, event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc, rpc_proxy
+from nameko.rpc import rpc, RpcProxy
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import replace_injections, restrict_entrypoints
@@ -42,7 +41,7 @@ class ItemDoesNotExist(Exception):
     pass
 
 
-class ShoppingBasket(InjectionProvider):
+class ShoppingBasket(Dependency):
     """ A shopping basket tied to the current ``user_id``.
     """
     def __init__(self):
@@ -69,13 +68,6 @@ class ShoppingBasket(InjectionProvider):
         return Basket(self.baskets[user_id])
 
 
-@injection
-def shopping_basket():
-    """ A shopping basket tied to the current user.
-    """
-    return DependencyFactory(ShoppingBasket)
-
-
 class ItemAddedToBasket(Event):
     """ Dispatched when an item is added to a shopping basket.
     """
@@ -90,12 +82,12 @@ class CheckoutComplete(Event):
 
 class AcmeShopService(object):
 
-    user_basket = shopping_basket()
-    stock_service = rpc_proxy('stockservice')
-    invoice_service = rpc_proxy('invoiceservice')
-    payment_service = rpc_proxy('paymentservice')
+    user_basket = ShoppingBasket()
+    stock_service = RpcProxy('stockservice')
+    invoice_service = RpcProxy('invoiceservice')
+    payment_service = RpcProxy('paymentservice')
 
-    fire_event = event_dispatcher()
+    fire_event = EventDispatcher()
 
     @rpc
     def add_to_basket(self, item_code):
@@ -133,7 +125,7 @@ class AcmeShopService(object):
         return total_price
 
 
-class Warehouse(InjectionProvider):
+class Warehouse(Dependency):
     """ A database of items in the warehouse.
 
     This is a toy example! A dictionary is not a database.
@@ -162,16 +154,9 @@ class Warehouse(InjectionProvider):
         return self.database
 
 
-@injection
-def warehouse():
-    """ A shopping basket tied to the current user.
-    """
-    return DependencyFactory(Warehouse)
-
-
 class StockService(object):
 
-    warehouse = warehouse()
+    warehouse = Warehouse()
 
     @rpc
     def check_price(self, item_code):
@@ -212,7 +197,7 @@ class StockService(object):
         raise NotImplemented()
 
 
-class AddressBook(InjectionProvider):
+class AddressBook(Dependency):
     """ A database of user details, keyed on user_id.
     """
     def __init__(self):
@@ -234,16 +219,9 @@ class AddressBook(InjectionProvider):
         return get_user_details
 
 
-@injection
-def address_book():
-    """ Provides the address of the current user.
-    """
-    return DependencyFactory(AddressBook)
-
-
 class InvoiceService(object):
 
-    get_user_details = address_book()
+    get_user_details = AddressBook()
 
     @rpc
     def prepare_invoice(self, amount):
@@ -295,7 +273,9 @@ def runner_factory(rabbit_config):
 
     for r in all_runners:
         try:
+            print "stopping runner",r
             r.stop()
+            print "stopped runner", r
         except:
             pass
 
@@ -318,7 +298,9 @@ def rpc_proxy_factory(rabbit_config):
     yield make_proxy
 
     for proxy in all_proxies:
+        print "stopping", proxy
         proxy.stop()
+        print "stopped", proxy
 
 
 def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
@@ -328,7 +310,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     to be running. Explicitly replaces the rpc proxy to PaymentService so
     that service doesn't need to be hosted.
 
-    Also replaces the event dispatcher injection on AcmeShopService and
+    Also replaces the event dispatcher dependency on AcmeShopService and
     disables the timer entrypoint on StockService. Limiting the interactions
     of services in this way reduces the scope of the integration test and
     eliminates undesirable side-effects (e.g. processing events unnecessarily).
@@ -378,6 +360,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
 
     # verify events fired as expected
     assert fire_event.call_count == 3
+    print "DONE"
 
 
 if __name__ == "__main__":

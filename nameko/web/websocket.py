@@ -72,7 +72,8 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
             return self.protocol.serialize_result(
                 provider.handle_message(socket_id, data, context_data),
                 correlation_id=correlation_id, ws=True)
-        except Exception as e:  # TODO: can we do more granular exception handling?
+        # TODO: can we do more granular exception handling?
+        except Exception as e:
             _log.error('websocket message error', exc_info=True)
             return self.protocol.serialize_result(
                 self.protocol.expose_exception(e)[1], success=False,

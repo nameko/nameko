@@ -1,12 +1,12 @@
 from mock import Mock
 
-from nameko.dependencies import InjectionProvider
+from nameko.extensions import Dependency
 from nameko.testing.dependencies import patch_injection_provider
 
 
 def test_patch_attr_dependency():
 
-    class TestProvider(InjectionProvider):
+    class TestProvider(Dependency):
         def acquire_injection(self, worker_ctx):
             return 'before patch injection'
 

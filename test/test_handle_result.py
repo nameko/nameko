@@ -4,10 +4,9 @@ import sys
 from mock import ANY
 import pytest
 
-from nameko.dependencies import (
-    InjectionProvider, DependencyFactory, injection, entrypoint)
+from nameko.extensions import Dependency
 from nameko.exceptions import RemoteError
-from nameko.rpc import RpcProvider
+from nameko.rpc import Rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.utils import wait_for_worker_idle
 
@@ -20,20 +19,15 @@ def reset():
     del worker_result_called[:]
 
 
-class CollectorInjection(InjectionProvider):
-    """ InjectionProvider that collects worker results
+class ResultCollector(Dependency):
+    """ Dependency that collects worker results
     """
     def worker_result(self, worker_ctx, res, exc_info):
         worker_result_called.append((res, exc_info))
 
 
-@injection
-def result_collector():
-    return DependencyFactory(CollectorInjection)
-
-
-class CustomRpcProvider(RpcProvider):
-    """ RpcProvider subclass that verifies `result` can be serialized to json,
+class CustomRpc(Rpc):
+    """ Rpc subclass that verifies `result` can be serialized to json,
     and changes the `result` and `exc_info` accordingly.
     """
     def handle_result(self, message, worker_ctx, result, exc_info):
@@ -43,18 +37,16 @@ class CustomRpcProvider(RpcProvider):
             result = "something went wrong"
             exc_info = sys.exc_info()
 
-        return super(CustomRpcProvider, self).handle_result(
+        return super(CustomRpc, self).handle_result(
             message, worker_ctx, result, exc_info)
 
 
-@entrypoint
-def custom_rpc():
-    return DependencyFactory(CustomRpcProvider)
+custom_rpc = CustomRpc.decorator
 
 
 class ExampleService(object):
 
-    collector = result_collector()
+    collector = ResultCollector()
 
     @custom_rpc
     def echo(self, arg):

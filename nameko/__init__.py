@@ -3,8 +3,8 @@ Getting Started
 ---------------
 
 Nameko makes writing services easier by taking care of lifecycle management
-and interface plumbing. Just declare your dependencies, specify a configuration
-and write your business logic.
+and interface plumbing. Just declare your entrypoints and dependencies,
+specify a configuration and write your business logic.
 
 Let's create a simple example.
 
@@ -40,7 +40,7 @@ called. Let's create ``FriendlyService`` now:
 
 .. code:: python
 
-    from nameko.events import Event, event_dispatcher
+    from nameko.events import Event, EventDispatcher
     from nameko.timer import timer
 
     class HelloEvent(Event):
@@ -49,14 +49,14 @@ called. Let's create ``FriendlyService`` now:
     class FriendlyService(object):
 
         name = "friendlyservice"
-        dispatch = event_dispatcher()
+        dispatch = EventDispatcher()
 
         @timer(interval=5)
         def say_hello(self):
             self.dispatch(HelloEvent(self.name))
 
 FriendlyService declares itself to be an event dispatcher with the
-``event_dispatcher`` function. This gives it the ability to send events using
+``EventDispatcher`` dependency. This gives it the ability to send events using
 its ``dispatch`` method.
 
 Using the nameko ``timer``, another declaration, instances of
@@ -84,17 +84,6 @@ in your AMQP broker and see messages passing through it.
 The complete source for this example is available here:
 :ref:`hello-world-example`.
 
-.. note::
-
-   ``@event_handler`` and ``@timer`` are examples of *entrypoint dependencies*.
-   That is, they declare things on which the service *depends* to function as
-   intended, and they provide an *entrypoint* into the business logic of the
-   service. When they're triggered, some logic created by the service
-   developer is invoked.
-
-   ``event_dispatcher`` is an example of an *injection dependency*. It declares
-   a dependency of the service that will be *injected* into the service
-   instance when it is hosted by nameko.
 
 RPC Example
 ===========
@@ -115,7 +104,7 @@ Adder service:
             return x + y
 
 If your service needs to call an RPC method in another service, you can use
-the ``rpc_proxy`` injection to access it.
+the ``RpcProxy`` dependency to access it.
 
 Adder client:
 
@@ -123,13 +112,13 @@ Adder client:
 
     import random
 
-    from nameko.rpc import rpc, rpc_proxy
+    from nameko.rpc import rpc, RpcProxy
     from nameko.timer import timer
 
 
     class RpcClient(object):
 
-        adder = rpc_proxy('adderservice')
+        adder = RpcProxy('adderservice')
 
         @timer(interval=2)
         def add(self):
@@ -162,7 +151,7 @@ consume from AMQP directly.
 
     class MessagingPublisher(object):
         "Publish messages to the ``demo_ex`` exchange every two seconds."
-        publish = publisher(exchange=demo_ex)
+        publish = Publisher(exchange=demo_ex)
 
         @timer(interval=2)
         def send_msg(self):
@@ -175,8 +164,8 @@ consume from AMQP directly.
         def process(self, payload):
             print payload
 
-The source for this example, expanded with a custom injection dependency,
-is available here: :ref:`messaging-example`.
+The source for this example, expanded with a custom dependency, is available
+here: :ref:`messaging-example`.
 
 
 API - reference
@@ -190,7 +179,7 @@ API - reference
     Messaging (low level AMQP messaging) <nameko.messaging>
     Server                               <nameko.runners>
     Lifecycle Management                 <nameko.containers>
-    Dependency Injection                 <nameko.dependencies>
+    Extensions                           <nameko.extensions>
 
 
 Examples

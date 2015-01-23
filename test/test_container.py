@@ -9,18 +9,20 @@ import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.dependencies import(
-    InjectionProvider, EntrypointProvider, entrypoint, injection,
-    DependencyFactory)
-from nameko.testing.utils import AnyInstanceOf, get_dependency
+from nameko.extensions import Dependency, Entrypoint
+from nameko.testing.utils import get_extension
 
 
 class CallCollectorMixin(object):
     call_counter = 0
 
     def __init__(self):
-        self.instances.add(self)
         self._reset_calls()
+
+    def clone(self, container):
+        res = super(CallCollectorMixin, self).clone(container)
+        self.instances.add(res)
+        return res
 
     def _reset_calls(self):
         self.calls = []
@@ -31,9 +33,9 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
-    def prepare(self):
-        self._log_call(('prepare'))
-        super(CallCollectorMixin, self).prepare()
+    def setup(self, container):
+        self._log_call(('setup'))
+        super(CallCollectorMixin, self).setup(container)
 
     def start(self):
         self._log_call(('start'))
@@ -47,43 +49,38 @@ class CallCollectorMixin(object):
         self._log_call(('kill'))
         super(CallCollectorMixin, self).stop()
 
+
+class CallCollectingEntrypoint(
+        CallCollectorMixin, Entrypoint):
+    instances = set()
+
+
+class CallCollectingDependency(
+        CallCollectorMixin, Dependency):
+    instances = set()
+
+    def acquire_injection(self, worker_ctx):
+        self._log_call(('acquire_injection', worker_ctx))
+        return 'spam-attr'
+
     def worker_setup(self, worker_ctx):
-        self._log_call(('setup', worker_ctx))
+        self._log_call(('worker_setup', worker_ctx))
         super(CallCollectorMixin, self).worker_setup(worker_ctx)
 
     def worker_result(self, worker_ctx, result=None, exc_info=None):
-        self._log_call(('result', worker_ctx, (result, exc_info)))
+        self._log_call(('worker_result', worker_ctx, (result, exc_info)))
         super(CallCollectorMixin, self).worker_result(
             worker_ctx, result, exc_info)
 
     def worker_teardown(self, worker_ctx):
-        self._log_call(('teardown', worker_ctx))
+        self._log_call(('worker_teardown', worker_ctx))
         super(CallCollectorMixin, self).worker_teardown(worker_ctx)
 
 
-class CallCollectingEntrypointProvider(
-        CallCollectorMixin, EntrypointProvider):
-    instances = set()
+foobar = CallCollectingEntrypoint.decorator
 
-
-class CallCollectingInjectionProvider(
-        CallCollectorMixin, InjectionProvider):
-    instances = set()
-
-    def acquire_injection(self, worker_ctx):
-        self._log_call(('acquire', worker_ctx))
-        return 'spam-attr'
-
-
-@entrypoint
-def foobar():
-    return DependencyFactory(CallCollectingEntrypointProvider)
-
-
-@injection
-def call_collector():
-    return DependencyFactory(CallCollectingInjectionProvider)
-
+# compat
+call_collector = CallCollectingDependency
 
 egg_error = Exception('broken')
 
@@ -112,8 +109,8 @@ def container():
     container = ServiceContainer(service_cls=Service,
                                  worker_ctx_cls=WorkerContext,
                                  config={})
-    for dep in container.dependencies:
-        dep._reset_calls()
+    for ext in container.extensions:
+        ext._reset_calls()
 
     CallCollectorMixin.call_counter = 0
     return container
@@ -125,32 +122,32 @@ def logger():
         yield patched
 
 
-def test_collects_dependencies(container):
-    assert len(container.dependencies) == 4
-    assert container.dependencies == (
-        CallCollectingEntrypointProvider.instances |
-        CallCollectingInjectionProvider.instances)
+def test_collects_extensions(container):
+    assert len(container.extensions) == 4
+    assert container.extensions == (
+        CallCollectingEntrypoint.instances |
+        CallCollectingDependency.instances)
 
 
-def test_starts_dependencies(container):
+def test_starts_extensions(container):
 
-    for dep in container.dependencies:
-        assert dep.calls == []
+    for ext in container.extensions:
+        assert ext.calls == []
 
     container.start()
 
-    for dep in container.dependencies:
-        assert dep.calls == [
-            ('prepare'),
+    for ext in container.extensions:
+        assert ext.calls == [
+            ('setup'),
             ('start')
         ]
 
 
-def test_stops_dependencies(container):
+def test_stops_extensions(container):
 
     container.stop()
-    for dep in container.dependencies:
-        assert dep.calls == [
+    for ext in container.extensions:
+        assert ext.calls == [
             ('stop')
         ]
 
@@ -158,19 +155,17 @@ def test_stops_dependencies(container):
 def test_stops_entrypoints_before_injections(container):
     container.stop()
 
-    dependencies = container.dependencies
-    spam_dep = get_dependency(container, InjectionProvider)
+    dependency = get_extension(container, Dependency)
 
-    for dec_dep in dependencies.entrypoints:
-        assert dec_dep.call_ids[0] < spam_dep.call_ids[0]
+    for entrypoint in container.entrypoints:
+        assert entrypoint.call_ids[0] < dependency.call_ids[0]
 
 
 def test_worker_life_cycle(container):
-    dependencies = container.dependencies
 
-    (spam_dep,) = [dep for dep in dependencies if dep.name == 'spam']
-    (ham_dep,) = [dep for dep in dependencies if dep.name == 'ham']
-    (egg_dep,) = [dep for dep in dependencies if dep.name == 'egg']
+    spam_dep = get_extension(container, Dependency)
+    ham_dep = get_extension(container, Entrypoint, method_name="ham")
+    egg_dep = get_extension(container, Entrypoint, method_name="egg")
 
     handle_result = Mock()
     handle_result.side_effect = (
@@ -185,28 +180,14 @@ def test_worker_life_cycle(container):
     container._worker_pool.waitall()
 
     assert spam_dep.calls == [
-        ('acquire', ham_worker_ctx),
-        ('setup', ham_worker_ctx),
-        ('result', ham_worker_ctx, ('ham', None)),
-        ('teardown', ham_worker_ctx),
-        ('acquire', egg_worker_ctx),
-        ('setup', egg_worker_ctx),
-        ('result', egg_worker_ctx, (None, (Exception, egg_error, ANY))),
-        ('teardown', egg_worker_ctx),
-    ]
-
-    assert ham_dep.calls == [
-        ('setup', ham_worker_ctx),
-        ('teardown', ham_worker_ctx),
-        ('setup', egg_worker_ctx),
-        ('teardown', egg_worker_ctx),
-    ]
-
-    assert egg_dep.calls == [
-        ('setup', ham_worker_ctx),
-        ('teardown', ham_worker_ctx),
-        ('setup', egg_worker_ctx),
-        ('teardown', egg_worker_ctx),
+        ('acquire_injection', ham_worker_ctx),
+        ('worker_setup', ham_worker_ctx),
+        ('worker_result', ham_worker_ctx, ('ham', None)),
+        ('worker_teardown', ham_worker_ctx),
+        ('acquire_injection', egg_worker_ctx),
+        ('worker_setup', egg_worker_ctx),
+        ('worker_result', egg_worker_ctx, (None, (Exception, egg_error, ANY))),
+        ('worker_teardown', egg_worker_ctx),
     ]
 
     assert handle_result.call_args_list == [
@@ -241,7 +222,7 @@ def test_container_doesnt_exhaust_max_workers(container):
                                  worker_ctx_cls=WorkerContext,
                                  config={MAX_WORKERS_CONFIG_KEY: 1})
 
-    dep = get_dependency(container, EntrypointProvider)
+    dep = get_extension(container, Entrypoint)
 
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, ['ham'], {})
@@ -341,7 +322,7 @@ def test_kill_container_with_active_workers(container_factory):
             wait_forever.wait()
 
     container = container_factory(Service, {})
-    dep = get_dependency(container, EntrypointProvider)
+    dep = get_extension(container, Entrypoint)
 
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, (), {})
@@ -352,13 +333,13 @@ def test_kill_container_with_active_workers(container_factory):
         container.kill()
     calls = logger.warning.call_args_list
     assert call(
-        'killing active thread for %s', 'kill-with-active-workers.spam'
+        'killing active thread for %s', dep
     ) in calls
 
 
 def test_handle_killed_worker(container, logger):
 
-    dep = get_dependency(container, EntrypointProvider)
+    dep = get_extension(container, Entrypoint)
     container.spawn_worker(dep, ['sleep'], {})
 
     assert len(container._active_threads) == 1
@@ -497,7 +478,7 @@ def test_kill_bad_dependency(container):
     """ Verify that an exception from a badly-behaved dependency.kill()
     doesn't stop the container's kill process.
     """
-    dep = get_dependency(container, InjectionProvider)
+    dep = get_extension(container, Dependency)
     with patch.object(dep, 'kill') as dep_kill:
         dep_kill.side_effect = Exception('dependency error')
 
@@ -542,15 +523,3 @@ def test_stop_during_kill(container, logger):
         assert logger.debug.call_args_list == [
             call("already being killed %s", container),
         ]
-
-
-def test_container_entrypoint_property(container):
-    entrypoints = container.entrypoints
-    assert {dep.name for dep in entrypoints} == {'wait', 'ham', 'egg'}
-    assert entrypoints == 3 * [AnyInstanceOf(CallCollectingEntrypointProvider)]
-
-
-def test_container_injection_property(container):
-    injections = container.injections
-    assert {dep.name for dep in injections} == {'spam'}
-    assert injections == [AnyInstanceOf(CallCollectingInjectionProvider)]

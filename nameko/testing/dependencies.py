@@ -1,5 +1,5 @@
 """
-Utilities for testing DependencyProviders
+Utilities for testing Extensions
 """
 
 from contextlib import contextmanager
@@ -9,7 +9,7 @@ from mock import patch, Mock
 
 @contextmanager
 def patch_injection_provider(provider):
-    """ Patches an `InjectionProvider` provider's acquire_injection
+    """ Patches an `Dependency` provider's acquire_injection
     such that it returns a `Mock` as the injection object.
     The injection object will be yielded by the contextmanager.
 

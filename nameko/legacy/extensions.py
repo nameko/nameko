@@ -7,20 +7,19 @@ from kombu.pools import producers
 
 from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import ContainerBeingKilled
-from nameko.dependencies import (
-    dependency, entrypoint, DependencyFactory, CONTAINER_SHARED)
 from nameko.legacy.nova import get_topic_queue, parse_message
-from nameko.rpc import RpcConsumer, RpcProvider, Responder
+from nameko.rpc import RpcConsumer, Rpc, Responder
 
 
 class NovaResponder(Responder):
     """ Extend Responder to handle double-message nova responses and transform
     any exceptions into the format expected by the nova rpc proxy.
     """
-    def __init__(self, msgid):
+    def __init__(self, config, msgid):
+        self.config = config
         self.msgid = msgid
 
-    def send_response(self, container, result, exc_info, **kwargs):
+    def send_response(self, result, exc_info, **kwargs):
         if not self.msgid:
             return  # pragma: no cover
 
@@ -42,7 +41,7 @@ class NovaResponder(Responder):
         else:
             failure = None
 
-        conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.config[AMQP_URI_CONFIG_KEY])
 
         retry = kwargs.pop('retry', True)
         retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
@@ -59,15 +58,14 @@ class NovaResponder(Responder):
         return result, exc_info
 
 
-# pylint: disable=E1101
 class NovaRpcConsumer(RpcConsumer):
     """ Extend RpcConsumer to modify the routing key, queue name, exchange
     name and handle the nova message payload.
     Ensures result is handled by a NovaResponder.
     """
-    def prepare(self):
+    def setup(self, container):
+        self.container = container  # stash container (TEMP)
         if self.queue is None:
-            container = self.container
 
             service_name = container.service_name
             exchange_name = container.config.get('CONTROL_EXCHANGE', 'rpc')
@@ -76,7 +74,6 @@ class NovaRpcConsumer(RpcConsumer):
             self.queue_consumer.register_provider(self)
 
     def handle_message(self, body, message):
-        container = self.container
         try:
             routing_key = '{}.{}'.format(
                 message.delivery_info['routing_key'],
@@ -87,31 +84,24 @@ class NovaRpcConsumer(RpcConsumer):
         except Exception:
             msgid = body.get('_msg_id', None)
             exc_info = sys.exc_info()
-            self.handle_result(message, msgid, container, None, exc_info)
+            self.handle_result(message, msgid, None, exc_info)
 
-    def handle_result(self, message, msgid, container, result, exc_info):
-        responder = NovaResponder(msgid)
-        result, exc_info = responder.send_response(container, result, exc_info)
+    def handle_result(self, message, msgid, result, exc_info):
+        responder = NovaResponder(self.container.config, msgid)
+        result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
         return result, exc_info
 
 
-@dependency
-def nova_rpc_consumer():
-    return DependencyFactory(NovaRpcConsumer)
-
-
-# pylint: disable=E1101,E1123
-class NovaRpcProvider(RpcProvider):
-    """ Extend RpcProvider to handle the nova message payload.
+class NovaRpc(Rpc):
+    """ Extend :class:`nameko.rpc.Rpc` to handle the nova message payload.
     Works in combination with the NovaRpcConsumer.
     """
 
-    rpc_consumer = nova_rpc_consumer(shared=CONTAINER_SHARED)
+    rpc_consumer = NovaRpcConsumer()
 
     def handle_message(self, body, message):
-        container = self.container
 
         msgid, request_ctx, _, kwargs = parse_message(body)
         args = []
@@ -122,18 +112,16 @@ class NovaRpcProvider(RpcProvider):
 
         context_data = request_ctx.copy()
         try:
-            container.spawn_worker(
-                self, args, kwargs, context_data=context_data,
-                handle_result=handle_result)
+            self.container.spawn_worker(self, args, kwargs,
+                                        context_data=context_data,
+                                        handle_result=handle_result)
         except ContainerBeingKilled:
             self.rpc_consumer.requeue_message(message)
 
     def handle_result(self, message, msgid, worker_ctx, result, exc_info):
 
         return self.rpc_consumer.handle_result(
-            message, msgid, self.container, result, exc_info)
+            message, msgid, result, exc_info)
 
 
-@entrypoint
-def rpc():
-    return DependencyFactory(NovaRpcProvider)
+rpc = NovaRpc.decorator
