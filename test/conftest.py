@@ -1,7 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
 
-import socket
 import itertools
 import logging
 import sys
@@ -15,7 +14,6 @@ from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
     get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
     get_rabbit_connections, get_rabbit_config)
-from nameko.testing.websocket import make_virtual_socket
 
 
 def pytest_addoption(parser):
@@ -88,59 +86,6 @@ def rabbit_config(request, rabbit_manager):
     if connections:
         count = len(connections)
         raise RuntimeError("{} rabbit connection(s) left open.".format(count))
-
-
-@pytest.yield_fixture()
-def web_config(rabbit_config):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-    sock.bind(('127.0.0.1', 0))
-    port = sock.getsockname()[1]
-    sock.close()
-
-    cfg = rabbit_config
-    cfg['WEB_SERVER_PORT'] = port
-    yield cfg
-
-
-@pytest.yield_fixture()
-def web_session(web_config):
-    from requests import Session
-    from werkzeug.urls import url_join
-
-    port = web_config['WEB_SERVER_PORT']
-
-    class WebSession(Session):
-        def request(self, method, url, *args, **kwargs):
-            url = url_join('http://127.0.0.1:%d/' % port, url)
-            return Session.request(self, method, url, *args, **kwargs)
-
-    sess = WebSession()
-    with sess:
-        yield sess
-
-
-@pytest.yield_fixture()
-def websocket(web_config):
-    active_sockets = []
-
-    def socket_creator():
-        ws_app, wait_for_sock = make_virtual_socket(
-            '127.0.0.1', web_config['WEB_SERVER_PORT'])
-        gr = eventlet.spawn(ws_app.run_forever)
-        active_sockets.append((gr, ws_app))
-        return wait_for_sock()
-
-    try:
-        yield socket_creator
-    finally:
-        for gr, ws_app in active_sockets:
-            try:
-                ws_app.close()
-            except Exception:
-                pass
-            gr.kill()
 
 
 @pytest.yield_fixture

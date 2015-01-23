@@ -8,7 +8,7 @@ from eventlet.event import Event
 
 from werkzeug.routing import Rule
 
-from nameko.exceptions import MethodNotFound
+from nameko.exceptions import serialize, MethodNotFound
 from nameko.web.exceptions import ConnectionNotFound
 from nameko.web.protocol import JsonProtocol
 from nameko.web.server import WebServer
@@ -67,9 +67,19 @@ class WebSocketServer(SharedExtension, ProviderCollector):
             method, data, correlation_id = self.protocol.deserialize_ws_frame(
                 raw_req)
             provider = self.get_provider_for_method(method)
+            result, exc_info = provider.handle_message(
+                socket_id, data, context_data)
+            if exc_info is not None:
+                success = False
+                _, result = self.protocol.expose_exception(exc_info[1])
+            else:
+                success = True
             return self.protocol.serialize_result(
-                provider.handle_message(socket_id, data, context_data),
-                correlation_id=correlation_id, ws=True)
+                result,
+                success=success,
+                correlation_id=correlation_id,
+                ws=True,
+            )
         # TODO: can we do more granular exception handling?
         except Exception as exc:
             _log.error('websocket message error', exc_info=True)
@@ -215,7 +225,12 @@ class WebSocketRpc(Entrypoint):
         return event.wait()
 
     def handle_result(self, event, worker_ctx, result, exc_info):
-        event.send(result)
+        # if exc_info is None:
+            # event.send(result)
+        # else:
+            # error = serialize(exc_info[1])
+            # event.send(error)
+        event.send((result, exc_info))
         return result, exc_info
 
 
