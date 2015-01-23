@@ -63,14 +63,14 @@ def test_nova_rpc_provider(empty_config):
             pass
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_cls = Service
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
     container.config = empty_config
 
-    entrypoint = NovaRpc().clone(container)
-    entrypoint.bind(container.service_name, "method")
-    entrypoint.setup(container)
+    entrypoint = NovaRpc().bind(container, "method")
+    entrypoint.setup()
     entrypoint.rpc_consumer = rpc_consumer
 
     container.spawn_worker.side_effect = ContainerBeingKilled()
@@ -155,8 +155,10 @@ def test_nova_responder_cannot_str_exc(mock_publish):
 
 
 def test_nova_consumer_bad_provider():
-    consumer = NovaRpcConsumer()
-    consumer.container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
+
+    consumer = NovaRpcConsumer().bind(container)
     message = Message(
         channel=None,
         delivery_info={'routing_key': 'some route'},

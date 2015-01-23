@@ -36,6 +36,7 @@ def get_connection(rabbit_config):
     close_connections()
 
 
-@pytest.fixture(autouse=True)
-def reset_mock_proxy(request):
+@pytest.yield_fixture(autouse=True)
+def reset_mock_proxy():
+    yield
     reset_state()

@@ -1,5 +1,3 @@
-from eventlet.greenpool import GreenPile
-from mock import Mock
 from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import Session
@@ -27,31 +25,6 @@ config = {
         'fooservice:spam_base': 'sqlite:///:memory:'
     }
 }
-
-
-def test_concurrency():
-
-    container = Mock()
-    container.config = config
-    container.service_name = "fooservice"
-
-    entrypoint = DummyProvider()
-    service_instance = Mock()
-
-    def inject(worker_ctx):
-        orm_session = OrmSession(DeclBase).clone(container)
-        orm_session.setup(container)
-        return orm_session.acquire_injection(worker_ctx)
-
-    # get injections concurrently
-    pile = GreenPile()
-    for _ in xrange(CONCURRENT_REQUESTS):
-        worker_ctx = WorkerContext(container, service_instance, entrypoint)
-        pile.spawn(inject, worker_ctx)
-    results = set(pile)
-
-    # injections should all be unique
-    assert len(results) == CONCURRENT_REQUESTS
 
 
 def test_db(container_factory):

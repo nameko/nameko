@@ -19,8 +19,8 @@ class CallCollectorMixin(object):
     def __init__(self):
         self._reset_calls()
 
-    def clone(self, container):
-        res = super(CallCollectorMixin, self).clone(container)
+    def bind(self, *args):
+        res = super(CallCollectorMixin, self).bind(*args)
         self.instances.add(res)
         return res
 
@@ -33,9 +33,9 @@ class CallCollectorMixin(object):
         self.calls.append(data)
         self.call_ids.append(CallCollectorMixin.call_counter)
 
-    def setup(self, container):
+    def setup(self):
         self._log_call(('setup'))
-        super(CallCollectorMixin, self).setup(container)
+        super(CallCollectorMixin, self).setup()
 
     def start(self):
         self._log_call(('start'))
@@ -79,16 +79,13 @@ class CallCollectingDependency(
 
 foobar = CallCollectingEntrypoint.decorator
 
-# compat
-call_collector = CallCollectingDependency
-
 egg_error = Exception('broken')
 
 
 class Service(object):
     name = 'test-service'
 
-    spam = call_collector()
+    spam = CallCollectingDependency()
 
     @foobar
     def ham(self):

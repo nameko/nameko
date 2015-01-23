@@ -50,6 +50,7 @@ def maybe_declare():
 def test_consume_provider(empty_config):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
     container.config = empty_config
@@ -62,13 +63,13 @@ def test_consume_provider(empty_config):
     queue_consumer = Mock()
 
     consume_provider = Consumer(
-        queue=foobar_queue, requeue_on_error=False).clone(container)
+        queue=foobar_queue, requeue_on_error=False).bind(container, "consume")
     consume_provider.queue_consumer = queue_consumer
 
     message = Mock(headers={})
 
     # test lifecycle
-    consume_provider.setup(container)
+    consume_provider.setup()
     queue_consumer.register_provider.assert_called_once_with(
         consume_provider)
 
@@ -118,7 +119,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("publish"))
 
-    publisher = Publisher(exchange=foobar_ex).clone(container)
+    publisher = Publisher(exchange=foobar_ex).bind(container, "publish")
 
     producer = Mock()
     connection = Mock()
@@ -129,7 +130,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.setup(container)
+    publisher.setup()
     maybe_declare.assert_called_once_with(foobar_ex, connection)
 
     # test publish
@@ -147,6 +148,7 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_name = "srcservice"
     container.config = empty_config
 
@@ -155,7 +157,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     worker_ctx = WorkerContext(
         container, service, DummyProvider("publish"), data=ctx_data)
 
-    publisher = Publisher(queue=foobar_queue).clone(container)
+    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
 
     producer = Mock()
     connection = Mock()
@@ -166,7 +168,7 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.setup(container)
+    publisher.setup()
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -194,7 +196,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     worker_ctx = CustomWorkerContext(container, service,
                                      DummyProvider('method'), data=ctx_data)
 
-    publisher = Publisher(queue=foobar_queue).clone(container)
+    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
 
     producer = Mock()
     connection = Mock()
@@ -205,7 +207,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     get_producer.return_value = as_context_manager(producer)
 
     # test declarations
-    publisher.setup(container)
+    publisher.setup()
     maybe_declare.assert_called_once_with(foobar_queue, connection)
 
     # test publish
@@ -286,10 +288,10 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
                                      DummyProvider('method'), data=ctx_data)
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).clone(container)
+        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
 
     # test queue, exchange and binding created in rabbit
-    publisher.setup(container)
+    publisher.setup()
     publisher.start()
 
     exchanges = rabbit_manager.get_exchanges(vhost)
@@ -330,9 +332,9 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
                                      DummyProvider('method'), data=ctx_data)
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).clone(container)
+        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
 
-    publisher.setup(container)
+    publisher.setup()
     publisher.start()
 
     service.publish = publisher.acquire_injection(worker_ctx)
@@ -346,11 +348,12 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     }
 
 
-def test_consume_from_rabbit(rabbit_manager, rabbit_config):
+def test_consume_from_rabbit(container_factory, rabbit_manager, rabbit_config):
 
     vhost = rabbit_config['vhost']
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.worker_ctx_cls = CustomWorkerContext
     container.service_name = "service"
     container.config = rabbit_config
@@ -363,11 +366,11 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config):
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 
     consumer = Consumer(
-        queue=foobar_queue, requeue_on_error=False).clone(container)
+        queue=foobar_queue, requeue_on_error=False).bind(container, "publish")
 
     # prepare and start extensions
-    consumer.setup(container)
-    consumer.queue_consumer.setup(container)
+    consumer.setup()
+    consumer.queue_consumer.setup()
     consumer.start()
     consumer.queue_consumer.start()
 

@@ -122,6 +122,7 @@ class ServiceContainer(object):
         self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
+        self.shared_extensions = {}
 
         self.config = config
         self.max_workers = (
@@ -133,19 +134,17 @@ class ServiceContainer(object):
 
         for attr_name, dependency in inspect.getmembers(service_cls,
                                                         is_dependency):
-            clone = dependency.clone(self)
-            clone.bind(self.service_name, attr_name)
-            self.dependencies.add(clone)
-            self.subextensions.update(iter_extensions(clone))
+            bound = dependency.bind(self.interface, attr_name)
+            self.dependencies.add(bound)
+            self.subextensions.update(iter_extensions(bound))
 
         for method_name, method in inspect.getmembers(service_cls,
                                                       inspect.ismethod):
             entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
-                clone = entrypoint.clone(self)
-                clone.bind(self.service_name, method_name)
-                self.entrypoints.add(clone)
-                self.subextensions.update(iter_extensions(clone))
+                bound = entrypoint.bind(self.interface, method_name)
+                self.entrypoints.add(bound)
+                self.subextensions.update(iter_extensions(bound))
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -161,7 +160,8 @@ class ServiceContainer(object):
 
     @property
     def interface(self):
-        # TODO: design interface to expose to extensions
+        """ An interface to this container for use by extensions.
+        """
         return self
 
     def start(self):
@@ -171,7 +171,7 @@ class ServiceContainer(object):
         self.started = True
 
         with _log_time('started %s', self):
-            self.extensions.all.setup(self.interface)
+            self.extensions.all.setup()
             self.extensions.all.start()
 
     def stop(self):
@@ -335,7 +335,11 @@ class ServiceContainer(object):
         Threads can be marked as ``protected``, which means the container will
         not forcibly kill them until after all extensions have been killed.
         Extensions that require a managed thread to complete their kill
-        procedure should ensure to mark them as ``protected``.
+        procedure should ensure to mark them as ``protected``. For example,
+        :class:`nameko.messaging.QueueConsumer` cleanly closes connections
+        to the AMQP broker even when killed; the thread that holds that
+        connection is ``protected`` so it isn't stopped until after the
+        QueueConsumer returns from its kill.
 
         Any uncaught errors inside ``run_method`` cause the container to be
         killed.
@@ -364,10 +368,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            for dependency in self.dependencies:
-                injection = dependency.acquire_injection(worker_ctx)
-                setattr(worker_ctx.service, dependency.attr_name, injection)
-
+            self.dependencies.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)
 
             result = exc_info = None

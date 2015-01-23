@@ -83,24 +83,24 @@ def test_extension_uniqueness(container_factory):
     assert inj1.ext != inj2.ext
 
 
-def test_clones_marked_as_clones():
+def test_is_bound():
     container = Mock()
 
     ext = SimpleExtension()
-    assert ext._Extension__clone is False
-    ext_clone = ext.clone(container)
-    assert ext_clone._Extension__clone is True
+    assert not ext.is_bound()
+    bound = ext.bind(container)
+    assert bound.is_bound()
 
 
-def test_clones_cannot_be_cloned():
+def test_bound_extendions_cannot_be_bound():
     container = Mock()
 
     ext = SimpleExtension()
-    ext_clone = ext.clone(container)
+    bound = ext.bind(container)
 
     with pytest.raises(RuntimeError) as exc_info:
-        ext_clone.clone(container)
-    assert exc_info.value.message == "Cloned extensions cannot be cloned."
+        bound.bind(container)
+    assert exc_info.value.message == "Cannot `bind` a bound extension."
 
 
 def test_extension_defined_on_instance(container_factory):
@@ -127,16 +127,21 @@ def test_extension_defined_on_instance(container_factory):
 def test_is_extension():
     ext = SimpleExtension()
     assert is_extension(ext)
+    assert not is_extension(object)
 
 
 def test_is_dependency():
     dep = SimpleDependency()
     assert is_dependency(dep)
+    ext = SimpleExtension()
+    assert not is_dependency(ext)
 
 
 def test_is_entrypoint():
     entry = SimpleEntrypoint()
     assert is_entrypoint(entry)
+    ext = SimpleExtension()
+    assert not is_entrypoint(ext)
 
 
 def test_entrypoint_decorator_does_not_mutate_service():
@@ -201,31 +206,27 @@ def test_extension_str():
     ext = Extension()
     assert str(ext).startswith('<Extension [declaration] at')
 
-    clone = ext.clone(container)
-    assert str(clone).startswith("<Extension at")
+    bound = ext.bind(container)
+    assert str(bound).startswith("<Extension at")
 
 
 def test_entrypoint_str():
     container = Mock()
+    container.service_name = "sérvice"
 
     ext = Entrypoint()
     assert str(ext).startswith('<Entrypoint [declaration] at')
 
-    clone = ext.clone(container)
-    assert str(clone).startswith("<Entrypoint [unbound] at")
-
-    clone.bind("sérvice", "føbar")
-    assert str(clone).startswith("<Entrypoint [sérvice.føbar] at")
+    bound = ext.bind(container, "føbar")
+    assert str(bound).startswith("<Entrypoint [sérvice.føbar] at")
 
 
 def test_dependency_str():
     container = Mock()
+    container.service_name = "sérvice"
 
     ext = Dependency()
     assert str(ext).startswith('<Dependency [declaration] at')
 
-    clone = ext.clone(container)
-    assert str(clone).startswith("<Dependency [unbound] at")
-
-    clone.bind("sérvice", "føbar")
-    assert str(clone).startswith("<Dependency [sérvice.føbar] at")
+    bound = ext.bind(container, "føbar")
+    assert str(bound).startswith("<Dependency [sérvice.føbar] at")

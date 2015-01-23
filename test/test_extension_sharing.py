@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from mock import call
+import pytest
 
 from nameko.extensions import Dependency, SharedExtension, Extension
 from nameko.testing.utils import get_extension
@@ -13,6 +14,12 @@ class CallCollectorMixin(object):
     def start(self, *args, **kwargs):
         self.calls[type(self)]['start'].append(call(*args, **kwargs))
         super(CallCollectorMixin, self).start(*args, **kwargs)
+
+
+@pytest.yield_fixture(autouse=True)
+def reset():
+    yield
+    CallCollectorMixin.calls.clear()
 
 
 def test_simple_sharing(container_factory):

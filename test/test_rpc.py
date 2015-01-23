@@ -123,15 +123,15 @@ def get_rpc_exchange():
 
 @pytest.yield_fixture
 def queue_consumer():
-    queue_consumer = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'clone') as clone:
-        clone.return_value = queue_consumer
-        yield queue_consumer
+    replacement = Mock(spec=QueueConsumer)
+    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
+        yield mock_ext.return_value
 
 
 def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = {}
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
@@ -139,15 +139,14 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    consumer = RpcConsumer().clone(container)
+    consumer = RpcConsumer().bind(container)
 
-    entrypoint = Rpc().clone(container)
-    entrypoint.bind(container.service_name, "rpcmethod")
+    entrypoint = Rpc().bind(container, "rpcmethod")
     entrypoint.rpc_consumer = consumer
 
-    entrypoint.setup(container)
-    consumer.setup(container)
-    queue_consumer.setup(container)
+    entrypoint.setup()
+    consumer.setup()
+    queue_consumer.setup()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
@@ -174,21 +173,22 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 def test_reply_listener(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.config = {}
     container.service_name = "exampleservice"
 
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    reply_listener = ReplyListener().clone(container)
+    reply_listener = ReplyListener().bind(container)
 
     forced_uuid = uuid.uuid4().hex
 
     with patch('nameko.rpc.uuid', autospec=True) as patched_uuid:
         patched_uuid.uuid4.return_value = forced_uuid
 
-        reply_listener.setup(container)
-        queue_consumer.setup(container)
+        reply_listener.setup()
+        queue_consumer.setup()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)

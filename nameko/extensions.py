@@ -18,34 +18,34 @@ _log = getLogger(__name__)
 
 ENTRYPOINT_EXTENSIONS_ATTR = 'nameko_entrypoints'
 
-shared_extensions = weakref.WeakKeyDictionary()
-
 
 class Extension(object):
+    """ Note that Extension.__init__ is called during :meth:`bind` as
+    well as at instantiation time, so avoid side-effects in this method.
+    Use :meth:`setup` instead.
 
-    __clone = False
+    :attr:`Extension.container` gives access to the
+    :class:`~nameko.containers.ServiceContainer` instance to
+    which the Extension is bound, otherwise `None`.
+    """
+
     __params = None
+    container = None
 
     def __new__(cls, *args, **kwargs):
         inst = super(Extension, cls).__new__(cls, *args, **kwargs)
         inst.__params = (args, kwargs)
         return inst
 
-    def __init__(self, *args, **kwargs):
-        """ Note that Extension.__init__ is called during :meth:`clone` as
-        well as at instantiation time, so avoid side-effects in this method.
-        Use :meth:`setup` instead.
-        """
-        super(Extension, self).__init__(*args, **kwargs)
-
-    def setup(self, container):
-        """ Called before the service container starts.
+    def setup(self):
+        """ Called on bound Extensions before the container starts.
 
         Extensions should do any required initialisation here.
         """
 
     def start(self):
-        """ Called when the service container has successfully started.
+        """ Called on bound Extensions when the container has successfully
+        started.
 
         This is only called after all other Extensions have successfully
         returned from :meth:`Extension.setup`. If the Extension reacts
@@ -74,27 +74,35 @@ class Extension(object):
         swallow the exception to allow the container kill to continue.
         """
 
-    def clone(self, container):
-        if self.is_clone:
-            raise RuntimeError('Cloned extensions cannot be cloned.')
+    def bind(self, container):
+        """ Get an instance of this Extension to bind to `container`.
+        """
 
-        cls = type(self)
-        args, kwargs = self.__params
-        instance = cls(*args, **kwargs)
-        instance.__clone = True
+        def clone(prototype):
+            if prototype.is_bound():
+                raise RuntimeError('Cannot `bind` a bound extension.')
 
-        # recursive over sub-extensions
-        for ext_name, ext in inspect.getmembers(self, is_extension):
-            setattr(instance, ext_name, ext.clone(container))
+            cls = type(prototype)
+            args, kwargs = prototype.__params
+            instance = cls(*args, **kwargs)
+            # instance.container must be a weakref to avoid a strong reference
+            # from value to key in the `shared_extensions` weakkey dict
+            # see test_extension_sharing.py: test_weakref
+            instance.container = weakref.proxy(container)
+            return instance
 
+        instance = clone(self)
+
+        # recurse over sub-extensions
+        for name, ext in inspect.getmembers(self, is_extension):
+            setattr(instance, name, ext.bind(container))
         return instance
 
-    @property
-    def is_clone(self):
-        return self.__clone is True
+    def is_bound(self):
+        return self.container is not None
 
     def __repr__(self):
-        if not self.is_clone:
+        if not self.is_bound():
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
@@ -108,38 +116,44 @@ class SharedExtension(Extension):
     def sharing_key(self):
         return type(self)
 
-    def clone(self, container):
-        """ Clone implementation that supports sharing.
+    def bind(self, container):
+        """ Bind implementation that supports sharing.
         """
-        # if there's already a cloned instance, return that
-        shared_extensions.setdefault(container, {})
-        shared = shared_extensions[container].get(self.sharing_key)
+        # if there's already a matching bound instance, return that
+        shared = container.shared_extensions.get(self.sharing_key)
         if shared:
             return shared
 
-        instance = super(SharedExtension, self).clone(container)
+        instance = super(SharedExtension, self).bind(container)
 
         # save the new instance
-        shared_extensions[container][self.sharing_key] = instance
+        container.shared_extensions[self.sharing_key] = instance
 
         return instance
 
 
 class Dependency(Extension):
 
-    service_name = None
     attr_name = None
 
-    def bind(self, service_name, attr_name):
+    def bind(self, container, attr_name):
+        """ Get an instance of this Dependency to bind to `container` with
+        `attr_name`.
         """
-        """
-        self.service_name = service_name
-        self.attr_name = attr_name
+        instance = super(Dependency, self).bind(container)
+        instance.attr_name = attr_name
+        return instance
 
     def acquire_injection(self, worker_ctx):
-        """ Called before worker execution. An Dependency should return
+        """ Called before worker execution. A Dependency should return
         an object to be injected into the worker instance by the container.
         """
+
+    def inject(self, worker_ctx):
+        """
+        """
+        injection = self.acquire_injection(worker_ctx)
+        setattr(worker_ctx.service, self.attr_name, injection)
 
     def worker_result(self, worker_ctx, result=None, exc_info=None):
         """ Called with the result of a service worker execution.
@@ -182,16 +196,13 @@ class Dependency(Extension):
         """
 
     def __repr__(self):
-        if not self.is_clone:
+        if not self.is_bound():
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
-        if self.service_name is None or self.attr_name is None:
-            return '<{} [unbound] at 0x{:x}>'.format(
-                type(self).__name__, id(self))
-
+        service_name = self.container.service_name
         return '<{} [{}.{}] at 0x{:x}>'.format(
-            type(self).__name__, self.service_name, self.attr_name, id(self))
+            type(self).__name__, service_name, self.attr_name, id(self))
 
 
 class ProviderCollector(object):
@@ -248,14 +259,15 @@ def register_entrypoint(fn, entrypoint):
 
 class Entrypoint(Extension):
 
-    service_name = None
     method_name = None
 
-    def bind(self, service_name, method_name):
+    def bind(self, container, method_name):
+        """ Get an instance of this Entrypoint to bind to `container` with
+        `method_name`.
         """
-        """
-        self.service_name = service_name
-        self.method_name = method_name
+        instance = super(Entrypoint, self).bind(container)
+        instance.method_name = method_name
+        return instance
 
     def check_signature(self, args, kwargs):
         service_cls = self.container.service_cls
@@ -288,16 +300,13 @@ class Entrypoint(Extension):
             return partial(registering_decorator, args=args, kwargs=kwargs)
 
     def __repr__(self):
-        if not self.is_clone:
+        if not self.is_bound():
             return '<{} [declaration] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
-        if self.service_name is None or self.method_name is None:
-            return '<{} [unbound] at 0x{:x}>'.format(
-                type(self).__name__, id(self))
-
+        service_name = self.container.service_name
         return '<{} [{}.{}] at 0x{:x}>'.format(
-            type(self).__name__, self.service_name, self.method_name, id(self))
+            type(self).__name__, service_name, self.method_name, id(self))
 
 
 def is_extension(obj):
@@ -313,6 +322,8 @@ def is_entrypoint(obj):
 
 
 def iter_extensions(extension):
+    """ Depth-first iterator over sub-extensions on `extension`.
+    """
     for _, ext in inspect.getmembers(extension, is_extension):
         for item in iter_extensions(ext):
             yield item

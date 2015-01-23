@@ -144,10 +144,10 @@ class EventDispatcher(Publisher):
                 self.dispatch_spam(evt)
 
     """
-    def setup(self, container):
-        service_name = container.service_name
+    def setup(self):
+        service_name = self.container.service_name
         self.exchange = get_event_exchange(service_name)
-        super(EventDispatcher, self).setup(container)
+        super(EventDispatcher, self).setup()
 
     def acquire_injection(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
@@ -254,11 +254,11 @@ class EventHandler(Consumer):
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)
 
-    def setup(self, container):
+    def setup(self):
         _log.debug('starting %s', self)
 
         # handler_type determines queue name
-        service_name = container.service_name
+        service_name = self.container.service_name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.source_service,
                                                    self.event_type,
@@ -282,6 +282,6 @@ class EventHandler(Consumer):
             queue_name, exchange=exchange, routing_key=self.event_type,
             durable=True, auto_delete=auto_delete)
 
-        super(EventHandler, self).setup(container)
+        super(EventHandler, self).setup()
 
 event_handler = EventHandler.decorator

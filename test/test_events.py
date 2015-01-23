@@ -19,10 +19,9 @@ EVENTS_TIMEOUT = 5
 
 @pytest.yield_fixture
 def queue_consumer():
-    queue_consumer = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'clone') as clone:
-        clone.return_value = queue_consumer
-        yield queue_consumer
+    replacement = Mock(spec=QueueConsumer)
+    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
+        yield mock_ext.return_value
 
 
 def test_event_type_missing():
@@ -58,14 +57,13 @@ def test_event_dispatcher(empty_config):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
 
-    event_dispatcher = EventDispatcher().clone(container)
-    event_dispatcher.bind(container.service_name, "dispatch")
+    event_dispatcher = EventDispatcher().bind(container, "dispatch")
 
     path = 'nameko.messaging.Publisher.setup'
     with patch(path, autospec=True) as setup:
 
         # test start method
-        event_dispatcher.setup(container)
+        event_dispatcher.setup()
         assert event_dispatcher.exchange.name == "srcservice.events"
         assert setup.called
 
@@ -92,9 +90,9 @@ def test_event_handler(queue_consumer):
     container.service_name = "destservice"
 
     # test default configuration
-    event_handler = EventHandler("srcservice", "eventtype").clone(container)
-    event_handler.bind(container.service_name, "foobar")
-    event_handler.setup(container)
+    event_handler = EventHandler("srcservice", "eventtype").bind(container,
+                                                                 "foobar")
+    event_handler.setup()
 
     assert event_handler.queue.durable is True
     assert event_handler.queue.routing_key == "eventtype"
@@ -102,9 +100,9 @@ def test_event_handler(queue_consumer):
     queue_consumer.register_provider.assert_called_once_with(event_handler)
 
     # test service pool handler
-    event_handler = EventHandler("srcservice", "eventtype").clone(container)
-    event_handler.bind(container.service_name, "foobar")
-    event_handler.setup(container)
+    event_handler = EventHandler("srcservice", "eventtype").bind(container,
+                                                                 "foobar")
+    event_handler.setup()
 
     assert (event_handler.queue.name ==
             "evt-srcservice-eventtype--destservice.foobar")
@@ -112,24 +110,24 @@ def test_event_handler(queue_consumer):
     # test broadcast handler
     event_handler = EventHandler("srcservice", "eventtype",
                                  handler_type=BROADCAST,
-                                 reliable_delivery=False).clone(container)
-    event_handler.bind(container.service_name, "foobar")
-    event_handler.setup(container)
+                                 reliable_delivery=False).bind(container,
+                                                               "foobar")
+    event_handler.setup()
 
     assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
     # test singleton handler
     event_handler = EventHandler("srcservice", "eventtype",
-                                 handler_type=SINGLETON).clone(container)
-    event_handler.bind(container.service_name, "foobar")
-    event_handler.setup(container)
+                                 handler_type=SINGLETON).bind(container,
+                                                              "foobar")
+    event_handler.setup()
 
     assert event_handler.queue.name == "evt-srcservice-eventtype"
 
     # test reliable delivery
-    event_handler = EventHandler("srcservice", "eventtype").clone(container)
-    event_handler.bind(container.service_name, "foobar")
-    event_handler.setup(container)
+    event_handler = EventHandler("srcservice", "eventtype").bind(container,
+                                                                 "foobar")
+    event_handler.setup()
 
     assert event_handler.queue.auto_delete is False
 
@@ -143,8 +141,9 @@ services = defaultdict(list)
 events = []
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def reset_state():
+    yield
     services.clear()
     events[:] = []
 
@@ -595,15 +594,15 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_name = "srcservice"
     container.config = rabbit_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider())
 
-    dispatcher = EventDispatcher().clone(container)
-    dispatcher.bind(container.service_name, "dispatch")
-    dispatcher.setup(container)
+    dispatcher = EventDispatcher().bind(container, 'dispatch')
+    dispatcher.setup()
     dispatcher.start()
 
     # we should have an exchange but no queues

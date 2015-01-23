@@ -37,7 +37,7 @@ class FileLogger(Dependency):
                 raise InvalidPath("File or dir not writable: {}".format(path))
             self.path = path
 
-    def setup(self, container):
+    def setup(self):
         self.file_handle = open(self.path, 'w')
 
     def stop(self):

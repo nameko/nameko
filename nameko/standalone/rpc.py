@@ -146,10 +146,6 @@ class SingleThreadedReplyListener(ReplyListener):
         self.queue_consumer = PollingQueueConsumer(timeout=timeout)
         super(SingleThreadedReplyListener, self).__init__()
 
-    def setup(self, container):
-        self.container = container  # stash container (TEMP?)
-        super(SingleThreadedReplyListener, self).setup(container)
-
     def get_reply_event(self, correlation_id):
         reply_event = ConsumeEvent(self.queue_consumer, correlation_id)
         self._reply_events[correlation_id] = reply_event
@@ -166,6 +162,7 @@ class StandaloneProxyBase(object):
 
         def __init__(self, config):
             self.config = config
+            self.shared_extensions = {}
 
     class Dummy(Entrypoint):
         method_name = "call"
@@ -176,13 +173,13 @@ class StandaloneProxyBase(object):
         self, config, context_data=None, timeout=None,
         worker_ctx_cls=WorkerContext
     ):
-        self.container = self.ServiceContainer(config)
+        container = self.ServiceContainer(config)
 
-        reply_listener = SingleThreadedReplyListener(timeout=timeout).clone(
-            self.container)
+        reply_listener = SingleThreadedReplyListener(timeout=timeout).bind(
+            container)
 
         self._worker_ctx = worker_ctx_cls(
-            self.container, service=None, entrypoint=self.Dummy,
+            container, service=None, entrypoint=self.Dummy,
             data=context_data)
         self._reply_listener = reply_listener
 
@@ -193,7 +190,7 @@ class StandaloneProxyBase(object):
         self.stop()
 
     def start(self):
-        self._reply_listener.setup(self.container)
+        self._reply_listener.setup()
         return self._proxy
 
     def stop(self):

@@ -22,8 +22,9 @@ handle_called = Mock()
 long_called = EventletEvent()
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset():
+    yield
     method_called.reset_mock()
     handle_called.reset_mock()
     for event in (disconnect_now, disconnected):
@@ -35,6 +36,7 @@ def reset():
 def logger():
     with patch('nameko.rpc._log', autospec=True) as patched:
         yield patched
+    patched.reset_mock()
 
 
 class ExampleEvent(Event):

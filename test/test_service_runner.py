@@ -20,8 +20,9 @@ class TestService2(object):
 received = []
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset_mock():
+    yield
     del received[:]
 
 

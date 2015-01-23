@@ -16,7 +16,7 @@ from nameko.exceptions import RpcConnectionError
 class ContextReader(Dependency):
     """ Access values from the worker context data.
 
-    This is a test facilty! Write specific Dependencys to make use of
+    This is a test facilty! Write specific Dependencies to make use of
     values in ``WorkerContext.data``, don't expose it directly.
     """
     def acquire_injection(self, worker_ctx):

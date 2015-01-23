@@ -14,8 +14,9 @@ from nameko.testing.utils import wait_for_worker_idle
 worker_result_called = []
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset():
+    yield
     del worker_result_called[:]
 
 
@@ -67,6 +68,7 @@ def test_handle_result(container_factory, rabbit_manager, rabbit_config):
     with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
 
         assert proxy.echo("hello") == "hello"
+
         with pytest.raises(RemoteError) as exc:
             proxy.unserializable()
         assert "is not JSON serializable" in exc.value.message
