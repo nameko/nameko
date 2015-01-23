@@ -1,3 +1,4 @@
+import collections
 import sys
 
 import eventlet
@@ -17,6 +18,29 @@ def repr_safe_str(value):
         return value.encode('utf-8')
     except Exception:
         return repr(value)
+
+
+def safe_for_json(value):
+    """ Transform a value in preparation for serializing as json
+
+    no-op for strings, mappings and iterables have their entries made safe,
+    and all other values are stringified, with a fallback value if that fails
+    """
+
+    if isinstance(value, basestring):
+        return value
+    if isinstance(value, dict):
+        return {
+            safe_for_json(key): safe_for_json(val)
+            for key, val in value.iteritems()
+        }
+    if isinstance(value, collections.Iterable):
+        return map(safe_for_json, value)
+
+    try:
+        return unicode(value)
+    except Exception:
+        return '[__unicode__ failed]'
 
 
 def fail_fast_imap(pool, call, items):

@@ -1,5 +1,7 @@
 import inspect
 
+from nameko.utils import safe_for_json
+
 
 class DependencyNotFound(AttributeError):
     pass
@@ -58,17 +60,12 @@ class RemoteError(Exception):
 def serialize(exc):
     """ Serialize `self.exc` into a data dictionary representing it.
     """
-    def safe_str(value):
-        try:
-            return unicode(value)
-        except Exception:
-            return '[__unicode__ failed]'
 
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'exc_args': map(safe_str, exc.args),
-        'value': safe_str(exc),
+        'exc_args': map(safe_for_json, exc.args),
+        'value': safe_for_json(exc),
     }
 
 
