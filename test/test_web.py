@@ -1,11 +1,11 @@
 from nameko.web.handlers import http
-from nameko.web.websocket import websocket_hub, wsrpc
+from nameko.web.websocket import WebSocketHubProvider, wsrpc
 
 from nameko.exceptions import RemoteError
 
 
 class ExampleService(object):
-    websocket = websocket_hub()
+    websocket = WebSocketHubProvider()
 
     @http('GET', '/foo/<int:bar>')
     def do_foo(self, bar):

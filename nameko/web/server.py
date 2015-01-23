@@ -6,15 +6,14 @@ from werkzeug.wrappers import Request
 from werkzeug.routing import Map
 from werkzeug.exceptions import HTTPException
 
-from nameko.dependencies import (
-    ProviderCollector, DependencyProvider, DependencyFactory, dependency)
+from nameko.extensions import ProviderCollector, SharedExtension
 
 
 WEB_SERVER_HOST_CONFIG_KEY = 'WEB_SERVER_HOST'
 WEB_SERVER_PORT_CONFIG_KEY = 'WEB_SERVER_PORT'
 
 
-class Server(DependencyProvider, ProviderCollector):
+class Server(ProviderCollector, SharedExtension):
 
     def __init__(self):
         super(Server, self).__init__()
@@ -99,8 +98,3 @@ class WsgiApp(object):
         except HTTPException as e:
             rv = e
         return rv(environ, start_response)
-
-
-@dependency
-def server():
-    return DependencyFactory(Server)

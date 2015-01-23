@@ -7,9 +7,8 @@ from eventlet.event import Event
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
-from nameko.dependencies import (
-    CONTAINER_SHARED, entrypoint, EntrypointProvider, DependencyFactory)
-from nameko.web.server import server
+from nameko.extensions import Entrypoint
+from nameko.web.server import Server
 from nameko.web.protocol import JsonProtocol
 from nameko.web.exceptions import BadPayload
 
@@ -17,8 +16,8 @@ from nameko.web.exceptions import BadPayload
 _log = getLogger(__name__)
 
 
-class RequestHandler(EntrypointProvider):
-    server = server(shared=CONTAINER_SHARED)
+class RequestHandler(Entrypoint):
+    server = Server()
 
     def __init__(self, method, url, expected_exceptions=None,
                  protocol=None):
@@ -32,7 +31,7 @@ class RequestHandler(EntrypointProvider):
     def get_url_rule(self):
         return Rule(self.url, methods=[self.method])
 
-    def prepare(self):
+    def setup(self):
         self.server.register_provider(self)
 
     def stop(self):
@@ -86,7 +85,4 @@ class RequestHandler(EntrypointProvider):
         return result, exc_info
 
 
-@entrypoint
-def http(method, url, expected_exceptions=None):
-    return DependencyFactory(RequestHandler, method, url,
-                             expected_exceptions=expected_exceptions)
+http = RequestHandler.decorator

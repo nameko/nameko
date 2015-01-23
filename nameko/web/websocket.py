@@ -11,11 +11,9 @@ from werkzeug.routing import Rule
 from nameko.exceptions import MethodNotFound
 from nameko.web.exceptions import ConnectionNotFound
 from nameko.web.protocol import JsonProtocol
-from nameko.web.server import server
-from nameko.dependencies import (
-    CONTAINER_SHARED, ProviderCollector, DependencyProvider,
-    InjectionProvider, EntrypointProvider, DependencyFactory, dependency,
-    injection, entrypoint)
+from nameko.web.server import Server
+from nameko.extensions import (
+    Dependency, Entrypoint, ProviderCollector, SharedExtension)
 
 
 _log = getLogger(__name__)
@@ -29,8 +27,8 @@ class Connection(object):
         self.subscriptions = set()
 
 
-class WebSocketServer(DependencyProvider, ProviderCollector):
-    wsgi_server = server(shared=CONTAINER_SHARED)
+class WebSocketServer(SharedExtension, ProviderCollector):
+    wsgi_server = Server()
     protocol = JsonProtocol()
 
     def __init__(self):
@@ -81,11 +79,14 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
 
     def get_provider_for_method(self, method):
         for provider in self._providers:
-            if isinstance(provider, WebSocketRpc) and provider.name == method:
+            if (
+                isinstance(provider, WebSocketRpc) and
+                provider.method_name == method
+            ):
                 return provider
         raise MethodNotFound()
 
-    def prepare(self):
+    def setup(self):
         self.wsgi_server.register_provider(self)
 
     def stop(self):
@@ -105,19 +106,14 @@ class WebSocketServer(DependencyProvider, ProviderCollector):
                 provider.cleanup_websocket(socket_id)
 
 
-@dependency
-def websocket_server():
-    return DependencyFactory(WebSocketServer)
-
-
-class WebSocketHubProvider(InjectionProvider):
-    server = websocket_server(shared=CONTAINER_SHARED)
+class WebSocketHubProvider(Dependency):
+    server = WebSocketServer()
 
     def __init__(self):
         super(WebSocketHubProvider, self).__init__()
         self.hub = None
 
-    def prepare(self):
+    def setup(self):
         self.hub = WebSocketHub(self.server)
         self.server.register_provider(self)
 
@@ -202,13 +198,10 @@ class WebSocketHub(object):
         return False
 
 
-class WebSocketRpc(EntrypointProvider):
-    server = websocket_server(shared=CONTAINER_SHARED)
+class WebSocketRpc(Entrypoint):
+    server = WebSocketServer()
 
-    def __init__(self):
-        super(WebSocketRpc, self).__init__()
-
-    def prepare(self):
+    def setup(self):
         self.server.register_provider(self)
 
     def stop(self):
@@ -229,11 +222,4 @@ class WebSocketRpc(EntrypointProvider):
         return result, exc_info
 
 
-@injection
-def websocket_hub():
-    return DependencyFactory(WebSocketHubProvider)
-
-
-@entrypoint
-def wsrpc():
-    return DependencyFactory(WebSocketRpc)
+wsrpc = WebSocketRpc.decorator
