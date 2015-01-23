@@ -58,16 +58,17 @@ class RemoteError(Exception):
 def serialize(exc):
     """ Serialize `self.exc` into a data dictionary representing it.
     """
-    try:
-        value = unicode(exc)
-    except Exception:
-        value = '[__unicode__ failed]'
+    def safe_str(value):
+        try:
+            return unicode(value)
+        except Exception:
+            return '[__unicode__ failed]'
 
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'exc_args': exc.args,
-        'value': value,
+        'exc_args': map(safe_str, exc.args),
+        'value': safe_str(exc),
     }
 
 

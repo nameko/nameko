@@ -1,3 +1,5 @@
+import json
+
 from mock import patch
 import pytest
 
@@ -23,7 +25,7 @@ def test_serialize():
     assert serialize(exc) == {
         'exc_type': 'CustomError',
         'exc_path': 'test.test_exceptions.CustomError',
-        'exc_args': ('something went wrong',),
+        'exc_args': ['something went wrong'],
         'value': 'something went wrong',
     }
 
@@ -40,9 +42,16 @@ def test_serialize_cannot_unicode():
     assert serialize(exc) == {
         'exc_type': 'CustomError',
         'exc_path': 'test.test_exceptions.CustomError',
-        'exc_args': (bad_string,),
+        'exc_args': ['[__unicode__ failed]'],
         'value': '[__unicode__ failed]',
     }
+
+
+def test_serialize_args():
+    cause = Exception('oops')
+    exc = CustomError('something went wrong', cause)
+
+    assert json.dumps(serialize(exc))
 
 
 def test_deserialize_to_remote_error():
