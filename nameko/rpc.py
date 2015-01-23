@@ -210,18 +210,17 @@ class Responder(object):
         if exc_info is not None:
             error = serialize(exc_info[1])
 
-        # disaster avoidance serialization check
-        # `result` and `error` must both be json serializable, otherwise
-        # the container will commit suicide assuming unrecoverable errors
-        # (and the message will be requeued for another victim)
-        for item in (result, error):
-            try:
-                json.dumps(item)
-            except Exception:
-                result = None
-                exc_info = sys.exc_info()
-                # `error` below is guaranteed to serialize to json
-                error = serialize(UnserializableValueError(item))
+        # disaster avoidance serialization check: `result` must be json
+        # serializable, otherwise the container will commit suicide assuming
+        # unrecoverable errors (and the message will be requeued for another
+        # victim)
+        try:
+            json.dumps(result)
+        except Exception:
+            exc_info = sys.exc_info()
+            # `error` below is guaranteed to serialize to json
+            error = serialize(UnserializableValueError(result))
+            result = None
 
         conn = Connection(container.config[AMQP_URI_CONFIG_KEY])
 
