@@ -11,7 +11,7 @@ from werkzeug.routing import Rule
 from nameko.exceptions import MethodNotFound
 from nameko.web.exceptions import ConnectionNotFound
 from nameko.web.protocol import JsonProtocol
-from nameko.web.server import Server
+from nameko.web.server import WebServer
 from nameko.extensions import (
     Dependency, Entrypoint, ProviderCollector, SharedExtension)
 
@@ -28,7 +28,7 @@ class Connection(object):
 
 
 class WebSocketServer(SharedExtension, ProviderCollector):
-    wsgi_server = Server()
+    wsgi_server = WebServer()
     protocol = JsonProtocol()
 
     def __init__(self):
@@ -64,17 +64,17 @@ class WebSocketServer(SharedExtension, ProviderCollector):
     def handle_websocket_request(self, socket_id, context_data, raw_req):
         correlation_id = None
         try:
-            method, data, correlation_id = \
-                self.protocol.deserialize_ws_frame(raw_req)
+            method, data, correlation_id = self.protocol.deserialize_ws_frame(
+                raw_req)
             provider = self.get_provider_for_method(method)
             return self.protocol.serialize_result(
                 provider.handle_message(socket_id, data, context_data),
                 correlation_id=correlation_id, ws=True)
         # TODO: can we do more granular exception handling?
-        except Exception as e:
+        except Exception as exc:
             _log.error('websocket message error', exc_info=True)
             return self.protocol.serialize_result(
-                self.protocol.expose_exception(e)[1], success=False,
+                self.protocol.expose_exception(exc)[1], success=False,
                 correlation_id=correlation_id, ws=True)
 
     def get_provider_for_method(self, method):
@@ -107,11 +107,8 @@ class WebSocketServer(SharedExtension, ProviderCollector):
 
 
 class WebSocketHubProvider(Dependency):
+    hub = None
     server = WebSocketServer()
-
-    def __init__(self):
-        super(WebSocketHubProvider, self).__init__()
-        self.hub = None
 
     def setup(self):
         self.hub = WebSocketHub(self.server)

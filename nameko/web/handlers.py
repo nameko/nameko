@@ -8,7 +8,7 @@ from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
 from nameko.extensions import Entrypoint
-from nameko.web.server import Server
+from nameko.web.server import WebServer
 from nameko.web.protocol import JsonProtocol
 from nameko.web.exceptions import BadPayload
 
@@ -16,8 +16,8 @@ from nameko.web.exceptions import BadPayload
 _log = getLogger(__name__)
 
 
-class RequestHandler(Entrypoint):
-    server = Server()
+class HttpRequestHandler(Entrypoint):
+    server = WebServer()
 
     def __init__(self, method, url, expected_exceptions=None,
                  protocol=None):
@@ -36,7 +36,7 @@ class RequestHandler(Entrypoint):
 
     def stop(self):
         self.server.unregister_provider(self)
-        super(RequestHandler, self).stop()
+        super(HttpRequestHandler, self).stop()
 
     def add_url_payload(self, payload, request):
         payload.update(request.path_values)
@@ -62,11 +62,11 @@ class RequestHandler(Entrypoint):
             if isinstance(result, Response):
                 return result
             return self.protocol.response_from_result(result)
-        except Exception as e:
+        except Exception as exc:
             exc_info = sys.exc_info()
             _log.error('request handling failed', exc_info=exc_info)
             return self.protocol.response_from_exception(
-                e, expected_exceptions=self.expected_exceptions)
+                exc, expected_exceptions=self.expected_exceptions)
 
     def handle_message(self, context_data, payload):
         self.check_signature((), payload)
@@ -85,4 +85,4 @@ class RequestHandler(Entrypoint):
         return result, exc_info
 
 
-http = RequestHandler.decorator
+http = HttpRequestHandler.decorator

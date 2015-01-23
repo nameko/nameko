@@ -13,10 +13,10 @@ WEB_SERVER_HOST_CONFIG_KEY = 'WEB_SERVER_HOST'
 WEB_SERVER_PORT_CONFIG_KEY = 'WEB_SERVER_PORT'
 
 
-class Server(ProviderCollector, SharedExtension):
+class WebServer(ProviderCollector, SharedExtension):
 
     def __init__(self):
-        super(Server, self).__init__()
+        super(WebServer, self).__init__()
         self._gt = None
         self._sock = None
         self._serv = None
@@ -35,8 +35,8 @@ class Server(ProviderCollector, SharedExtension):
         while self._is_accepting:
             try:
                 sock, addr = self._sock.accept()
-            except wsgi.ACCEPT_EXCEPTIONS as e:
-                if support.get_errno(e) not in wsgi.ACCEPT_ERRNO:
+            except wsgi.ACCEPT_EXCEPTIONS as exc:
+                if support.get_errno(exc) not in wsgi.ACCEPT_ERRNO:
                     raise
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(partial(
@@ -58,7 +58,7 @@ class Server(ProviderCollector, SharedExtension):
     def stop(self):
         self._is_accepting = False
         self._gt.kill()
-        super(Server, self).stop()
+        super(WebServer, self).stop()
 
     def make_url_map(self):
         map = Map()
@@ -95,6 +95,6 @@ class WsgiApp(object):
             provider, values = adapter.match()
             request.path_values = values
             rv = provider.handle_request(request)
-        except HTTPException as e:
-            rv = e
+        except HTTPException as exc:
+            rv = exc
         return rv(environ, start_response)

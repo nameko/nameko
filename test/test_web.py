@@ -1,7 +1,8 @@
-from nameko.web.handlers import http
-from nameko.web.websocket import WebSocketHubProvider, wsrpc
+import pytest
 
 from nameko.exceptions import RemoteError
+from nameko.web.handlers import http
+from nameko.web.websocket import WebSocketHubProvider, wsrpc
 
 
 class ExampleService(object):
@@ -65,12 +66,9 @@ def test_websockets(container_factory, web_config, websocket):
     ws = websocket()
     assert ws.rpc('subscribe') == 'subscribed!'
     assert ws.rpc('broadcast', value=42) == 'broadcast!'
-    try:
-        assert ws.rpc('broadcast')
-    except RemoteError as e:
-        assert e.exc_type == 'nameko.exceptions.IncorrectSignature'
-    else:
-        assert False, 'expected a remote error but got nothing'
+    with pytest.raises(RemoteError) as exc:
+        ws.rpc('broadcast')
+        assert exc.value.exc_type == 'nameko.exceptions.IncorrectSignature'
 
     assert ws.wait_for_event('test_message') == ('test_message', {
         'value': 42,
