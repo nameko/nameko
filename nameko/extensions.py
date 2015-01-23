@@ -78,7 +78,7 @@ class Extension(object):
 
         def clone(prototype):
             if prototype.is_bound():
-                raise RuntimeError('Cannot `bind` a bound extensions.')
+                raise RuntimeError('Cannot `bind` a bound extension.')
 
             cls = type(prototype)
             args, kwargs = prototype.__params
