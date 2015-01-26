@@ -19,7 +19,7 @@ _log = getLogger(__name__)
 class HttpRequestHandler(Entrypoint):
     server = WebServer()
 
-    def __init__(self, method, url, expected_exceptions=None,
+    def __init__(self, method, url, expected_exceptions=(),
                  protocol=None):
         self.method = method
         self.url = url
