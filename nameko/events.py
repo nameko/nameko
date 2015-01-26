@@ -36,19 +36,12 @@ from __future__ import absolute_import
 from logging import getLogger
 import uuid
 
-from kombu import Exchange, Queue
-
-from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.extensions import Dependency
-from nameko.messaging import HeaderEncoder, PERSISTENT, Consumer
-
-##
-from kombu import Connection
-from kombu.common import maybe_declare
+from kombu import Connection, Exchange, Queue
 from kombu.pools import producers, connections
 
-from nameko.messaging import AMQP_URI_CONFIG_KEY
-##
+from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.messaging import (
+    Publisher, PERSISTENT, Consumer, AMQP_URI_CONFIG_KEY)
 
 
 SERVICE_POOL = "service_pool"
