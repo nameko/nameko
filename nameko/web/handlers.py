@@ -78,7 +78,7 @@ class HttpRequestHandler(Entrypoint):
         return event.wait()
 
     def handle_result(self, event, worker_ctx, result, exc_info):
-        event.send(result)
+        event.send(result, exc_info)
         return result, exc_info
 
 

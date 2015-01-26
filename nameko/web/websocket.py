@@ -67,25 +67,19 @@ class WebSocketServer(SharedExtension, ProviderCollector):
             method, data, correlation_id = self.protocol.deserialize_ws_frame(
                 raw_req)
             provider = self.get_provider_for_method(method)
-            result, exc_info = provider.handle_message(
-                socket_id, data, context_data)
-            if exc_info is not None:
-                success = False
-                _, result = self.protocol.expose_exception(exc_info[1])
-            else:
-                success = True
-            return self.protocol.serialize_result(
-                result,
-                success=success,
-                correlation_id=correlation_id,
-                ws=True,
-            )
-        # TODO: can we do more granular exception handling?
+            result = provider.handle_message(socket_id, data, context_data)
         except Exception as exc:
-            _log.error('websocket message error', exc_info=True)
-            return self.protocol.serialize_result(
-                self.protocol.expose_exception(exc)[1], success=False,
-                correlation_id=correlation_id, ws=True)
+            result = serialize(exc)
+            success = False
+        else:
+            success = True
+
+        return self.protocol.serialize_result(
+            result,
+            success=success,
+            correlation_id=correlation_id,
+            ws=True,
+        )
 
     def get_provider_for_method(self, method):
         for provider in self._providers:
@@ -230,7 +224,7 @@ class WebSocketRpc(Entrypoint):
         # else:
             # error = serialize(exc_info[1])
             # event.send(error)
-        event.send((result, exc_info))
+        event.send(result, exc_info)
         return result, exc_info
 
 
