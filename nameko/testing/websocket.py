@@ -8,7 +8,7 @@ from collections import defaultdict
 from eventlet.event import Event
 from eventlet.queue import Queue
 
-from nameko.exceptions import RemoteError
+from nameko.exceptions import deserialize
 
 
 def make_virtual_socket(host, port, path='/ws'):
@@ -40,7 +40,7 @@ def make_virtual_socket(host, port, path='/ws'):
             rv = event.wait()
             if rv['success']:
                 return rv['data']
-            raise RemoteError(rv['error']['type'], rv['error']['message'])
+            raise deserialize(rv['error'])
 
     sock = Socket()
 
