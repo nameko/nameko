@@ -1,30 +1,9 @@
-from nameko import exceptions
+from nameko.exceptions import BadRequest
 
 
-class ConnectionNotFound(LookupError):
+class ConnectionNotFound(BadRequest):
     pass
 
 
-class BadPayload(Exception):
+class BadPayload(BadRequest):
     pass
-
-
-# subclass `BadRequest`?
-operational_errors = frozenset([
-    exceptions.IncorrectSignature,
-    exceptions.MalformedRequest,
-    exceptions.MethodNotFound,
-    ConnectionNotFound,
-    BadPayload,
-])
-
-
-def expose_exception(exc):
-    if exc.__class__ in operational_errors:
-        is_operational = True
-    else:
-        is_operational = False
-    return is_operational, {
-        'type': '%s.%s' % (exc.__class__.__module__, exc.__class__.__name__),
-        'message': str(exc),
-    }
