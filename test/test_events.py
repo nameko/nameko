@@ -569,18 +569,10 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     dispatcher.setup()
     dispatcher.start()
 
-    def get_exchanges():
-        exchanges = rabbit_manager.get_exchanges(vhost)
-        return [exchange['name'] for exchange in exchanges]
-
-    # exchanges are created on first dispatch
-    assert "srcservice.events" not in get_exchanges()
-    service.dispatch = dispatcher.acquire_injection(worker_ctx)
-    service.dispatch("eventtype", "msg")
-
     # we should have an exchange but no queues
-    assert "srcservice.events" in get_exchanges()
+    exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
+    assert "srcservice.events" in [exchange['name'] for exchange in exchanges]
     assert queues == []
 
     # manually add a queue to capture the events
@@ -588,6 +580,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
                                   rt_key="eventtype")
 
+    service.dispatch = dispatcher.acquire_injection(worker_ctx)
     service.dispatch("eventtype", "msg")
 
     # test event receieved on manually added queue

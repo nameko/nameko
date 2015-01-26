@@ -87,7 +87,7 @@ def event_dispatcher(nameko_config, **kwargs):
         exchange = get_event_exchange(service_name)
 
         with connections[conn].acquire(block=True) as connection:
-            maybe_declare(exchange, connection)
+            exchange.maybe_bind(connection)
             with producers[conn].acquire(block=True) as producer:
                 msg = event_data
                 routing_key = event_type
@@ -106,7 +106,7 @@ class EventHandlerConfigurationError(Exception):
     """
 
 
-class EventDispatcher(Dependency, HeaderEncoder):
+class EventDispatcher(Publisher):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,
@@ -134,10 +134,13 @@ class EventDispatcher(Dependency, HeaderEncoder):
     """
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        super(EventDispatcher, self).__init__()
 
     def setup(self):
         self.service_name = self.container.service_name
         self.config = self.container.config
+        self.exchange = get_event_exchange(self.service_name)
+        super(EventDispatcher, self).setup()
 
     def acquire_injection(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
