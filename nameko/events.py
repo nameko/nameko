@@ -4,9 +4,8 @@ Provides a high level interface to the core messaging module.
 Events are special messages, which can be emitted by one service
 and handled by other listening services.
 
-To emit an event, a service must define an :class:`Event` class with a unique
-type and dispatch an instance of it using an injection acquired from an
-instance of :class:`EventDispatcher`.
+An event consists of an identifier and some data and is dispatched using an
+injection acquired from an instance of :class:`EventDispatcher`.
 
 Events are dispatched asynchronously. It is only guaranteed that the event has
 been dispatched, not that it was received or handled by a listener.
@@ -15,13 +14,21 @@ To listen to an event, a service must declare a handler using the
 :func:`handle_event` entrypoint, providing the target service and an event type
 filter.
 
+
+# TODO: keep?
+    See amqp routing keys for `topic` exchanges for more info.
+
 Example::
 
-    class MyEvent(Event):
-        type = "myevent"
+    # service A
+    def edit_foo(self, id):
+        # ...
+        self.dispatch('foo_updated', {'id': id})
 
-    @handle_event("foo_service", "myevent")
-    def bar(evt):
+    # service B
+
+    @handle_event('service_a', 'foo_updated')
+    def bar(event_data):
         pass
 
 """
