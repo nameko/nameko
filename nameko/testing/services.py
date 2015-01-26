@@ -236,7 +236,7 @@ def replace_dependencies(container, *dependencies):
     ::
 
         from nameko.rpc import RpcProxy, rpc
-        from nameko.standalone.rpc import RpcProxy as StandaloneRpcProxy
+        from nameko.standalone.rpc import ServiceRpcProxy
 
         class ConversionService(object):
             maths_rpc = RpcProxy("maths")
@@ -254,7 +254,7 @@ def replace_dependencies(container, *dependencies):
 
         container.start()
 
-        with StandaloneRpcProxy('conversionservice', config) as proxy:
+        with ServiceRpcProxy('conversionservice', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the dependency was called as expected
