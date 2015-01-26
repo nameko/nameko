@@ -9,6 +9,7 @@ class BadPayload(Exception):
     pass
 
 
+# subclass `BadRequest`?
 operational_errors = frozenset([
     exceptions.IncorrectSignature,
     exceptions.MalformedRequest,
