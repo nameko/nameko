@@ -1,4 +1,3 @@
-from nameko.events import Event
 from nameko.rpc import rpc
 
 
@@ -11,7 +10,3 @@ class ExampleService(object):
 
     def red_herring(self):
         pass
-
-
-class ExampleEvent(Event):
-    type = 'nameko_example_event'
