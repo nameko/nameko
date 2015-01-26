@@ -39,7 +39,16 @@ import uuid
 from kombu import Exchange, Queue
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.messaging import Publisher, PERSISTENT, Consumer
+from nameko.extensions import Dependency
+from nameko.messaging import HeaderEncoder, PERSISTENT, Consumer
+
+##
+from kombu import Connection
+from kombu.common import maybe_declare
+from kombu.pools import producers, connections
+
+from nameko.messaging import AMQP_URI_CONFIG_KEY
+##
 
 
 SERVICE_POOL = "service_pool"
@@ -60,23 +69,36 @@ def get_event_exchange(service_name):
     return exchange
 
 
-class EventTypeMissing(Exception):
-    """ Raised when an Event subclasses are defined without and event-type.
+def event_dispatcher(nameko_config, **kwargs):
+    """ Returns a function that dispatches events claiming to originate from
+    a service called `container_service_name`.
+
+    Enables services not hosted by nameko to dispatch events into a nameko
+    cluster.
     """
-    def __init__(self, name):
-        msg = ("Event subclass '{}' cannot be created without "
-               "a 'type' attribute.").format(name)
 
-        super(EventTypeMissing, self).__init__(msg)
+    kwargs = kwargs.copy()
+    retry = kwargs.pop('retry', True)
+    retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
 
+    def dispatch(service_name, event_type, event_data):
+        conn = Connection(nameko_config[AMQP_URI_CONFIG_KEY])
 
-class EventTypeTooLong(Exception):
-    """ Raised when event types are defined and longer than 255 bytes.
-    """
-    def __init__(self, event_type):
-        msg = 'Event type "{}" too long. Should be < 255 bytes.'.format(
-            event_type)
-        super(EventTypeTooLong, self).__init__(msg)
+        exchange = get_event_exchange(service_name)
+
+        with connections[conn].acquire(block=True) as connection:
+            maybe_declare(exchange, connection)
+            with producers[conn].acquire(block=True) as producer:
+                msg = event_data
+                routing_key = event_type
+                producer.publish(
+                    msg,
+                    exchange=exchange,
+                    routing_key=routing_key,
+                    retry=retry,
+                    retry_policy=retry_policy,
+                    **kwargs)
+    return dispatch
 
 
 class EventHandlerConfigurationError(Exception):
@@ -84,44 +106,7 @@ class EventHandlerConfigurationError(Exception):
     """
 
 
-class EventMeta(type):
-    """ Ensures every Event subclass has it's own event-type defined,
-    and that the type is less than 255 bytes in size.
-
-    This is a limitation imposed by AMQP topic exchanges.
-    """
-
-    def __new__(mcs, name, bases, dct):
-        try:
-            event_type = dct['type']
-        except KeyError:
-            raise EventTypeMissing(name)
-        else:
-            if len(event_type) > 255:
-                raise EventTypeTooLong(event_type)
-
-        return super(EventMeta, mcs).__new__(mcs, name, bases, dct)
-
-
-class Event(object):
-    """ The base class for all events to be dispatched by an `EventDispatcher`.
-    """
-    __metaclass__ = EventMeta
-
-    type = 'Event'
-    """ The type of the event.
-
-    Events can be name-spaced using the type property:
-    e.g.: ``type = 'spam.ham.eggs'``
-
-    See amqp routing keys for `topic` exchanges for more info.
-    """
-
-    def __init__(self, data):
-        self.data = data
-
-
-class EventDispatcher(Publisher):
+class EventDispatcher(Dependency, HeaderEncoder):
     """ Provides an event dispatcher method via dependency injection.
 
     Events emitted will be dispatched via the service's events exchange,
@@ -139,42 +124,30 @@ class EventDispatcher(Publisher):
 
     Example::
 
-        class MyEvent(Event):
-            type = 'spam.ham'
-
-
         class Spammer(object):
             dispatch_spam = EventDispatcher()
 
             def emit_spam(self):
-                evt = MyEvent('ham and eggs')
-                self.dispatch_spam(evt)
+                evt_data = 'ham and eggs'
+                self.dispatch_spam('spam.ham', evt_data)
 
     """
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
     def setup(self):
-        service_name = self.container.service_name
-        self.exchange = get_event_exchange(service_name)
-        super(EventDispatcher, self).setup()
+        self.service_name = self.container.service_name
+        self.config = self.container.config
 
     def acquire_injection(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        def dispatch(evt, **kwargs):
-            exchange = self.exchange
+        headers = self.get_message_headers(worker_ctx)
+        kwargs = self.kwargs
+        dispatcher = event_dispatcher(self.config, headers=headers, **kwargs)
 
-            retry = kwargs.pop('retry', True)
-            retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
-
-            msg = evt.data
-            routing_key = evt.type
-
-            with self.get_producer() as producer:
-
-                headers = self.get_message_headers(worker_ctx)
-                producer.publish(msg, exchange=exchange, headers=headers,
-                                 routing_key=routing_key, retry=retry,
-                                 retry_policy=retry_policy, **kwargs)
-
+        def dispatch(event_type, event_data):
+            dispatcher(self.service_name, event_type, event_data)
         return dispatch
 
 
@@ -244,14 +217,6 @@ class EventHandler(Consumer):
             raise EventHandlerConfigurationError(
                 "Broadcast event handlers cannot be configured with reliable "
                 "delivery.")
-
-        if isinstance(event_type, type) and issubclass(event_type, Event):
-            event_type = event_type.type
-        elif not isinstance(event_type, basestring):
-            raise TypeError(
-                'event_type must be either a nameko.events.Event subclass or '
-                'a string a string matching the Event.type value. '
-                'Got {}'.format(type(event_type).__name__))
 
         self.source_service = source_service
         self.event_type = event_type
