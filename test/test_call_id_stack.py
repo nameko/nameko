@@ -3,7 +3,7 @@ import pytest
 
 from nameko.containers import WorkerContext
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
-from nameko.events import event_handler, EventDispatcher, Event as NamekoEvent
+from nameko.events import event_handler, EventDispatcher
 from nameko.rpc import rpc, RpcProxy
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import (
@@ -130,9 +130,6 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
     stack_request = Mock()
     LoggingWorkerContext = get_logging_worker_context(stack_request)
 
-    class HelloEvent(NamekoEvent):
-        type = "hello"
-
     class EventListeningServiceOne(object):
         @event_handler('event_raiser', 'hello')
         def hello(self, name):
@@ -149,7 +146,7 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
 
         @rpc
         def say_hello(self):
-            self.dispatch(HelloEvent(self.name))
+            self.dispatch('hello', self.name)
 
     runner = runner_factory(rabbit_config)
     runner.add_service(EventListeningServiceOne, LoggingWorkerContext)
