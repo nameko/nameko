@@ -6,7 +6,7 @@ from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 from nameko.contrib.sqlalchemy import OrmSession, ORM_DB_URIS_KEY
-from nameko.events import event_handler, EventDispatcher, Event
+from nameko.events import event_handler, EventDispatcher
 from nameko.messaging import Publisher, consume
 from nameko.rpc import rpc, RpcProxy
 from nameko.timer import timer
@@ -19,10 +19,6 @@ class FooModel(DeclBase):
     __tablename__ = 'spam'
     id = Column(Integer, primary_key=True)
     data = Column(String)
-
-
-class SpamEvent(Event):
-    type = 'spam'
 
 
 foobar_ex = Exchange('foobar_ex', durable=False)
@@ -40,7 +36,7 @@ class FooService(object):
     @timer(interval=1)
     def handle_timer(self):
         ham = 'ham'
-        self.dispatch_event(SpamEvent(ham))
+        self.dispatch_event('spam', ham)
 
     @event_handler('foo-service', 'spam')
     def handle_spam(self, evt_data):

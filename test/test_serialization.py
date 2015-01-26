@@ -3,14 +3,10 @@ import uuid
 from mock import Mock, call
 import pytest
 
-from nameko.events import event_handler, Event
+from nameko.events import event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc
 from nameko.standalone.rpc import ServiceRpcProxy
-
-
-class ExampleEvent(Event):
-    type = "example"
 
 
 entrypoint_called = Mock()
@@ -27,7 +23,7 @@ class Service(object):
     def broken(self):
         return uuid.uuid4()  # does not serialize
 
-    @event_handler('service', ExampleEvent.type)
+    @event_handler('service', 'example')
     def event(self, evt_data):
         entrypoint_called(evt_data)
 
