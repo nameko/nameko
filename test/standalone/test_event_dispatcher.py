@@ -1,14 +1,10 @@
 from mock import Mock
 
-from nameko.events import Event, event_handler
+from nameko.events import event_handler
 from nameko.standalone.events import event_dispatcher
 from nameko.testing.services import entrypoint_waiter
 
 handler_called = Mock()
-
-
-class TestEvent(Event):
-    type = "testevent"
 
 
 class Service(object):
@@ -29,5 +25,5 @@ def test_dispatch(container_factory, rabbit_config):
 
     dispatch = event_dispatcher(config)
     with entrypoint_waiter(container, 'handler', timeout=1):
-        dispatch('srcservice', TestEvent.type, msg)
+        dispatch('srcservice', 'testevent', msg)
     handler_called.assert_called_once_with(msg)
