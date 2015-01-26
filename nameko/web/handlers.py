@@ -77,9 +77,6 @@ class HttpRequestHandler(Entrypoint):
                                         self.handle_result, event))
         return event.wait()
 
-    def expose_exception(self, exc):
-        is_operational, data = self.protocol.expose_exception(exc)
-
     def handle_result(self, event, worker_ctx, result, exc_info):
         event.send(result)
         return result, exc_info

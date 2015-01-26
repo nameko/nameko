@@ -2,17 +2,11 @@ import json
 
 from werkzeug.wrappers import Response
 
-from nameko.web.exceptions import expose_exception, BadPayload
+from nameko.exceptions import serialize, BadRequest
+from nameko.web.exceptions import BadPayload
 
 
 class JsonProtocol(object):
-
-    def expose_exception(self, exc, expected_exceptions=None):
-        is_operational, data = expose_exception(exc)
-        if is_operational or (expected_exceptions and
-                              isinstance(exc, expected_exceptions)):
-            return True, data
-        return False, data
 
     def describe_response(self, result):
         headers = None
@@ -69,9 +63,12 @@ class JsonProtocol(object):
                         status=status, headers=headers,
                         mimetype='application/json')
 
-    def response_from_exception(self, exc, expected_exceptions=None):
-        is_operational, payload = self.expose_exception(
-            exc, expected_exceptions)
-        status_code = is_operational and 400 or 500
+    def response_from_exception(self, exc, expected_exceptions=()):
+        bad_request_exceptions = expected_exceptions + (BadRequest,)
+        if isinstance(exc, bad_request_exceptions):
+            status_code = 400
+        else:
+            status_code = 500
+        payload = serialize(exc)
         return Response(self.serialize_result(
             payload, False), status=status_code, mimetype='application/json')
