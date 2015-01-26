@@ -1,7 +1,7 @@
 import eventlet
 import pytest
 
-from nameko.exceptions import RemoteError
+from nameko.exceptions import IncorrectSignature, MethodNotFound, RemoteError
 from nameko.web.websocket import WebSocketHubProvider, wsrpc
 from nameko.testing.services import get_extension
 
@@ -63,7 +63,7 @@ def test_pub_sub(container, websocket):
     ws = websocket()
     assert ws.rpc('subscribe') == 'subscribed!'
     assert ws.rpc('broadcast', value=42) == 'broadcast!'
-    with pytest.raises(RemoteError) as exc:
+    with pytest.raises(IncorrectSignature) as exc:
         ws.rpc('broadcast')
         assert exc.value.exc_type == 'nameko.exceptions.IncorrectSignature'
 
@@ -126,9 +126,8 @@ def test_multiple_subscribers(container, websocket):
 
 def test_method_not_found(container, websocket):
     ws = websocket()
-    with pytest.raises(RemoteError) as exc:
+    with pytest.raises(MethodNotFound):
         ws.rpc('unknown')
-    assert exc.value.exc_type == 'nameko.exceptions.MethodNotFound'
 
 
 def test_list_subscriptions(container, websocket):
@@ -161,5 +160,5 @@ def test_connection_not_found(container, websocket):
 
     with pytest.raises(RemoteError) as exc:
         ws.rpc('subscribe')
-    # TODO: move exception
-    assert exc.value.exc_type == 'nameko.web.exceptions.ConnectionNotFound'
+    # TODO: move?
+    assert exc.value.exc_type == 'ConnectionNotFound'

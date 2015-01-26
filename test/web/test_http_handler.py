@@ -39,4 +39,4 @@ def test_post_rpc(container_factory, web_config, web_session):
     resp = rv.json()
     assert rv.status_code == 400
     assert not resp['success']
-    assert resp['error']['type'] == 'nameko.exceptions.IncorrectSignature'
+    assert resp['error']['exc_path'] == 'nameko.exceptions.IncorrectSignature'
