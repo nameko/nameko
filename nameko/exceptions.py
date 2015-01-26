@@ -98,18 +98,22 @@ def deserialize_to_instance(exc_type):
     return exc_type
 
 
-@deserialize_to_instance
-class MalformedRequest(Exception):
+class BadRequest(Exception):
     pass
 
 
 @deserialize_to_instance
-class MethodNotFound(Exception):
+class MalformedRequest(BadRequest):
     pass
 
 
 @deserialize_to_instance
-class IncorrectSignature(Exception):
+class MethodNotFound(BadRequest):
+    pass
+
+
+@deserialize_to_instance
+class IncorrectSignature(BadRequest):
     pass
 
 
