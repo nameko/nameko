@@ -40,9 +40,8 @@ def test_event_dispatcher(empty_config):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
 
-    event_dispatcher = EventDispatcher(
-        retry_policy={'max_retries': 5}
-        ).bind(container, "dispatch")
+    event_dispatcher = EventDispatcher(retry_policy={'max_retries': 5}).bind(
+        container, attr_name="dispatch")
     event_dispatcher.setup()
 
     service.dispatch = event_dispatcher.acquire_injection(worker_ctx)
