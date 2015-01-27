@@ -134,7 +134,7 @@ class ServiceContainer(object):
 
         for attr_name, dependency in inspect.getmembers(service_cls,
                                                         is_dependency):
-            bound = dependency.bind(self.interface, attr_name)
+            bound = dependency.bind_depedency(self.interface, attr_name)
             self.dependencies.add(bound)
             self.subextensions.update(iter_extensions(bound))
 
@@ -142,7 +142,7 @@ class ServiceContainer(object):
                                                       inspect.ismethod):
             entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
-                bound = entrypoint.bind(self.interface, method_name)
+                bound = entrypoint.bind_entrypoint(self.interface, method_name)
                 self.entrypoints.add(bound)
                 self.subextensions.update(iter_extensions(bound))
 

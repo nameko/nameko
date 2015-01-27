@@ -134,11 +134,11 @@ class Dependency(Extension):
 
     attr_name = None
 
-    def bind(self, container, attr_name):
+    def bind_depedency(self, container, attr_name):
         """ Get an instance of this Dependency to bind to `container` with
         `attr_name`.
         """
-        instance = super(Dependency, self).bind(container)
+        instance = self.bind(container)
         instance.attr_name = attr_name
         return instance
 
@@ -259,11 +259,11 @@ class Entrypoint(Extension):
 
     method_name = None
 
-    def bind(self, container, method_name):
+    def bind_entrypoint(self, container, method_name):
         """ Get an instance of this Entrypoint to bind to `container` with
         `method_name`.
         """
-        instance = super(Entrypoint, self).bind(container)
+        instance = self.bind(container)
         instance.method_name = method_name
         return instance
 
