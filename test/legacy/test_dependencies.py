@@ -69,7 +69,7 @@ def test_nova_rpc_provider(empty_config):
     container.service_name = "service"
     container.config = empty_config
 
-    entrypoint = NovaRpc().bind(container, "method")
+    entrypoint = NovaRpc().bind_entrypoint(container, "method")
     entrypoint.setup()
     entrypoint.rpc_consumer = rpc_consumer
 
