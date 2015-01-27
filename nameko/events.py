@@ -14,10 +14,6 @@ To listen to an event, a service must declare a handler using the
 :func:`handle_event` entrypoint, providing the target service and an event type
 filter.
 
-
-# TODO: keep?
-    See amqp routing keys for `topic` exchanges for more info.
-
 Example::
 
     # service A
