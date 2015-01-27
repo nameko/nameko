@@ -217,7 +217,7 @@ def test_entrypoint_str():
     ext = Entrypoint()
     assert str(ext).startswith('<Entrypoint [declaration] at')
 
-    bound = ext.bind(container, "føbar")
+    bound = ext.bind_entrypoint(container, "føbar")
     assert str(bound).startswith("<Entrypoint [sérvice.føbar] at")
 
 
@@ -228,5 +228,5 @@ def test_dependency_str():
     ext = Dependency()
     assert str(ext).startswith('<Dependency [declaration] at')
 
-    bound = ext.bind(container, "føbar")
+    bound = ext.bind_depedency(container, "føbar")
     assert str(bound).startswith("<Dependency [sérvice.føbar] at")
