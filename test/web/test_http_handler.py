@@ -1,3 +1,6 @@
+import pytest
+from werkzeug.wrappers import Response
+
 from nameko.web.handlers import http
 
 
@@ -11,11 +14,27 @@ class ExampleService(object):
     def do_post(self, value):
         return {'value': value}
 
+    @http('GET', '/custom')
+    def do_custom(self):
+        return Response('response')
 
-def test_simple_rpc(container_factory, web_config, web_session):
+    @http('GET', '/status_code')
+    def do_status_code(self):
+        return 201, 'created'
+
+    @http('GET', '/status_code')
+    def do_headers(self):
+        return 201, {'x-foo': 'bar'}, 'created'
+
+
+@pytest.fixture
+def web_session(container_factory, web_config, web_session):
     container = container_factory(ExampleService, web_config)
     container.start()
+    return web_session
 
+
+def test_simple_rpc(web_session):
     rv = web_session.get('/foo/42')
     assert rv.json() == {'data': {'value': 42}, 'success': True}
 
@@ -23,10 +42,7 @@ def test_simple_rpc(container_factory, web_config, web_session):
     assert rv.status_code == 404
 
 
-def test_post_rpc(container_factory, web_config, web_session):
-    container = container_factory(ExampleService, web_config)
-    container.start()
-
+def test_post_rpc(web_session):
     rv = web_session.post('/post', json={
         'value': 23,
     })
@@ -40,3 +56,21 @@ def test_post_rpc(container_factory, web_config, web_session):
     assert rv.status_code == 400
     assert not resp['success']
     assert resp['error']['exc_path'] == 'nameko.exceptions.IncorrectSignature'
+
+
+def test_custom_response(web_session):
+    rv = web_session.get('/custom')
+    assert rv.content == 'response'
+
+
+def test_custom_status_code(web_session):
+    rv = web_session.get('/status_code')
+    assert rv.json() == {'data': 'created', 'success': True}
+    assert rv.status_code == 201
+
+
+def test_custom_headers(web_session):
+    rv = web_session.get('/status_code')
+    assert rv.json() == {'data': 'created', 'success': True}
+    assert rv.status_code == 201
+    assert rv.headers['x-foo'] == 'bar'
