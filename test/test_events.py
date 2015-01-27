@@ -47,12 +47,11 @@ def test_event_dispatcher(empty_config):
     service.dispatch = event_dispatcher.acquire_injection(worker_ctx)
 
     from mock import ANY
-    with patch('nameko.events.producers') as mock_producers:
-        with patch('nameko.events.producers') as mock_producers:
-            with mock_producers[ANY].acquire() as mock_producer:
+    with patch('nameko.standalone.events.producers') as mock_producers:
+        with mock_producers[ANY].acquire() as mock_producer:
 
-                service.dispatch('eventtype', 'msg')
-                headers = event_dispatcher.get_message_headers(worker_ctx)
+            service.dispatch('eventtype', 'msg')
+            headers = event_dispatcher.get_message_headers(worker_ctx)
     mock_producer.publish.assert_called_once_with(
         'msg', exchange=ANY, headers=headers,
         routing_key='eventtype', retry=True, retry_policy={'max_retries': 5})
