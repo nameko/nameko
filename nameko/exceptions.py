@@ -152,3 +152,7 @@ class UnserializableValueError(Exception):
 
     def __str__(self):
         return "Unserializable value: `{}`".format(self.repr_value)
+
+
+class CommandError(Exception):
+    """Raise from subcommands to report error back to the user"""

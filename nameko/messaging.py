@@ -15,7 +15,7 @@ from kombu.pools import producers, connections
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.dependencies import (
     InjectionProvider, EntrypointProvider, entrypoint, injection,
     DependencyProvider, ProviderCollector, DependencyFactory, dependency,
@@ -27,7 +27,6 @@ _log = getLogger(__name__)
 # delivery_mode
 PERSISTENT = 2
 HEADER_PREFIX = "nameko"
-AMQP_URI_CONFIG_KEY = 'AMQP_URI'
 
 
 class HeaderEncoder(object):

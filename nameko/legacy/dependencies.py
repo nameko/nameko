@@ -5,12 +5,11 @@ import sys
 from kombu import Connection
 from kombu.pools import producers
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import ContainerBeingKilled
 from nameko.dependencies import (
     dependency, entrypoint, DependencyFactory, CONTAINER_SHARED)
 from nameko.legacy.nova import get_topic_queue, parse_message
-from nameko.messaging import AMQP_URI_CONFIG_KEY
 from nameko.rpc import RpcConsumer, RpcProvider, Responder
 
 
