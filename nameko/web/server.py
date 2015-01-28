@@ -1,5 +1,5 @@
 import eventlet
-from eventlet import wsgi, support
+from eventlet import wsgi
 from functools import partial
 
 from werkzeug.wrappers import Request
@@ -33,11 +33,7 @@ class WebServer(ProviderCollector, SharedExtension):
 
     def run(self):
         while self._is_accepting:
-            try:
-                sock, addr = self._sock.accept()
-            except wsgi.ACCEPT_EXCEPTIONS as exc:
-                if support.get_errno(exc) not in wsgi.ACCEPT_ERRNO:
-                    raise
+            sock, addr = self._sock.accept()
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(partial(
                 self._serv.process_request, (sock, addr)),
