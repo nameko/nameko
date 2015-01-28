@@ -1,3 +1,5 @@
+AMQP_URI_CONFIG_KEY = 'AMQP_URI'
+
 CALL_ID_STACK_CONTEXT_KEY = 'call_id_stack'
 AUTH_TOKEN_CONTEXT_KEY = 'auth_token'
 LANGUAGE_CONTEXT_KEY = 'language'
