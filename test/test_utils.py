@@ -4,9 +4,7 @@ from eventlet import GreenPool, sleep
 from eventlet.event import Event
 import pytest
 
-from nameko.utils import fail_fast_imap, repr_safe_str, safe_for_json
-
-OBJECT_REPR = "<type 'object'>"
+from nameko.utils import fail_fast_imap, repr_safe_str
 
 
 def test_fail_fast_imap():
@@ -50,29 +48,3 @@ def test_repr_safe_str(value, repr_safe_value):
     res = repr_safe_str(value)
     assert res == repr_safe_value
     assert isinstance(res, bytes)
-
-
-@pytest.mark.parametrize("value, safe_value", [
-    ('str', 'str'),
-    (object, OBJECT_REPR),
-    ([object], [OBJECT_REPR]),
-    ({object}, [OBJECT_REPR]),
-    ({'foo': 'bar'}, {'foo': 'bar'}),
-    ({object: None}, {OBJECT_REPR: 'None'}),
-    ({None: object}, {'None': OBJECT_REPR}),
-    ((1, 2), ['1', '2']),
-    ([1, [2]], ['1', ['2']]),
-])
-def test_safe_for_json(value, safe_value):
-    assert safe_for_json(value) == safe_value
-
-
-def test_safe_for_json_bad_str():
-    class BadStr(object):
-        def __str__(self):
-            raise Exception('boom')
-
-    obj = BadStr()
-    safe = safe_for_json(obj)
-    assert isinstance(safe, basestring)
-    assert 'failed' in safe

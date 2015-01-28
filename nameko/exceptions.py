@@ -1,6 +1,5 @@
+import collections
 import inspect
-
-from nameko.utils import safe_for_json
 
 
 class DependencyNotFound(AttributeError):
@@ -55,6 +54,29 @@ class RemoteError(Exception):
         self.value = value
         message = '{} {}'.format(exc_type, value)
         super(RemoteError, self).__init__(message)
+
+
+def safe_for_json(value):
+    """ Transform a value in preparation for serializing as json
+
+    no-op for strings, mappings and iterables have their entries made safe,
+    and all other values are stringified, with a fallback value if that fails
+    """
+
+    if isinstance(value, basestring):
+        return value
+    if isinstance(value, dict):
+        return {
+            safe_for_json(key): safe_for_json(val)
+            for key, val in value.iteritems()
+        }
+    if isinstance(value, collections.Iterable):
+        return map(safe_for_json, value)
+
+    try:
+        return unicode(value)
+    except Exception:
+        return '[__unicode__ failed]'
 
 
 def serialize(exc):

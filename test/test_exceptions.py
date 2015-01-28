@@ -4,8 +4,11 @@ from mock import patch
 import pytest
 
 from nameko.exceptions import (
-    serialize, deserialize, deserialize_to_instance, RemoteError,
-    UnserializableValueError)
+    serialize, safe_for_json, deserialize, deserialize_to_instance,
+    RemoteError, UnserializableValueError)
+
+
+OBJECT_REPR = "<type 'object'>"
 
 
 class CustomError(Exception):
@@ -149,3 +152,29 @@ def test_unserializable_value_error():
 
     assert exc.repr_value == "[__repr__ failed]"
     assert str(exc) == "Unserializable value: `[__repr__ failed]`"
+
+
+@pytest.mark.parametrize("value, safe_value", [
+    ('str', 'str'),
+    (object, OBJECT_REPR),
+    ([object], [OBJECT_REPR]),
+    ({object}, [OBJECT_REPR]),
+    ({'foo': 'bar'}, {'foo': 'bar'}),
+    ({object: None}, {OBJECT_REPR: 'None'}),
+    ({None: object}, {'None': OBJECT_REPR}),
+    ((1, 2), ['1', '2']),
+    ([1, [2]], ['1', ['2']]),
+])
+def test_safe_for_json(value, safe_value):
+    assert safe_for_json(value) == safe_value
+
+
+def test_safe_for_json_bad_str():
+    class BadStr(object):
+        def __str__(self):
+            raise Exception('boom')
+
+    obj = BadStr()
+    safe = safe_for_json(obj)
+    assert isinstance(safe, basestring)
+    assert 'failed' in safe
