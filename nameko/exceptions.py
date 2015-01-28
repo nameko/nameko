@@ -1,3 +1,4 @@
+import collections
 import inspect
 
 
@@ -55,19 +56,38 @@ class RemoteError(Exception):
         super(RemoteError, self).__init__(message)
 
 
+def safe_for_json(value):
+    """ Transform a value in preparation for serializing as json
+
+    no-op for strings, mappings and iterables have their entries made safe,
+    and all other values are stringified, with a fallback value if that fails
+    """
+
+    if isinstance(value, basestring):
+        return value
+    if isinstance(value, dict):
+        return {
+            safe_for_json(key): safe_for_json(val)
+            for key, val in value.iteritems()
+        }
+    if isinstance(value, collections.Iterable):
+        return map(safe_for_json, value)
+
+    try:
+        return unicode(value)
+    except Exception:
+        return '[__unicode__ failed]'
+
+
 def serialize(exc):
     """ Serialize `self.exc` into a data dictionary representing it.
     """
-    try:
-        value = unicode(exc)
-    except Exception:
-        value = '[__unicode__ failed]'
 
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'exc_args': exc.args,
-        'value': value,
+        'exc_args': map(safe_for_json, exc.args),
+        'value': safe_for_json(exc),
     }
 
 
@@ -132,3 +152,7 @@ class UnserializableValueError(Exception):
 
     def __str__(self):
         return "Unserializable value: `{}`".format(self.repr_value)
+
+
+class CommandError(Exception):
+    """Raise from subcommands to report error back to the user"""

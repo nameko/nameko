@@ -11,15 +11,14 @@ from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import (
     MethodNotFound, UnknownService, UnserializableValueError,
-    MalformedRequest, RpcConnectionError, serialize, deserialize)
-from nameko.messaging import (
-    QueueConsumer, HeaderEncoder, HeaderDecoder, AMQP_URI_CONFIG_KEY)
+    MalformedRequest, RpcConnectionError, serialize, deserialize,
+    IncorrectSignature, ContainerBeingKilled)
 from nameko.extensions import (
     Dependency, Entrypoint, ProviderCollector, SharedExtension)
-from nameko.exceptions import IncorrectSignature, ContainerBeingKilled
+from nameko.messaging import QueueConsumer, HeaderEncoder, HeaderDecoder
 from nameko.utils import repr_safe_str
 
 
@@ -197,18 +196,17 @@ class Responder(object):
         if exc_info is not None:
             error = serialize(exc_info[1])
 
-        # disaster avoidance serialization check
-        # `result` and `error` must both be json serializable, otherwise
-        # the container will commit suicide assuming unrecoverable errors
-        # (and the message will be requeued for another victim)
-        for item in (result, error):
-            try:
-                json.dumps(item)
-            except Exception:
-                result = None
-                exc_info = sys.exc_info()
-                # `error` below is guaranteed to serialize to json
-                error = serialize(UnserializableValueError(item))
+        # disaster avoidance serialization check: `result` must be json
+        # serializable, otherwise the container will commit suicide assuming
+        # unrecoverable errors (and the message will be requeued for another
+        # victim)
+        try:
+            json.dumps(result)
+        except Exception:
+            exc_info = sys.exc_info()
+            # `error` below is guaranteed to serialize to json
+            error = serialize(UnserializableValueError(result))
+            result = None
 
         conn = Connection(self.config[AMQP_URI_CONFIG_KEY])
 

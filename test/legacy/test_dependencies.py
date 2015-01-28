@@ -2,12 +2,12 @@ from kombu.message import Message
 from mock import Mock, patch, ANY, DEFAULT
 import pytest
 
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.exceptions import RemoteError, ContainerBeingKilled
 from nameko.legacy.extensions import (
     rpc, NovaRpc, NovaResponder, NovaRpcConsumer)
 from nameko.legacy.proxy import RPCProxy
-from nameko.messaging import AMQP_URI_CONFIG_KEY
 
 
 class NovaService(object):

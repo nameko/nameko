@@ -8,8 +8,9 @@ from kombu.exceptions import TimeoutError
 from mock import patch, Mock, ANY, call
 import pytest
 
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.containers import ServiceContainer
-from nameko.messaging import QueueConsumer, AMQP_URI_CONFIG_KEY
+from nameko.messaging import QueueConsumer
 from nameko.testing.utils import (
     assert_stops_raising, get_rabbit_connections, get_extension)
 from nameko.rpc import rpc, RpcConsumer
