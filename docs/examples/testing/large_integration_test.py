@@ -19,7 +19,7 @@ from collections import defaultdict
 import pytest
 
 from nameko.extensions import Dependency
-from nameko.events import EventDispatcher, Event, event_handler
+from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, RpcProxy
 from nameko.runners import ServiceRunner
@@ -68,18 +68,6 @@ class ShoppingBasket(Dependency):
         return Basket(self.baskets[user_id])
 
 
-class ItemAddedToBasket(Event):
-    """ Dispatched when an item is added to a shopping basket.
-    """
-    type = "item_added_to_basket"
-
-
-class CheckoutComplete(Event):
-    """ Dispatched when the checkout process completes
-    """
-    type = "checkout_complete"
-
-
 class AcmeShopService(object):
 
     user_basket = ShoppingBasket()
@@ -98,7 +86,7 @@ class AcmeShopService(object):
         stock_level = self.stock_service.check_stock(item_code)
         if stock_level > 0:
             self.user_basket.add(item_code)
-            self.fire_event(ItemAddedToBasket(item_code))
+            self.fire_event("item_added_to_basket", item_code)
             return item_code
 
         raise ItemOutOfStock(item_code)
@@ -117,11 +105,11 @@ class AcmeShopService(object):
         self.payment_service.take_payment(invoice)
 
         # fire checkout event if prepare_invoice and take_payment succeeded
-        checkout_event = CheckoutComplete({
+        checkout_event_data = {
             'invoice': invoice,
             'items': list(self.user_basket)
-        })
-        self.fire_event(checkout_event)
+        }
+        self.fire_event("checkout_complete", checkout_event_data)
         return total_price
 
 
@@ -187,7 +175,7 @@ class StockService(object):
         """
         raise NotImplemented()
 
-    @event_handler('acmeshopservice', CheckoutComplete.type)
+    @event_handler('acmeshopservice', "checkout_complete")
     def dispatch_items(self, event_data):
         """ Dispatch items from stock on successful checkouts.
 

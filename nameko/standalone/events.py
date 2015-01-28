@@ -1,10 +1,19 @@
-from kombu.common import maybe_declare
+from kombu import Connection, Exchange
 from kombu.pools import producers, connections
-from kombu import Connection
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.events import get_event_exchange, Event
-from nameko.messaging import AMQP_URI_CONFIG_KEY
+from nameko.messaging import PERSISTENT, AMQP_URI_CONFIG_KEY
+
+
+def get_event_exchange(service_name):
+    """ Get an exchange for ``service_name`` events.
+    """
+    exchange_name = "{}.events".format(service_name)
+    exchange = Exchange(
+        exchange_name, type='topic', durable=True, auto_delete=True,
+        delivery_mode=PERSISTENT)
+
+    return exchange
 
 
 def event_dispatcher(nameko_config, **kwargs):
@@ -23,11 +32,9 @@ def event_dispatcher(nameko_config, **kwargs):
         conn = Connection(nameko_config[AMQP_URI_CONFIG_KEY])
 
         exchange = get_event_exchange(service_name)
-        if isinstance(event_type, type) and issubclass(event_type, Event):
-            event_type = event_type.type
 
         with connections[conn].acquire(block=True) as connection:
-            maybe_declare(exchange, connection)
+            exchange.maybe_bind(connection)
             with producers[conn].acquire(block=True) as producer:
                 msg = event_data
                 routing_key = event_type

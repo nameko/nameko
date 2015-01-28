@@ -40,11 +40,8 @@ called. Let's create ``FriendlyService`` now:
 
 .. code:: python
 
-    from nameko.events import Event, EventDispatcher
+    from nameko.events import EventDispatcher
     from nameko.timer import timer
-
-    class HelloEvent(Event):
-        type = "hello"
 
     class FriendlyService(object):
 
@@ -53,7 +50,7 @@ called. Let's create ``FriendlyService`` now:
 
         @timer(interval=5)
         def say_hello(self):
-            self.dispatch(HelloEvent(self.name))
+            self.dispatch('hello', self.name)
 
 FriendlyService declares itself to be an event dispatcher with the
 ``EventDispatcher`` dependency. This gives it the ability to send events using

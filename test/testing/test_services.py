@@ -2,7 +2,7 @@ from mock import Mock
 import pytest
 
 from nameko.extensions import Dependency
-from nameko.events import Event, event_handler
+from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
@@ -270,9 +270,6 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
 
     method_called = Mock()
 
-    class ExampleEvent(Event):
-        type = "eventtype"
-
     class Service(object):
 
         @rpc
@@ -301,7 +298,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     dispatch = event_dispatcher(rabbit_config)
 
     with entrypoint_waiter(container, 'handler_two'):
-        dispatch('srcservice', ExampleEvent, msg)
+        dispatch('srcservice', 'eventtype', msg)
 
     # method_called should have exactly one call, derived from the event
     # handler and not from the disabled @once entrypoint
@@ -340,12 +337,9 @@ def test_entrypoint_waiter(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    class ExampleEvent(Event):
-        type = "eventtype"
-
     dispatch = event_dispatcher(rabbit_config)
     with entrypoint_waiter(container, 'handle'):
-        dispatch('srcservice', ExampleEvent, "")
+        dispatch('srcservice', 'eventtype', "")
 
 
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
