@@ -26,6 +26,10 @@ class ExampleService(object):
     def do_headers(self):
         return 201, {'x-foo': 'bar'}, 'created'
 
+    @http('GET', '/fail')
+    def fail(self):
+        raise ValueError('oops')
+
 
 @pytest.fixture
 def web_session(container_factory, web_config, web_session):
@@ -74,3 +78,8 @@ def test_custom_headers(web_session):
     assert rv.json() == {'data': 'created', 'success': True}
     assert rv.status_code == 201
     assert rv.headers['x-foo'] == 'bar'
+
+
+def test_broken_method(web_session):
+    rv = web_session.get('/fail')
+    assert rv.status_code == 500
