@@ -22,7 +22,7 @@ class ExampleService(object):
     def do_status_code(self):
         return 201, 'created'
 
-    @http('GET', '/status_code')
+    @http('GET', '/headers')
     def do_headers(self):
         return 201, {'x-foo': 'bar'}, 'created'
 
@@ -70,7 +70,7 @@ def test_custom_status_code(web_session):
 
 
 def test_custom_headers(web_session):
-    rv = web_session.get('/status_code')
+    rv = web_session.get('/headers')
     assert rv.json() == {'data': 'created', 'success': True}
     assert rv.status_code == 201
     assert rv.headers['x-foo'] == 'bar'
