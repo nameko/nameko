@@ -11,14 +11,13 @@ from eventlet import event
 from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
-from nameko.dependencies import (
-    DependencyFactory, InjectionProvider, EntrypointProvider, entrypoint)
-from nameko.exceptions import DependencyNotFound
-from nameko.testing.utils import get_dependency, wait_for_worker_idle
+from nameko.extensions import Dependency, Entrypoint
+from nameko.exceptions import ExtensionNotFound
+from nameko.testing.utils import get_extension, wait_for_worker_idle
 
 
 @contextmanager
-def entrypoint_hook(container, name, context_data=None):
+def entrypoint_hook(container, method_name, context_data=None):
     """ Yield a function providing an entrypoint into a hosted service.
 
     The yielded function may be called as if it were the bare method defined
@@ -33,10 +32,11 @@ def entrypoint_hook(container, name, context_data=None):
     .. literalinclude:: examples/testing/integration_test.py
 
     """
-    provider = get_dependency(container, EntrypointProvider, name=name)
-    if provider is None:
-        raise DependencyNotFound("No entrypoint called '{}' found "
-                                 "on container {}.".format(name, container))
+    entrypoint = get_extension(container, Entrypoint, method_name=method_name)
+    if entrypoint is None:
+        raise ExtensionNotFound(
+            "No entrypoint for '{}' found on container {}.".format(
+                method_name, container))
 
     def hook(*args, **kwargs):
         result = event.Event()
@@ -45,11 +45,11 @@ def entrypoint_hook(container, name, context_data=None):
             result.send(res, exc_info)
             return res, exc_info
 
-        container.spawn_worker(provider, args, kwargs,
+        container.spawn_worker(entrypoint, args, kwargs,
                                context_data=context_data,
                                handle_result=handle_result)
 
-        # If the container errors (e.g. due to a bad provider), handle_result
+        # If the container errors (e.g. due to a bad entrypoint), handle_result
         # is never called and we hang. To mitigate, we spawn a greenlet waiting
         # for the container, and if that throws we send the exception back
         # as our result
@@ -67,7 +67,7 @@ def entrypoint_hook(container, name, context_data=None):
     yield hook
 
 
-class EntrypointWaiter(InjectionProvider):
+class EntrypointWaiter(Dependency):
     """Helper for `entrypoint_waiter`
 
     Injection to be manually (and temporarily) added to an existing container.
@@ -76,13 +76,13 @@ class EntrypointWaiter(InjectionProvider):
     """
 
     def __init__(self, entrypoint):
-        self.name = '_entrypoint_waiter_{}'.format(entrypoint)
+        self.attr_name = '_entrypoint_waiter_{}'.format(entrypoint)
         self.entrypoint = entrypoint
         self.done = Semaphore(value=0)
 
     def worker_teardown(self, worker_ctx):
-        provider = worker_ctx.provider
-        if provider.name == self.entrypoint:
+        entrypoint = worker_ctx.entrypoint
+        if entrypoint.method_name == self.entrypoint:
             self.done.release()
 
     def wait(self):
@@ -101,10 +101,10 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
     """
 
     waiter = EntrypointWaiter(entrypoint)
-    if not get_dependency(container, EntrypointProvider, name=entrypoint):
+    if not get_extension(container, Entrypoint, method_name=entrypoint):
         raise RuntimeError("{} has no entrypoint `{}`".format(
             container.service_name, entrypoint))
-    if get_dependency(container, EntrypointWaiter, entrypoint=entrypoint):
+    if get_extension(container, EntrypointWaiter, entrypoint=entrypoint):
         raise RuntimeError("Waiter already registered for {}".format(
             entrypoint))
 
@@ -128,12 +128,12 @@ def worker_factory(service_cls, **injections):
     **Usage**
 
     The following example service proxies calls to a "math" service via
-    and ``rpc_proxy`` injection::
+    and ``RpcProxy`` dependency::
 
-        from nameko.rpc import rpc_proxy, rpc
+        from nameko.rpc import RpcProxy, rpc
 
         class ConversionService(object):
-            math = rpc_proxy("math_service")
+            math = RpcProxy("math_service")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -177,30 +177,28 @@ def worker_factory(service_cls, **injections):
     .. literalinclude:: examples/testing/unit_with_provided_injection_test.py
 
     If a given injection does not exist on ``service_cls``, a
-    ``DependencyNotFound`` exception is raised.
+    ``ExtensionNotFound`` exception is raised.
 
     """
     service = service_cls()
     for name, attr in inspect.getmembers(service_cls):
-        if isinstance(attr, DependencyFactory):
-            factory = attr
-            if issubclass(factory.dep_cls, InjectionProvider):
-                try:
-                    injection = injections.pop(name)
-                except KeyError:
-                    injection = MagicMock()
-                setattr(service, name, injection)
+        if isinstance(attr, Dependency):
+            try:
+                injection = injections.pop(name)
+            except KeyError:
+                injection = MagicMock()
+            setattr(service, name, injection)
 
     if injections:
-        raise DependencyNotFound("Injection(s) '{}' not found on {}.".format(
+        raise ExtensionNotFound("Injection(s) '{}' not found on {}.".format(
             injections.keys(), service_cls))
 
     return service
 
 
-class MockInjection(InjectionProvider):
+class MockInjection(Dependency):
     def __init__(self, name):
-        self.name = name
+        self.attr_name = name
         self.injection = MagicMock()
 
     def acquire_injection(self, worker_ctx):
@@ -224,11 +222,11 @@ def replace_injections(container, *injections):
 
     ::
 
-        from nameko.rpc import rpc_proxy, rpc
-        from nameko.standalone.rpc import RpcProxy
+        from nameko.rpc import RpcProxy, rpc
+        from nameko.standalone.rpc import RpcProxy as StandaloneRpcProxy
 
         class ConversionService(object):
-            math = rpc_proxy("math_service")
+            math = RpcProxy("math_service")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -243,7 +241,7 @@ def replace_injections(container, *injections):
 
         container.start()
 
-        with RpcProxy('conversionservice', config) as proxy:
+        with StandaloneRpcProxy('conversionservice', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the injection was called as expected
@@ -254,20 +252,19 @@ def replace_injections(container, *injections):
         raise RuntimeError('You must replace injections before the '
                            'container is started.')
 
-    injection_deps = list(container.injections)
-    injection_names = {dep.name for dep in injection_deps}
+    dependency_names = {dep.attr_name for dep in container.dependencies}
 
-    missing = set(injections) - injection_names
+    missing = set(injections) - dependency_names
     if missing:
-        raise DependencyNotFound("Injection(s) '{}' not found on {}.".format(
+        raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
             missing, container))
 
     replacements = OrderedDict()
 
-    named_injections = {dep.name: dep for dep in container.injections
-                        if dep.name in injections}
+    named_dependencies = {dep.attr_name: dep for dep in container.dependencies
+                          if dep.attr_name in injections}
     for name in injections:
-        dependency = named_injections[name]
+        dependency = named_dependencies[name]
         replacement = MockInjection(name)
         replacements[dependency] = replacement
         container.dependencies.remove(dependency)
@@ -319,22 +316,30 @@ def restrict_entrypoints(container, *entrypoints):
                            'container is started.')
 
     entrypoint_deps = list(container.entrypoints)
-    entrypoint_names = {dep.name for dep in entrypoint_deps}
+    entrypoint_names = {ext.method_name for ext in entrypoint_deps}
 
     missing = set(entrypoints) - entrypoint_names
     if missing:
-        raise DependencyNotFound("Entrypoint(s) '{}' not found on {}.".format(
+        raise ExtensionNotFound("Entrypoint(s) '{}' not found on {}.".format(
             missing, container))
 
-    for dependency in entrypoint_deps:
-        if dependency.name not in entrypoints:
-            container.dependencies.remove(dependency)
+    for entrypoint in entrypoint_deps:
+        if entrypoint.method_name not in entrypoints:
+            container.entrypoints.remove(entrypoint)
 
 
-class DummyEntrypoint(EntrypointProvider):
-    pass
+class Once(Entrypoint):
+    """ Entrypoint that spawns a worker exactly once, as soon as
+    the service container started.
+    """
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
 
+    def start(self):
+        self.container.spawn_worker(self, self.args, self.kwargs)
 
-@entrypoint
-def dummy():
-    return DependencyFactory(DummyEntrypoint)
+once = Once.decorator
+
+# dummy entrypoint
+dummy = Entrypoint.decorator

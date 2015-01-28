@@ -8,22 +8,24 @@ Subpackages
 
     nameko.contrib
     nameko.legacy
+    nameko.nameko_doc
     nameko.standalone
     nameko.testing
-    nameko.nameko_doc
 
 Submodules
 ----------
 
 .. toctree::
 
+   nameko.constants
    nameko.containers
-   nameko.dependencies
+   nameko.contextdata
    nameko.events
    nameko.exceptions
-   nameko.logging
+   nameko.extensions
+   nameko.kombu_helpers
+   nameko.log_helpers
    nameko.messaging
-   nameko.parallel
    nameko.rpc
    nameko.runners
    nameko.timer

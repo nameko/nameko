@@ -1,3 +1,4 @@
+from mock import Mock
 import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
@@ -6,16 +7,14 @@ from nameko.constants import (
     USER_AGENT_CONTEXT_KEY,
 )
 from nameko.contextdata import (
-    language, user_id, user_agent, auth_token, ContextDataProvider)
-from nameko.dependencies import DependencyFactory, injection
-from nameko.testing.utils import get_dependency
+    Language, UserId, UserAgent, AuthToken, ContextDataProvider)
+from nameko.testing.utils import get_extension
 
 CUSTOM_CONTEXT_KEY = "custom"
 
 
-@injection
-def custom_value():
-    return DependencyFactory(ContextDataProvider, CUSTOM_CONTEXT_KEY)
+class CustomValue(ContextDataProvider):
+    context_key = CUSTOM_CONTEXT_KEY
 
 
 class CustomWorkerContext(WorkerContext):
@@ -24,14 +23,14 @@ class CustomWorkerContext(WorkerContext):
 
 class Service(object):
 
-    # builtin context data providers
-    auth_token = auth_token()
-    language = language()
-    user_id = user_id()
-    user_agent = user_agent()
+    # builtin context data dependencies
+    auth_token = AuthToken()
+    language = Language()
+    user_id = UserId()
+    user_agent = UserAgent()
 
-    # custom context data provider
-    custom_value = custom_value()
+    # custom context data dependency
+    custom_value = CustomValue()
 
 
 @pytest.fixture
@@ -40,34 +39,34 @@ def container():
 
 
 def test_get_custom_context_value(container):
-    provider = get_dependency(
-        container, ContextDataProvider, name="custom_value")
+    dependency = get_extension(
+        container, ContextDataProvider, attr_name="custom_value")
     worker_ctx = WorkerContext(
-        container, "service", provider, data={CUSTOM_CONTEXT_KEY: "hello"})
+        container, "service", Mock(), data={CUSTOM_CONTEXT_KEY: "hello"})
 
-    assert provider.acquire_injection(worker_ctx) == "hello"
+    assert dependency.acquire_injection(worker_ctx) == "hello"
 
 
 def test_get_unset_value(container):
-    provider = get_dependency(
-        container, ContextDataProvider, name="custom_value")
+    dependency = get_extension(
+        container, ContextDataProvider, attr_name="custom_value")
     worker_ctx = WorkerContext(
-        container, "service", provider, data={})
+        container, "service", Mock(), data={})
 
-    assert provider.acquire_injection(worker_ctx) is None
+    assert dependency.acquire_injection(worker_ctx) is None
 
 
-@pytest.mark.parametrize('provider_name, context_key', [
+@pytest.mark.parametrize('attr_name, context_key', [
     ('auth_token', AUTH_TOKEN_CONTEXT_KEY),
     ('language', LANGUAGE_CONTEXT_KEY),
     ('user_id', USER_ID_CONTEXT_KEY),
     ('user_agent', USER_AGENT_CONTEXT_KEY),
 
 ])
-def test_get_builtin_providers(provider_name, context_key, container):
-    provider = get_dependency(
-        container, ContextDataProvider, name=provider_name)
+def test_get_builtin_dependencies(attr_name, context_key, container):
+    dependency = get_extension(
+        container, ContextDataProvider, attr_name=attr_name)
     worker_ctx = WorkerContext(
-        container, "service", provider, data={context_key: 'value'})
+        container, "service", Mock(), data={context_key: 'value'})
 
-    assert provider.acquire_injection(worker_ctx) == "value"
+    assert dependency.acquire_injection(worker_ctx) == "value"

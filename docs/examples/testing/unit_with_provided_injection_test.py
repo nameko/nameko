@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from nameko.rpc import rpc
-from nameko.contrib.sqlalchemy import orm_session
+from nameko.contrib.sqlalchemy import OrmSession
 from nameko.testing.services import worker_factory
 
 
@@ -21,7 +21,7 @@ class Result(Base):
 
 
 class Service(object):
-    db = orm_session(Base)
+    db = OrmSession(Base)
 
     @rpc
     def save(self, value):

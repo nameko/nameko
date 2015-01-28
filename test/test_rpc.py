@@ -7,19 +7,19 @@ import pytest
 
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
-from nameko.dependencies import InjectionProvider, injection, DependencyFactory
+from nameko.extensions import Dependency
 from nameko.events import event_handler
 from nameko.exceptions import (
     RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
     MalformedRequest)
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    rpc, rpc_proxy, RpcConsumer, RpcProvider, ReplyListener,
+    rpc, RpcProxy, RpcConsumer, Rpc, ReplyListener,
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import (
-    get_dependency, wait_for_call, wait_for_worker_idle)
+    get_extension, wait_for_call, wait_for_worker_idle)
 
 
 class ExampleError(Exception):
@@ -33,7 +33,7 @@ translations = {
 }
 
 
-class Translator(InjectionProvider):
+class Translator(Dependency):
 
     def acquire_injection(self, worker_ctx):
         def translate(value):
@@ -42,12 +42,7 @@ class Translator(InjectionProvider):
         return translate
 
 
-@injection
-def translator():
-    return DependencyFactory(Translator)
-
-
-class WorkerErrorLogger(InjectionProvider):
+class WorkerErrorLogger(Dependency):
 
     expected = {}
     unexpected = {}
@@ -58,17 +53,12 @@ class WorkerErrorLogger(InjectionProvider):
 
         exc = exc_info[1]
         expected_exceptions = getattr(
-            worker_ctx.provider, 'expected_exceptions', ())
+            worker_ctx.entrypoint, 'expected_exceptions', ())
 
         if isinstance(exc, expected_exceptions):
-            self.expected[worker_ctx.provider.name] = type(exc)
+            self.expected[worker_ctx.entrypoint.method_name] = type(exc)
         else:
-            self.unexpected[worker_ctx.provider.name] = type(exc)
-
-
-@injection
-def worker_logger():
-    return DependencyFactory(WorkerErrorLogger)
+            self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
 
 
 class CustomWorkerContext(WorkerContextBase):
@@ -78,10 +68,10 @@ class CustomWorkerContext(WorkerContextBase):
 class ExampleService(object):
     name = 'exampleservice'
 
-    logger = worker_logger()
-    translate = translator()
-    example_rpc = rpc_proxy('exampleservice')
-    unknown_rpc = rpc_proxy('unknown_service')
+    logger = WorkerErrorLogger()
+    translate = Translator()
+    example_rpc = RpcProxy('exampleservice')
+    unknown_rpc = RpcProxy('unknown_service')
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -131,29 +121,32 @@ def get_rpc_exchange():
         yield patched
 
 
-def test_rpc_consumer(get_rpc_exchange):
+@pytest.yield_fixture
+def queue_consumer():
+    replacement = Mock(spec=QueueConsumer)
+    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
+        yield mock_ext.return_value
+
+
+def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
+    container.config = {}
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
 
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    queue_consumer = Mock(spec=QueueConsumer)
-    queue_consumer.bind("queue_consumer", container)
+    consumer = RpcConsumer().bind(container)
 
-    consumer = RpcConsumer()
-    consumer.queue_consumer = queue_consumer
-    consumer.bind("rpc_consumer", container)
+    entrypoint = Rpc().bind(container, "rpcmethod")
+    entrypoint.rpc_consumer = consumer
 
-    provider = RpcProvider()
-    provider.rpc_consumer = consumer
-    provider.bind("rpcmethod", container)
-
-    provider.prepare()
-    consumer.prepare()
-    queue_consumer.prepare()
+    entrypoint.setup()
+    consumer.setup()
+    queue_consumer.setup()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
@@ -163,42 +156,39 @@ def test_rpc_consumer(get_rpc_exchange):
 
     queue_consumer.register_provider.assert_called_once_with(consumer)
 
-    consumer.register_provider(provider)
-    assert consumer._providers == set([provider])
+    consumer.register_provider(entrypoint)
+    assert consumer._providers == set([entrypoint])
 
     routing_key = "exampleservice.rpcmethod"
-    assert consumer.get_provider_for_method(routing_key) == provider
+    assert consumer.get_provider_for_method(routing_key) == entrypoint
 
     routing_key = "exampleservice.invalidmethod"
     with pytest.raises(MethodNotFound):
         consumer.get_provider_for_method(routing_key)
 
-    consumer.unregister_provider(provider)
+    consumer.unregister_provider(entrypoint)
     assert consumer._providers == set()
 
 
-def test_reply_listener(get_rpc_exchange):
+def test_reply_listener(get_rpc_exchange, queue_consumer):
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
+    container.config = {}
     container.service_name = "exampleservice"
 
     exchange = Mock()
     get_rpc_exchange.return_value = exchange
 
-    queue_consumer = Mock(spec=QueueConsumer)
-    queue_consumer.bind("queue_consumer", container)
-
-    reply_listener = ReplyListener()
-    reply_listener.queue_consumer = queue_consumer
-    reply_listener.bind("reply_listener", container)
+    reply_listener = ReplyListener().bind(container)
 
     forced_uuid = uuid.uuid4().hex
 
     with patch('nameko.rpc.uuid', autospec=True) as patched_uuid:
         patched_uuid.uuid4.return_value = forced_uuid
 
-        reply_listener.prepare()
-        queue_consumer.prepare()
+        reply_listener.setup()
+        queue_consumer.setup()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
@@ -231,10 +221,10 @@ def test_reply_listener(get_rpc_exchange):
 def test_expected_exceptions(rabbit_config):
     container = ServiceContainer(ExampleService, WorkerContext, rabbit_config)
 
-    broken = get_dependency(container, RpcProvider, name="broken")
+    broken = get_extension(container, Rpc, method_name="broken")
     assert broken.expected_exceptions == ExampleError
 
-    very_broken = get_dependency(container, RpcProvider, name="very_broken")
+    very_broken = get_extension(container, Rpc, method_name="very_broken")
     assert very_broken.expected_exceptions == (KeyError, ValueError)
 
 
@@ -246,7 +236,7 @@ def test_expected_exceptions_integration(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    worker_logger = get_dependency(container, WorkerErrorLogger)
+    worker_logger = get_extension(container, WorkerErrorLogger)
 
     with entrypoint_hook(container, 'broken') as broken:
         with pytest.raises(ExampleError):
@@ -338,7 +328,7 @@ def test_rpc_headers(container_factory, rabbit_config):
     }
 
     headers = {}
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(
@@ -374,7 +364,7 @@ def test_rpc_custom_headers(container_factory, rabbit_config):
     }
 
     headers = {}
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
     handle_message = rpc_consumer.handle_message
 
     with patch.object(
@@ -503,9 +493,9 @@ def test_rpc_missing_method(container_factory, rabbit_config):
 
 
 def test_rpc_invalid_message():
-    provider = RpcProvider()
+    entrypoint = Rpc()
     with pytest.raises(MalformedRequest) as exc:
-        provider.handle_message({'args': ()}, None)  # missing 'kwargs'
+        entrypoint.handle_message({'args': ()}, None)  # missing 'kwargs'
     assert 'Message missing `args` or `kwargs`' in str(exc)
 
 
@@ -515,7 +505,7 @@ def test_handle_message_raise_malformed_request(
     container.start()
 
     with pytest.raises(MalformedRequest):
-        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+        with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = MalformedRequest('bad request')
             with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 proxy.task_a()
@@ -527,7 +517,7 @@ def test_handle_message_raise_other_exception(
     container.start()
 
     with pytest.raises(RemoteError):
-        with patch('nameko.rpc.RpcProvider.handle_message') as handle_message:
+        with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = Exception('broken')
             with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 proxy.task_a()
@@ -580,7 +570,7 @@ def test_rpc_container_being_killed_retries(
 
     container._being_killed = True
 
-    rpc_provider = get_dependency(container, RpcProvider, name='task_a')
+    rpc_provider = get_extension(container, Rpc, method_name='task_a')
 
     with patch.object(
         rpc_provider,
@@ -606,10 +596,10 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, RpcProvider, name="task_a")
+    task_a = get_extension(container, Rpc, method_name="task_a")
     task_a_stop = task_a.stop
 
-    task_b = get_dependency(container, RpcProvider, name="task_b")
+    task_b = get_extension(container, Rpc, method_name="task_b")
     task_b_stop = task_b.stop
 
     task_a_stopped = Event()
@@ -647,7 +637,7 @@ def test_rpc_consumer_cannot_exit_with_providers(
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    task_a = get_dependency(container, RpcProvider, name="task_a")
+    task_a = get_extension(container, Rpc, method_name="task_a")
 
     def never_stops():
         while True:
