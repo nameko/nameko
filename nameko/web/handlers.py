@@ -41,16 +41,13 @@ class HttpRequestHandler(Entrypoint):
     def add_url_payload(self, payload, request):
         payload.update(request.path_values)
 
-    def process_request_data(self, request, load_payload=True):
+    def process_request_data(self, request):
         context_data = self.server.context_data_from_headers(request)
-        if load_payload:
-            payload = self.protocol.load_payload(request)
-            if payload is None:
-                payload = {}
-            elif not isinstance(payload, dict):
-                raise BadPayload('Dictionary expected')
-        else:
+        payload = self.protocol.load_payload(request)
+        if payload is None:
             payload = {}
+        elif not isinstance(payload, dict):
+            raise BadPayload('Dictionary expected')
         self.add_url_payload(payload, request)
         return context_data, payload
 
