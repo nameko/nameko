@@ -1,7 +1,10 @@
+import json
+
 import eventlet
 import pytest
 
-from nameko.exceptions import IncorrectSignature, MethodNotFound, RemoteError
+from nameko.exceptions import (
+    IncorrectSignature, MethodNotFound, RemoteError, deserialize)
 from nameko.web.websocket import WebSocketHubProvider, wsrpc
 from nameko.testing.services import get_extension
 
@@ -162,3 +165,31 @@ def test_connection_not_found(container, websocket):
         ws.rpc('subscribe')
     # TODO: move?
     assert exc.value.exc_type == 'ConnectionNotFound'
+
+
+def test_badly_encoded_data(container, web_config):
+    from nameko.testing.websocket import make_virtual_socket
+    ws_app, wait_for_sock = make_virtual_socket(
+        '127.0.0.1', web_config['WEB_SERVER_PORT'])
+
+    # import pdb; pdb.set_trace()
+    gt = eventlet.spawn(ws_app.run_forever)
+    wait_for_sock()
+    # from eventlet.semaphore import Semaphore
+    from eventlet.event import Event
+    # sem = Semaphore(0)
+    result = Event()
+    def on_message(ws, message):
+        response = json.loads(message)
+        assert not response['success']
+        exc = deserialize(response['error'])
+        result.send_exception(exc)
+    ws_app.on_message = on_message
+    ws_app.send('foo: bar')
+
+    with pytest.raises(RemoteError) as exc:
+        result.wait()
+        assert 'Invalid JSON data' in str(exc)
+
+    ws_app.close()
+    gt.kill()
