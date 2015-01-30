@@ -39,12 +39,8 @@ class WebSocketServer(SharedExtension, ProviderCollector):
         return Rule('/ws', methods=['GET'])
 
     def handle_request(self, request):
-        try:
-            context_data = self.wsgi_server.context_data_from_headers(request)
-            return self.websocket_mainloop(context_data)
-        except Exception:
-            _log.error('websocket handling failed', exc_info=True)
-            raise
+        context_data = self.wsgi_server.context_data_from_headers(request)
+        return self.websocket_mainloop(context_data)
 
     def websocket_mainloop(self, initial_context_data):
         def handler(ws):
