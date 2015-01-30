@@ -64,8 +64,10 @@ class JsonProtocol(object):
                         mimetype='application/json')
 
     def response_from_exception(self, exc, expected_exceptions=()):
-        bad_request_exceptions = expected_exceptions + (BadRequest,)
-        if isinstance(exc, bad_request_exceptions):
+        if (
+            isinstance(exc, expected_exceptions) or
+            isinstance(exc, BadRequest)
+        ):
             status_code = 400
         else:
             status_code = 500
