@@ -62,11 +62,21 @@ def test_post_rpc(web_session):
     assert resp['error']['exc_path'] == 'nameko.exceptions.IncorrectSignature'
 
 
-def test_post_bad_data(web_session):
+def test_post_badly_encoded_data(web_session):
     rv = web_session.post(
         '/post',
         data='foo: bar',
         headers={'content-type': 'application/json'},
+    )
+    assert rv.status_code == 400
+    response = rv.json()
+    assert not response['success']
+
+
+def test_post_bad_data_format(web_session):
+    rv = web_session.post(
+        '/post',
+        json='foo',
     )
     assert rv.status_code == 400
     response = rv.json()
