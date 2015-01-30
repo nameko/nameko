@@ -75,6 +75,9 @@ class EntrypointWaiter(InjectionProvider):
     once the entrypoint has fired.
     """
 
+    class Timeout(Exception):
+        pass
+
     def __init__(self, entrypoint):
         self.name = '_entrypoint_waiter_{}'.format(entrypoint)
         self.entrypoint = entrypoint
@@ -114,7 +117,11 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
 
     try:
         yield
-        with eventlet.Timeout(timeout):
+        exc = waiter.Timeout(
+            "Entrypoint {}.{} failed to complete within {} seconds".format(
+                container.service_name, entrypoint, timeout)
+        )
+        with eventlet.Timeout(timeout, exception=exc):
             waiter.wait()
     finally:
         wait_for_worker_idle(container)
