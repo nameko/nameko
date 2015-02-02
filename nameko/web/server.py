@@ -1,16 +1,34 @@
+from functools import partial
+import socket
+
 import eventlet
 from eventlet import wsgi
-from functools import partial
-
-from werkzeug.wrappers import Request
-from werkzeug.routing import Map
+from eventlet.wsgi import HttpProtocol, BaseHTTPServer, support, BROKEN_SOCK
 from werkzeug.exceptions import HTTPException
+from werkzeug.routing import Map
+from werkzeug.wrappers import Request
 
 from nameko.extensions import ProviderCollector, SharedExtension
 
 
 WEB_SERVER_HOST_CONFIG_KEY = 'WEB_SERVER_HOST'
 WEB_SERVER_PORT_CONFIG_KEY = 'WEB_SERVER_PORT'
+
+
+class HttpOnlyProtocol(HttpProtocol):
+    # identical to HttpProtocol.finish, except greenio.shutdown_safe
+    # is removed. it's only needed to ssl sockets which we don't support
+    # this is a workaround until
+    # https://bitbucket.org/eventlet/eventlet/pull-request/42
+    # or something like it lands
+    def finish(self):
+        try:
+            BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
+        except socket.error as e:
+            # Broken pipe, connection reset by peer
+            if support.get_errno(e) not in BROKEN_SOCK:
+                raise
+        self.connection.close()
 
 
 class WebServer(ProviderCollector, SharedExtension):
@@ -47,6 +65,7 @@ class WebServer(ProviderCollector, SharedExtension):
             self._serv = wsgi.Server(self._sock,
                                      self._sock.getsockname(),
                                      self._wsgi_app,
+                                     protocol=HttpOnlyProtocol,
                                      debug=False)
             self._gt = self.container.spawn_managed_thread(
                 self.run, protected=True)
