@@ -128,7 +128,7 @@ def run(services, config, backdoor_port=None):
 
 
 def main(args):
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     if '.' not in sys.path:
         sys.path.insert(0, '.')

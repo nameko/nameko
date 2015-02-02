@@ -449,7 +449,7 @@ class ServiceContainer(object):
             # we don't care much about threads killed by the container
             # this can happen in stop() and kill() if extensions
             # don't properly take care of their threads
-            _log.warning('%s thread killed by container', self)
+            _log.debug('%s thread killed by container', self)
 
         except Exception:
             _log.error('%s thread exited with error', self, exc_info=True)
