@@ -79,12 +79,12 @@ class WebServer(ProviderCollector, SharedExtension):
         super(WebServer, self).stop()
 
     def make_url_map(self):
-        map = Map()
+        url_map = Map()
         for provider in self._providers:
             rule = provider.get_url_rule()
             rule.endpoint = provider
-            map.add(rule)
-        return map
+            url_map.add(rule)
+        return url_map
 
     def context_data_from_headers(self, request):
         return {}
