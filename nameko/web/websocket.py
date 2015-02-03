@@ -215,11 +215,6 @@ class WebSocketRpc(Entrypoint):
         return event.wait()
 
     def handle_result(self, event, worker_ctx, result, exc_info):
-        # if exc_info is None:
-            # event.send(result)
-        # else:
-            # error = serialize(exc_info[1])
-            # event.send(error)
         event.send(result, exc_info)
         return result, exc_info
 
