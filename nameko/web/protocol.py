@@ -31,8 +31,9 @@ class JsonProtocol(object):
         except Exception:
             raise BadPayload('Invalid JSON data')
 
-    def serialize_result(self, payload, success=True, ws=False,
-                         correlation_id=None):
+    def serialize_result(
+        self, payload, success=True, ws=False, correlation_id=None,
+    ):
         if success:
             wrapper = {'success': True, 'data': payload}
         else:
@@ -59,9 +60,12 @@ class JsonProtocol(object):
 
     def response_from_result(self, result):
         status, headers, payload = self.describe_response(result)
-        return Response(self.serialize_result(payload, True),
-                        status=status, headers=headers,
-                        mimetype='application/json')
+        return Response(
+            self.serialize_result(payload, True),
+            status=status,
+            headers=headers,
+            mimetype='application/json',
+        )
 
     def response_from_exception(self, exc, expected_exceptions=()):
         if (
@@ -72,5 +76,8 @@ class JsonProtocol(object):
         else:
             status_code = 500
         payload = serialize(exc)
-        return Response(self.serialize_result(
-            payload, False), status=status_code, mimetype='application/json')
+        return Response(
+            self.serialize_result(payload, False),
+            status=status_code,
+            mimetype='application/json',
+        )

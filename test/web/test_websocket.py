@@ -1,13 +1,13 @@
 import json
 
 import eventlet
+from eventlet.event import Event
 import pytest
 
 from nameko.exceptions import (
     IncorrectSignature, MethodNotFound, RemoteError, deserialize)
 from nameko.web.websocket import WebSocketHubProvider, wsrpc
 from nameko.testing.services import get_extension
-
 
 
 class ExampleService(object):
@@ -172,13 +172,10 @@ def test_badly_encoded_data(container, web_config):
     ws_app, wait_for_sock = make_virtual_socket(
         '127.0.0.1', web_config['WEB_SERVER_PORT'])
 
-    # import pdb; pdb.set_trace()
     gt = eventlet.spawn(ws_app.run_forever)
     wait_for_sock()
-    # from eventlet.semaphore import Semaphore
-    from eventlet.event import Event
-    # sem = Semaphore(0)
     result = Event()
+
     def on_message(ws, message):
         response = json.loads(message)
         assert not response['success']

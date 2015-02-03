@@ -23,6 +23,8 @@ class HttpOnlyProtocol(HttpProtocol):
     # or something like it lands
     def finish(self):
         try:
+            # patched in depending on python version; confuses pylint
+            # pylint: disable=E1101
             BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
         except socket.error as e:
             # Broken pipe, connection reset by peer
@@ -53,9 +55,10 @@ class WebServer(ProviderCollector, SharedExtension):
         while self._is_accepting:
             sock, addr = self._sock.accept()
             sock.settimeout(self._serv.socket_timeout)
-            self.container.spawn_managed_thread(partial(
-                self._serv.process_request, (sock, addr)),
-                protected=True)
+            self.container.spawn_managed_thread(
+                partial(self._serv.process_request, (sock, addr)),
+                protected=True
+            )
 
     def start(self):
         if not self._starting:

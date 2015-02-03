@@ -19,8 +19,7 @@ _log = getLogger(__name__)
 class HttpRequestHandler(Entrypoint):
     server = WebServer()
 
-    def __init__(self, method, url, expected_exceptions=(),
-                 protocol=None):
+    def __init__(self, method, url, expected_exceptions=(), protocol=None):
         self.method = method
         self.url = url
         if protocol is None:
@@ -68,10 +67,9 @@ class HttpRequestHandler(Entrypoint):
     def handle_message(self, context_data, payload):
         self.check_signature((), payload)
         event = Event()
-        self.container.spawn_worker(self, (), payload,
-                                    context_data=context_data,
-                                    handle_result=partial(
-                                        self.handle_result, event))
+        self.container.spawn_worker(
+            self, (), payload, context_data=context_data,
+            handle_result=partial(self.handle_result, event))
         return event.wait()
 
     def handle_result(self, event, worker_ctx, result, exc_info):

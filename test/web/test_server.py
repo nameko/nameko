@@ -16,6 +16,7 @@ class ExampleService(object):
         # more than a buffer's worth
         return 'x' * (10**6)
 
+
 def test_broken_pipe(container_factory, web_config):
     container = container_factory(ExampleService, web_config)
     container.start()
