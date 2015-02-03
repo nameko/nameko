@@ -1,10 +1,10 @@
 import eventlet
-from eventlet.event import Event as EventletEvent
+from eventlet.event import Event
 from mock import Mock, call, patch, ANY
 import pytest
 import uuid
 
-from nameko.events import event_handler, Event
+from nameko.events import event_handler
 from nameko.exceptions import RpcConnectionError
 from nameko.rpc import rpc, RpcProxy
 from nameko.standalone.events import event_dispatcher
@@ -14,12 +14,12 @@ from nameko.testing.utils import (
     assert_stops_raising, get_rabbit_connections, reset_rabbit_connections)
 
 
-disconnect_now = EventletEvent()
-disconnected = EventletEvent()
+disconnect_now = Event()
+disconnected = Event()
 method_called = Mock()
 handle_called = Mock()
 
-long_called = EventletEvent()
+long_called = Event()
 
 
 @pytest.yield_fixture(autouse=True)
@@ -37,10 +37,6 @@ def logger():
     with patch('nameko.rpc._log', autospec=True) as patched:
         yield patched
     patched.reset_mock()
-
-
-class ExampleEvent(Event):
-    type = "exampleevent"
 
 
 class ExampleService(object):
@@ -173,7 +169,7 @@ def test_service_disconnect_with_active_async_worker(
     # dispatch an event
     data = uuid.uuid4().hex
     dispatch = event_dispatcher(rabbit_config)
-    dispatch('srcservice', ExampleEvent, data)
+    dispatch('srcservice', 'exampleevent', data)
 
     # `handle` will have been called twice with the same the `data`, because
     # rabbit will have redelivered the un-ack'd message from the first call

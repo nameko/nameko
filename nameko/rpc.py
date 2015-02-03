@@ -1,25 +1,24 @@
 from __future__ import absolute_import
-from functools import partial
+
 import json
-from logging import getLogger
 import sys
 import uuid
+from functools import partial
+from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
+from nameko.constants import AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
-    MethodNotFound, UnknownService, UnserializableValueError,
-    MalformedRequest, RpcConnectionError, serialize, deserialize)
-from nameko.exceptions import ContainerBeingKilled
-from nameko.messaging import QueueConsumer, HeaderEncoder, HeaderDecoder
+    ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
+    RpcConnectionError, serialize, UnknownService, UnserializableValueError)
 from nameko.extensions import (
     Dependency, Entrypoint, ProviderCollector, SharedExtension)
+from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
 from nameko.utils import repr_safe_str
-
 
 _log = getLogger(__name__)
 

@@ -16,9 +16,9 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
 from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
+from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     Dependency, Entrypoint, SharedExtension, ProviderCollector)
-from nameko.exceptions import ContainerBeingKilled
 
 _log = getLogger(__name__)
 
