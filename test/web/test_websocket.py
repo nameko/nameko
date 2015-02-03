@@ -1,4 +1,6 @@
+import errno
 import json
+import socket
 
 import eventlet
 from eventlet.event import Event
@@ -190,3 +192,9 @@ def test_badly_encoded_data(container, web_config):
 
     ws_app.close()
     gt.kill()
+
+
+def test_websocket_helper_error(websocket):
+    with pytest.raises(socket.error) as exc:
+        websocket()
+    assert exc.value.errno == errno.ECONNREFUSED
