@@ -358,3 +358,35 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         assert proxy.foobar.spam(ham=1) == 1
+
+
+def test_call_id(container_factory, rabbit_manager, rabbit_config):
+
+    class CallerIdReader(InjectionProvider):
+        def acquire_injection(self, worker_ctx):
+            def get_caller_id():
+                return worker_ctx.call_id_stack[-2]
+            return get_caller_id
+
+    @injection
+    def caller_id_reader():
+        return DependencyFactory(CallerIdReader)
+
+    class Service(object):
+        get_caller_id = caller_id_reader()
+
+        @rpc
+        def call_id(self):
+            return self.get_caller_id()
+
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        assert proxy.service.call_id().startswith(
+            'standalone_rpc_proxy.call.')
+
+    with ClusterRpcProxy(rabbit_config, caller_name='my_call_id') as proxy:
+        assert proxy.service.call_id().startswith(
+            'standalone_rpc_proxy.my_call_id.')
