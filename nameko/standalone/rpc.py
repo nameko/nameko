@@ -162,22 +162,22 @@ class StandaloneProxyBase(object):
         def __init__(self, config):
             self.config = config
 
-    class DummyProvider(object):
-        name = "call"
-
     _proxy = None
 
     def __init__(
         self, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
+        caller_name='call', worker_ctx_cls=WorkerContext,
     ):
         container = self.ServiceContainer(config)
 
         reply_listener = SingleThreadedReplyListener(timeout=timeout)
         reply_listener.container = container
 
+        class DummyProvider(object):
+            name = caller_name
+
         self._worker_ctx = worker_ctx_cls(
-            container, service=None, provider=self.DummyProvider,
+            container, service=None, provider=DummyProvider,
             data=context_data)
         self._reply_listener = reply_listener
 
