@@ -10,7 +10,7 @@ import tempfile
 
 from kombu import Exchange, Queue
 
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.messaging import consume
 from nameko.runners import ServiceRunner
 
@@ -23,7 +23,7 @@ class InvalidPath(Exception):
     pass
 
 
-class FileLogger(Dependency):
+class FileLogger(DependencyProvider):
     def __init__(self, path):
         """ Docs for FileLogger
         """
@@ -43,7 +43,7 @@ class FileLogger(Dependency):
     def stop(self):
         self.file_handle.close()
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def log(msg):
             self.file_handle.write(msg + "\n")
         return log

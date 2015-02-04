@@ -7,7 +7,7 @@ import pytest
 
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.events import event_handler
 from nameko.exceptions import (
     RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
@@ -33,16 +33,16 @@ translations = {
 }
 
 
-class Translator(Dependency):
+class Translator(DependencyProvider):
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def translate(value):
             lang = worker_ctx.data['language']
             return translations[lang][value]
         return translate
 
 
-class WorkerErrorLogger(Dependency):
+class WorkerErrorLogger(DependencyProvider):
 
     expected = {}
     unexpected = {}

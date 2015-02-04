@@ -1,7 +1,7 @@
 from mock import Mock
 import pytest
 
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.rpc import RpcProxy, rpc
@@ -13,10 +13,10 @@ from nameko.testing.services import (
 from nameko.testing.utils import get_container
 
 
-class LanguageReporter(Dependency):
+class LanguageReporter(DependencyProvider):
     """ Return the language given in the worker context data
     """
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def get_language():
             return worker_ctx.data['language']
         return get_language
@@ -149,7 +149,7 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
     class InjectionError(Exception):
         pass
 
-    class BadInjection(Dependency):
+    class BadInjection(DependencyProvider):
         def worker_setup(self, worker_ctx):
             raise InjectionError("Boom")
 

@@ -44,7 +44,7 @@ def test_event_dispatcher(empty_config):
         container, attr_name="dispatch")
     event_dispatcher.setup()
 
-    service.dispatch = event_dispatcher.acquire_injection(worker_ctx)
+    service.dispatch = event_dispatcher.get_dependency(worker_ctx)
 
     from mock import ANY
     with patch('nameko.standalone.events.producers') as mock_producers:
@@ -578,7 +578,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
                                   rt_key="eventtype")
 
-    service.dispatch = dispatcher.acquire_injection(worker_ctx)
+    service.dispatch = dispatcher.get_dependency(worker_ctx)
     service.dispatch("eventtype", "msg")
 
     # test event receieved on manually added queue
