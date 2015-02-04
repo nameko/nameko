@@ -18,7 +18,7 @@ from collections import defaultdict
 
 import pytest
 
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, RpcProxy
@@ -41,13 +41,13 @@ class ItemDoesNotExist(Exception):
     pass
 
 
-class ShoppingBasket(Dependency):
+class ShoppingBasket(DependencyProvider):
     """ A shopping basket tied to the current ``user_id``.
     """
     def __init__(self):
         self.baskets = defaultdict(list)
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
 
         class Basket(object):
             def __init__(self, basket):
@@ -113,7 +113,7 @@ class AcmeShopService(object):
         return total_price
 
 
-class Warehouse(Dependency):
+class Warehouse(DependencyProvider):
     """ A database of items in the warehouse.
 
     This is a toy example! A dictionary is not a database.
@@ -138,7 +138,7 @@ class Warehouse(Dependency):
             }
         }
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         return self.database
 
 
@@ -185,7 +185,7 @@ class StockService(object):
         raise NotImplemented()
 
 
-class AddressBook(Dependency):
+class AddressBook(DependencyProvider):
     """ A database of user details, keyed on user_id.
     """
     def __init__(self):
@@ -197,7 +197,7 @@ class AddressBook(Dependency):
             },
         }
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def get_user_details():
             try:
                 user_id = worker_ctx.data['user_id']

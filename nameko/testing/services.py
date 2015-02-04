@@ -11,7 +11,7 @@ from eventlet import event
 from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
-from nameko.extensions import Dependency, Entrypoint
+from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.exceptions import ExtensionNotFound
 from nameko.testing.utils import get_extension, wait_for_worker_idle
 
@@ -67,7 +67,7 @@ def entrypoint_hook(container, method_name, context_data=None):
     yield hook
 
 
-class EntrypointWaiter(Dependency):
+class EntrypointWaiter(DependencyProvider):
     """Helper for `entrypoint_waiter`
 
     Injection to be manually (and temporarily) added to an existing container.
@@ -182,7 +182,7 @@ def worker_factory(service_cls, **injections):
     """
     service = service_cls()
     for name, attr in inspect.getmembers(service_cls):
-        if isinstance(attr, Dependency):
+        if isinstance(attr, DependencyProvider):
             try:
                 injection = injections.pop(name)
             except KeyError:
@@ -196,12 +196,12 @@ def worker_factory(service_cls, **injections):
     return service
 
 
-class MockInjection(Dependency):
+class MockInjection(DependencyProvider):
     def __init__(self, name):
         self.attr_name = name
         self.injection = MagicMock()
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         return self.injection
 
 

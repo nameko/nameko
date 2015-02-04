@@ -3,12 +3,12 @@ from __future__ import absolute_import
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 
 ORM_DB_URIS_KEY = 'ORM_DB_URIS'
 
 
-class OrmSession(Dependency):
+class OrmSession(DependencyProvider):
     def __init__(self, declarative_base):
         self.declarative_base = declarative_base
         self.sessions = {}
@@ -24,7 +24,7 @@ class OrmSession(Dependency):
             'declarative_base_name': decl_base_name,
         })
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
 
         engine = create_engine(self.db_uri)
         Session = sessionmaker(bind=engine)

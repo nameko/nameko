@@ -5,7 +5,7 @@ import pytest
 import socket
 
 from nameko.containers import WorkerContext
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
@@ -13,13 +13,13 @@ from nameko.testing.utils import get_rabbit_connections
 from nameko.exceptions import RpcConnectionError
 
 
-class ContextReader(Dependency):
+class ContextReader(DependencyProvider):
     """ Access values from the worker context data.
 
     This is a test facilty! Write specific Dependencies to make use of
     values in ``WorkerContext.data``, don't expose it directly.
     """
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def get_context_value(key):
             return worker_ctx.data.get(key)
         return get_context_value

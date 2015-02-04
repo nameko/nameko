@@ -36,7 +36,7 @@ def test_db(container_factory):
     # fake instance creation and dependency injection
     service = FooService()
     worker_ctx = WorkerContext(container, service, DummyProvider())
-    service.session = orm_session.acquire_injection(worker_ctx)
+    service.session = orm_session.get_dependency(worker_ctx)
 
     assert isinstance(service.session, Session)
 

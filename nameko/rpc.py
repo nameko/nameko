@@ -17,7 +17,7 @@ from nameko.exceptions import (
     MalformedRequest, RpcConnectionError, serialize, deserialize,
     IncorrectSignature, ContainerBeingKilled)
 from nameko.extensions import (
-    Dependency, Entrypoint, ProviderCollector, SharedExtension)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.messaging import QueueConsumer, HeaderEncoder, HeaderDecoder
 from nameko.utils import repr_safe_str
 
@@ -292,14 +292,14 @@ class ReplyListener(SharedExtension):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-class RpcProxy(Dependency):
+class RpcProxy(DependencyProvider):
 
     rpc_reply_listener = ReplyListener()
 
     def __init__(self, target_service):
         self.target_service = target_service
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         return ServiceProxy(worker_ctx, self.target_service,
                             self.rpc_reply_listener)
 

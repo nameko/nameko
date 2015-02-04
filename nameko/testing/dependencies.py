@@ -9,7 +9,7 @@ from mock import patch, Mock
 
 @contextmanager
 def patch_injection_provider(provider):
-    """ Patches an `Dependency` provider's acquire_injection
+    """ Patches an `Dependency` provider's get_dependency
     such that it returns a `Mock` as the injection object.
     The injection object will be yielded by the contextmanager.
 
@@ -20,6 +20,6 @@ def patch_injection_provider(provider):
     """
     injection = Mock()
 
-    with patch.object(provider, 'acquire_injection', autospec=True) as acquire:
+    with patch.object(provider, 'get_dependency', autospec=True) as acquire:
         acquire.return_value = injection
         yield injection
