@@ -77,15 +77,24 @@ class PollingQueueConsumer(object):
         self.connection = Connection(provider.container.config['AMQP_URI'])
         self.queue = provider.queue
         self._setup_queue()
-        message_iterator = self._poll_messages()
-        message_iterator.send(None)  # start generator
-        self.get_message = message_iterator.send
+        self._message_iterator = self._poll_messages()
+        self._message_iterator.send(None)  # start generator
 
     def unregister_provider(self, provider):
         self.connection.close()
 
     def ack_message(self, msg):
         msg.ack()
+
+    def get_message(self, correlation_id):
+        try:
+            self._message_iterator.send(correlation_id)
+        except StopIteration:
+            # generator has stopped, e.g. due to ctrl-c. start again
+            self._message_iterator = self._poll_messages()
+            self._message_iterator.send(None)
+
+            self._message_iterator.send(correlation_id)
 
     def _poll_messages(self):
         replies = {}
