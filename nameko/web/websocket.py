@@ -47,6 +47,10 @@ class WebSocketServer(SharedExtension, ProviderCollector):
             socket_id, context_data = self.add_websocket(
                 ws, initial_context_data)
             try:
+                ws.send(self.protocol.serialize_event(
+                    'connected', {'socket_id': socket_id})
+                )
+
                 while 1:
                     raw_req = ws.wait()
                     if raw_req is None:
