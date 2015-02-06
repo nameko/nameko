@@ -1,22 +1,22 @@
 import uuid
-
+from collections import namedtuple
 from functools import partial
 from logging import getLogger
 
-from eventlet.websocket import WebSocketWSGI
 from eventlet.event import Event
-
-from werkzeug.routing import Rule
-
-from nameko.exceptions import serialize, MethodNotFound
+from eventlet.websocket import WebSocketWSGI
+from nameko.exceptions import MethodNotFound, serialize
+from nameko.extensions import (
+    Dependency, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.web.exceptions import ConnectionNotFound
 from nameko.web.protocol import JsonProtocol
 from nameko.web.server import WebServer
-from nameko.extensions import (
-    Dependency, Entrypoint, ProviderCollector, SharedExtension)
-
+from werkzeug.routing import Rule
 
 _log = getLogger(__name__)
+
+
+SocketInfo = namedtuple('SocketInfo', ['socket', 'data'])
 
 
 class Connection(object):
@@ -96,7 +96,7 @@ class WebSocketServer(SharedExtension, ProviderCollector):
     def add_websocket(self, ws, initial_context_data=None):
         socket_id = str(uuid.uuid4())
         context_data = dict(initial_context_data or ())
-        self.sockets[socket_id] = (ws, context_data)
+        self.sockets[socket_id] = SocketInfo(ws, context_data)
         return socket_id, context_data
 
     def remove_socket(self, socket_id):
@@ -181,7 +181,7 @@ class WebSocketHub(object):
         for socket_id in self.subscriptions.get(channel, ()):
             rv = self._server.sockets.get(socket_id)
             if rv is not None:
-                rv[0].send(payload)
+                rv.socket.send(payload)
 
     def unicast(self, socket_id, event, data):
         """Sends an event to a single socket.  Returns `True` if that
@@ -190,7 +190,7 @@ class WebSocketHub(object):
         payload = self._server.protocol.serialize_event(event, data)
         rv = self._server.sockets.get(socket_id)
         if rv is not None:
-            rv[0].send(payload)
+            rv.socket.send(payload)
             return True
         return False
 
