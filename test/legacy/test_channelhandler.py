@@ -14,7 +14,10 @@ def test_ensure():
         handler, handler.close, on_revive=handler.revive)
 
     obj = {}
-    fn = lambda: None
+
+    def fn():
+        return None
+
     handler.ensure((obj, fn))
     conn.ensure.assert_called_with(obj, fn, on_revive=None)
 

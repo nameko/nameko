@@ -26,7 +26,9 @@ def get_dependency(container, dependency_cls, **match_attrs):
             if not match_attrs:
                 return dep
 
-            has_attribute = lambda name, value: getattr(dep, name) == value
+            def has_attribute(name, value):
+                return getattr(dep, name) == value
+
             if all([has_attribute(name, value)
                     for name, value in match_attrs.items()]):
                 return dep
