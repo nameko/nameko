@@ -379,7 +379,6 @@ def test_call_id(container_factory, rabbit_manager, rabbit_config):
         def call_id(self):
             return self.get_caller_id()
 
-
     container = container_factory(Service, rabbit_config)
     container.start()
 
