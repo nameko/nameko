@@ -6,9 +6,7 @@ provided via ``nameko run module:ServiceClass``.
 """
 
 import eventlet
-
-eventlet.monkey_patch()
-
+eventlet.monkey_patch()  # noqa (code before rest of imports)
 
 import errno
 import logging
