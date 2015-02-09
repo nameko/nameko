@@ -24,20 +24,15 @@ class ExampleService(object):
         self.websocket_hub.unsubscribe(socket_id, 'test_channel')
         return 'unsubscribed!'
 
+    @rpc
+    def list_subscriptions(self, socket_id):
+        return self.websocket_hub.get_subscriptions(socket_id)
+
     @dummy
     def broadcast(self, value):
         self.websocket_hub.broadcast('test_channel', 'test_message', {
             'value': value,
         })
-
-    @rpc
-    def list_subscriptions(self, socket_id):
-        return self.websocket_hub.get_subscriptions(socket_id)
-
-    @rpc
-    def my_id(self, socket_id):
-        # TODO: is this available somewhere else?
-        return socket_id
 
     @dummy
     def unicast(self, target_socket_id, value):
@@ -145,9 +140,10 @@ def test_list_subscriptions(container, websocket):
 
 def test_unicast(container, websocket):
     ws = websocket()
-    connection = ws.rpc('my_id')
+    _, connected_data = ws.wait_for_event('connected')
+    socket_id = connected_data['socket_id']
     with entrypoint_hook(container, 'unicast') as unicast:
-        assert unicast(target_socket_id=connection, value=42)
+        assert unicast(target_socket_id=socket_id, value=42)
     assert get_message(ws) == 42
 
 
