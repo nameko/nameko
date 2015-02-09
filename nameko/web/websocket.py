@@ -223,5 +223,4 @@ class WebSocketRpc(Entrypoint):
         return result, exc_info
 
 
-# TODO: better name?
-wsrpc = WebSocketRpc.decorator
+rpc = WebSocketRpc.decorator

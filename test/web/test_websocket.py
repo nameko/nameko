@@ -6,21 +6,20 @@ import eventlet
 from eventlet.event import Event
 import pytest
 
-from nameko.exceptions import (
-    IncorrectSignature, MethodNotFound, RemoteError, deserialize)
-from nameko.web.websocket import WebSocketHubProvider, wsrpc
-from nameko.testing.services import get_extension
+from nameko.exceptions import MethodNotFound, RemoteError, deserialize
+from nameko.web.websocket import WebSocketHubProvider, rpc
+from nameko.testing.services import get_extension, dummy, entrypoint_hook
 
 
 class ExampleService(object):
     websocket = WebSocketHubProvider()
 
-    @wsrpc
+    @rpc
     def subscribe(self, socket_id):
         self.websocket.subscribe(socket_id, 'test_channel')
         return 'subscribed!'
 
-    @wsrpc
+    @rpc
     def unsubscribe(self, socket_id):
         self.websocket.unsubscribe(socket_id, 'test_channel')
         return 'unsubscribed!'
@@ -32,11 +31,11 @@ class ExampleService(object):
         })
         return 'broadcast!'
 
-    @wsrpc
+    @rpc
     def list_subscriptions(self, socket_id):
         return self.websocket.get_subscriptions(socket_id)
 
-    @wsrpc
+    @rpc
     def my_id(self, socket_id):
         # TODO: is this available somewhere else?
         return socket_id
