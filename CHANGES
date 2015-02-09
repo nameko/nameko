@@ -6,6 +6,8 @@ Unreleased
   remote services.
 * Make the standalone event dispatcher more shell-friendly, connecting on
   demand
+* Standalone rpc proxies accept a ``caller_name`` parameter to produce more
+  semantic ids for the call stack
 
 
 Version 1.14.0
