@@ -77,24 +77,15 @@ class PollingQueueConsumer(object):
         self.connection = Connection(provider.container.config['AMQP_URI'])
         self.queue = provider.queue
         self._setup_queue()
-        self._message_iterator = self._poll_messages()
-        self._message_iterator.send(None)  # start generator
+        message_iterator = self._poll_messages()
+        message_iterator.send(None)  # start generator
+        self.get_message = message_iterator.send
 
     def unregister_provider(self, provider):
         self.connection.close()
 
     def ack_message(self, msg):
         msg.ack()
-
-    def get_message(self, correlation_id):
-        try:
-            self._message_iterator.send(correlation_id)
-        except StopIteration:
-            # generator has stopped, e.g. due to ctrl-c. start again
-            self._message_iterator = self._poll_messages()
-            self._message_iterator.send(None)
-
-            self._message_iterator.send(correlation_id)
 
     def _poll_messages(self):
         replies = {}
@@ -143,6 +134,11 @@ class PollingQueueConsumer(object):
                 # In case this was a temporary error, attempt to reconnect. If
                 # we fail, the connection error will bubble.
                 self._setup_queue()
+                correlation_id = yield
+
+            except KeyboardInterrupt as exc:
+                event = self.provider._reply_events.pop(correlation_id)
+                event.send_exception(exc)
                 correlation_id = yield
 
 
