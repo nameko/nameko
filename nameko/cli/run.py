@@ -6,9 +6,7 @@ provided via ``nameko run module:ServiceClass``.
 """
 
 import eventlet
-
-eventlet.monkey_patch()
-
+eventlet.monkey_patch()  # noqa (code before rest of imports)
 
 import errno
 import logging
@@ -60,7 +58,7 @@ def import_service(module_name):
         raise CommandError(
             "Failed to find service class {!r} in module {!r}".format(
                 obj, module_name)
-            )
+        )
 
     if not isinstance(service_cls, type):
         raise CommandError("Service must be a class.")
@@ -147,7 +145,7 @@ def init_parser(parser):
         '--broker', default='amqp://guest:guest@localhost:5672/nameko',
         help='RabbitMQ broker url')
     parser.add_argument(
-        '--backdoor-port',  type=int,
+        '--backdoor-port', type=int,
         help='Specity a port number to host a backdoor, which can be connected'
         ' to for an interactive interpreter within the running service'
         ' process using `nameko backdoor`.'
