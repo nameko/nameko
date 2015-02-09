@@ -160,3 +160,7 @@ class UnserializableValueError(Exception):
 
 class CommandError(Exception):
     """Raise from subcommands to report error back to the user"""
+
+
+class ConnectionNotFound(BadRequest):
+    """Unknown websocket connection id"""

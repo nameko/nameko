@@ -7,10 +7,10 @@ from eventlet.event import Event
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
+from nameko.exceptions import MalformedRequest
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
 from nameko.web.protocol import JsonProtocol
-from nameko.web.exceptions import BadPayload
 
 
 _log = getLogger(__name__)
@@ -46,7 +46,7 @@ class HttpRequestHandler(Entrypoint):
         if payload is None:
             payload = {}
         elif not isinstance(payload, dict):
-            raise BadPayload('Dictionary expected')
+            raise MalformedRequest('Dictionary expected')
         self.add_url_payload(payload, request)
         return context_data, payload
 

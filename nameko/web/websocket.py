@@ -5,10 +5,9 @@ from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.websocket import WebSocketWSGI
-from nameko.exceptions import MethodNotFound, serialize
+from nameko.exceptions import MethodNotFound, serialize, ConnectionNotFound
 from nameko.extensions import (
     Dependency, Entrypoint, ProviderCollector, SharedExtension)
-from nameko.web.exceptions import ConnectionNotFound
 from nameko.web.protocol import JsonProtocol
 from nameko.web.server import WebServer
 from werkzeug.routing import Rule
