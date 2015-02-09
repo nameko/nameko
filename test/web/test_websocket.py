@@ -163,7 +163,6 @@ def test_connection_not_found(container, websocket):
 
     with pytest.raises(RemoteError) as exc:
         ws.rpc('subscribe')
-    # TODO: move?
     assert exc.value.exc_type == 'ConnectionNotFound'
 
 
