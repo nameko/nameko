@@ -24,12 +24,21 @@ def entrypoint_hook(container, method_name, context_data=None):
     in the service class. Intended to be used as an integration testing
     utility.
 
+    :Parameters:
+        container : ServiceContainer
+            The container hosting the service owning the entrypoint
+        method_name : str
+            The name of the entrypoint decorated method on the service class
+        context_data : dict
+            Context data to provide for the call, e.g. a language, auth
+            token or session.
+
     **Usage**
 
     To verify that ServiceX and ServiceY are compatible, make an integration
     test that checks their interaction:
 
-    .. literalinclude:: examples/testing/integration_test.py
+    .. literalinclude:: ../examples/testing/integration_x_y_test.py
 
     """
     entrypoint = get_extension(container, Entrypoint, method_name=method_name)
@@ -174,7 +183,7 @@ def worker_factory(service_cls, **injections):
     a replacement injection instead of a Mock. For example, to unit test a
     service against a real database:
 
-    .. literalinclude:: examples/testing/unit_with_provided_injection_test.py
+    .. literalinclude:: ../examples/testing/unit_with_provided_injection_test.py
 
     If a given injection does not exist on ``service_cls``, a
     ``ExtensionNotFound`` exception is raised.
@@ -286,7 +295,9 @@ def restrict_entrypoints(container, *entrypoints):
 
     **Usage**
 
-    The following service definition has two entrypoints for "method"::
+    The following service definition has two entrypoints for "bar":
+
+    .. code-block:: python
 
         class Service(object):
 
@@ -301,15 +312,20 @@ def restrict_entrypoints(container, *entrypoints):
 
         container = container_factory(Service, config)
 
-    To disable the entrypoints other than on "foo"::
+    To disable the entrypoints other than on "foo":
+
+    .. code-block:: python
 
         restrict_entrypoints(container, "foo")
 
-    To maintain both the rpc and the event_handler entrypoints on "bar"::
+    To maintain both the rpc and the event_handler entrypoints on "bar":
+
+    .. code-block:: python
 
         restrict_entrypoints(container, "bar")
 
-    Note that it is not possible to identify entrypoints individually.
+    Note that it is not possible to identify multiple entrypoints on the same
+    method individually.
     """
     if container.started:
         raise RuntimeError('You must restrict entrypoints before the '

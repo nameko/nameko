@@ -6,6 +6,8 @@ from nameko.testing.services import worker_factory
 
 
 class ConversionService(object):
+    """ Service under test
+    """
     math = RpcProxy("math_service")
 
     @rpc
@@ -16,15 +18,9 @@ class ConversionService(object):
     def cms_to_inches(self, cms):
         return self.math.divide(cms, 2.54)
 
-# =============================================================================
-# Begin test
-# =============================================================================
-
 
 def test_conversion_service():
-    # create instance
-    # dependencies are replaced with mocks unless otherwise given - see
-    # :class:`nameko.testing.services.worker_factory`
+    # create worker with mock dependencies
     service = worker_factory(ConversionService)
 
     # replace "math" service

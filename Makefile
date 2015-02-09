@@ -32,7 +32,7 @@ sphinx: develop
 	sphinx-build -b html -d docs/build/doctrees docs docs/build/html
 
 docs/modules.rst: $(wildcard nameko/*.py) $(wildcard nameko/**/*.py)
-	sphinx-apidoc -e -f -o docs nameko
+	sphinx-apidoc -e -f -o docs/api nameko
 
 autodoc: docs/modules.rst
 

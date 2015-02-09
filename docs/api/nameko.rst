@@ -6,6 +6,7 @@ Subpackages
 
 .. toctree::
 
+    nameko.cli
     nameko.contrib
     nameko.legacy
     nameko.nameko_doc

@@ -1,15 +1,12 @@
 """
-In a large integration test of highly connected services, it's preferable to
-limit interactions to only those under test.
-
 This file defines several toy services that interact to form a shop of the
 famous ACME Corporation. The AcmeShopService relies on the StockService,
 InvoiceService and PaymentService to fulfil its orders. They are not best
 practice examples! They're minimal services provided for the test at the
 bottom of the file.
 
-``test_shop_integration`` is a  full integration test of the ACME shop
-"checkout" flow. It demonstrates how to test the multiple ACME services in
+``test_shop_integration`` is a full integration test of the ACME shop
+"checkout flow". It demonstrates how to test the multiple ACME services in
 combination with each other, including limiting service interactions by
 replacing certain entrypoints and dependencies.
 """

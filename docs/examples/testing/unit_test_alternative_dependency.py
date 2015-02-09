@@ -1,4 +1,4 @@
-""" Service unit testing best practice, with a provided injection.
+""" Service unit testing best practice, with an alternative dependency.
 """
 
 import pytest
@@ -21,6 +21,8 @@ class Result(Base):
 
 
 class Service(object):
+    """ Service under test
+    """
     db = OrmSession(Base)
 
     @rpc
@@ -29,15 +31,11 @@ class Service(object):
         self.db.add(result)
         self.db.commit()
 
-# =============================================================================
-# Begin test
-# =============================================================================
-
 
 @pytest.fixture
 def session():
-
-    # create sqlite database and session
+    """ Create a test database and session
+    """
     engine = create_engine('sqlite:///:memory:')
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -47,9 +45,9 @@ def session():
 
 def test_service(session):
 
-    # create instance, providing the real session for the ``db`` injection
+    # create instance, providing the test database session
     service = worker_factory(Service, db=session)
 
-    # verify ``save`` logic by querying the real database
+    # verify ``save`` logic by querying the test database
     service.save("helloworld")
     assert session.query(Result.value).all() == [("helloworld",)]
