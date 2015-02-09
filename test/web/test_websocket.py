@@ -65,10 +65,8 @@ def container(container_factory, web_config):
 def test_pub_sub(container, websocket):
     ws = websocket()
     assert ws.rpc('subscribe') == 'subscribed!'
-    assert ws.rpc('broadcast', value=42) == 'broadcast!'
-    with pytest.raises(IncorrectSignature) as exc:
-        ws.rpc('broadcast')
-        assert exc.value.exc_type == 'nameko.exceptions.IncorrectSignature'
+    with entrypoint_hook(container, 'broadcast') as broadcast:
+        broadcast(value=42)
 
     assert get_message(ws) == 42
 
@@ -78,7 +76,8 @@ def test_resubscribe(container, websocket):
     ws.rpc('subscribe')
     ws.rpc('subscribe')
 
-    ws.rpc('broadcast', value=42)
+    with entrypoint_hook(container, 'broadcast') as broadcast:
+        broadcast(value=42)
     assert get_message(ws) == 42
 
 
@@ -87,7 +86,8 @@ def test_multiple_calls(container, websocket):
     ws.rpc('subscribe')
     count = 2
     for value in range(count):
-        ws.rpc('broadcast', value=value)
+        with entrypoint_hook(container, 'broadcast') as broadcast:
+            broadcast(value=value)
 
     for value in range(count):
         assert get_message(ws) == value
@@ -96,11 +96,13 @@ def test_multiple_calls(container, websocket):
 def test_unsubscribe(container, websocket):
     ws = websocket()
     ws.rpc('subscribe')
-    ws.rpc('broadcast', value=42)
+    with entrypoint_hook(container, 'broadcast') as broadcast:
+        broadcast(value=42)
     assert get_message(ws) == 42
     ws.rpc('unsubscribe')
 
-    ws.rpc('broadcast', value=42)
+    with entrypoint_hook(container, 'broadcast') as broadcast:
+        broadcast(value=42)
     with eventlet.Timeout(.1, exception=False):
         assert get_message(ws) == 42
 
@@ -109,20 +111,21 @@ def test_unsubscribe_noop(container, websocket):
     ws = websocket()
     ws.rpc('unsubscribe')
 
-    ws.rpc('broadcast', value=42)
+    with entrypoint_hook(container, 'broadcast') as broadcast:
+        broadcast(value=42)
     with eventlet.Timeout(.1, exception=False):
         assert get_message(ws) == 42
 
 
 def test_multiple_subscribers(container, websocket):
-    ws = websocket()
     ws1 = websocket()
     ws2 = websocket()
 
     ws1.rpc('subscribe')
     ws2.rpc('subscribe')
 
-    ws.rpc('broadcast', value=42)
+    with entrypoint_hook(container, 'broadcast') as broadcast:
+        broadcast(value=42)
     assert get_message(ws1) == 42
     assert get_message(ws2) == 42
 
@@ -141,16 +144,16 @@ def test_list_subscriptions(container, websocket):
 
 
 def test_unicast(container, websocket):
-    ws1 = websocket()
-    connection1 = ws1.rpc('my_id')
-    ws2 = websocket()
-    assert ws2.rpc('unicast', target_socket_id=connection1, value=42)
-    assert get_message(ws1) == 42
-
-
-def test_unicast_unknown(container, websocket):
     ws = websocket()
-    assert not ws.rpc('unicast', target_socket_id=0, value=42)
+    connection = ws.rpc('my_id')
+    with entrypoint_hook(container, 'unicast') as unicast:
+        assert unicast(target_socket_id=connection, value=42)
+    assert get_message(ws) == 42
+
+
+def test_unicast_unknown(container):
+    with entrypoint_hook(container, 'unicast') as unicast:
+        assert not unicast(target_socket_id=0, value=42)
 
 
 def test_connection_not_found(container, websocket):
