@@ -12,37 +12,36 @@ from nameko.testing.services import get_extension, dummy, entrypoint_hook
 
 
 class ExampleService(object):
-    websocket = WebSocketHubProvider()
+    websocket_hub = WebSocketHubProvider()
 
     @rpc
     def subscribe(self, socket_id):
-        self.websocket.subscribe(socket_id, 'test_channel')
+        self.websocket_hub.subscribe(socket_id, 'test_channel')
         return 'subscribed!'
 
     @rpc
     def unsubscribe(self, socket_id):
-        self.websocket.unsubscribe(socket_id, 'test_channel')
+        self.websocket_hub.unsubscribe(socket_id, 'test_channel')
         return 'unsubscribed!'
 
-    @wsrpc
-    def broadcast(self, socket_id, value):
-        self.websocket.broadcast('test_channel', 'test_message', {
+    @dummy
+    def broadcast(self, value):
+        self.websocket_hub.broadcast('test_channel', 'test_message', {
             'value': value,
         })
-        return 'broadcast!'
 
     @rpc
     def list_subscriptions(self, socket_id):
-        return self.websocket.get_subscriptions(socket_id)
+        return self.websocket_hub.get_subscriptions(socket_id)
 
     @rpc
     def my_id(self, socket_id):
         # TODO: is this available somewhere else?
         return socket_id
 
-    @wsrpc
-    def unicast(self, socket_id, target_socket_id, value):
-        status = self.websocket.unicast(target_socket_id, 'test_message', {
+    @dummy
+    def unicast(self, target_socket_id, value):
+        status = self.websocket_hub.unicast(target_socket_id, 'test_message', {
             'value': value,
         })
         return status
