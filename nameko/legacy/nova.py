@@ -84,7 +84,7 @@ def _send_topic(connection, exchange, topic, data):
             ch.channel,
             exchange=exchange,
             routing_key=topic,
-            )
+        )
         ch.ensure(producer.publish)(data, declare=[exchange], mandatory=True,
                                     retry_policy=DEFAULT_RETRY_POLICY,
                                     retry=True)

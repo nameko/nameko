@@ -60,7 +60,7 @@ def import_service(module_name):
         raise CommandError(
             "Failed to find service class {!r} in module {!r}".format(
                 obj, module_name)
-            )
+        )
 
     if not isinstance(service_cls, type):
         raise CommandError("Service must be a class.")
