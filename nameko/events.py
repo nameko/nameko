@@ -223,7 +223,7 @@ class EventHandler(ConsumeProvider):
 
 @entrypoint
 def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
-                  reliable_delivery=True, requeue_on_error=False,
+                  reliable_delivery=False, requeue_on_error=False,
                   event_handler_cls=EventHandler):
     r"""
     Decorate a method as a handler of ``event_type`` events on the service
@@ -272,10 +272,10 @@ def event_handler(service_name, event_type, handler_type=SERVICE_POOL,
                             [queue]- (service Y handler-method)
 
     If ``requeue_on_error``, handlers will return the event to the queue if an
-    error occurs while handling it. Defaults to False.
+    error occurs while handling it. Defaults to ``False``.
 
     If ``reliable_delivery``, events will be kept in the queue until there is
-    a handler to consume them. Defaults to ``True``.
+    a handler to consume them. Defaults to ``False``.
 
     ``event_handler_cls`` may be specified to use a different EventHandler
         (sub)class for custom behaviour.
