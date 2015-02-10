@@ -21,7 +21,7 @@ Interacting with a running service
     $ nameko shell
 
 Launch an interactive python shell for working with remote nameko services. This is a regular interactive interpreter, with a special module ``n`` added
-to the builtin namespace, providing the ability to make RPC calls and dispatch events.
+to the built-in namespace, providing the ability to make RPC calls and dispatch events.
 
 Making an RPC call to "target_service":
 

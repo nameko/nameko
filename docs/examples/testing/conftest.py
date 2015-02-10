@@ -1,4 +1,4 @@
-""" Barebones conftest.py
+""" Minimal conftest.py
 """
 # Nameko relies on eventlet
 # You should monkey patch the standard library as early as possible to avoid

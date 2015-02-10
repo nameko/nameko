@@ -11,7 +11,7 @@ Unit Testing
 
 Unit testing in nameko usually means testing a single service in isolation - i.e. without any or most of its dependencies.
 
-Tne :func:`~nameko.testing.services.worker_factory` utility will create a worker from a given service class, with its dependencies replaced by :class:`mock.MagicMock` objects. Dependency functionality can then be imitated by adding side effects and return values:
+The :func:`~nameko.testing.services.worker_factory` utility will create a worker from a given service class, with its dependencies replaced by :class:`mock.MagicMock` objects. Dependency functionality can then be imitated by adding side effects and return values:
 
 .. literalinclude:: examples/testing/unit_test.py
 
@@ -69,10 +69,10 @@ The entrypoint waiter is a context manager that does not exit until a named entr
 Note that the context manager waits not only for the entrypoint method to complete, but also for any dependency teardown. Dependency-based loggers such as (TODO: link to bundled logger) for example would have also completed.
 
 
-Barebones conftest.py
----------------------
+Minimal conftest.py
+-------------------
 
-Below is a barebones conftest for pytest that includes configuration and fixtures for communicating with RabbitMQ as well as the eventlet monkey patch. It is a good base for service tests if you're using pytest.
+Below is a minimal conftest for pytest that includes configuration and fixtures for communicating with RabbitMQ as well as the eventlet monkey patch. It is a good base for service tests if you're using pytest.
 
 .. literalinclude:: examples/testing/conftest.py
 

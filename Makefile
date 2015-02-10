@@ -31,12 +31,13 @@ coverage-check:
 sphinx: develop
 	sphinx-build -b html -d docs/build/doctrees docs docs/build/html
 
+spelling:
+	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
+
 docs/modules.rst: $(wildcard nameko/*.py) $(wildcard nameko/**/*.py)
 	sphinx-apidoc -e -f -o docs/api nameko
 
 autodoc: docs/modules.rst
 
-docs: autodoc sphinx
+docs: autodoc sphinx spelling
 
-spelling:
-	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling

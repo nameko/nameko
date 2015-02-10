@@ -35,8 +35,8 @@ def entrypoint_hook(container, method_name, context_data=None):
 
     **Usage**
 
-    To verify that ServiceX and ServiceY are compatible, make an integration
-    test that checks their interaction:
+    To verify that `ServiceX` and `ServiceY` are compatible, make an
+    integration test that checks their interaction:
 
     .. literalinclude:: ../examples/testing/integration_x_y_test.py
 
@@ -152,18 +152,18 @@ def worker_factory(service_cls, **injections):
             def cm_to_inches(self, cms):
                 return self.math.divide(cms, 2.54)
 
-    Use the ``worker_factory`` to create an unhosted instance of
-    ``ConversionService`` with its injections replaced by Mock objects::
+    Use the ``worker_factory`` to create an instance of
+    ``ConversionService`` with its dependencies replaced by Mock objects::
 
         service = worker_factory(ConversionService)
 
-    Nameko's entrypoints do not modify the service methods, so they can be
-    called directly on an unhosted instance. The injection Mocks can be used
-    as any other Mock object, so a complete unit test for Service may look
-    like this::
+    Nameko's entrypoints do not modify the service methods, so instance methods
+    can be called directly with the same signature. The replaced dependencies
+    can be used as any other MagicMock object, so a complete unit test for
+    the conversion service may look like this::
 
         # create worker instance
-        service = worker_factory(Service)
+        service = worker_factory(ConversionService)
 
         # replace "math" service
         service.math.multiply.side_effect = lambda x, y: x * y

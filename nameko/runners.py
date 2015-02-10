@@ -58,7 +58,7 @@ class ServiceRunner(object):
         A new container is created for each service using the container
         class provided in the __init__ method.
 
-        All containers are started concurently and the method will block
+        All containers are started concurrently and the method will block
         until all have completed their startup routine.
         """
         _log.info('starting services: %s', self.service_names)

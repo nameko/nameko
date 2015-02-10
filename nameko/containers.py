@@ -305,7 +305,7 @@ class ServiceContainer(object):
         ``args`` and ``kwargs`` are used as arguments for the service
         method.
 
-        ``context_data`` is used to initialize a ``WorkerContext``.
+        ``context_data`` is used to initialise a ``WorkerContext``.
 
         ``handle_result`` is an optional function which may be passed
         in by the entrypoint. It is called with the result returned
@@ -368,7 +368,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            # when we have better parallisation than spawningset,
+            # when we have better parallization than spawningset,
             # do this injection inline
             self.dependencies.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)

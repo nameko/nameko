@@ -69,8 +69,8 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
         The RpcConsumer ordinary unregisters from the QueueConsumer when the
         last Rpc subclass unregisters from it. If no providers were registered,
-        we should unregister ourself from the QueueConsumer as soon as we're
-        asked to stop.
+        we should unregister from the QueueConsumer as soon as we're asked
+        to stop.
         """
         if not self._providers_registered:
             self.queue_consumer.unregister_provider(self)

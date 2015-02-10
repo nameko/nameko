@@ -14,7 +14,7 @@ Out of the box you can build a service that can respond to RPC messages, dispatc
 
 Nameko is also extensible. You can define your own transport mechanisms and service dependencies to mix and match as desired.
 
-Nameko strongly encourages the :ref:`Dependency Injection <_benefits_of_dependency_injection>` pattern, which makes building and testing services clean and simple.
+Nameko strongly encourages the :ref:`Dependency Injection <benefits_of_dependency_injection>` pattern, which makes building and testing services clean and simple.
 
 Nameko takes its name from the Japanese mushroom, which grows in clusters.
 

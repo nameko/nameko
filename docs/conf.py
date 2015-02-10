@@ -189,14 +189,14 @@ htmlhelp_basename = 'namekodoc'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-# 'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    # 'papersize': 'letterpaper',
 
-# The font size ('10pt', '11pt' or '12pt').
-# 'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    # 'pointsize': '10pt',
 
-# Additional stuff for the LaTeX preamble.
-# 'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    # 'preamble': '',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
@@ -286,6 +286,6 @@ if not on_rtd:  # only import and set the theme if we're building docs locally
 
 # -- sphinxcontrib.spelling ------------------------------------------------
 
-spelling_lang='en_GB'
+spelling_lang = 'en_GB'
 
-spelling_word_list_filename='spelling_wordlist.txt'
+spelling_word_list_filename = 'spelling_wordlist.txt'
