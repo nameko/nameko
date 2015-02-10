@@ -305,7 +305,7 @@ class ServiceContainer(object):
         ``args`` and ``kwargs`` are used as arguments for the service
         method.
 
-        ``context_data`` is used to initialise a ``WorkerContext``.
+        ``context_data`` is used to initialize a ``WorkerContext``.
 
         ``handle_result`` is an optional function which may be passed
         in by the entrypoint. It is called with the result returned
