@@ -3,15 +3,39 @@
 Installation
 ============
 
+Install with Pip
+----------------
+
+You can install nameko and its dependencies from PyPI with pip::
+
+    pip install nameko
+
+
+Source Code
+-----------
+
+Nameko is actively developed on GitHub. Get the code by cloning the public repository::
+
+    git clone git@github.com:onefinestay/nameko.git
+
+You can install from the source code using setuptools::
+
+    python setup.py install
+
+
 RabbitMQ
 --------
 
-Several of nameko's built-in features rely on RabbitMQ.
+Several of nameko's built-in features rely on RabbitMQ. Installing RabbitMQ is straightforward on most platforms and they have `excellent documentation <https://www.rabbitmq.com/download.html>`_.
 
+With homebrew on a mac you can install with::
 
-pip install
------------
+    brew install rabbitmq
 
-Install nameko and its dependencies from PyPI with pip::
+On debian-based operating systems::
 
-    pip install nameko
+    apt-get install rabbitmq-server
+
+For other platforms, consult the `RabbitMQ installation guidelines <https://www.rabbitmq.com/download.html>`_.
+
+The examples in this documentation assume you have a broker running on the default ports on localhost.

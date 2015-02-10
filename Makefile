@@ -37,3 +37,6 @@ docs/modules.rst: $(wildcard nameko/*.py) $(wildcard nameko/**/*.py)
 autodoc: docs/modules.rst
 
 docs: autodoc sphinx
+
+spelling:
+	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
