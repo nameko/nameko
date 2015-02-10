@@ -368,7 +368,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            # when we have better parallization than spawningset,
+            # when we have better parallization than ``spawningset``,
             # do this injection inline
             self.dependencies.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)

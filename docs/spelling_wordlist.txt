@@ -16,7 +16,6 @@ contextdata
 contextmanager
 contrib
 copywrite
-ctx
 debian
 deserializable
 deserialize
@@ -86,4 +85,3 @@ webapp
 websocket
 websockets
 zato
-spawningset

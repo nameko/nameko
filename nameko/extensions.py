@@ -148,7 +148,7 @@ class DependencyProvider(Extension):
         """
 
     def inject(self, worker_ctx):
-        """ TODO when we have better parallization than spawningset,
+        """ TODO when we have better parallization than ``spawningset``,
             do this injection in the container
         """
         injection = self.get_dependency(worker_ctx)
