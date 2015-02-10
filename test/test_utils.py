@@ -21,7 +21,9 @@ def test_fail_fast_imap():
         sleep(5)
         slow_call_returned.send()
 
-    identity_fn = lambda x: x()
+    def identity_fn(fn):
+        return fn()
+
     calls = [slow_call, failing_call]
 
     pool = GreenPool(2)

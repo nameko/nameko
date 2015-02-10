@@ -183,7 +183,8 @@ def worker_factory(service_cls, **injections):
     a replacement injection instead of a Mock. For example, to unit test a
     service against a real database:
 
-    .. literalinclude:: ../examples/testing/unit_with_provided_injection_test.py
+    .. literalinclude::
+        ../examples/testing/unit_with_provided_injection_test.py
 
     If a given injection does not exist on ``service_cls``, a
     ``ExtensionNotFound`` exception is raised.
