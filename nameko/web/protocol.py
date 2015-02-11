@@ -6,16 +6,13 @@ from nameko.exceptions import serialize, BadRequest, MalformedRequest
 
 
 class BaseProtocol(object):
-    mimetype = 'text/plain'
+    # werkzeug will default to text/plain unless there is a content-type header
+    mimetype = None
 
     def load_payload(self, request):
-        if request.method == 'POST':
-            data = request.get_data()
-            return (data,), {}
-        else:
-            return (), {}
+        return (), {}
 
-    def describe_response(self, result):
+    def response_from_result(self, result):
         headers = None
         if isinstance(result, tuple):
             if len(result) == 3:
@@ -25,18 +22,7 @@ class BaseProtocol(object):
         else:
             payload = result
             status = 200
-        return status, headers, payload
 
-    def serialize_result(
-        self, payload, success=True, correlation_id=None,
-    ):
-        if not success:
-            # this is a serialized exception
-            return 'Error: {exc_type}: {value}\n'.format(**payload)
-        return unicode(payload)
-
-    def response_from_result(self, result):
-        status, headers, payload = self.describe_response(result)
         return Response(
             self.serialize_result(payload, True),
             status=status,
@@ -57,6 +43,23 @@ class BaseProtocol(object):
             self.serialize_result(payload, success=False),
             status=status_code,
         )
+
+
+class PlaintextProtocol(BaseProtocol):
+    def load_payload(self, request):
+        if request.method == 'POST':
+            data = request.get_data()
+            return (data,), {}
+        else:
+            return super(PlaintextProtocol, self).load_payload(request)
+
+    def serialize_result(
+        self, payload, success=True, correlation_id=None,
+    ):
+        if not success:
+            # this is a serialized exception
+            return 'Error: {exc_type}: {value}\n'.format(**payload)
+        return unicode(payload)
 
 
 class JsonProtocol(BaseProtocol):

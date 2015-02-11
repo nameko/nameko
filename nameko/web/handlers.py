@@ -9,7 +9,7 @@ from werkzeug.routing import Rule
 
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
-from nameko.web.protocol import BaseProtocol
+from nameko.web.protocol import PlaintextProtocol
 
 
 _log = getLogger(__name__)
@@ -22,7 +22,7 @@ class HttpRequestHandler(Entrypoint):
         self.method = method
         self.url = url
         if protocol is None:
-            protocol = BaseProtocol()
+            protocol = PlaintextProtocol()
         self.protocol = protocol
         self.expected_exceptions = expected_exceptions
 
