@@ -36,10 +36,10 @@ restrict_entrypoints
 .. autofunction:: nameko.testing.services.restrict_entrypoints
    :noindex:
 
-replace_injections
-^^^^^^^^^^^^^^^^^^
+replace_dependencies
+^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: nameko.testing.services.replace_injections
+.. autofunction:: nameko.testing.services.replace_dependencies
    :noindex:
 
 Complete Example
