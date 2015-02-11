@@ -187,7 +187,7 @@ class ServiceContainer(object):
         active workers to complete.
 
         After all active workers have stopped the container stops all
-        injections.
+        dependency providers.
 
         At this point there should be no more managed threads. In case there
         are any managed threads, they are killed by the container.

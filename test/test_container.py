@@ -147,13 +147,13 @@ def test_stops_extensions(container):
         ]
 
 
-def test_stops_entrypoints_before_injections(container):
+def test_stops_entrypoints_before_dependency_providers(container):
     container.stop()
 
-    dependency = get_extension(container, DependencyProvider)
+    provider = get_extension(container, DependencyProvider)
 
     for entrypoint in container.entrypoints:
-        assert entrypoint.call_ids[0] < dependency.call_ids[0]
+        assert entrypoint.call_ids[0] < provider.call_ids[0]
 
 
 def test_worker_life_cycle(container):

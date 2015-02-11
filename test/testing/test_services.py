@@ -8,8 +8,8 @@ from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    entrypoint_hook, worker_factory, replace_injections, restrict_entrypoints,
-    entrypoint_waiter, once)
+    entrypoint_hook, worker_factory, replace_dependencies,
+    restrict_entrypoints, entrypoint_waiter, once)
 from nameko.testing.utils import get_container
 
 
@@ -146,20 +146,20 @@ def test_entrypoint_hook_dependency_not_found(container_factory,
 
 
 def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
-    class InjectionError(Exception):
+    class DependencyError(Exception):
         pass
 
-    class BadInjection(DependencyProvider):
+    class BadDependency(DependencyProvider):
         def worker_setup(self, worker_ctx):
-            raise InjectionError("Boom")
+            raise DependencyError("Boom")
 
     class BadService(Service):
-        bad = BadInjection()
+        bad = BadDependency()
 
     container = container_factory(BadService, rabbit_config)
     container.start()
 
-    with pytest.raises(InjectionError):
+    with pytest.raises(DependencyError):
         with entrypoint_hook(container, 'working') as call:
             call()
 
@@ -179,23 +179,23 @@ def test_worker_factory():
     assert isinstance(instance.foo_proxy, Mock)
     assert isinstance(instance.bar_proxy, Mock)
 
-    # no injections to replace
+    # no dependencies to replace
     instance = worker_factory(OtherService)
     assert isinstance(instance, OtherService)
 
-    # override specific injection
-    bar_injection = object()
-    instance = worker_factory(Service, bar_proxy=bar_injection)
+    # override specific dependency
+    bar_dependency = object()
+    instance = worker_factory(Service, bar_proxy=bar_dependency)
     assert isinstance(instance, Service)
     assert isinstance(instance.foo_proxy, Mock)
-    assert instance.bar_proxy is bar_injection
+    assert instance.bar_proxy is bar_dependency
 
-    # non-applicable injection
+    # non-applicable dependency
     with pytest.raises(ExtensionNotFound):
         worker_factory(Service, nonexist=object())
 
 
-def test_replace_injections(container_factory, rabbit_config):
+def test_replace_dependencies(container_factory, rabbit_config):
 
     class Service(object):
         foo_proxy = RpcProxy("foo_service")
@@ -212,11 +212,11 @@ def test_replace_injections(container_factory, rabbit_config):
 
     container = container_factory(Service, rabbit_config)
 
-    # replace a single injection
-    foo_proxy = replace_injections(container, "foo_proxy")
+    # replace a single dependency
+    foo_proxy = replace_dependencies(container, "foo_proxy")
 
-    # replace multiple injections
-    replacements = replace_injections(container, "bar_proxy", "baz_proxy")
+    # replace multiple dependencies
+    replacements = replace_dependencies(container, "bar_proxy", "baz_proxy")
     assert len([x for x in replacements]) == 2
 
     # verify that container.extensions doesn't include an RpcProxy anymore
@@ -225,7 +225,7 @@ def test_replace_injections(container_factory, rabbit_config):
 
     container.start()
 
-    # verify that the mock injection collects calls
+    # verify that the mock dependency collects calls
     msg = "msg"
     with ServiceRpcProxy("service", rabbit_config) as service_proxy:
         service_proxy.method(msg)
@@ -233,7 +233,7 @@ def test_replace_injections(container_factory, rabbit_config):
     foo_proxy.remote_method.assert_called_once_with(msg)
 
 
-def test_replace_non_injection(container_factory, rabbit_config):
+def test_replace_non_dependency(container_factory, rabbit_config):
 
     class Service(object):
         proxy = RpcProxy("foo_service")
@@ -246,15 +246,15 @@ def test_replace_non_injection(container_factory, rabbit_config):
 
     # error if dependency doesn't exit
     with pytest.raises(ExtensionNotFound):
-        replace_injections(container, "nonexist")
+        replace_dependencies(container, "nonexist")
 
-    # error if dependency is not an injection
+    # error if dependency is not an dependency
     with pytest.raises(ExtensionNotFound):
-        replace_injections(container, "method")
+        replace_dependencies(container, "method")
 
 
-def test_replace_injections_container_already_started(container_factory,
-                                                      rabbit_config):
+def test_replace_dependencies_container_already_started(container_factory,
+                                                        rabbit_config):
 
     class Service(object):
         proxy = RpcProxy("foo_service")
@@ -263,7 +263,7 @@ def test_replace_injections_container_already_started(container_factory,
     container.start()
 
     with pytest.raises(RuntimeError):
-        replace_injections(container, "proxy")
+        replace_dependencies(container, "proxy")
 
 
 def test_restrict_entrypoints(container_factory, rabbit_config):

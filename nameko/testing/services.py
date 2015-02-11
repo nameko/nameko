@@ -79,9 +79,9 @@ def entrypoint_hook(container, method_name, context_data=None):
 class EntrypointWaiter(DependencyProvider):
     """Helper for `entrypoint_waiter`
 
-    Injection to be manually (and temporarily) added to an existing container.
-    Takes an entrypoint name, and exposes a `wait` method, which will return
-    once the entrypoint has fired.
+    DependencyProvider to be manually (and temporarily) added to an existing
+    container. Takes an entrypoint name, and exposes a `wait` method, which
+    will return once the entrypoint has fired.
     """
 
     def __init__(self, entrypoint):
@@ -130,9 +130,10 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
         container.dependencies.remove(waiter)
 
 
-def worker_factory(service_cls, **injections):
+def worker_factory(service_cls, **dependencies):
     """ Return an instance of ``service_cls`` with its injected dependencies
-    replaced with Mock objects, or as given in ``injections``.
+    replaced with :class:`~mock.MagicMock` objects, or as given in
+    ``dependencies``.
 
     **Usage**
 
@@ -153,7 +154,7 @@ def worker_factory(service_cls, **injections):
                 return self.maths_rpc.divide(cms, 2.54)
 
     Use the ``worker_factory`` to create an instance of
-    ``ConversionService`` with its dependencies replaced by Mock objects::
+    ``ConversionService`` with its dependencies replaced by MagicMock objects::
 
         service = worker_factory(ConversionService)
 
@@ -177,16 +178,16 @@ def worker_factory(service_cls, **injections):
         assert service.cms_to_inches(762) == 300
         service.maths_rpc.divide.assert_called_once_with(762, 2.54)
 
-    *Providing Injections*
+    *Providing Dependencies*
 
-    The ``**injections`` kwargs to ``worker_factory`` can be used to provide
-    a replacement injection instead of a Mock. For example, to unit test a
+    The ``**dependencies`` kwargs to ``worker_factory`` can be used to provide
+    a replacement dependency instead of a mock. For example, to unit test a
     service against a real database:
 
     .. literalinclude::
-        ../examples/testing/unit_with_provided_injection_test.py
+        ../examples/testing/unit_test_alternative_dependency.py
 
-    If a given injection does not exist on ``service_cls``, a
+    If a named dependency provider does not exist on ``service_cls``, a
     ``ExtensionNotFound`` exception is raised.
 
     """
@@ -194,35 +195,37 @@ def worker_factory(service_cls, **injections):
     for name, attr in inspect.getmembers(service_cls):
         if isinstance(attr, DependencyProvider):
             try:
-                injection = injections.pop(name)
+                dependency = dependencies.pop(name)
             except KeyError:
-                injection = MagicMock()
-            setattr(service, name, injection)
+                dependency = MagicMock()
+            setattr(service, name, dependency)
 
-    if injections:
-        raise ExtensionNotFound("Injection(s) '{}' not found on {}.".format(
-            injections.keys(), service_cls))
+    if dependencies:
+        raise ExtensionNotFound(
+            "DependencyProvider(s) '{}' not found on {}.".format(
+                dependencies.keys(), service_cls))
 
     return service
 
 
-class MockInjection(DependencyProvider):
-    def __init__(self, name):
-        self.attr_name = name
-        self.injection = MagicMock()
+class MockDependencyProvider(DependencyProvider):
+    def __init__(self, attr_name):
+        self.attr_name = attr_name
+        self.dependency = MagicMock()
 
     def get_dependency(self, worker_ctx):
-        return self.injection
+        return self.dependency
 
 
-def replace_injections(container, *injections):
-    """ Replace the injections on ``container`` with :class:`MockInjection`
-    objects if they are named in ``injections``.
+def replace_dependencies(container, *dependencies):
+    """ Replace the dependency providers on ``container`` with
+    :class:`MockDependencyProvider` objects if they are named in
+    ``dependencies``.
 
-    Return the :attr:`MockInjection.injection` of the replacements, so that
-    calls to the replaced injections can be inspected. Return a single object
-    if only one injection was replaced, and a generator yielding the
-    replacements in the same order as ``names`` otherwise.
+    Return the :attr:`MockDependencyProvider.dependency` of the replacements,
+    so that calls to the replaced dependencies can be inspected. Return a
+    single object if only one dependency was replaced, and a generator
+    yielding the replacements in the same order as ``names`` otherwise.
 
     Replacements are made on the container instance and have no effect on the
     service class. New container instances are therefore unaffected by
@@ -247,24 +250,24 @@ def replace_injections(container, *injections):
                 return self.maths_rpc.divide(cms, 2.54)
 
         container = ServiceContainer(ConversionService, config)
-        maths_rpc = replace_injections(container, "maths_rpc")
+        maths_rpc = replace_dependencies(container, "maths_rpc")
 
         container.start()
 
         with StandaloneRpcProxy('conversionservice', config) as proxy:
             proxy.cm_to_inches(100)
 
-        # assert that the injection was called as expected
+        # assert that the dependency was called as expected
         maths_rpc.divide.assert_called_once_with(100, 2.54)
 
     """
     if container.started:
-        raise RuntimeError('You must replace injections before the '
+        raise RuntimeError('You must replace dependencies before the '
                            'container is started.')
 
     dependency_names = {dep.attr_name for dep in container.dependencies}
 
-    missing = set(injections) - dependency_names
+    missing = set(dependencies) - dependency_names
     if missing:
         raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
             missing, container))
@@ -272,18 +275,18 @@ def replace_injections(container, *injections):
     replacements = OrderedDict()
 
     named_dependencies = {dep.attr_name: dep for dep in container.dependencies
-                          if dep.attr_name in injections}
-    for name in injections:
+                          if dep.attr_name in dependencies}
+    for name in dependencies:
         dependency = named_dependencies[name]
-        replacement = MockInjection(name)
+        replacement = MockDependencyProvider(name)
         replacements[dependency] = replacement
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
-    res = (replacement.injection for replacement in replacements.values())
-    if len(injections) == 1:
+    res = (replacement.dependency for replacement in replacements.values())
+    if len(dependencies) == 1:
         return next(res)
     return res
 

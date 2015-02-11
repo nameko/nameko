@@ -1,6 +1,3 @@
-"""
-Provides classes and method to deal with dependency injection.
-"""
 from __future__ import absolute_import
 
 from functools import partial
@@ -151,8 +148,8 @@ class DependencyProvider(Extension):
         """ TODO when we have better parallization than ``spawningset``,
             do this injection in the container
         """
-        injection = self.get_dependency(worker_ctx)
-        setattr(worker_ctx.service, self.attr_name, injection)
+        dependency = self.get_dependency(worker_ctx)
+        setattr(worker_ctx.service, self.attr_name, dependency)
 
     def worker_result(self, worker_ctx, result=None, exc_info=None):
         """ Called with the result of a service worker execution.

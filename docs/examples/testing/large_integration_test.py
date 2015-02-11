@@ -21,7 +21,7 @@ from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, RpcProxy
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import replace_injections, restrict_entrypoints
+from nameko.testing.services import replace_dependencies, restrict_entrypoints
 from nameko.testing.utils import get_container
 from nameko.timer import timer
 
@@ -304,7 +304,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     # replace ``event_dispatcher`` and ``payment_rpc``  dependencies on
     # AcmeShopService with ``MockDependency``s
     shop_container = get_container(runner, AcmeShopService)
-    fire_event, payment_rpc = replace_injections(
+    fire_event, payment_rpc = replace_dependencies(
         shop_container, "fire_event", "payment_rpc")
 
     # restrict entrypoints on StockService
