@@ -101,7 +101,7 @@ class Extension(object):
 
     def __repr__(self):
         if not self.is_bound():
-            return '<{} [declaration] at 0x{:x}>'.format(
+            return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
         return '<{} at 0x{:x}>'.format(
@@ -196,7 +196,7 @@ class DependencyProvider(Extension):
 
     def __repr__(self):
         if not self.is_bound():
-            return '<{} [declaration] at 0x{:x}>'.format(
+            return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
         service_name = self.container.service_name
