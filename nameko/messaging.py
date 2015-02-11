@@ -1,5 +1,5 @@
 '''
-Provides core messaging decorators and dependency injection providers.
+Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 from itertools import count

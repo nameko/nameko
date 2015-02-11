@@ -75,7 +75,7 @@ def test_handle_result(container_factory, rabbit_manager, rabbit_config):
 
     wait_for_worker_idle(container)
 
-    # verify CollectorInjection sees values returned from `handle_result`
+    # verify ResultCollector sees values returned from `handle_result`
     assert worker_result_called == [
         ("hello", None),
         ("something went wrong", (TypeError, ANY, ANY)),
