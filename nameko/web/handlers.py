@@ -7,10 +7,9 @@ from eventlet.event import Event
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
-from nameko.exceptions import MalformedRequest
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
-from nameko.web.protocol import JsonProtocol
+from nameko.web.protocol import BaseProtocol
 
 
 _log = getLogger(__name__)
@@ -23,7 +22,7 @@ class HttpRequestHandler(Entrypoint):
         self.method = method
         self.url = url
         if protocol is None:
-            protocol = JsonProtocol()
+            protocol = BaseProtocol()
         self.protocol = protocol
         self.expected_exceptions = expected_exceptions
 
@@ -37,24 +36,20 @@ class HttpRequestHandler(Entrypoint):
         self.server.unregister_provider(self)
         super(HttpRequestHandler, self).stop()
 
-    def add_url_payload(self, payload, request):
-        payload.update(request.path_values)
-
     def process_request_data(self, request):
         context_data = self.server.context_data_from_headers(request)
-        payload = self.protocol.load_payload(request)
-        if payload is None:
-            payload = {}
-        elif not isinstance(payload, dict):
-            raise MalformedRequest('Dictionary expected')
-        self.add_url_payload(payload, request)
-        return context_data, payload
+        args, kwargs = self.protocol.load_payload(request)
+        return context_data, args, kwargs
+
+    def add_url_kwargs(self, kwargs, request):
+        kwargs.update(request.path_values)
 
     def handle_request(self, request):
         request.shallow = False
         try:
-            context_data, payload = self.process_request_data(request)
-            result = self.handle_message(context_data, payload)
+            context_data, args, kwargs = self.process_request_data(request)
+            self.add_url_kwargs(kwargs, request)
+            result = self.handle_message(context_data, args, kwargs)
             if isinstance(result, Response):
                 return result
             return self.protocol.response_from_result(result)
@@ -64,11 +59,11 @@ class HttpRequestHandler(Entrypoint):
             return self.protocol.response_from_exception(
                 exc, expected_exceptions=self.expected_exceptions)
 
-    def handle_message(self, context_data, payload):
-        self.check_signature((), payload)
+    def handle_message(self, context_data, args, kwargs):
+        self.check_signature(args, kwargs)
         event = Event()
         self.container.spawn_worker(
-            self, (), payload, context_data=context_data,
+            self, args, kwargs, context_data=context_data,
             handle_result=partial(self.handle_result, event))
         return event.wait()
 

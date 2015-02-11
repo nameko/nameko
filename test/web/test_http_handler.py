@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from werkzeug.wrappers import Response
 
@@ -7,12 +9,15 @@ from nameko.web.handlers import http
 class ExampleService(object):
 
     @http('GET', '/foo/<int:bar>')
-    def do_foo(self, bar):
-        return {'value': bar}
+    def do_get(self, bar):
+        return 'value: {}'.format(bar)
 
     @http('POST', '/post')
-    def do_post(self, value):
-        return {'value': value}
+    def do_post(self, payload):
+        data = json.loads(payload)
+        value = data['value']
+
+        return value
 
     @http('GET', '/custom')
     def do_custom(self):
@@ -30,6 +35,10 @@ class ExampleService(object):
     def fail(self):
         raise ValueError('oops')
 
+    @http('GET', '/fail_expected', expected_exceptions=ValueError)
+    def fail_expected(self):
+        raise ValueError('oops')
+
 
 @pytest.fixture
 def web_session(container_factory, web_config, web_session):
@@ -38,49 +47,19 @@ def web_session(container_factory, web_config, web_session):
     return web_session
 
 
-def test_simple_rpc(web_session):
+def test_get(web_session):
     rv = web_session.get('/foo/42')
-    assert rv.json() == {'data': {'value': 42}, 'success': True}
+    assert rv.text == 'value: 42'
 
     rv = web_session.get('/foo/something')
     assert rv.status_code == 404
 
 
-def test_post_rpc(web_session):
+def test_post(web_session):
     rv = web_session.post('/post', json={
         'value': 23,
     })
-    assert rv.json() == {'data': {'value': 23}, 'success': True}
-
-    rv = web_session.post('/post', json={
-        'value': 23,
-        'extra': []
-    })
-    resp = rv.json()
-    assert rv.status_code == 400
-    assert not resp['success']
-    assert resp['error']['exc_path'] == 'nameko.exceptions.IncorrectSignature'
-
-
-def test_post_badly_encoded_data(web_session):
-    rv = web_session.post(
-        '/post',
-        data='foo: bar',
-        headers={'content-type': 'application/json'},
-    )
-    assert rv.status_code == 400
-    response = rv.json()
-    assert not response['success']
-
-
-def test_post_bad_data_format(web_session):
-    rv = web_session.post(
-        '/post',
-        json='foo',
-    )
-    assert rv.status_code == 400
-    response = rv.json()
-    assert not response['success']
+    assert rv.text == "23"
 
 
 def test_custom_response(web_session):
@@ -90,13 +69,13 @@ def test_custom_response(web_session):
 
 def test_custom_status_code(web_session):
     rv = web_session.get('/status_code')
-    assert rv.json() == {'data': 'created', 'success': True}
+    assert rv.text == 'created'
     assert rv.status_code == 201
 
 
 def test_custom_headers(web_session):
     rv = web_session.get('/headers')
-    assert rv.json() == {'data': 'created', 'success': True}
+    assert rv.text == 'created'
     assert rv.status_code == 201
     assert rv.headers['x-foo'] == 'bar'
 
@@ -104,3 +83,8 @@ def test_custom_headers(web_session):
 def test_broken_method(web_session):
     rv = web_session.get('/fail')
     assert rv.status_code == 500
+
+
+def test_broken_method_expected(web_session):
+    rv = web_session.get('/fail_expected')
+    assert rv.status_code == 400

@@ -5,7 +5,15 @@ from werkzeug.wrappers import Response
 from nameko.exceptions import serialize, BadRequest, MalformedRequest
 
 
-class JsonProtocol(object):
+class BaseProtocol(object):
+    mimetype = 'text/plain'
+
+    def load_payload(self, request):
+        if request.method == 'POST':
+            data = request.get_data()
+            return (data,), {}
+        else:
+            return (), {}
 
     def describe_response(self, result):
         headers = None
@@ -18,6 +26,41 @@ class JsonProtocol(object):
             payload = result
             status = 200
         return status, headers, payload
+
+    def serialize_result(
+        self, payload, success=True, correlation_id=None,
+    ):
+        if not success:
+            # this is a serialized exception
+            return 'Error: {exc_type}: {value}\n'.format(**payload)
+        return unicode(payload)
+
+    def response_from_result(self, result):
+        status, headers, payload = self.describe_response(result)
+        return Response(
+            self.serialize_result(payload, True),
+            status=status,
+            headers=headers,
+            mimetype=self.mimetype,
+        )
+
+    def response_from_exception(self, exc, expected_exceptions=()):
+        if (
+            isinstance(exc, expected_exceptions) or
+            isinstance(exc, BadRequest)
+        ):
+            status_code = 400
+        else:
+            status_code = 500
+        payload = serialize(exc)
+        return Response(
+            self.serialize_result(payload, success=False),
+            status=status_code,
+        )
+
+
+class JsonProtocol(BaseProtocol):
+    mimetype = 'application/json'
 
     def deserialize_ws_frame(self, payload):
         try:
@@ -49,34 +92,3 @@ class JsonProtocol(object):
             'event': event,
             'data': data,
         }))
-
-    def load_payload(self, request):
-        if request.mimetype == 'application/json':
-            try:
-                return json.load(request.stream)
-            except Exception:
-                raise MalformedRequest('Invalid JSON data')
-
-    def response_from_result(self, result):
-        status, headers, payload = self.describe_response(result)
-        return Response(
-            self.serialize_result(payload, True),
-            status=status,
-            headers=headers,
-            mimetype='application/json',
-        )
-
-    def response_from_exception(self, exc, expected_exceptions=()):
-        if (
-            isinstance(exc, expected_exceptions) or
-            isinstance(exc, BadRequest)
-        ):
-            status_code = 400
-        else:
-            status_code = 500
-        payload = serialize(exc)
-        return Response(
-            self.serialize_result(payload, False),
-            status=status_code,
-            mimetype='application/json',
-        )
