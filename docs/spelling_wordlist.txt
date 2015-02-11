@@ -1,6 +1,7 @@
 ack
 acked
 acks
+amqp
 args
 async
 auth
@@ -54,7 +55,9 @@ onefinestay
 parallelize
 parallization
 pre
+pseudocode
 py
+redis
 renderer
 requeue
 requeued

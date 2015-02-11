@@ -136,21 +136,21 @@ def worker_factory(service_cls, **injections):
 
     **Usage**
 
-    The following example service proxies calls to a "math" service via
-    and ``RpcProxy`` dependency::
+    The following example service proxies calls to a "maths" service via
+    an ``RpcProxy`` dependency::
 
         from nameko.rpc import RpcProxy, rpc
 
         class ConversionService(object):
-            math = RpcProxy("math_service")
+            maths_rpc = RpcProxy("maths")
 
             @rpc
             def inches_to_cm(self, inches):
-                return self.math.multiply(inches, 2.54)
+                return self.maths_rpc.multiply(inches, 2.54)
 
             @rpc
             def cm_to_inches(self, cms):
-                return self.math.divide(cms, 2.54)
+                return self.maths_rpc.divide(cms, 2.54)
 
     Use the ``worker_factory`` to create an instance of
     ``ConversionService`` with its dependencies replaced by Mock objects::
@@ -165,17 +165,17 @@ def worker_factory(service_cls, **injections):
         # create worker instance
         service = worker_factory(ConversionService)
 
-        # replace "math" service
-        service.math.multiply.side_effect = lambda x, y: x * y
-        service.math.divide.side_effect = lambda x, y: x / y
+        # replace "maths" service
+        service.maths_rpc.multiply.side_effect = lambda x, y: x * y
+        service.maths_rpc.divide.side_effect = lambda x, y: x / y
 
         # test inches_to_cm business logic
         assert service.inches_to_cm(300) == 762
-        service.math.multiply.assert_called_once_with(300, 2.54)
+        service.maths_rpc.multiply.assert_called_once_with(300, 2.54)
 
         # test cms_to_inches business logic
         assert service.cms_to_inches(762) == 300
-        service.math.divide.assert_called_once_with(762, 2.54)
+        service.maths_rpc.divide.assert_called_once_with(762, 2.54)
 
     *Providing Injections*
 
@@ -236,18 +236,18 @@ def replace_injections(container, *injections):
         from nameko.standalone.rpc import RpcProxy as StandaloneRpcProxy
 
         class ConversionService(object):
-            math = RpcProxy("math_service")
+            maths_rpc = RpcProxy("maths")
 
             @rpc
             def inches_to_cm(self, inches):
-                return self.math.multiply(inches, 2.54)
+                return self.maths_rpc.multiply(inches, 2.54)
 
             @rpc
             def cm_to_inches(self, cms):
-                return self.math.divide(cms, 2.54)
+                return self.maths_rpc.divide(cms, 2.54)
 
         container = ServiceContainer(ConversionService, config)
-        math = replace_injections(container, "math")
+        maths_rpc = replace_injections(container, "maths_rpc")
 
         container.start()
 
@@ -255,7 +255,7 @@ def replace_injections(container, *injections):
             proxy.cm_to_inches(100)
 
         # assert that the injection was called as expected
-        math.divide.assert_called_once_with(100, 2.54)
+        maths_rpc.divide.assert_called_once_with(100, 2.54)
 
     """
     if container.started:
@@ -296,30 +296,24 @@ def restrict_entrypoints(container, *entrypoints):
 
     **Usage**
 
-    The following service definition has two entrypoints for "bar":
+    The following service definition has two entrypoints:
 
     .. code-block:: python
 
         class Service(object):
 
-            @rpc
+            @timer(interval=1)
             def foo(self, arg):
                 pass
 
             @rpc
-            @event_handler('srcservice', 'event_one')
             def bar(self, arg)
                 pass
 
         container = container_factory(Service, config)
 
-    To disable the entrypoints other than on "foo":
-
-    .. code-block:: python
-
-        restrict_entrypoints(container, "foo")
-
-    To maintain both the rpc and the event_handler entrypoints on "bar":
+    To disable the timer entrypoint on ``foo``, leaving just the RPC
+    entrypoint on ``bar``:
 
     .. code-block:: python
 
@@ -327,6 +321,7 @@ def restrict_entrypoints(container, *entrypoints):
 
     Note that it is not possible to identify multiple entrypoints on the same
     method individually.
+
     """
     if container.started:
         raise RuntimeError('You must restrict entrypoints before the '

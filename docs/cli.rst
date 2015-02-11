@@ -8,7 +8,7 @@ Running a Service
 
 ::
 
-    $ nameko run [<module>[:<ServiceClass>]]
+    $ nameko run <module>[:<ServiceClass>]
 
 Discover and run a service class.
 
@@ -42,4 +42,3 @@ Dispatching an event as "source_service":
     [GCC 4.2.1 Compatible Apple LLVM 6.0 (clang-600.0.54)] shell on darwin
     Broker: amqp://guest:guest@localhost:5672/nameko
     >>> n.dispatch_event("source_service", "event_type", "event_payload")
-

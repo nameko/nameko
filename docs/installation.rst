@@ -38,4 +38,4 @@ On debian-based operating systems::
 
 For other platforms, consult the `RabbitMQ installation guidelines <https://www.rabbitmq.com/download.html>`_.
 
-The examples in this documentation assume you have a broker running on the default ports on localhost.
+The RabbitMQ broker will be ready to go as soon as it's installed -- it doesn't need any configuration. The examples in this documentation assume you have a broker running on the default ports on localhost.

@@ -8,5 +8,5 @@ class Service(object):
         return {'value': value}
 
     @http('POST', '/post')
-    def do_post(self, value):
-        return {'value': value}
+    def do_post(self, body):
+        return {'body': body}

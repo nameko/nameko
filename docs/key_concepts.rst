@@ -35,9 +35,9 @@ Declaring dependencies in your service is a good idea for :ref:`lots of reasons 
 Workers
 ^^^^^^^
 
-Workers are created when an entrypoint fires. A worker is just an instance of the service class, but with interfaces to its dependencies injected into it.
+Workers are created when an entrypoint fires. A worker is just an instance of the service class, but with the dependency declarations replaced with instances of those dependencies.
 
-Note that a worker only lives for the execution of one method - services are stateless from one call to the next, which encourages the use of dependencies.
+Note that a worker only lives for the execution of one method -- services are stateless from one call to the next, which encourages the use of dependencies.
 
 A service can run multiple workers at the same time, up to a user-defined limit. See :ref:`concurrency` for details.
 
@@ -50,7 +50,7 @@ Adding a dependency to a service class is declarative. That is, the attribute on
 
 The class attribute is a :class:`~nameko.extensions.DependencyProvider`. It is responsible for providing an object that is injected into service workers.
 
-DependencyProviders implement a :meth:`~nameko.extensions.DependencyProvider.get_dependency` method, the result of which is injected into a newly created worker.
+Dependency providers implement a :meth:`~nameko.extensions.DependencyProvider.get_dependency` method, the result of which is injected into a newly created worker.
 
 The lifecycle of a worker is:
 
@@ -60,14 +60,14 @@ The lifecycle of a worker is:
     #. Method executes
     #. Worker is destroyed
 
-In code this looks something like::
+In pseudocode this looks like::
 
     worker = Service()
     worker.other_rpc = worker.other_rpc.get_dependency()
     worker.method()
     del worker
 
-DependencyProviders live for the duration of the service, whereas the injected dependency can be unique to each worker.
+Dependency providers live for the duration of the service, whereas the injected dependency can be unique to each worker.
 
 .. _concurrency:
 
@@ -80,8 +80,4 @@ Implicit yielding relies on `monkey patching <http://eventlet.net/doc/patching.h
 
 Each worker executes in its own greenthread. The maximum number of concurrent workers can be tweaked based on the amount of time each worker will spend waiting on I/O.
 
-Workers are stateless so are inherently thread safe, but dependencies should ensure they support thread-safety.
-
-
-
-
+Workers are stateless so are inherently thread safe, but dependencies should ensure they are unique per worker or otherwise safe to be accessed concurrently by multiple workers.

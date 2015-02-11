@@ -29,7 +29,7 @@ coverage-check:
 	coverage report --fail-under=100
 
 sphinx: develop
-	sphinx-build -b html -d docs/build/doctrees docs docs/build/html
+	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html
 
 spelling:
 	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
@@ -39,5 +39,4 @@ docs/modules.rst: $(wildcard nameko/*.py) $(wildcard nameko/**/*.py)
 
 autodoc: docs/modules.rst
 
-docs: autodoc sphinx spelling
-
+docs: sphinx spelling

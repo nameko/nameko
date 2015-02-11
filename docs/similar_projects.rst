@@ -13,4 +13,11 @@ Zato
 
 `Zato <http://zato.io>`_ is a full `Enterprise Service Bus <http://en.wikipedia.org/wiki/Enterprise_service_bus>`_ (ESB) and application server written in Python. It concentrates on joining lots of different services together, including APIs and a GUI for configuration. It also includes tools for load-balancing and deployment.
 
-ESBs are often used as middleware between legacy services. You can write new Python services in Zato but they are structured quite differently and its scope is significantly larger than nameko.
+ESBs are often used as middleware between legacy services. You can write new Python services in Zato but they are structured quite differently and its scope is significantly larger than that of Nameko. See Martin Fowler's paper on `microservices <http://martinfowler.com/articles/microservices.html#MicroservicesAndSoa>`_ for a comparison to ESBs.
+
+Kombu
+-----
+
+`Kombu <http://kombu.readthedocs.org/>`_ is a Python messaging library, used by both Celery and Nameko. It exposes a high-level interface for AMQP and includes support for "virtual" transports, so can be run with non-AMQP transports such as Redis, ZeroMQ and MongoDB.
+
+Nameko's AMQP features are built using Kombu but don't include support for the "virtual" transports.

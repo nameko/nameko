@@ -9,9 +9,9 @@ Nameko's conventions are designed to make testing as easy as possible. Services 
 Unit Testing
 ------------
 
-Unit testing in nameko usually means testing a single service in isolation - i.e. without any or most of its dependencies.
+Unit testing in nameko usually means testing a single service in isolation -- i.e. without any or most of its dependencies.
 
-The :func:`~nameko.testing.services.worker_factory` utility will create a worker from a given service class, with its dependencies replaced by :class:`mock.MagicMock` objects. Dependency functionality can then be imitated by adding side effects and return values:
+The :func:`~nameko.testing.services.worker_factory` utility will create a worker from a given service class, with its dependencies replaced by :class:`mock.MagicMock` objects. Dependency functionality can then be imitated by adding :attr:`~mock.Mock.side_effect`\s and :attr:`~mock.Mock.return_value`\s:
 
 .. literalinclude:: examples/testing/unit_test.py
 
@@ -22,9 +22,11 @@ In some circumstances it's helpful to provide an alternative dependency, rather 
 Integration Testing
 -------------------
 
-Integration testing in nameko means testing the interface between a number of services. The recommended way is to run all the services being tested in the normal way, and trigger behaviour by manually "firing" an entrypoint:
+Integration testing in nameko means testing the interface between a number of services. The recommended way is to run all the services being tested in the normal way, and trigger behaviour by "firing" an entrypoint using a helper:
 
 .. literalinclude:: examples/testing/integration_test.py
+
+Note that the interface between ``ServiceX`` and ``ServiceY`` here is just as if under normal operation.
 
 Interfaces that are out of scope for a particular test can be deactivated with one of the following test helpers:
 

@@ -268,6 +268,7 @@ intersphinx_mapping = {
     'python': ('http://docs.python.org/2.7', None),
     'eventlet': ('http://eventlet.net/doc', None),
     'mock': ('http://www.voidspace.org.uk/python/mock/', None),
+    'werkzeug': ('http://werkzeug.pocoo.org/docs', None),
 }
 autoclass_content = 'both'
 

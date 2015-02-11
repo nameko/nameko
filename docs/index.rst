@@ -71,13 +71,6 @@ More Information
    about_microservices
    dependency_injection_benefits
    similar_projects
+   getting_in_touch
+   contributing
    license
-
-
-API Reference
--------------
-
-.. toctree::
-   :maxdepth: 2
-
-   api
