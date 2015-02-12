@@ -7,7 +7,7 @@ from eventlet.event import Event
 from eventlet.websocket import WebSocketWSGI
 from nameko.exceptions import MethodNotFound, serialize, ConnectionNotFound
 from nameko.extensions import (
-    Dependency, Entrypoint, ProviderCollector, SharedExtension)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.web.protocol import JsonProtocol
 from nameko.web.server import WebServer
 from werkzeug.routing import Rule
@@ -109,7 +109,7 @@ class WebSocketServer(SharedExtension, ProviderCollector):
                 provider.cleanup_websocket(socket_id)
 
 
-class WebSocketHubProvider(Dependency):
+class WebSocketHubProvider(DependencyProvider):
     hub = None
     server = WebSocketServer()
 
@@ -121,7 +121,7 @@ class WebSocketHubProvider(Dependency):
         self.server.unregister_provider(self)
         super(WebSocketHubProvider, self).stop()
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         return self.hub
 
     def cleanup_websocket(self, socket_id):

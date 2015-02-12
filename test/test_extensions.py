@@ -4,7 +4,7 @@ from mock import Mock
 import pytest
 
 from nameko.extensions import (
-    Extension, Entrypoint, Dependency,
+    Extension, Entrypoint, DependencyProvider,
     is_dependency, is_entrypoint, is_extension)
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_extension
@@ -14,7 +14,7 @@ class SimpleExtension(Extension):
     pass
 
 
-class SimpleDependency(Dependency):
+class SimpleDependencyProvider(DependencyProvider):
     ext = SimpleExtension()
 
 
@@ -25,7 +25,7 @@ simple = SimpleEntrypoint.decorator
 
 
 class Service(object):
-    inj = SimpleDependency()
+    dep = SimpleDependencyProvider()
 
     @simple
     def meth1(self):
@@ -60,27 +60,27 @@ def test_dependency_uniqueness(container_factory):
     c1 = container_factory(Service, config={})
     c2 = container_factory(Service, config={})
 
-    # injection declarations are identical between containers
-    assert c1.service_cls.inj == c2.service_cls.inj
+    # dependencyprovider declarations are identical between containers
+    assert c1.service_cls.dep == c2.service_cls.dep
 
-    # injection instances are different between containers
-    inj1 = get_extension(c1, SimpleDependency)
-    inj2 = get_extension(c2, SimpleDependency)
-    assert inj1 != inj2
+    # dependencyprovider instances are different between containers
+    dep1 = get_extension(c1, SimpleDependencyProvider)
+    dep2 = get_extension(c2, SimpleDependencyProvider)
+    assert dep1 != dep2
 
 
 def test_extension_uniqueness(container_factory):
     c1 = container_factory(Service, config={})
     c2 = container_factory(Service, config={})
-    inj1 = get_extension(c1, SimpleDependency)
-    inj2 = get_extension(c2, SimpleDependency)
+    dep1 = get_extension(c1, SimpleDependencyProvider)
+    dep2 = get_extension(c2, SimpleDependencyProvider)
 
     # extension declarations are identical between containers
-    assert c1.service_cls.inj.ext == c2.service_cls.inj.ext
+    assert c1.service_cls.dep.ext == c2.service_cls.dep.ext
 
     # extension instances are different between dependencies
-    assert inj1 != inj2
-    assert inj1.ext != inj2.ext
+    assert dep1 != dep2
+    assert dep1.ext != dep2.ext
 
 
 def test_is_bound():
@@ -109,19 +109,19 @@ def test_extension_defined_on_instance(container_factory):
         def __init__(self, arg):
             self.arg = arg
 
-    class DynamicInjection(Dependency):
+    class DynamicDependencyProvider(DependencyProvider):
         def __init__(self, ext_arg):
             self.ext = ExtensionWithParams(ext_arg)
 
     class Service(object):
-        inj = DynamicInjection("argument_for_extension")
+        dep = DynamicDependencyProvider("argument_for_extension")
 
     container = container_factory(Service, {})
     container.start()
 
     assert len(container.extensions) == 2
-    dyn_inj = get_extension(container, DynamicInjection)
-    assert dyn_inj.ext.arg == "argument_for_extension"
+    dyn_dep = get_extension(container, DynamicDependencyProvider)
+    assert dyn_dep.ext.arg == "argument_for_extension"
 
 
 def test_is_extension():
@@ -131,7 +131,7 @@ def test_is_extension():
 
 
 def test_is_dependency():
-    dep = SimpleDependency()
+    dep = SimpleDependencyProvider()
     assert is_dependency(dep)
     ext = SimpleExtension()
     assert not is_dependency(ext)
@@ -204,7 +204,7 @@ def test_extension_str():
     container = Mock()
 
     ext = Extension()
-    assert str(ext).startswith('<Extension [declaration] at')
+    assert str(ext).startswith('<Extension [unbound] at')
 
     bound = ext.bind(container)
     assert str(bound).startswith("<Extension at")
@@ -225,8 +225,8 @@ def test_dependency_str():
     container = Mock()
     container.service_name = "sérvice"
 
-    ext = Dependency()
-    assert str(ext).startswith('<Dependency [declaration] at')
+    ext = DependencyProvider()
+    assert str(ext).startswith('<DependencyProvider [unbound] at')
 
     bound = ext.bind(container, "føbar")
-    assert str(bound).startswith("<Dependency [sérvice.føbar] at")
+    assert str(bound).startswith("<DependencyProvider [sérvice.føbar] at")

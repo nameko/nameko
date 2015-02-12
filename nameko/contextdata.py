@@ -2,13 +2,13 @@ from nameko.constants import (
     LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
     AUTH_TOKEN_CONTEXT_KEY,
 )
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 
 
-class ContextDataProvider(Dependency):
+class ContextDataProvider(DependencyProvider):
     context_key = None
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         return worker_ctx.data.get(self.context_key)
 
 

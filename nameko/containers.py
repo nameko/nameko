@@ -187,7 +187,7 @@ class ServiceContainer(object):
         active workers to complete.
 
         After all active workers have stopped the container stops all
-        injections.
+        dependency providers.
 
         At this point there should be no more managed threads. In case there
         are any managed threads, they are killed by the container.
@@ -291,7 +291,7 @@ class ServiceContainer(object):
         raise it.
 
         Any unhandled exception raised in a managed thread or in the
-        worker lifecycle (e.g. inside :meth:`Dependency.worker_setup`)
+        worker lifecycle (e.g. inside :meth:`DependencyProvider.worker_setup`)
         results in the container being ``kill()``ed, and the exception
         raised from ``wait()``.
         """
@@ -368,6 +368,8 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
+            # when we have better parallisation than spawningset,
+            # do this injection inline
             self.dependencies.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)
 

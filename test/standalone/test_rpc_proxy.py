@@ -5,7 +5,7 @@ import pytest
 import socket
 
 from nameko.containers import WorkerContext
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
@@ -13,13 +13,13 @@ from nameko.testing.utils import get_rabbit_connections
 from nameko.exceptions import RpcConnectionError
 
 
-class ContextReader(Dependency):
+class ContextReader(DependencyProvider):
     """ Access values from the worker context data.
 
     This is a test facilty! Write specific Dependencies to make use of
     values in ``WorkerContext.data``, don't expose it directly.
     """
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def get_context_value(key):
             return worker_ctx.data.get(key)
         return get_context_value
@@ -353,3 +353,31 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         assert proxy.foobar.spam(ham=1) == 1
+
+
+def test_recover_from_keyboardinterrupt(
+    container_factory, rabbit_manager, rabbit_config
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()  # create rpc queues
+    container.stop()  # but make sure call doesn't complete
+
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy:
+        def call():
+            return proxy.spam(ham=0)
+
+        gt = eventlet.spawn(call)
+        eventlet.sleep(.1)  # make sure `call` is scheduled
+
+        gt.kill(KeyboardInterrupt('killing from test'))
+        # wait for it to die
+        try:
+            gt.wait()
+        except KeyboardInterrupt:
+            pass
+
+        container = container_factory(FooService, rabbit_config)
+        container.start()
+
+        # proxy should still work
+        assert proxy.spam(ham=1) == 1

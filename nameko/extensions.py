@@ -1,6 +1,3 @@
-"""
-Provides classes and method to deal with dependency injection.
-"""
 from __future__ import absolute_import
 
 from functools import partial
@@ -103,7 +100,7 @@ class Extension(object):
 
     def __repr__(self):
         if not self.is_bound():
-            return '<{} [declaration] at 0x{:x}>'.format(
+            return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
         return '<{} at 0x{:x}>'.format(
@@ -132,7 +129,7 @@ class SharedExtension(Extension):
         return instance
 
 
-class Dependency(Extension):
+class DependencyProvider(Extension):
 
     attr_name = None
 
@@ -140,20 +137,21 @@ class Dependency(Extension):
         """ Get an instance of this Dependency to bind to `container` with
         `attr_name`.
         """
-        instance = super(Dependency, self).bind(container)
+        instance = super(DependencyProvider, self).bind(container)
         instance.attr_name = attr_name
         return instance
 
-    def acquire_injection(self, worker_ctx):
-        """ Called before worker execution. A Dependency should return
+    def get_dependency(self, worker_ctx):
+        """ Called before worker execution. A DependencyProvider should return
         an object to be injected into the worker instance by the container.
         """
 
     def inject(self, worker_ctx):
+        """ TODO when we have better parallisation than spawningset,
+            do this injection in the container
         """
-        """
-        injection = self.acquire_injection(worker_ctx)
-        setattr(worker_ctx.service, self.attr_name, injection)
+        dependency = self.get_dependency(worker_ctx)
+        setattr(worker_ctx.service, self.attr_name, dependency)
 
     def worker_result(self, worker_ctx, result=None, exc_info=None):
         """ Called with the result of a service worker execution.
@@ -197,7 +195,7 @@ class Dependency(Extension):
 
     def __repr__(self):
         if not self.is_bound():
-            return '<{} [declaration] at 0x{:x}>'.format(
+            return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
         service_name = self.container.service_name
@@ -314,7 +312,7 @@ def is_extension(obj):
 
 
 def is_dependency(obj):
-    return isinstance(obj, Dependency)
+    return isinstance(obj, DependencyProvider)
 
 
 def is_entrypoint(obj):

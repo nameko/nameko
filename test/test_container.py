@@ -9,7 +9,7 @@ import pytest
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.extensions import Dependency, Entrypoint
+from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
 
 
@@ -50,17 +50,15 @@ class CallCollectorMixin(object):
         super(CallCollectorMixin, self).stop()
 
 
-class CallCollectingEntrypoint(
-        CallCollectorMixin, Entrypoint):
+class CallCollectingEntrypoint(CallCollectorMixin, Entrypoint):
     instances = set()
 
 
-class CallCollectingDependency(
-        CallCollectorMixin, Dependency):
+class CallCollectingDependencyProvider(CallCollectorMixin, DependencyProvider):
     instances = set()
 
-    def acquire_injection(self, worker_ctx):
-        self._log_call(('acquire_injection', worker_ctx))
+    def get_dependency(self, worker_ctx):
+        self._log_call(('get_dependency', worker_ctx))
         return 'spam-attr'
 
     def worker_setup(self, worker_ctx):
@@ -85,7 +83,7 @@ egg_error = Exception('broken')
 class Service(object):
     name = 'test-service'
 
-    spam = CallCollectingDependency()
+    spam = CallCollectingDependencyProvider()
 
     @foobar
     def ham(self):
@@ -123,7 +121,7 @@ def test_collects_extensions(container):
     assert len(container.extensions) == 4
     assert container.extensions == (
         CallCollectingEntrypoint.instances |
-        CallCollectingDependency.instances)
+        CallCollectingDependencyProvider.instances)
 
 
 def test_starts_extensions(container):
@@ -149,18 +147,18 @@ def test_stops_extensions(container):
         ]
 
 
-def test_stops_entrypoints_before_injections(container):
+def test_stops_entrypoints_before_dependency_providers(container):
     container.stop()
 
-    dependency = get_extension(container, Dependency)
+    provider = get_extension(container, DependencyProvider)
 
     for entrypoint in container.entrypoints:
-        assert entrypoint.call_ids[0] < dependency.call_ids[0]
+        assert entrypoint.call_ids[0] < provider.call_ids[0]
 
 
 def test_worker_life_cycle(container):
 
-    spam_dep = get_extension(container, Dependency)
+    spam_dep = get_extension(container, DependencyProvider)
     ham_dep = get_extension(container, Entrypoint, method_name="ham")
     egg_dep = get_extension(container, Entrypoint, method_name="egg")
 
@@ -177,11 +175,11 @@ def test_worker_life_cycle(container):
     container._worker_pool.waitall()
 
     assert spam_dep.calls == [
-        ('acquire_injection', ham_worker_ctx),
+        ('get_dependency', ham_worker_ctx),
         ('worker_setup', ham_worker_ctx),
         ('worker_result', ham_worker_ctx, ('ham', None)),
         ('worker_teardown', ham_worker_ctx),
-        ('acquire_injection', egg_worker_ctx),
+        ('get_dependency', egg_worker_ctx),
         ('worker_setup', egg_worker_ctx),
         ('worker_result', egg_worker_ctx, (None, (Exception, egg_error, ANY))),
         ('worker_teardown', egg_worker_ctx),
@@ -488,7 +486,7 @@ def test_kill_bad_dependency(container):
     """ Verify that an exception from a badly-behaved dependency.kill()
     doesn't stop the container's kill process.
     """
-    dep = get_extension(container, Dependency)
+    dep = get_extension(container, DependencyProvider)
     with patch.object(dep, 'kill') as dep_kill:
         dep_kill.side_effect = Exception('dependency error')
 

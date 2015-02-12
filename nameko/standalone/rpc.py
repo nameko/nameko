@@ -136,6 +136,11 @@ class PollingQueueConsumer(object):
                 self._setup_queue()
                 correlation_id = yield
 
+            except KeyboardInterrupt as exc:
+                event = self.provider._reply_events.pop(correlation_id)
+                event.send_exception(exc)
+                correlation_id = yield
+
 
 class SingleThreadedReplyListener(ReplyListener):
     """ A ReplyListener which uses a custom queue consumer and ConsumeEvent.

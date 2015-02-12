@@ -86,7 +86,7 @@ class EventDispatcher(Publisher):
         self.exchange = get_event_exchange(self.service_name)
         super(EventDispatcher, self).setup()
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
         headers = self.get_message_headers(worker_ctx)

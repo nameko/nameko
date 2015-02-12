@@ -18,13 +18,13 @@ from collections import defaultdict
 
 import pytest
 
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, RpcProxy
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import replace_injections, restrict_entrypoints
+from nameko.testing.services import replace_dependencies, restrict_entrypoints
 from nameko.testing.utils import get_container
 from nameko.timer import timer
 
@@ -41,13 +41,13 @@ class ItemDoesNotExist(Exception):
     pass
 
 
-class ShoppingBasket(Dependency):
+class ShoppingBasket(DependencyProvider):
     """ A shopping basket tied to the current ``user_id``.
     """
     def __init__(self):
         self.baskets = defaultdict(list)
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
 
         class Basket(object):
             def __init__(self, basket):
@@ -73,7 +73,7 @@ class AcmeShopService(object):
     user_basket = ShoppingBasket()
     stock_service = RpcProxy('stockservice')
     invoice_service = RpcProxy('invoiceservice')
-    payment_service = RpcProxy('paymentservice')
+    payment_rpc = RpcProxy('paymentservice')
 
     fire_event = EventDispatcher()
 
@@ -102,7 +102,7 @@ class AcmeShopService(object):
         invoice = self.invoice_service.prepare_invoice(total_price)
 
         # take payment
-        self.payment_service.take_payment(invoice)
+        self.payment_rpc.take_payment(invoice)
 
         # fire checkout event if prepare_invoice and take_payment succeeded
         checkout_event_data = {
@@ -113,7 +113,7 @@ class AcmeShopService(object):
         return total_price
 
 
-class Warehouse(Dependency):
+class Warehouse(DependencyProvider):
     """ A database of items in the warehouse.
 
     This is a toy example! A dictionary is not a database.
@@ -138,7 +138,7 @@ class Warehouse(Dependency):
             }
         }
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         return self.database
 
 
@@ -185,7 +185,7 @@ class StockService(object):
         raise NotImplemented()
 
 
-class AddressBook(Dependency):
+class AddressBook(DependencyProvider):
     """ A database of user details, keyed on user_id.
     """
     def __init__(self):
@@ -197,7 +197,7 @@ class AddressBook(Dependency):
             },
         }
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def get_user_details():
             try:
                 user_id = worker_ctx.data['user_id']
@@ -304,11 +304,11 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
 
     runner = runner_factory(AcmeShopService, StockService, InvoiceService)
 
-    # replace ``event_dispatcher`` and ``payment_service``  injections on
+    # replace ``event_dispatcher`` and ``payment_rpc``  injections on
     # AcmeShopService with Mock injections
     shop_container = get_container(runner, AcmeShopService)
-    fire_event, payment_service = replace_injections(
-        shop_container, "fire_event", "payment_service")
+    fire_event, payment_rpc = replace_dependencies(
+        shop_container, "fire_event", "payment_rpc")
 
     # restrict entrypoints on StockService
     stock_container = get_container(runner, StockService)
@@ -326,7 +326,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     assert exc_info.value.exc_type == "ItemOutOfStock"
 
     # provide a mock response from the payment service
-    payment_service.take_payment.return_value = "Payment complete."
+    payment_rpc.take_payment.return_value = "Payment complete."
 
     # checkout
     res = shop.checkout()
@@ -335,7 +335,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     assert res == total_amount
 
     # verify integration with mocked out payment service
-    payment_service.take_payment.assert_called_once_with({
+    payment_rpc.take_payment.assert_called_once_with({
         'customer': "wile_e_coyote",
         'address': "12 Long Road, High Cliffs, Utah",
         'amount': total_amount,
