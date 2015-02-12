@@ -74,3 +74,4 @@ More Information
    getting_in_touch
    contributing
    license
+   release_notes
