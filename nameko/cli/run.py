@@ -1,7 +1,7 @@
 """Run a nameko service.
 
 Given a python path to a module containing a nameko service, will host and run
-it. By default this assumes a service class named ``Service``, but this can be
+it. By default this will try to find "service-looking" classes, but this can be
 provided via ``nameko run module:ServiceClass``.
 """
 
@@ -9,6 +9,7 @@ import eventlet
 eventlet.monkey_patch()  # noqa (code before rest of imports)
 
 import errno
+import inspect
 import logging
 import os
 import signal
@@ -18,16 +19,25 @@ from eventlet import backdoor
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
+from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
 
 
 logger = logging.getLogger(__name__)
 
 
+def is_type(obj):
+    return isinstance(obj, type)
+
+
+def is_entrypoint(method):
+    return hasattr(method, ENTRYPOINT_EXTENSIONS_ATTR)
+
+
 def import_service(module_name):
     parts = module_name.split(":", 1)
     if len(parts) == 1:
-        module_name, obj = module_name, "Service"
+        module_name, obj = module_name, None
     else:
         module_name, obj = parts[0], parts[1]
 
@@ -52,13 +62,39 @@ def import_service(module_name):
 
     module = sys.modules[module_name]
 
-    try:
-        service_cls = getattr(module, obj)
-    except AttributeError:
-        raise CommandError(
-            "Failed to find service class {!r} in module {!r}".format(
-                obj, module_name)
-        )
+    if obj is None:
+        found_services = []
+        # find top-level objects with entrypoints
+        for _, potential_service in inspect.getmembers(module, is_type):
+            if inspect.getmembers(potential_service, is_entrypoint):
+                found_services.append(potential_service)
+
+        if not found_services:
+            raise CommandError(
+                "Failed to find anything that looks like a service in module "
+                "{!r}".format(module_name)
+            )
+
+        elif len(found_services) > 1:
+            found_service_names = ', '.join(
+                service.__name__ for service in found_services
+            )
+            raise CommandError(
+                "Found multiple potential services in module {!r}: "
+                "{!s}".format(module_name, found_service_names)
+            )
+        else:
+            service_cls = found_services[0]
+
+    else:
+
+        try:
+            service_cls = getattr(module, obj)
+        except AttributeError:
+            raise CommandError(
+                "Failed to find service class {!r} in module {!r}".format(
+                    obj, module_name)
+            )
 
     if not isinstance(service_cls, type):
         raise CommandError("Service must be a class.")
