@@ -9,7 +9,7 @@ class Service(object):
 
     @http('GET', '/google')
     def redirect(self):
-        return 302, {'Location': 'https://www.google.com/'}, ""
+        return 201, {'Location': 'https://www.example.com/widget/1'}, ""
 
     @http('GET', '/custom')
     def custom(self):
