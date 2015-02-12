@@ -313,14 +313,18 @@ def restrict_entrypoints(container, *entrypoints):
             def bar(self, arg)
                 pass
 
+            @rpc
+            def baz(self, arg):
+                pass
+
         container = container_factory(Service, config)
 
     To disable the timer entrypoint on ``foo``, leaving just the RPC
-    entrypoint on ``bar``:
+    entrypoints:
 
     .. code-block:: python
 
-        restrict_entrypoints(container, "bar")
+        restrict_entrypoints(container, "bar", "baz")
 
     Note that it is not possible to identify multiple entrypoints on the same
     method individually.
