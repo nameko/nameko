@@ -204,7 +204,7 @@ def test_extension_str():
     container = Mock()
 
     ext = Extension()
-    assert str(ext).startswith('<Extension [declaration] at')
+    assert str(ext).startswith('<Extension [unbound] at')
 
     bound = ext.bind(container)
     assert str(bound).startswith("<Extension at")
@@ -226,7 +226,7 @@ def test_dependency_str():
     container.service_name = "sérvice"
 
     ext = DependencyProvider()
-    assert str(ext).startswith('<DependencyProvider [declaration] at')
+    assert str(ext).startswith('<DependencyProvider [unbound] at')
 
     bound = ext.bind(container, "føbar")
     assert str(bound).startswith("<DependencyProvider [sérvice.føbar] at")
