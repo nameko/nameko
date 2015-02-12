@@ -10,11 +10,11 @@ Running a Service
 
     $ nameko run <module>[:<ServiceClass>]
 
-Discover and run a service class.
+Discover and run a service class. This will start the service in the foreground and run it until the process terminates.
 
 
-Interacting with a running service
-----------------------------------
+Interacting with running services
+---------------------------------
 
 ::
 
