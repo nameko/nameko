@@ -41,12 +41,6 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    # monkey patch an encoding attribute onto GreenPipe to
-    # satisfy a pytest assertion
-    import py
-    from eventlet.greenio import GreenPipe
-    GreenPipe.encoding = py.std.sys.stdout.encoding
-
     if config.option.blocking_detection:
         from eventlet import debug
         debug.hub_blocking_detection(True)
