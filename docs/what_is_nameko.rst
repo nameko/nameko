@@ -29,10 +29,10 @@ Nameko is designed to help you create, run and test microservices. You should us
 
 Nameko scales from a single instance of a single service, to a cluster with many instances of many different services.
 
+The library also ships with tools for clients, which you can use if you want to write Python code to communicate with an existing nameko cluster.
+
 
 When shouldn't I use nameko?
 ----------------------------
 
 Nameko is not a web framework. It has built-in HTTP entrypoints but they're limited to what is useful in the realm of microservices. If you want to build a webapp for consumption by humans you should use something like `flask <http://flask.pocoo.org>`_.
-
-You shouldn't use nameko to write clients. The library comes with tools for clients to communicate with nameko clusters using the built-in AMQP entrypoints, but the client itself should be some other process.
