@@ -16,8 +16,7 @@ def test_anon_context_constructor():
 def test_call(nova, constructor):
     connection = ANY
     context = Mock()
-    context_factory = lambda: context
-    rpcproxy = constructor(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=lambda: context)
 
     with pytest.raises(ValueError):
         # no topic, no method
@@ -41,8 +40,7 @@ def test_call(nova, constructor):
 def test_call_dynamic_route(nova, constructor):
     connection = ANY
     context = Mock()
-    context_factory = lambda: context
-    rpcproxy = constructor(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=lambda: context)
 
     with pytest.raises(ValueError):
         # no topic, no method
@@ -70,8 +68,7 @@ def test_call_dynamic_route(nova, constructor):
 def test_call_default(nova, constructor):
     connection = ANY
     context = Mock()
-    context_factory = lambda: context
-    rpcproxy = constructor(context_factory=context_factory)
+    rpcproxy = constructor(context_factory=lambda: context)
 
     rpcproxy.service.controller(key='value')
 
@@ -108,9 +105,8 @@ def test_route_abuse(nova, constructor):
 def test_control_exchange_config(rpc, constructor):
     connection = ANY
     context = Mock()
-    context_factory = lambda: context
     rpcproxy = constructor(
-        control_exchange='rpc', context_factory=context_factory)
+        control_exchange='rpc', context_factory=lambda: context)
 
     rpcproxy.service.controller(key='value')
 
@@ -214,9 +210,7 @@ def test_add_call_matching():
 def test_service_whitelist(nova):
     connection = ANY
     context = Mock()
-    context_factory = lambda: context
-    rpcproxy = MockRPCProxy(
-        context_factory=context_factory)
+    rpcproxy = MockRPCProxy(context_factory=lambda: context)
     rpcproxy.fallback_to_call = False
 
     with pytest.raises(RuntimeError):
@@ -258,7 +252,9 @@ def test_fallback_to_call():
 def test_timeout(nova, constructor):
     connection = ANY
     context = Mock()
-    context_factory = lambda: context
+
+    def context_factory():
+        return context
 
     # test null timeout
     rpcproxy = constructor(context_factory=context_factory)

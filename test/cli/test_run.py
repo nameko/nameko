@@ -25,7 +25,7 @@ def test_run(rabbit_config):
         '--backdoor-port',
         0,
         'test.sample:Service',
-        ])
+    ])
     gt = eventlet.spawn(main, args)
     eventlet.sleep(1)
 

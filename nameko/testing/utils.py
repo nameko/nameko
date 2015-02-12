@@ -27,7 +27,9 @@ def get_extension(container, extension_cls, **match_attrs):
             if not match_attrs:
                 return ext
 
-            has_attribute = lambda name, value: getattr(ext, name) == value
+            def has_attribute(name, value):
+                return getattr(ext, name) == value
+
             if all([has_attribute(name, value)
                     for name, value in match_attrs.items()]):
                 return ext
