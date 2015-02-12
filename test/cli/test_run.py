@@ -40,8 +40,8 @@ def test_run(rabbit_config):
 
 
 def test_import_ok():
-    assert import_service('test.sample') is Service
-    assert import_service('test.sample:Service') is Service
+    assert import_service('test.sample') == [Service]
+    assert import_service('test.sample:Service') == [Service]
 
 
 def test_import_missing():
@@ -71,6 +71,12 @@ def test_import_not_a_class():
     with pytest.raises(CommandError) as exc:
         import_service('test.sample:rpc')
     assert "Service must be a class" in str(exc)
+
+
+def test_import_no_service_classes():
+    with pytest.raises(CommandError):
+        import_service('test.conftest')
+
 
 
 def recv_until_prompt(sock):

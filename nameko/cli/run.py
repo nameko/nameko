@@ -1,8 +1,9 @@
 """Run a nameko service.
 
-Given a python path to a module containing a nameko service, will host and run
-it. By default this will try to find "service-looking" classes, but this can be
-provided via ``nameko run module:ServiceClass``.
+Given a python path to a module containing one or more nameko services, will
+host and run them. By default this will try to find "service-looking" classes
+(anything with nameko entrypoints), but a specific service can be specified via
+``nameko run module:ServiceClass``.
 """
 
 import eventlet
@@ -75,19 +76,7 @@ def import_service(module_name):
                 "{!r}".format(module_name)
             )
 
-        elif len(found_services) > 1:
-            found_service_names = ', '.join(
-                service.__name__ for service in found_services
-            )
-            raise CommandError(
-                "Found multiple potential services in module {!r}: "
-                "{!s}".format(module_name, found_service_names)
-            )
-        else:
-            service_cls = found_services[0]
-
     else:
-
         try:
             service_cls = getattr(module, obj)
         except AttributeError:
@@ -96,9 +85,12 @@ def import_service(module_name):
                     obj, module_name)
             )
 
-    if not isinstance(service_cls, type):
-        raise CommandError("Service must be a class.")
-    return service_cls
+        if not isinstance(service_cls, type):
+            raise CommandError("Service must be a class.")
+
+        found_services = [service_cls]
+
+    return found_services
 
 
 def setup_backdoor(runner, port):
@@ -167,10 +159,10 @@ def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
 
-    cls = import_service(args.service)
+    services = import_service(args.service)
 
     config = {AMQP_URI_CONFIG_KEY: args.broker}
-    run([cls], config, backdoor_port=args.backdoor_port)
+    run(services, config, backdoor_port=args.backdoor_port)
 
 
 def init_parser(parser):
