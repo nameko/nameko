@@ -17,7 +17,7 @@ Methods are exposed to the outside world with :ref:`entrypoint <entrypoints>` de
 Entrypoints
 ^^^^^^^^^^^
 
-Entrypoints are gateways into the service methods they decorate. While a service is running, an entrypoint may "fire" and the decorated method would be executed by a service :ref:`worker <workers>`.
+Entrypoints are gateways into the service methods they decorate. They  normally monitor an external entity, for example a message queue. On a relevant event, the entrypoint may "fire" and the decorated method would be executed by a service :ref:`worker <workers>`.
 
 .. _dependencies:
 
