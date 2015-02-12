@@ -6,6 +6,8 @@ Philosophy
 
 Nameko's conventions are designed to make testing as easy as possible. Services are likely to be small and single-purpose, and dependency injection makes it simple to replace and isolate pieces of functionality.
 
+The examples below use `pytest <http://pytest.org/latest/>`_, which is what nameko's own test suite uses, but the helpers are test framework agnostic.
+
 Unit Testing
 ------------
 
