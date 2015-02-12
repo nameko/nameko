@@ -59,7 +59,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def empty_config(request):
-    return {}
+    return {'AMQP_URI': ""}
 
 
 @pytest.fixture(scope='session')

@@ -1,21 +1,19 @@
 from mock import Mock
 import pytest
 
-from nameko.dependencies import (
-    injection, entrypoint, InjectionProvider, EntrypointProvider,
-    DependencyFactory)
-from nameko.events import Event, event_handler
-from nameko.exceptions import DependencyNotFound, MethodNotFound
-from nameko.rpc import rpc_proxy, rpc
+from nameko.extensions import Dependency
+from nameko.events import event_handler
+from nameko.exceptions import ExtensionNotFound, MethodNotFound
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    entrypoint_hook, worker_factory,
-    replace_injections, restrict_entrypoints, entrypoint_waiter)
+    entrypoint_hook, worker_factory, replace_injections, restrict_entrypoints,
+    entrypoint_waiter, once)
 from nameko.testing.utils import get_container
 
 
-class LanguageReporter(InjectionProvider):
+class LanguageReporter(Dependency):
     """ Return the language given in the worker context data
     """
     def acquire_injection(self, worker_ctx):
@@ -24,23 +22,19 @@ class LanguageReporter(InjectionProvider):
         return get_language
 
 
-@injection
-def language_reporter():
-    return DependencyFactory(LanguageReporter)
-
-
 handle_event = Mock()
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset_mock():
+    yield
     handle_event.reset_mock()
 
 
 class Service(object):
 
-    a = rpc_proxy("service_a")
-    language = language_reporter()
+    a = RpcProxy("service_a")
+    language = LanguageReporter()
 
     @rpc
     def working(self, value):
@@ -62,7 +56,7 @@ class Service(object):
 class ServiceA(object):
 
     name = "service_a"
-    b = rpc_proxy("service_b")
+    b = RpcProxy("service_b")
 
     @rpc
     def remote_method(self, value):
@@ -73,7 +67,7 @@ class ServiceA(object):
 class ServiceB(object):
 
     name = "service_b"
-    c = rpc_proxy("service_c")
+    c = RpcProxy("service_c")
 
     @rpc
     def remote_method(self, value):
@@ -146,7 +140,7 @@ def test_entrypoint_hook_dependency_not_found(container_factory,
 
     method = 'nonexistent_method'
 
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         with entrypoint_hook(container, method):
             pass
 
@@ -155,16 +149,12 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
     class InjectionError(Exception):
         pass
 
-    class BadInjection(InjectionProvider):
+    class BadInjection(Dependency):
         def worker_setup(self, worker_ctx):
             raise InjectionError("Boom")
 
-    @injection
-    def bad_injection():
-        return DependencyFactory(BadInjection)
-
     class BadService(Service):
-        bad = bad_injection()
+        bad = BadInjection()
 
     container = container_factory(BadService, rabbit_config)
     container.start()
@@ -177,8 +167,8 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
 def test_worker_factory():
 
     class Service(object):
-        foo_proxy = rpc_proxy("foo_service")
-        bar_proxy = rpc_proxy("bar_service")
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
 
     class OtherService(object):
         pass
@@ -201,16 +191,16 @@ def test_worker_factory():
     assert instance.bar_proxy is bar_injection
 
     # non-applicable injection
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         worker_factory(Service, nonexist=object())
 
 
 def test_replace_injections(container_factory, rabbit_config):
 
     class Service(object):
-        foo_proxy = rpc_proxy("foo_service")
-        bar_proxy = rpc_proxy("bar_service")
-        baz_proxy = rpc_proxy("baz_service")
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
+        baz_proxy = RpcProxy("baz_service")
 
         @rpc
         def method(self, arg):
@@ -229,9 +219,9 @@ def test_replace_injections(container_factory, rabbit_config):
     replacements = replace_injections(container, "bar_proxy", "baz_proxy")
     assert len([x for x in replacements]) == 2
 
-    # verify that container.dependencies doesn't include an rpc_proxy anymore
-    assert all([not isinstance(dependency, rpc_proxy.provider_cls)
-                for dependency in container.dependencies])
+    # verify that container.extensions doesn't include an RpcProxy anymore
+    assert all([not isinstance(dependency, RpcProxy)
+                for dependency in container.extensions])
 
     container.start()
 
@@ -246,7 +236,7 @@ def test_replace_injections(container_factory, rabbit_config):
 def test_replace_non_injection(container_factory, rabbit_config):
 
     class Service(object):
-        proxy = rpc_proxy("foo_service")
+        proxy = RpcProxy("foo_service")
 
         @rpc
         def method(self):
@@ -255,11 +245,11 @@ def test_replace_non_injection(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
 
     # error if dependency doesn't exit
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         replace_injections(container, "nonexist")
 
     # error if dependency is not an injection
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         replace_injections(container, "method")
 
 
@@ -267,7 +257,7 @@ def test_replace_injections_container_already_started(container_factory,
                                                       rabbit_config):
 
     class Service(object):
-        proxy = rpc_proxy("foo_service")
+        proxy = RpcProxy("foo_service")
 
     container = container_factory(Service, rabbit_config)
     container.start()
@@ -279,24 +269,6 @@ def test_replace_injections_container_already_started(container_factory,
 def test_restrict_entrypoints(container_factory, rabbit_config):
 
     method_called = Mock()
-
-    class OnceProvider(EntrypointProvider):
-        """ Entrypoint that spawns a worker exactly once, as soon as
-        the service container started.
-        """
-        def __init__(self, *args, **kwargs):
-            self.args = args
-            self.kwargs = kwargs
-
-        def start(self):
-            self.container.spawn_worker(self, self.args, self.kwargs)
-
-    @entrypoint
-    def once(*args, **kwargs):
-        return DependencyFactory(OnceProvider, args, kwargs)
-
-    class ExampleEvent(Event):
-        type = "eventtype"
 
     class Service(object):
 
@@ -326,7 +298,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     dispatch = event_dispatcher(rabbit_config)
 
     with entrypoint_waiter(container, 'handler_two'):
-        dispatch('srcservice', ExampleEvent, msg)
+        dispatch('srcservice', 'eventtype', msg)
 
     # method_called should have exactly one call, derived from the event
     # handler and not from the disabled @once entrypoint
@@ -342,7 +314,7 @@ def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
 
     container = container_factory(Service, rabbit_config)
 
-    with pytest.raises(DependencyNotFound):
+    with pytest.raises(ExtensionNotFound):
         restrict_entrypoints(container, "nonexist")
 
 
@@ -365,12 +337,9 @@ def test_entrypoint_waiter(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    class ExampleEvent(Event):
-        type = "eventtype"
-
     dispatch = event_dispatcher(rabbit_config)
     with entrypoint_waiter(container, 'handle'):
-        dispatch('srcservice', ExampleEvent, "")
+        dispatch('srcservice', 'eventtype', "")
 
 
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):

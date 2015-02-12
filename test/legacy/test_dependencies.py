@@ -5,8 +5,8 @@ import pytest
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.exceptions import RemoteError, ContainerBeingKilled
-from nameko.legacy.dependencies import (
-    rpc, NovaRpcProvider, NovaResponder, NovaRpcConsumer)
+from nameko.legacy.extensions import (
+    rpc, NovaRpc, NovaResponder, NovaRpcConsumer)
 from nameko.legacy.proxy import RPCProxy
 
 
@@ -19,7 +19,7 @@ class NovaService(object):
 
 @pytest.yield_fixture
 def mock_publish():
-    path = 'nameko.legacy.dependencies.producers'
+    path = 'nameko.legacy.extensions.producers'
     with patch(path) as patched:
         publish = patched[ANY].acquire().__enter__().publish
         yield publish
@@ -63,29 +63,28 @@ def test_nova_rpc_provider(empty_config):
             pass
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_cls = Service
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
     container.config = empty_config
 
-    rpc_provider = NovaRpcProvider()
-    rpc_provider.rpc_consumer = rpc_consumer
-    rpc_provider.bind("method", container)
+    entrypoint = NovaRpc().bind(container, "method")
+    entrypoint.setup()
+    entrypoint.rpc_consumer = rpc_consumer
 
     container.spawn_worker.side_effect = ContainerBeingKilled()
-    rpc_provider.handle_message(message_body, message)
+    entrypoint.handle_message(message_body, message)
     assert rpc_consumer.requeue_message.called
 
 
 def test_nova_responder(mock_publish):
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = NovaResponder("msgid")
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = NovaResponder(config, "msgid")
 
     # serialisable result
-    result, exc_info = responder.send_response(container, True, None)
+    result, exc_info = responder.send_response(True, None)
     assert result is True
     assert exc_info is None
 
@@ -108,14 +107,12 @@ def test_nova_responder(mock_publish):
 
 def test_nova_responder_unserializale_result(mock_publish):
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = NovaResponder("msgid")
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = NovaResponder(config, "msgid")
 
     # unserialisable result
     obj = object()
-    result, exc_info = responder.send_response(container, obj, None)
+    result, exc_info = responder.send_response(obj, None)
     assert result is None
     assert exc_info == (TypeError, ANY, ANY)
 
@@ -132,10 +129,8 @@ def test_nova_responder_unserializale_result(mock_publish):
 
 def test_nova_responder_cannot_str_exc(mock_publish):
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = NovaResponder("msgid")
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = NovaResponder(config, "msgid")
 
     class BadException(Exception):
         def __str__(self):
@@ -144,7 +139,7 @@ def test_nova_responder_cannot_str_exc(mock_publish):
     # un-str-able exception
     exc = BadException()
     result, exc_info = responder.send_response(
-        container, True, (BadException, exc, "tb"))
+        True, (BadException, exc, "tb"))
     assert result is True
     assert exc_info == (BadException, exc, "tb")
 
@@ -160,8 +155,10 @@ def test_nova_responder_cannot_str_exc(mock_publish):
 
 
 def test_nova_consumer_bad_provider():
-    consumer = NovaRpcConsumer()
-    consumer.container = Mock()
+    container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
+
+    consumer = NovaRpcConsumer().bind(container)
     message = Message(
         channel=None,
         delivery_info={'routing_key': 'some route'},

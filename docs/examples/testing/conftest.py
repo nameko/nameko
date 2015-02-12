@@ -9,6 +9,7 @@ eventlet.monkey_patch()
 
 from urlparse import urlparse
 
+from kombu.pools import reset
 from pyrabbit.api import Client
 import pytest
 
@@ -33,9 +34,9 @@ def pytest_configure(config):
     GreenPipe.encoding = py.std.sys.stdout.encoding
 
 
-@pytest.fixture(autouse=True)
-def reset_kombu_pools(request):
-    from kombu.pools import reset
+@pytest.yield_fixture(autouse=True)
+def reset_kombu_pools():
+    yield
     reset()
 
 
