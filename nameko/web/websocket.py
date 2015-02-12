@@ -1,3 +1,4 @@
+import json
 import uuid
 from collections import namedtuple
 from functools import partial
@@ -5,10 +6,10 @@ from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.websocket import WebSocketWSGI
-from nameko.exceptions import MethodNotFound, serialize, ConnectionNotFound
+from nameko.exceptions import (
+    ConnectionNotFound, MalformedRequest, MethodNotFound, serialize)
 from nameko.extensions import (
     Dependency, Entrypoint, ProviderCollector, SharedExtension)
-from nameko.web.protocol import JsonProtocol
 from nameko.web.server import WebServer
 from werkzeug.routing import Rule
 
@@ -28,11 +29,31 @@ class Connection(object):
 
 class WebSocketServer(SharedExtension, ProviderCollector):
     wsgi_server = WebServer()
-    protocol = JsonProtocol()
 
     def __init__(self):
         super(WebSocketServer, self).__init__()
         self.sockets = {}
+
+    def deserialize_ws_frame(self, payload):
+        try:
+            data = json.loads(payload)
+            return (
+                data['method'],
+                data.get('data') or {},
+                data.get('correlation_id'),
+            )
+        except Exception:
+            raise MalformedRequest('Invalid JSON data')
+
+    def serialize_for_ws(self, payload):
+        return unicode(json.dumps(payload))
+
+    def serialize_event(self, event, data):
+        return self.serialize_for_ws({
+            'type': 'event',
+            'event': event,
+            'data': data,
+        })
 
     def get_url_rule(self):
         return Rule('/ws', methods=['GET'])
@@ -46,7 +67,7 @@ class WebSocketServer(SharedExtension, ProviderCollector):
             socket_id, context_data = self.add_websocket(
                 ws, initial_context_data)
             try:
-                ws.send(self.protocol.serialize_event(
+                ws.send(self.serialize_event(
                     'connected', {'socket_id': socket_id})
                 )
 
@@ -63,22 +84,27 @@ class WebSocketServer(SharedExtension, ProviderCollector):
     def handle_websocket_request(self, socket_id, context_data, raw_req):
         correlation_id = None
         try:
-            method, data, correlation_id = self.protocol.deserialize_ws_frame(
+            method, data, correlation_id = self.deserialize_ws_frame(
                 raw_req)
             provider = self.get_provider_for_method(method)
             result = provider.handle_message(socket_id, data, context_data)
-        except Exception as exc:
-            result = serialize(exc)
-            success = False
-        else:
-            success = True
+            response = {
+                'type': 'result',
+                'success': True,
+                'data': result,
+                'correlation_id': correlation_id,
+            }
 
-        return self.protocol.serialize_result(
-            result,
-            success=success,
-            correlation_id=correlation_id,
-            ws=True,
-        )
+        except Exception as exc:
+            error = serialize(exc)
+            response = {
+                'type': 'result',
+                'success': False,
+                'error': error,
+                'correlation_id': correlation_id,
+            }
+
+        return self.serialize_for_ws(response)
 
     def get_provider_for_method(self, method):
         for provider in self._providers:
@@ -180,7 +206,7 @@ class WebSocketHub(object):
 
     def broadcast(self, channel, event, data):
         """Broadcasts an event to all sockets listening on a channel."""
-        payload = self._server.protocol.serialize_event(event, data)
+        payload = self._server.serialize_event(event, data)
         for socket_id in self.subscriptions.get(channel, ()):
             rv = self._server.sockets.get(socket_id)
             if rv is not None:
@@ -190,7 +216,7 @@ class WebSocketHub(object):
         """Sends an event to a single socket.  Returns `True` if that
         worked or `False` if not.
         """
-        payload = self._server.protocol.serialize_event(event, data)
+        payload = self._server.serialize_event(event, data)
         rv = self._server.sockets.get(socket_id)
         if rv is not None:
             rv.socket.send(payload)
