@@ -1,4 +1,3 @@
-import sys
 from logging import getLogger
 from functools import partial
 
@@ -80,9 +79,6 @@ class HttpRequestHandler(Entrypoint):
             response = response_from_result(result)
 
         except Exception as exc:
-            exc_info = sys.exc_info()
-            _log.error('request handling failed', exc_info=exc_info)
-
             if (
                 isinstance(exc, self.expected_exceptions) or
                 isinstance(exc, BadRequest)
