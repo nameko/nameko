@@ -233,7 +233,10 @@ class ServiceContainer(object):
             self._kill_protected_threads()
 
             self.started = False
-            self._died.send(None)
+
+            # if `kill` is called after `stop`, they race to send this
+            if not self._died.ready():
+                self._died.send(None)
 
     def kill(self, exc_info=None):
         """ Kill the container in a semi-graceful way.
@@ -282,7 +285,10 @@ class ServiceContainer(object):
         self._kill_protected_threads()
 
         self.started = False
-        self._died.send(None, exc_info)
+
+        # if `kill` is called after `stop`, they race to send this
+        if not self._died.ready():
+            self._died.send(None, exc_info)
 
     def wait(self):
         """ Block until the container has been stopped.
