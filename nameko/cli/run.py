@@ -1,14 +1,13 @@
-"""Run a nameko service.
-
-Given a python path to a module containing a nameko service, will host and run
-it. By default this assumes a service class named ``Service``, but this can be
-provided via ``nameko run module:ServiceClass``.
-"""
+"""Run nameko services.  Given a python path to a module containing one or more
+nameko services, will host and run them. By default this will try to find
+classes that look like services (anything with nameko entrypoints), but a
+specific service can be specified via ``nameko run module:ServiceClass``.  """
 
 import eventlet
 eventlet.monkey_patch()  # noqa (code before rest of imports)
 
 import errno
+import inspect
 import logging
 import os
 import signal
@@ -18,16 +17,25 @@ from eventlet import backdoor
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
+from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
 
 
 logger = logging.getLogger(__name__)
 
 
+def is_type(obj):
+    return isinstance(obj, type)
+
+
+def is_entrypoint(method):
+    return hasattr(method, ENTRYPOINT_EXTENSIONS_ATTR)
+
+
 def import_service(module_name):
     parts = module_name.split(":", 1)
     if len(parts) == 1:
-        module_name, obj = module_name, "Service"
+        module_name, obj = module_name, None
     else:
         module_name, obj = parts[0], parts[1]
 
@@ -52,17 +60,34 @@ def import_service(module_name):
 
     module = sys.modules[module_name]
 
-    try:
-        service_cls = getattr(module, obj)
-    except AttributeError:
-        raise CommandError(
-            "Failed to find service class {!r} in module {!r}".format(
-                obj, module_name)
-        )
+    if obj is None:
+        found_services = []
+        # find top-level objects with entrypoints
+        for _, potential_service in inspect.getmembers(module, is_type):
+            if inspect.getmembers(potential_service, is_entrypoint):
+                found_services.append(potential_service)
 
-    if not isinstance(service_cls, type):
-        raise CommandError("Service must be a class.")
-    return service_cls
+        if not found_services:
+            raise CommandError(
+                "Failed to find anything that looks like a service in module "
+                "{!r}".format(module_name)
+            )
+
+    else:
+        try:
+            service_cls = getattr(module, obj)
+        except AttributeError:
+            raise CommandError(
+                "Failed to find service class {!r} in module {!r}".format(
+                    obj, module_name)
+            )
+
+        if not isinstance(service_cls, type):
+            raise CommandError("Service must be a class.")
+
+        found_services = [service_cls]
+
+    return found_services
 
 
 def setup_backdoor(runner, port):
@@ -131,16 +156,21 @@ def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
 
-    cls = import_service(args.service)
+    services = []
+    for path in args.services:
+        services.extend(
+            import_service(path)
+        )
 
     config = {AMQP_URI_CONFIG_KEY: args.broker}
-    run([cls], config, backdoor_port=args.backdoor_port)
+    run(services, config, backdoor_port=args.backdoor_port)
 
 
 def init_parser(parser):
     parser.add_argument(
-        'service', metavar='module[:service class]',
-        help='python path to the service class to run')
+        'services', nargs='+',
+        metavar='module[:service class]',
+        help='python path to one or more service classes to run')
     parser.add_argument(
         '--broker', default='amqp://guest:guest@localhost:5672/nameko',
         help='RabbitMQ broker url')
