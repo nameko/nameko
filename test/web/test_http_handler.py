@@ -83,8 +83,10 @@ def test_custom_headers(web_session):
 def test_broken_method(web_session):
     rv = web_session.get('/fail')
     assert rv.status_code == 500
+    assert "ValueError: oops" in rv.text
 
 
 def test_broken_method_expected(web_session):
     rv = web_session.get('/fail_expected')
     assert rv.status_code == 400
+    assert "ValueError: oops" in rv.text
