@@ -62,33 +62,33 @@ class ServiceRunner(object):
         until all have completed their startup routine.
         """
         service_names = ', '.join(self.service_names)
-        _log.debug('starting services: %s', service_names)
+        _log.info('starting services: %s', service_names)
 
         SpawningProxy(self.containers).start()
 
-        _log.info('services started: %s', service_names)
+        _log.debug('services started: %s', service_names)
 
     def stop(self):
         """ Stop all running containers concurrently.
         The method blocks until all containers have stopped.
         """
         service_names = ', '.join(self.service_names)
-        _log.debug('stopping services: %s', service_names)
+        _log.info('stopping services: %s', service_names)
 
         SpawningProxy(self.containers).stop()
 
-        _log.info('services stopped: %s', service_names)
+        _log.debug('services stopped: %s', service_names)
 
     def kill(self):
         """ Kill all running containers concurrently.
         The method will block until all containers have stopped.
         """
         service_names = ', '.join(self.service_names)
-        _log.debug('killing services: %s', service_names)
+        _log.info('killing services: %s', service_names)
 
         SpawningProxy(self.containers).kill()
 
-        _log.info('services killed: %s ', service_names)
+        _log.debug('services killed: %s ', service_names)
 
     def wait(self):
         """ Wait for all running containers to stop.
