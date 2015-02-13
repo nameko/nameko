@@ -78,7 +78,6 @@ def test_import_no_service_classes():
         import_service('test.conftest')
 
 
-
 def recv_until_prompt(sock):
     data = ""
     part = ""
