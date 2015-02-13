@@ -69,7 +69,14 @@ class HttpRequestHandler(Entrypoint):
         try:
             context_data = self.server.context_data_from_headers(request)
             args, kwargs = self.process_request_data(request)
-            result = self.handle_message(context_data, args, kwargs)
+
+            self.check_signature(args, kwargs)
+            event = Event()
+            self.container.spawn_worker(
+                self, args, kwargs, context_data=context_data,
+                handle_result=partial(self.handle_result, event))
+            result = event.wait()
+
             response = response_from_result(result)
 
         except Exception as exc:
@@ -91,14 +98,6 @@ class HttpRequestHandler(Entrypoint):
                 status=status_code,
             )
         return response
-
-    def handle_message(self, context_data, args, kwargs):
-        self.check_signature(args, kwargs)
-        event = Event()
-        self.container.spawn_worker(
-            self, args, kwargs, context_data=context_data,
-            handle_result=partial(self.handle_result, event))
-        return event.wait()
 
     def handle_result(self, event, worker_ctx, result, exc_info):
         event.send(result, exc_info)
