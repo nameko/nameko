@@ -7,24 +7,41 @@ from eventlet.event import Event
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
-from nameko.exceptions import MalformedRequest
+from nameko.exceptions import serialize, BadRequest
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
-from nameko.web.protocol import JsonProtocol
 
 
 _log = getLogger(__name__)
 
 
+def response_from_result(result):
+    if isinstance(result, Response):
+        return result
+
+    headers = None
+    if isinstance(result, tuple):
+        if len(result) == 3:
+            status, headers, payload = result
+        else:
+            status, payload = result
+    else:
+        payload = result
+        status = 200
+
+    return Response(
+        unicode(payload),
+        status=status,
+        headers=headers,
+    )
+
+
 class HttpRequestHandler(Entrypoint):
     server = WebServer()
 
-    def __init__(self, method, url, expected_exceptions=(), protocol=None):
+    def __init__(self, method, url, expected_exceptions=()):
         self.method = method
         self.url = url
-        if protocol is None:
-            protocol = JsonProtocol()
-        self.protocol = protocol
         self.expected_exceptions = expected_exceptions
 
     def get_url_rule(self):
@@ -37,38 +54,49 @@ class HttpRequestHandler(Entrypoint):
         self.server.unregister_provider(self)
         super(HttpRequestHandler, self).stop()
 
-    def add_url_payload(self, payload, request):
-        payload.update(request.path_values)
-
     def process_request_data(self, request):
-        context_data = self.server.context_data_from_headers(request)
-        payload = self.protocol.load_payload(request)
-        if payload is None:
-            payload = {}
-        elif not isinstance(payload, dict):
-            raise MalformedRequest('Dictionary expected')
-        self.add_url_payload(payload, request)
-        return context_data, payload
+        if request.method == 'POST':
+            data = request.get_data()
+            args = (data,)
+        else:
+            args = ()
+
+        kwargs = request.path_values
+        return args, kwargs
 
     def handle_request(self, request):
         request.shallow = False
         try:
-            context_data, payload = self.process_request_data(request)
-            result = self.handle_message(context_data, payload)
-            if isinstance(result, Response):
-                return result
-            return self.protocol.response_from_result(result)
+            context_data = self.server.context_data_from_headers(request)
+            args, kwargs = self.process_request_data(request)
+            result = self.handle_message(context_data, args, kwargs)
+            response = response_from_result(result)
+
         except Exception as exc:
             exc_info = sys.exc_info()
             _log.error('request handling failed', exc_info=exc_info)
-            return self.protocol.response_from_exception(
-                exc, expected_exceptions=self.expected_exceptions)
 
-    def handle_message(self, context_data, payload):
-        self.check_signature((), payload)
+            if (
+                isinstance(exc, self.expected_exceptions) or
+                isinstance(exc, BadRequest)
+            ):
+                status_code = 400
+            else:
+                status_code = 500
+            error_dict = serialize(exc)
+            payload = u'Error: {exc_type}: {value}\n'.format(**error_dict)
+
+            response = Response(
+                payload,
+                status=status_code,
+            )
+        return response
+
+    def handle_message(self, context_data, args, kwargs):
+        self.check_signature(args, kwargs)
         event = Event()
         self.container.spawn_worker(
-            self, (), payload, context_data=context_data,
+            self, args, kwargs, context_data=context_data,
             handle_result=partial(self.handle_result, event))
         return event.wait()
 
