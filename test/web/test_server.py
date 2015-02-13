@@ -1,4 +1,5 @@
 from mock import patch
+import pytest
 import socket
 
 from nameko.web.handlers import http
@@ -30,7 +31,8 @@ def test_broken_pipe(container_factory, web_config, web_session):
     # server should still work
     assert web_session.get('/').text == ''
 
-def test_other_error(container_factory, web_config):
+
+def test_other_error(container_factory, web_config, web_session):
     container = container_factory(ExampleService, web_config)
     container.start()
 
@@ -42,3 +44,8 @@ def test_other_error(container_factory, web_config):
         s.sendall('GET / \r\n\r\n')
         s.recv(10)
         s.close()
+
+    # takes down container
+    with pytest.raises(socket.error) as exc:
+        container.wait()
+    assert 'boom' in str(exc)
