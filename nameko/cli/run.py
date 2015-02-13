@@ -116,9 +116,11 @@ def run(services, config, backdoor_port=None):
                 continue
             raise
         except KeyboardInterrupt:
+            print  # looks nicer with the ^C e.g. bash prints in the terminal
             try:
                 service_runner.stop()
             except KeyboardInterrupt:
+                print  # as above
                 service_runner.kill()
         else:
             # runner.wait completed
