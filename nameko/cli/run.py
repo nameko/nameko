@@ -1,10 +1,7 @@
-"""Run a nameko service.
-
-Given a python path to a module containing one or more nameko services, will
-host and run them. By default this will try to find "service-looking" classes
-(anything with nameko entrypoints), but a specific service can be specified via
-``nameko run module:ServiceClass``.
-"""
+"""Run nameko services.  Given a python path to a module containing one or more
+nameko services, will host and run them. By default this will try to find
+classes that look like services (anything with nameko entrypoints), but a
+specific service can be specified via ``nameko run module:ServiceClass``.  """
 
 import eventlet
 eventlet.monkey_patch()  # noqa (code before rest of imports)
@@ -159,7 +156,11 @@ def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
 
-    services = import_service(args.service)
+    services = []
+    for path in args.services:
+        services.extend(
+            import_service(path)
+        )
 
     config = {AMQP_URI_CONFIG_KEY: args.broker}
     run(services, config, backdoor_port=args.backdoor_port)
@@ -167,8 +168,9 @@ def main(args):
 
 def init_parser(parser):
     parser.add_argument(
-        'service', metavar='module[:service class]',
-        help='python path to the service class to run')
+        'services', nargs='+',
+        metavar='module[:service class]',
+        help='python path to one or more service classes to run')
     parser.add_argument(
         '--broker', default='amqp://guest:guest@localhost:5672/nameko',
         help='RabbitMQ broker url')
