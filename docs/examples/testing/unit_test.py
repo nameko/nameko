@@ -23,7 +23,7 @@ def test_conversion_service():
     # create worker with mock dependencies
     service = worker_factory(ConversionService)
 
-    # replace "maths" service
+    # add side effects to the mock proxy to the "maths" service
     service.maths_rpc.multiply.side_effect = lambda x, y: x * y
     service.maths_rpc.divide.side_effect = lambda x, y: x / y
 

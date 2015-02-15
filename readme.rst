@@ -15,6 +15,8 @@ A nameko service is just a class:
 
 .. code-block:: python
 
+    # helloworld.py
+
     from nameko.rpc import rpc
 
     class HelloWorld(object):
@@ -28,10 +30,8 @@ You can run it in a shell:
 
 ::
 
-    $ nameko run helloworld:HelloWorld
-    INFO:nameko.runners:starting services: ['helloworld']
-    INFO:kombu.mixins:Connected to amqp://guest@127.0.0.1:5672/nameko
-    INFO:nameko.runners:services started: ['helloworld']
+    $ nameko run helloworld
+    starting services: helloworld
     ...
 
 And play with it from another:

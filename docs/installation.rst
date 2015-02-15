@@ -6,7 +6,7 @@ Installation
 Install with Pip
 ----------------
 
-You can install nameko and its dependencies from PyPI with pip::
+You can install nameko and its dependencies from `PyPI <https://pypi.python.org/pypi/nameko>`_ with pip::
 
     pip install nameko
 
@@ -14,7 +14,7 @@ You can install nameko and its dependencies from PyPI with pip::
 Source Code
 -----------
 
-Nameko is actively developed on GitHub. Get the code by cloning the public repository::
+Nameko is actively developed on `GitHub <https://github.com/onefinestay/nameko>`_. Get the code by cloning the public repository::
 
     git clone git@github.com:onefinestay/nameko.git
 

@@ -1,5 +1,5 @@
 ack
-acked
+ack'd
 acks
 aggregator
 aggregators

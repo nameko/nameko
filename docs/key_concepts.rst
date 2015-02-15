@@ -81,3 +81,12 @@ Implicit yielding relies on `monkey patching <http://eventlet.net/doc/patching.h
 Each worker executes in its own greenthread. The maximum number of concurrent workers can be tweaked based on the amount of time each worker will spend waiting on I/O.
 
 Workers are stateless so are inherently thread safe, but dependencies should ensure they are unique per worker or otherwise safe to be accessed concurrently by multiple workers.
+
+.. _extensions:
+
+Extensions
+----------
+
+All entrypoints and dependency providers are implemented as "extensions". We refer to them this way because they're outside of service code but are not required by all services (for example, a purely AMQP-exposed service won't use the HTTP entrypoints).
+
+Nameko has a number of :ref:`built-in extensions <built_in_extensions>` and you can :ref:`write your own <writing_dependencies>`.
