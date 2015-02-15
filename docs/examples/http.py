@@ -1,7 +1,8 @@
-from nameko.web import http
+# http.py
 
+from nameko.web.handlers import http
 
-class Service(object):
+class HttpService(object):
 
     @http('GET', '/get/<int:value>')
     def get_method(self, value):
@@ -9,4 +10,4 @@ class Service(object):
 
     @http('POST', '/post')
     def do_post(self, body):
-        return {'body': body}
+        return "received: {}".format(body)

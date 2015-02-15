@@ -1,4 +1,6 @@
-from nameko.web import http
+# advanced_http.py
+
+from nameko.web.handlers import http
 from werkzeug.wrappers import Response
 
 class Service(object):
@@ -7,7 +9,7 @@ class Service(object):
     def forbidden(self):
         return 403, "Forbidden"
 
-    @http('GET', '/google')
+    @http('GET', '/headers')
     def redirect(self):
         return 201, {'Location': 'https://www.example.com/widget/1'}, ""
 
