@@ -33,6 +33,7 @@ deserializing
 entrypoint
 entrypoints
 eventlet
+freenode
 greenthread
 greenthreads
 homebrew
