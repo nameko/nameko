@@ -43,6 +43,8 @@ initialized
 initializes
 instantiate
 instantiation
+interdependencies
+interdependency
 iterable
 iterables
 javascript
@@ -52,11 +54,16 @@ kwargs
 lifealike
 lifecycle
 localhost
+maximize
+microservice
 microservices
 middleware
+minimize
 misconfigure
 misconfigured
 mixin
+monolith
+monolithic
 monospaced
 nameko
 namespace
@@ -85,6 +92,9 @@ serialize
 serialized
 serializes
 serializing
+specialization
+specialize
+specialized
 sqlalchemy
 startup
 stringified
@@ -108,3 +118,6 @@ webapp
 websocket
 websockets
 zato
+visualize
+visualized
+visualizing

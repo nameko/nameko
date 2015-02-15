@@ -18,7 +18,7 @@ Benefits
 
         Breaking a large application into smaller loosely-coupled chunks reduces the cognitive burden of working with it. A developer working on one service isn't required to understand the internals of the rest of the application; they can rely on a higher-level interface of the other services.
 
-        This is harder to achieve in a monolothic application where the boundaries and interfaces between "chunks" are fuzzier.
+        This is harder to achieve in a monolithic application where the boundaries and interfaces between "chunks" are fuzzier.
 
     * Explicit `published interface <http://martinfowler.com/bliki/PublishedInterface.html>`_
 
@@ -38,7 +38,7 @@ Drawbacks
 
     * Overhead
 
-        RPC calls are more expensive than in-process method calls. Processes will spend a lot of time waiting on I/O. Nameko mitigates wastage of CPU cycles with concurrency and evenlet, but the latency of each call will be longer than in a monolith.
+        RPC calls are more expensive than in-process method calls. Processes will spend a lot of time waiting on I/O. Nameko mitigates wastage of CPU cycles with concurrency and eventlet, but the latency of each call will be longer than in a monolithic application.
 
     * Cross-service transactions
 
@@ -48,11 +48,11 @@ Drawbacks
 
         The overhead and lack of transactions between service calls encourages coarser APIs. Crossing service boundaries is expensive and non-atomic.
 
-        Where in a monolithic application you might write code that makes many calls to acheive a certain goal, a microservices architecture will encourage you to write fewer, heavier calls to be atomic or minimize overhead.
+        Where in a monolithic application you might write code that makes many calls to achieve a certain goal, a microservices architecture will encourage you to write fewer, heavier calls to be atomic or minimize overhead.
 
     * Understanding interdependencies
 
-        Splitting an application over multiple separate components introduces the requirement to understand how those components interact. This is hard when the components are in different codebases (and developer headspaces).
+        Splitting an application over multiple separate components introduces the requirement to understand how those components interact. This is hard when the components are in different code bases (and developer head spaces).
 
         In the future we hope to include tools in nameko that make understanding, documenting and visualizing service interdependencies easier.
 
