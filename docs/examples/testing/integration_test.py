@@ -39,7 +39,8 @@ def test_service_x_y_integration():
     runner.add_service(ServiceY)
     runner.start()
 
-    # manually fire the "remote_method" entrypoint and verify response
+    # artificially fire the "remote_method" entrypoint on ServiceX
+    # and verify response
     container = get_container(runner, ServiceX)
     with entrypoint_hook(container, "remote_method") as entrypoint:
         assert entrypoint("value") == "value-x-y"

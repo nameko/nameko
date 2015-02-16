@@ -71,6 +71,7 @@ onefinestay
 parallelization
 parallelize
 pre
+programmatically
 pseudocode
 py
 rabbitmq
@@ -114,10 +115,10 @@ unregister
 unregistered
 unregisters
 utils
+visualize
+visualized
+visualizing
 webapp
 websocket
 websockets
 zato
-visualize
-visualized
-visualizing

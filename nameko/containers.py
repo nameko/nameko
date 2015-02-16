@@ -116,15 +116,18 @@ class WorkerContext(WorkerContextBase):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, worker_ctx_cls, config):
+    def __init__(self, service_cls, config, worker_ctx_cls=None):
 
         self.service_cls = service_cls
+        self.config = config
+
+        if worker_ctx_cls is None:
+            worker_ctx_cls = WorkerContext
         self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
         self.shared_extensions = {}
 
-        self.config = config
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 

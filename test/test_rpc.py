@@ -6,7 +6,7 @@ from mock import patch, Mock, call
 import pytest
 
 from nameko.containers import (
-    ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
+    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.extensions import DependencyProvider
 from nameko.events import event_handler
 from nameko.exceptions import (
@@ -219,7 +219,7 @@ def test_reply_listener(get_rpc_exchange, queue_consumer):
 
 
 def test_expected_exceptions(rabbit_config):
-    container = ServiceContainer(ExampleService, WorkerContext, rabbit_config)
+    container = ServiceContainer(ExampleService, rabbit_config)
 
     broken = get_extension(container, Rpc, method_name="broken")
     assert broken.expected_exceptions == ExampleError

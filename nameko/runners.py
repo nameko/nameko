@@ -49,7 +49,7 @@ class ServiceRunner(object):
         Service classes must be registered before calling start()
         """
         service_name = get_service_name(cls)
-        container = self.container_cls(cls, worker_ctx_cls, self.config)
+        container = self.container_cls(cls, self.config, worker_ctx_cls)
         self.service_map[service_name] = container
 
     def start(self):

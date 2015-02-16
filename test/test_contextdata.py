@@ -35,7 +35,7 @@ class Service(object):
 
 @pytest.fixture
 def container():
-    return ServiceContainer(Service, CustomWorkerContext, {})
+    return ServiceContainer(Service, {}, worker_ctx_cls=CustomWorkerContext)
 
 
 def test_get_custom_context_value(container):

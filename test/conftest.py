@@ -9,7 +9,7 @@ from kombu import pools
 from mock import patch
 import pytest
 
-from nameko.containers import ServiceContainer, WorkerContext
+from nameko.containers import ServiceContainer
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
     get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
@@ -88,10 +88,7 @@ def container_factory(rabbit_config):
     all_containers = []
 
     def make_container(service_cls, config, worker_ctx_cls=None):
-        if worker_ctx_cls is None:
-            worker_ctx_cls = WorkerContext
-
-        container = ServiceContainer(service_cls, worker_ctx_cls, config)
+        container = ServiceContainer(service_cls, config, worker_ctx_cls)
         all_containers.append(container)
         return container
 
