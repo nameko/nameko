@@ -14,47 +14,49 @@ There are many benefits as well as drawbacks to using microservices, eloquently 
 Benefits
 --------
 
-    * Small and single-purpose
+.. _single_purpose:
 
-        Breaking a large application into smaller loosely-coupled chunks reduces the cognitive burden of working with it. A developer working on one service isn't required to understand the internals of the rest of the application; they can rely on a higher-level interface of the other services.
+* Small and single-purpose
 
-        This is harder to achieve in a monolithic application where the boundaries and interfaces between "chunks" are fuzzier.
+    Breaking a large application into smaller loosely-coupled chunks reduces the cognitive burden of working with it. A developer working on one service isn't required to understand the internals of the rest of the application; they can rely on a higher-level interface of the other services.
 
-    * Explicit `published interface <http://martinfowler.com/bliki/PublishedInterface.html>`_
+    This is harder to achieve in a monolithic application where the boundaries and interfaces between "chunks" are fuzzier.
 
-        The entrypoints for a nameko service explicitly declare its published interface. This is the boundary between the service and its callers, and thus the point beyond which backwards compatibility must be considered or maintained.
+* Explicit `published interface <http://martinfowler.com/bliki/PublishedInterface.html>`_
 
-    * Individually deployable
+    The entrypoints for a nameko service explicitly declare its published interface. This is the boundary between the service and its callers, and thus the point beyond which backwards compatibility must be considered or maintained.
 
-        Unlike a monolith which can only be released all at once, nameko services can be individually deployed. A change in one service can be made and rolled out without touching any of the others. Long running and highly considered release cycles can be broken into smaller, faster iterations.
+* Individually deployable
 
-    * Specialization
+    Unlike a monolith which can only be released all at once, nameko services can be individually deployed. A change in one service can be made and rolled out without touching any of the others. Long running and highly considered release cycles can be broken into smaller, faster iterations.
 
-        Decoupled chunks of application are free to use specialized libraries and dependencies. Where a monolith might be forced to choose a one-size-fits-all library, microservices are unshackled from the choices made by the rest of the application.
+* Specialization
+
+    Decoupled chunks of application are free to use specialized libraries and dependencies. Where a monolith might be forced to choose a one-size-fits-all library, microservices are unshackled from the choices made by the rest of the application.
 
 
 Drawbacks
 ---------
 
-    * Overhead
+* Overhead
 
-        RPC calls are more expensive than in-process method calls. Processes will spend a lot of time waiting on I/O. Nameko mitigates wastage of CPU cycles with concurrency and eventlet, but the latency of each call will be longer than in a monolithic application.
+    RPC calls are more expensive than in-process method calls. Processes will spend a lot of time waiting on I/O. Nameko mitigates wastage of CPU cycles with concurrency and eventlet, but the latency of each call will be longer than in a monolithic application.
 
-    * Cross-service transactions
+* Cross-service transactions
 
-        Distributing transactions between multiple processes is difficult to the point of futility. Microservice architectures work around this by changing the APIs they expose (see below) or only offering eventual consistency.
+    Distributing transactions between multiple processes is difficult to the point of futility. Microservice architectures work around this by changing the APIs they expose (see below) or only offering eventual consistency.
 
-    * Coarse-grained APIs
+* Coarse-grained APIs
 
-        The overhead and lack of transactions between service calls encourages coarser APIs. Crossing service boundaries is expensive and non-atomic.
+    The overhead and lack of transactions between service calls encourages coarser APIs. Crossing service boundaries is expensive and non-atomic.
 
-        Where in a monolithic application you might write code that makes many calls to achieve a certain goal, a microservices architecture will encourage you to write fewer, heavier calls to be atomic or minimize overhead.
+    Where in a monolithic application you might write code that makes many calls to achieve a certain goal, a microservices architecture will encourage you to write fewer, heavier calls to be atomic or minimize overhead.
 
-    * Understanding interdependencies
+* Understanding interdependencies
 
-        Splitting an application over multiple separate components introduces the requirement to understand how those components interact. This is hard when the components are in different code bases (and developer head spaces).
+    Splitting an application over multiple separate components introduces the requirement to understand how those components interact. This is hard when the components are in different code bases (and developer head spaces).
 
-        In the future we hope to include tools in nameko that make understanding, documenting and visualizing service interdependencies easier.
+    In the future we hope to include tools in nameko that make understanding, documenting and visualizing service interdependencies easier.
 
 Further Notes
 -------------
