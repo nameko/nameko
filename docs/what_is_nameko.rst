@@ -8,7 +8,6 @@ It comes with built-in support for:
     * RPC over AMQP
     * Asynchronous events (pub-sub) over AMQP
     * Simple HTTP GET and POST
-    * Websocket RPC and subscriptions
 
 Out of the box you can build a service that can respond to RPC messages, dispatch events on certain actions, and listen to events from other services. It could also have HTTP interfaces for clients that can't speak AMQP, and a websocket interface for, say, Javascript clients.
 

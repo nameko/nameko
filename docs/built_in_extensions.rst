@@ -97,28 +97,6 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
     Date: Fri, 13 Feb 2015 14:58:48 GMT
 
 
-Websockets
-----------
-
-Nameko includes *experimental* support for RPC and broadcast to subscribers over websockets.
-
-.. literalinclude:: examples/websocket_rpc.py
-
-::
-
-    $ nameko run websockets
-    starting services: websocketrpc
-
-Using `wscat <https://www.npmjs.com/package/wscat>`_ in a terminal:
-
-::
-
-    $ wscat -c ws://localhost:8000/ws
-    connected (press CTRL+C to quit)
-      < {"data": {"socket_id": "9110b890-9456-4d75-8dab-2edf20d41f15"}, "type": "event", "event": "connected"}
-    > {"method":"echo", "data":{"value":"hello websockets"}, "correlation_id":1}
-      < {"data": "hello websockets", "correlation_id": 1, "type": "result", "success": true}
-
 Timer
 -----
 
