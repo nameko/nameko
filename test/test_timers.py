@@ -29,33 +29,6 @@ def test_provider():
     assert timer.gt.dead
 
 
-def test_provider_uses_config_for_interval():
-    container = Mock(spec=ServiceContainer)
-    container.service_name = "service"
-    container.config = {'spam-conf': 10}
-    container.spawn_managed_thread = eventlet.spawn
-
-    timer = Timer(config_key='spam-conf').bind(container, "method")
-    timer.setup()
-    timer.start()
-
-    assert timer.interval == 10
-    timer.stop()
-
-
-def test_provider_interval_as_config_fallback():
-    container = Mock(spec=ServiceContainer)
-    container.service_name = "service"
-    container.config = {}
-
-    timer = Timer(interval=1, config_key='spam-conf').bind(container, "method")
-    timer.setup()
-    timer.start()
-
-    assert timer.interval == 1
-    timer.stop()
-
-
 def test_stop_timer_immediatly():
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
