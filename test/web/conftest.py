@@ -8,9 +8,8 @@ from nameko.testing.websocket import make_virtual_socket
 
 @pytest.yield_fixture()
 def web_config(rabbit_config):
+    # find a port that's likely to be free
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     sock.bind(('127.0.0.1', 0))
     port = sock.getsockname()[1]
     sock.close()
