@@ -22,7 +22,7 @@ def test_event_interface(rabbit_config):
     dispatch = event_dispatcher(rabbit_config)
 
     # prints "service b received payload" before "exited"
-    with entrypoint_waiter(container, 'hello'):
+    with entrypoint_waiter(container, 'handle_event'):
         dispatch("service_a", "event_type", "payload")
     print "exited"
 
