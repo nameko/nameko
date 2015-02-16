@@ -47,30 +47,26 @@ class Timer(Entrypoint):
         self.gt.kill()
 
     def _run(self):
-        ''' Runs the interval loop.
+        """ Runs the interval loop. """
 
-        This should not be called directly, rather the `start()` method
-        should be used.
-        '''
-        while not self.should_stop.ready():
+        sleep_time = self.interval
+
+        while True:
+            # sleep for `sleep_time`, unless `should_stop` fires, in which
+            # case we leave the while loop and stop entirely
+            with Timeout(sleep_time, exception=False):
+                self.should_stop.wait()
+                break
+
             start = time.time()
 
             self.handle_timer_tick()
 
             elapsed_time = (time.time() - start)
-            sleep_time = max(self.interval - elapsed_time, 0)
-            self._sleep_or_stop(sleep_time)
 
-    def _sleep_or_stop(self, sleep_time):
-        ''' Sleeps for `sleep_time` seconds or until a `should_stop` event
-        has been fired, whichever comes first.
-        '''
-        try:
-            with Timeout(sleep_time):
-                self.should_stop.wait()
-        except Timeout:
-            # we use the timeout as a cancellable sleep
-            pass
+            # next time, sleep however long is left of our interval, taking
+            # off the time we took to run
+            sleep_time = max(self.interval - elapsed_time, 0)
 
     def handle_timer_tick(self):
         args = ()
