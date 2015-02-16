@@ -95,7 +95,7 @@ Version 1.11.0
 --------------
 
 * Raise a specific ``RpcTimeout`` error in the RPC proxy rather than
- ``socket.timeout`` to avoid confusing kombu's ``Connection.ensure``
+  ``socket.timeout`` to avoid confusing kombu's ``Connection.ensure``
 * Improve logging helpers
 * Use ``inspect.getcallargs`` instead of shadow lambda for RPC argument
   checking

@@ -58,8 +58,9 @@ This section covers most things you need to know to create and run your own name
    installation
    cli
    built_in_extensions
+   community_extensions
    testing
-   writing_dependencies
+   writing_extensions
 
 
 More Information

@@ -89,7 +89,7 @@ Extensions
 
 All entrypoints and dependency providers are implemented as "extensions". We refer to them this way because they're outside of service code but are not required by all services (for example, a purely AMQP-exposed service won't use the HTTP entrypoints).
 
-Nameko has a number of :ref:`built-in extensions <built_in_extensions>` and you can :ref:`write your own <writing_dependencies>`.
+Nameko has a number of :ref:`built-in extensions <built_in_extensions>`, some are :ref:`provided by the community <community_extensions>` and you can :ref:`write your own <writing_extensions>`.
 
 .. _running_services:
 
@@ -98,9 +98,11 @@ Running Services
 
 All that's required to run a service is the service class and any relevant configuration. The easiest way to run one or multiple services is with the nameko CLI::
 
-    $ nameko run module:[ServiceClass] [module:[ServiceClass]]
+    $ nameko run module:[ServiceClass]
 
 This command will discover nameko services in the given ``module``\s and start running them. You can optionally limit it to specific ``ServiceClass``\s.
+
+.. _containers:
 
 Service Containers
 ^^^^^^^^^^^^^^^^^^
@@ -110,6 +112,8 @@ Each service class is delegated to a :class:`~nameko.containers.ServiceContainer
 Using the ``ServiceContainer`` to run a single service:
 
 .. literalinclude:: examples/service_container.py
+
+.. _runner:
 
 Service Runner
 ^^^^^^^^^^^^^^

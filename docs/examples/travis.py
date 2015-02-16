@@ -2,7 +2,7 @@ from urlparse import urljoin
 
 import requests
 
-from nameko.dependencies import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.rpc import rpc
 
 API_ENDPOINT = "https://api.travis-ci.org/"
@@ -18,7 +18,7 @@ class ApiWrapper(object):
         return self.session.get(url)
 
 
-class TravisWebservice(Dependency):
+class TravisWebservice(DependencyProvider):
 
     def setup(self):
         self.session = requests.Session()
