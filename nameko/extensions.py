@@ -2,12 +2,14 @@ from __future__ import absolute_import
 
 from functools import partial
 import inspect
+from logging import getLogger
 import types
 import weakref
 
 from eventlet.event import Event
 
-from logging import getLogger
+from nameko.exceptions import IncorrectSignature
+
 _log = getLogger(__name__)
 
 
@@ -264,6 +266,15 @@ class Entrypoint(Extension):
         instance = super(Entrypoint, self).bind(container)
         instance.method_name = method_name
         return instance
+
+    def check_signature(self, args, kwargs):
+        service_cls = self.container.service_cls
+        fn = getattr(service_cls, self.method_name)
+        try:
+            service_instance = None  # fn is unbound
+            inspect.getcallargs(fn, service_instance, *args, **kwargs)
+        except TypeError as exc:
+            raise IncorrectSignature(str(exc))
 
     @classmethod
     def decorator(cls, *args, **kwargs):

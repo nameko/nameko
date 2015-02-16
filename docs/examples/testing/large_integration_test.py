@@ -302,7 +302,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     runner = runner_factory(AcmeShopService, StockService, InvoiceService)
 
     # replace ``event_dispatcher`` and ``payment_rpc``  dependencies on
-    # AcmeShopService with ``MockDependency``s
+    # AcmeShopService with ``MockDependencyProvider``\s
     shop_container = get_container(runner, AcmeShopService)
     fire_event, payment_rpc = replace_dependencies(
         shop_container, "fire_event", "payment_rpc")

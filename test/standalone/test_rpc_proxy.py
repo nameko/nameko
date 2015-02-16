@@ -353,3 +353,31 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         assert proxy.foobar.spam(ham=1) == 1
+
+
+def test_recover_from_keyboardinterrupt(
+    container_factory, rabbit_manager, rabbit_config
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()  # create rpc queues
+    container.stop()  # but make sure call doesn't complete
+
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy:
+        def call():
+            return proxy.spam(ham=0)
+
+        gt = eventlet.spawn(call)
+        eventlet.sleep(.1)  # make sure `call` is scheduled
+
+        gt.kill(KeyboardInterrupt('killing from test'))
+        # wait for it to die
+        try:
+            gt.wait()
+        except KeyboardInterrupt:
+            pass
+
+        container = container_factory(FooService, rabbit_config)
+        container.start()
+
+        # proxy should still work
+        assert proxy.spam(ham=1) == 1
