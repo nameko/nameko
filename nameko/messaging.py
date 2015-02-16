@@ -1,5 +1,5 @@
 '''
-Provides core messaging decorators and dependency injection providers.
+Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 from itertools import count
@@ -18,7 +18,7 @@ from kombu.mixins import ConsumerMixin
 from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
-    Dependency, Entrypoint, SharedExtension, ProviderCollector)
+    DependencyProvider, Entrypoint, SharedExtension, ProviderCollector)
 
 _log = getLogger(__name__)
 
@@ -65,7 +65,7 @@ class HeaderDecoder(object):
         return worker_ctx_cls.get_context_data(stripped)
 
 
-class Publisher(Dependency, HeaderEncoder):
+class Publisher(DependencyProvider, HeaderEncoder):
 
     amqp_uri = None
 
@@ -121,7 +121,7 @@ class Publisher(Dependency, HeaderEncoder):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def publish(msg, **kwargs):
             exchange = self.exchange
             queue = self.queue

@@ -11,7 +11,7 @@ from eventlet import event
 from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
-from nameko.extensions import Dependency, Entrypoint
+from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.exceptions import ExtensionNotFound
 from nameko.testing.utils import get_extension, wait_for_worker_idle
 
@@ -24,12 +24,21 @@ def entrypoint_hook(container, method_name, context_data=None):
     in the service class. Intended to be used as an integration testing
     utility.
 
+    :Parameters:
+        container : ServiceContainer
+            The container hosting the service owning the entrypoint
+        method_name : str
+            The name of the entrypoint decorated method on the service class
+        context_data : dict
+            Context data to provide for the call, e.g. a language, auth
+            token or session.
+
     **Usage**
 
-    To verify that ServiceX and ServiceY are compatible, make an integration
-    test that checks their interaction:
+    To verify that `ServiceX` and `ServiceY` are compatible, make an
+    integration test that checks their interaction:
 
-    .. literalinclude:: examples/testing/integration_test.py
+    .. literalinclude:: ../examples/testing/integration_x_y_test.py
 
     """
     entrypoint = get_extension(container, Entrypoint, method_name=method_name)
@@ -67,12 +76,12 @@ def entrypoint_hook(container, method_name, context_data=None):
     yield hook
 
 
-class EntrypointWaiter(Dependency):
+class EntrypointWaiter(DependencyProvider):
     """Helper for `entrypoint_waiter`
 
-    Injection to be manually (and temporarily) added to an existing container.
-    Takes an entrypoint name, and exposes a `wait` method, which will return
-    once the entrypoint has fired.
+    DependencyProvider to be manually (and temporarily) added to an existing
+    container. Takes an entrypoint name, and exposes a `wait` method, which
+    will return once the entrypoint has fired.
     """
 
     def __init__(self, entrypoint):
@@ -121,98 +130,102 @@ def entrypoint_waiter(container, entrypoint, timeout=30):
         container.dependencies.remove(waiter)
 
 
-def worker_factory(service_cls, **injections):
+def worker_factory(service_cls, **dependencies):
     """ Return an instance of ``service_cls`` with its injected dependencies
-    replaced with Mock objects, or as given in ``injections``.
+    replaced with :class:`~mock.MagicMock` objects, or as given in
+    ``dependencies``.
 
     **Usage**
 
-    The following example service proxies calls to a "math" service via
-    and ``RpcProxy`` dependency::
+    The following example service proxies calls to a "maths" service via
+    an ``RpcProxy`` dependency::
 
         from nameko.rpc import RpcProxy, rpc
 
         class ConversionService(object):
-            math = RpcProxy("math_service")
+            maths_rpc = RpcProxy("maths")
 
             @rpc
             def inches_to_cm(self, inches):
-                return self.math.multiply(inches, 2.54)
+                return self.maths_rpc.multiply(inches, 2.54)
 
             @rpc
             def cm_to_inches(self, cms):
-                return self.math.divide(cms, 2.54)
+                return self.maths_rpc.divide(cms, 2.54)
 
-    Use the ``worker_factory`` to create an unhosted instance of
-    ``ConversionService`` with its injections replaced by Mock objects::
+    Use the ``worker_factory`` to create an instance of
+    ``ConversionService`` with its dependencies replaced by MagicMock objects::
 
         service = worker_factory(ConversionService)
 
-    Nameko's entrypoints do not modify the service methods, so they can be
-    called directly on an unhosted instance. The injection Mocks can be used
-    as any other Mock object, so a complete unit test for Service may look
-    like this::
+    Nameko's entrypoints do not modify the service methods, so instance methods
+    can be called directly with the same signature. The replaced dependencies
+    can be used as any other MagicMock object, so a complete unit test for
+    the conversion service may look like this::
 
         # create worker instance
-        service = worker_factory(Service)
+        service = worker_factory(ConversionService)
 
-        # replace "math" service
-        service.math.multiply.side_effect = lambda x, y: x * y
-        service.math.divide.side_effect = lambda x, y: x / y
+        # replace "maths" service
+        service.maths_rpc.multiply.side_effect = lambda x, y: x * y
+        service.maths_rpc.divide.side_effect = lambda x, y: x / y
 
         # test inches_to_cm business logic
         assert service.inches_to_cm(300) == 762
-        service.math.multiply.assert_called_once_with(300, 2.54)
+        service.maths_rpc.multiply.assert_called_once_with(300, 2.54)
 
         # test cms_to_inches business logic
         assert service.cms_to_inches(762) == 300
-        service.math.divide.assert_called_once_with(762, 2.54)
+        service.maths_rpc.divide.assert_called_once_with(762, 2.54)
 
-    *Providing Injections*
+    *Providing Dependencies*
 
-    The ``**injections`` kwargs to ``worker_factory`` can be used to provide
-    a replacement injection instead of a Mock. For example, to unit test a
+    The ``**dependencies`` kwargs to ``worker_factory`` can be used to provide
+    a replacement dependency instead of a mock. For example, to unit test a
     service against a real database:
 
-    .. literalinclude:: examples/testing/unit_with_provided_injection_test.py
+    .. literalinclude::
+        ../examples/testing/unit_test_alternative_dependency.py
 
-    If a given injection does not exist on ``service_cls``, a
+    If a named dependency provider does not exist on ``service_cls``, a
     ``ExtensionNotFound`` exception is raised.
 
     """
     service = service_cls()
     for name, attr in inspect.getmembers(service_cls):
-        if isinstance(attr, Dependency):
+        if isinstance(attr, DependencyProvider):
             try:
-                injection = injections.pop(name)
+                dependency = dependencies.pop(name)
             except KeyError:
-                injection = MagicMock()
-            setattr(service, name, injection)
+                dependency = MagicMock()
+            setattr(service, name, dependency)
 
-    if injections:
-        raise ExtensionNotFound("Injection(s) '{}' not found on {}.".format(
-            injections.keys(), service_cls))
+    if dependencies:
+        raise ExtensionNotFound(
+            "DependencyProvider(s) '{}' not found on {}.".format(
+                dependencies.keys(), service_cls))
 
     return service
 
 
-class MockInjection(Dependency):
-    def __init__(self, name):
-        self.attr_name = name
-        self.injection = MagicMock()
+class MockDependencyProvider(DependencyProvider):
+    def __init__(self, attr_name):
+        self.attr_name = attr_name
+        self.dependency = MagicMock()
 
-    def acquire_injection(self, worker_ctx):
-        return self.injection
+    def get_dependency(self, worker_ctx):
+        return self.dependency
 
 
-def replace_injections(container, *injections):
-    """ Replace the injections on ``container`` with :class:`MockInjection`
-    objects if they are named in ``injections``.
+def replace_dependencies(container, *dependencies):
+    """ Replace the dependency providers on ``container`` with
+    :class:`MockDependencyProvider` objects if they are named in
+    ``dependencies``.
 
-    Return the :attr:`MockInjection.injection` of the replacements, so that
-    calls to the replaced injections can be inspected. Return a single object
-    if only one injection was replaced, and a generator yielding the
-    replacements in the same order as ``names`` otherwise.
+    Return the :attr:`MockDependencyProvider.dependency` of the replacements,
+    so that calls to the replaced dependencies can be inspected. Return a
+    single object if only one dependency was replaced, and a generator
+    yielding the replacements in the same order as ``names`` otherwise.
 
     Replacements are made on the container instance and have no effect on the
     service class. New container instances are therefore unaffected by
@@ -223,38 +236,38 @@ def replace_injections(container, *injections):
     ::
 
         from nameko.rpc import RpcProxy, rpc
-        from nameko.standalone.rpc import RpcProxy as StandaloneRpcProxy
+        from nameko.standalone.rpc import ServiceRpcProxy
 
         class ConversionService(object):
-            math = RpcProxy("math_service")
+            maths_rpc = RpcProxy("maths")
 
             @rpc
             def inches_to_cm(self, inches):
-                return self.math.multiply(inches, 2.54)
+                return self.maths_rpc.multiply(inches, 2.54)
 
             @rpc
             def cm_to_inches(self, cms):
-                return self.math.divide(cms, 2.54)
+                return self.maths_rpc.divide(cms, 2.54)
 
         container = ServiceContainer(ConversionService, config)
-        math = replace_injections(container, "math")
+        maths_rpc = replace_dependencies(container, "maths_rpc")
 
         container.start()
 
-        with StandaloneRpcProxy('conversionservice', config) as proxy:
+        with ServiceRpcProxy('conversionservice', config) as proxy:
             proxy.cm_to_inches(100)
 
-        # assert that the injection was called as expected
-        math.divide.assert_called_once_with(100, 2.54)
+        # assert that the dependency was called as expected
+        maths_rpc.divide.assert_called_once_with(100, 2.54)
 
     """
     if container.started:
-        raise RuntimeError('You must replace injections before the '
+        raise RuntimeError('You must replace dependencies before the '
                            'container is started.')
 
     dependency_names = {dep.attr_name for dep in container.dependencies}
 
-    missing = set(injections) - dependency_names
+    missing = set(dependencies) - dependency_names
     if missing:
         raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
             missing, container))
@@ -262,18 +275,18 @@ def replace_injections(container, *injections):
     replacements = OrderedDict()
 
     named_dependencies = {dep.attr_name: dep for dep in container.dependencies
-                          if dep.attr_name in injections}
-    for name in injections:
+                          if dep.attr_name in dependencies}
+    for name in dependencies:
         dependency = named_dependencies[name]
-        replacement = MockInjection(name)
+        replacement = MockDependencyProvider(name)
         replacements[dependency] = replacement
         container.dependencies.remove(dependency)
         container.dependencies.add(replacement)
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
-    res = (replacement.injection for replacement in replacements.values())
-    if len(injections) == 1:
+    res = (replacement.dependency for replacement in replacements.values())
+    if len(dependencies) == 1:
         return next(res)
     return res
 
@@ -286,30 +299,36 @@ def restrict_entrypoints(container, *entrypoints):
 
     **Usage**
 
-    The following service definition has two entrypoints for "method"::
+    The following service definition has two entrypoints:
+
+    .. code-block:: python
 
         class Service(object):
 
-            @rpc
+            @timer(interval=1)
             def foo(self, arg):
                 pass
 
             @rpc
-            @event_handler('srcservice', 'event_one')
             def bar(self, arg)
                 pass
 
-        container = container_factory(Service, config)
+            @rpc
+            def baz(self, arg):
+                pass
 
-    To disable the entrypoints other than on "foo"::
+        container = ServiceContainer(Service, config)
 
-        restrict_entrypoints(container, "foo")
+    To disable the timer entrypoint on ``foo``, leaving just the RPC
+    entrypoints:
 
-    To maintain both the rpc and the event_handler entrypoints on "bar"::
+    .. code-block:: python
 
-        restrict_entrypoints(container, "bar")
+        restrict_entrypoints(container, "bar", "baz")
 
-    Note that it is not possible to identify entrypoints individually.
+    Note that it is not possible to identify multiple entrypoints on the same
+    method individually.
+
     """
     if container.started:
         raise RuntimeError('You must restrict entrypoints before the '

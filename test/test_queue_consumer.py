@@ -2,19 +2,19 @@ import socket
 import uuid
 
 import eventlet
-from eventlet.event import Event
-from kombu import Queue, Exchange, Connection
-from kombu.exceptions import TimeoutError
-from mock import patch, Mock, ANY, call
 import pytest
+from eventlet.event import Event
+from kombu import Connection, Exchange, Queue
+from kombu.exceptions import TimeoutError
+from mock import ANY, call, Mock, patch
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.containers import ServiceContainer
 from nameko.messaging import QueueConsumer
-from nameko.testing.utils import (
-    assert_stops_raising, get_rabbit_connections, get_extension)
 from nameko.rpc import rpc, RpcConsumer
 from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.testing.utils import (
+    assert_stops_raising, get_extension, get_rabbit_connections)
 
 TIMEOUT = 5
 

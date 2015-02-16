@@ -58,7 +58,7 @@ def test_get_extension(rabbit_config):
 
     from nameko.messaging import QueueConsumer
     from nameko.rpc import Rpc, RpcConsumer
-    from nameko.containers import ServiceContainer, WorkerContext
+    from nameko.containers import ServiceContainer
 
     class Service(object):
         @rpc
@@ -69,7 +69,7 @@ def test_get_extension(rabbit_config):
         def bar(self):
             pass
 
-    container = ServiceContainer(Service, WorkerContext, rabbit_config)
+    container = ServiceContainer(Service, rabbit_config)
 
     rpc_consumer = get_extension(container, RpcConsumer)
     queue_consumer = get_extension(container, QueueConsumer)

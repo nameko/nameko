@@ -6,8 +6,8 @@ from mock import patch, Mock, call
 import pytest
 
 from nameko.containers import (
-    ServiceContainer, WorkerContextBase, WorkerContext, NAMEKO_CONTEXT_KEYS)
-from nameko.extensions import Dependency
+    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
+from nameko.extensions import DependencyProvider
 from nameko.events import event_handler
 from nameko.exceptions import (
     RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
@@ -33,16 +33,16 @@ translations = {
 }
 
 
-class Translator(Dependency):
+class Translator(DependencyProvider):
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def translate(value):
             lang = worker_ctx.data['language']
             return translations[lang][value]
         return translate
 
 
-class WorkerErrorLogger(Dependency):
+class WorkerErrorLogger(DependencyProvider):
 
     expected = {}
     unexpected = {}
@@ -219,7 +219,7 @@ def test_reply_listener(get_rpc_exchange, queue_consumer):
 
 
 def test_expected_exceptions(rabbit_config):
-    container = ServiceContainer(ExampleService, WorkerContext, rabbit_config)
+    container = ServiceContainer(ExampleService, rabbit_config)
 
     broken = get_extension(container, Rpc, method_name="broken")
     assert broken.expected_exceptions == ExampleError

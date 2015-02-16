@@ -4,7 +4,7 @@ import sys
 from mock import ANY
 import pytest
 
-from nameko.extensions import Dependency
+from nameko.extensions import DependencyProvider
 from nameko.exceptions import RemoteError
 from nameko.rpc import Rpc
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -20,8 +20,8 @@ def reset():
     del worker_result_called[:]
 
 
-class ResultCollector(Dependency):
-    """ Dependency that collects worker results
+class ResultCollector(DependencyProvider):
+    """ DependencyProvider that collects worker results
     """
     def worker_result(self, worker_ctx, res, exc_info):
         worker_result_called.append((res, exc_info))
@@ -75,7 +75,7 @@ def test_handle_result(container_factory, rabbit_manager, rabbit_config):
 
     wait_for_worker_idle(container)
 
-    # verify CollectorInjection sees values returned from `handle_result`
+    # verify ResultCollector sees values returned from `handle_result`
     assert worker_result_called == [
         ("hello", None),
         ("something went wrong", (TypeError, ANY, ANY)),

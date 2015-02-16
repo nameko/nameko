@@ -18,7 +18,7 @@ def fake_argv():
             '--broker',
             'my_broker',
             'test.sample:Service',
-            ],
+        ],
     ):
         yield
 

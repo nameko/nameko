@@ -1,26 +1,24 @@
 from __future__ import absolute_import
-from functools import partial
-import inspect
+
 import json
-from logging import getLogger
 import sys
 import uuid
+from functools import partial
+from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
+from nameko.constants import AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
-    MethodNotFound, UnknownService, UnserializableValueError,
-    MalformedRequest, RpcConnectionError, serialize, deserialize,
-    IncorrectSignature, ContainerBeingKilled)
+    ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
+    RpcConnectionError, serialize, UnknownService, UnserializableValueError)
 from nameko.extensions import (
-    Dependency, Entrypoint, ProviderCollector, SharedExtension)
-from nameko.messaging import QueueConsumer, HeaderEncoder, HeaderDecoder
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
+from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
 from nameko.utils import repr_safe_str
-
 
 _log = getLogger(__name__)
 
@@ -69,8 +67,8 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
         The RpcConsumer ordinary unregisters from the QueueConsumer when the
         last Rpc subclass unregisters from it. If no providers were registered,
-        we should unregister ourself from the QueueConsumer as soon as we're
-        asked to stop.
+        we should unregister from the QueueConsumer as soon as we're asked
+        to stop.
         """
         if not self._providers_registered:
             self.queue_consumer.unregister_provider(self)
@@ -145,15 +143,6 @@ class Rpc(Entrypoint, HeaderDecoder):
 
     def stop(self):
         self.rpc_consumer.unregister_provider(self)
-
-    def check_signature(self, args, kwargs):
-        service_cls = self.container.service_cls
-        fn = getattr(service_cls, self.method_name)
-        try:
-            service_instance = None  # fn is unbound
-            inspect.getcallargs(fn, service_instance, *args, **kwargs)
-        except TypeError as exc:
-            raise IncorrectSignature(str(exc))
 
     def handle_message(self, body, message):
         try:
@@ -292,14 +281,14 @@ class ReplyListener(SharedExtension):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-class RpcProxy(Dependency):
+class RpcProxy(DependencyProvider):
 
     rpc_reply_listener = ReplyListener()
 
     def __init__(self, target_service):
         self.target_service = target_service
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         return ServiceProxy(worker_ctx, self.target_service,
                             self.rpc_reply_listener)
 

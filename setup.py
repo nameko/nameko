@@ -32,8 +32,9 @@ requirements, dependency_links = parse_requirements(
 setup(
     name='nameko',
     version='1.14.0',
-    description='service framework supporting multiple'
-                'messaging and RPC implementations',
+    description='A microservices framework for Python that lets service '
+                'developers concentrate on application logic and encourages '
+                'testability.',
     author='onefinestay',
     author_email='engineering@onefinestay.com',
     url='http://github.com/onefinestay/nameko',

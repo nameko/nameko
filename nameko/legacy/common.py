@@ -3,5 +3,10 @@ import uuid
 
 import iso8601
 
-UIDGEN = lambda: uuid.uuid4().hex
-UTCNOW = lambda: datetime.datetime.now(iso8601.iso8601.UTC)
+
+def UIDGEN():
+    return uuid.uuid4().hex
+
+
+def UTCNOW():
+    return datetime.datetime.now(iso8601.iso8601.UTC)

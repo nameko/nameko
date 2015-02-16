@@ -116,15 +116,18 @@ class WorkerContext(WorkerContextBase):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, worker_ctx_cls, config):
+    def __init__(self, service_cls, config, worker_ctx_cls=None):
 
         self.service_cls = service_cls
+        self.config = config
+
+        if worker_ctx_cls is None:
+            worker_ctx_cls = WorkerContext
         self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
         self.shared_extensions = {}
 
-        self.config = config
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
@@ -187,7 +190,7 @@ class ServiceContainer(object):
         active workers to complete.
 
         After all active workers have stopped the container stops all
-        injections.
+        dependency providers.
 
         At this point there should be no more managed threads. In case there
         are any managed threads, they are killed by the container.
@@ -233,7 +236,10 @@ class ServiceContainer(object):
             self._kill_protected_threads()
 
             self.started = False
-            self._died.send(None)
+
+            # if `kill` is called after `stop`, they race to send this
+            if not self._died.ready():
+                self._died.send(None)
 
     def kill(self, exc_info=None):
         """ Kill the container in a semi-graceful way.
@@ -282,7 +288,10 @@ class ServiceContainer(object):
         self._kill_protected_threads()
 
         self.started = False
-        self._died.send(None, exc_info)
+
+        # if `kill` is called after `stop`, they race to send this
+        if not self._died.ready():
+            self._died.send(None, exc_info)
 
     def wait(self):
         """ Block until the container has been stopped.
@@ -291,7 +300,7 @@ class ServiceContainer(object):
         raise it.
 
         Any unhandled exception raised in a managed thread or in the
-        worker lifecycle (e.g. inside :meth:`Dependency.worker_setup`)
+        worker lifecycle (e.g. inside :meth:`DependencyProvider.worker_setup`)
         results in the container being ``kill()``ed, and the exception
         raised from ``wait()``.
         """
@@ -368,6 +377,8 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
+            # when we have better parallelization than ``spawningset``,
+            # do this injection inline
             self.dependencies.all.inject(worker_ctx)
             self.dependencies.all.worker_setup(worker_ctx)
 
@@ -449,7 +460,7 @@ class ServiceContainer(object):
             # we don't care much about threads killed by the container
             # this can happen in stop() and kill() if extensions
             # don't properly take care of their threads
-            _log.warning('%s thread killed by container', self)
+            _log.debug('%s thread killed by container', self)
 
         except Exception:
             _log.error('%s thread exited with error', self, exc_info=True)

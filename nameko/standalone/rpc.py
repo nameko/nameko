@@ -37,7 +37,7 @@ class ConsumeEvent(object):
 
         By the time the blocking call exits, self.send() will have been called
         with the body of the received message
-        (see :class:nameko.rpc.ReplyListener.handle_message).
+        (see :meth:`~nameko.rpc.ReplyListener.handle_message`).
 
         Exceptions are raised directly.
         """
@@ -133,6 +133,13 @@ class PollingQueueConsumer(object):
                 self.provider._reply_events.clear()
                 # In case this was a temporary error, attempt to reconnect. If
                 # we fail, the connection error will bubble.
+                self._setup_queue()
+                correlation_id = yield
+
+            except KeyboardInterrupt as exc:
+                event = self.provider._reply_events.pop(correlation_id)
+                event.send_exception(exc)
+                # exception may have killed the connection
                 self._setup_queue()
                 correlation_id = yield
 

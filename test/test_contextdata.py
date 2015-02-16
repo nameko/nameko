@@ -35,7 +35,7 @@ class Service(object):
 
 @pytest.fixture
 def container():
-    return ServiceContainer(Service, CustomWorkerContext, {})
+    return ServiceContainer(Service, {}, worker_ctx_cls=CustomWorkerContext)
 
 
 def test_get_custom_context_value(container):
@@ -44,7 +44,7 @@ def test_get_custom_context_value(container):
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={CUSTOM_CONTEXT_KEY: "hello"})
 
-    assert dependency.acquire_injection(worker_ctx) == "hello"
+    assert dependency.get_dependency(worker_ctx) == "hello"
 
 
 def test_get_unset_value(container):
@@ -53,7 +53,7 @@ def test_get_unset_value(container):
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={})
 
-    assert dependency.acquire_injection(worker_ctx) is None
+    assert dependency.get_dependency(worker_ctx) is None
 
 
 @pytest.mark.parametrize('attr_name, context_key', [
@@ -69,4 +69,4 @@ def test_get_builtin_dependencies(attr_name, context_key, container):
     worker_ctx = WorkerContext(
         container, "service", Mock(), data={context_key: 'value'})
 
-    assert dependency.acquire_injection(worker_ctx) == "value"
+    assert dependency.get_dependency(worker_ctx) == "value"

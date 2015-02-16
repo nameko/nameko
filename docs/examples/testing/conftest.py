@@ -1,4 +1,4 @@
-""" Barebones conftest.py
+""" Minimal conftest.py
 """
 # Nameko relies on eventlet
 # You should monkey patch the standard library as early as possible to avoid
@@ -24,14 +24,6 @@ def pytest_addoption(parser):
         "--rabbit-ctl-uri", action="store", dest='RABBIT_CTL_URI',
         default='http://guest:guest@localhost:15672',
         help=("The URI for rabbit's management API."))
-
-
-def pytest_configure(config):
-    # monkey patch an encoding attribute onto GreenPipe to
-    # satisfy a pytest assertion
-    import py
-    from eventlet.greenio import GreenPipe
-    GreenPipe.encoding = py.std.sys.stdout.encoding
 
 
 @pytest.yield_fixture(autouse=True)

@@ -27,7 +27,9 @@ def get_extension(container, extension_cls, **match_attrs):
             if not match_attrs:
                 return ext
 
-            has_attribute = lambda name, value: getattr(ext, name) == value
+            def has_attribute(name, value):
+                return getattr(ext, name) == value
+
             if all([has_attribute(name, value)
                     for name, value in match_attrs.items()]):
                 return ext
@@ -47,8 +49,8 @@ def wait_for_call(timeout, mock_method):
     """ Return a context manager that waits ``timeout`` seconds for
     ``mock_method`` to be called, yielding the mock if so.
 
-    Raises an eventlet.TimeoutError if the method was not called within
-    ``timeout``.
+    Raises an :class:`eventlet.Timeout` if the method was not called
+    within ``timeout`` seconds.
     """
     with eventlet.Timeout(timeout):
         while not mock_method.called:
@@ -59,8 +61,8 @@ def wait_for_call(timeout, mock_method):
 def wait_for_worker_idle(container, timeout=10):
     """ Blocks until ``container`` has no running workers.
 
-    Raises an eventlet.TimeoutError if the workers did not complete within
-    ``timeout`` seconds.
+    Raises an :class:`eventlet.Timeout` if the method was not called
+    within ``timeout`` seconds.
     """
     with eventlet.Timeout(timeout):
         container._worker_pool.waitall()
@@ -68,7 +70,7 @@ def wait_for_worker_idle(container, timeout=10):
 
 def assert_stops_raising(fn, exception_type=Exception, timeout=10,
                          interval=0.1):
-    """Assert that ``fn`` returns succesfully within ``timeout``
+    """Assert that ``fn`` returns successfully within ``timeout``
        seconds, trying every ``interval`` seconds.
 
        If ``exception_type`` is provided, fail unless the exception thrown is
