@@ -11,14 +11,12 @@ _log = getLogger(__name__)
 
 
 class Timer(Entrypoint):
-    def __init__(self, interval=None, config_key=None):
+    def __init__(self, interval):
         """
         Timer entrypoint implementation. Fires every :attr:`self.interval`
         seconds.
 
-        Either `interval` or `config_key` must be provided. If given,
-        `config_key` specifies a key in the config will be used as the
-        interval.
+        The implementation sleeps first, i.e. does not fire at time 0.
 
         Example::
 
@@ -28,25 +26,15 @@ class Timer(Entrypoint):
 
                 @timer(interval=5)
                 def tick(self):
-                    self.shrub(body)
+                    pass
 
-                @timer(config_key='tock_interval')
-                def tock(self):
-                    self.shrub(body)
         """
-        self._default_interval = interval
-        self.config_key = config_key
+        self.interval = interval
         self.should_stop = Event()
         self.gt = None
 
     def start(self):
         _log.debug('starting %s', self)
-        interval = self._default_interval
-
-        if self.config_key:
-            interval = self.container.config.get(self.config_key, interval)
-
-        self.interval = interval
         self.gt = self.container.spawn_managed_thread(self._run)
 
     def stop(self):
