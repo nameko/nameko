@@ -10,6 +10,7 @@ from nameko.exceptions import (
     MethodNotFound, RemoteError, deserialize, MalformedRequest)
 from nameko.web.websocket import WebSocketHubProvider, rpc
 from nameko.testing.services import get_extension, dummy, entrypoint_hook
+from nameko.testing.websocket import make_virtual_socket
 
 
 class ExampleService(object):
@@ -167,7 +168,6 @@ def test_connection_not_found(container, websocket):
 
 
 def test_badly_encoded_data(container, web_config):
-    from nameko.testing.websocket import make_virtual_socket
     ws_app, wait_for_sock = make_virtual_socket(
         '127.0.0.1', web_config['WEB_SERVER_PORT'])
 
