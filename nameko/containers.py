@@ -233,7 +233,10 @@ class ServiceContainer(object):
             self._kill_protected_threads()
 
             self.started = False
-            self._died.send(None)
+
+            # if `kill` is called after `stop`, they race to send this
+            if not self._died.ready():
+                self._died.send(None)
 
     def kill(self, exc_info=None):
         """ Kill the container in a semi-graceful way.
@@ -282,7 +285,10 @@ class ServiceContainer(object):
         self._kill_protected_threads()
 
         self.started = False
-        self._died.send(None, exc_info)
+
+        # if `kill` is called after `stop`, they race to send this
+        if not self._died.ready():
+            self._died.send(None, exc_info)
 
     def wait(self):
         """ Block until the container has been stopped.
@@ -451,7 +457,7 @@ class ServiceContainer(object):
             # we don't care much about threads killed by the container
             # this can happen in stop() and kill() if extensions
             # don't properly take care of their threads
-            _log.warning('%s thread killed by container', self)
+            _log.debug('%s thread killed by container', self)
 
         except Exception:
             _log.error('%s thread exited with error', self, exc_info=True)

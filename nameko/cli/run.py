@@ -141,9 +141,11 @@ def run(services, config, backdoor_port=None):
                 continue
             raise
         except KeyboardInterrupt:
+            print  # looks nicer with the ^C e.g. bash prints in the terminal
             try:
                 service_runner.stop()
             except KeyboardInterrupt:
+                print  # as above
                 service_runner.kill()
         else:
             # runner.wait completed
@@ -151,7 +153,7 @@ def run(services, config, backdoor_port=None):
 
 
 def main(args):
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     if '.' not in sys.path:
         sys.path.insert(0, '.')

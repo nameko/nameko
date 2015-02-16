@@ -1,26 +1,24 @@
 from __future__ import absolute_import
-from functools import partial
-import inspect
+
 import json
-from logging import getLogger
 import sys
 import uuid
+from functools import partial
+from logging import getLogger
 
 from eventlet.event import Event
 from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
+from nameko.constants import AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY
 from nameko.exceptions import (
-    MethodNotFound, UnknownService, UnserializableValueError,
-    MalformedRequest, RpcConnectionError, serialize, deserialize,
-    IncorrectSignature, ContainerBeingKilled)
+    ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
+    RpcConnectionError, serialize, UnknownService, UnserializableValueError)
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
-from nameko.messaging import QueueConsumer, HeaderEncoder, HeaderDecoder
+from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
 from nameko.utils import repr_safe_str
-
 
 _log = getLogger(__name__)
 
@@ -145,15 +143,6 @@ class Rpc(Entrypoint, HeaderDecoder):
 
     def stop(self):
         self.rpc_consumer.unregister_provider(self)
-
-    def check_signature(self, args, kwargs):
-        service_cls = self.container.service_cls
-        fn = getattr(service_cls, self.method_name)
-        try:
-            service_instance = None  # fn is unbound
-            inspect.getcallargs(fn, service_instance, *args, **kwargs)
-        except TypeError as exc:
-            raise IncorrectSignature(str(exc))
 
     def handle_message(self, body, message):
         try:

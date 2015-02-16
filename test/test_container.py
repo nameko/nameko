@@ -341,8 +341,8 @@ def test_handle_killed_worker(container, logger):
     (worker_gt,) = container._active_threads
 
     worker_gt.kill()
-    assert logger.warning.call_args == call("%s thread killed by container",
-                                            container)
+    assert logger.debug.call_args == call(
+        "%s thread killed by container", container)
 
     assert not container._died.ready()  # container continues running
 
@@ -440,8 +440,13 @@ def test_container_stop_kills_remaining_managed_threads(container, logger):
 
     assert logger.warning.call_args_list == [
         call("killing %s active thread(s)", 1),
-        call("%s thread killed by container", container),
         call("killing %s protected thread(s)", 1),
+    ]
+
+    assert logger.debug.call_args_list == [
+        call("starting %s", container),
+        call("stopping %s", container),
+        call("%s thread killed by container", container),
         call("%s thread killed by container", container),
     ]
 
@@ -463,8 +468,16 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
 
     assert logger.warning.call_args_list == [
         call("killing %s active thread(s)", 1),
-        call("%s thread killed by container", container),
         call("killing %s protected thread(s)", 1),
+    ]
+
+    assert logger.info.call_args_list == [
+        call("killing %s", container),
+    ]
+
+    assert logger.debug.call_args_list == [
+        call("starting %s", container),
+        call("%s thread killed by container", container),
         call("%s thread killed by container", container),
     ]
 
