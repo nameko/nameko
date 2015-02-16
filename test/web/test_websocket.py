@@ -195,3 +195,26 @@ def test_websocket_helper_error(websocket):
     with pytest.raises(socket.error) as exc:
         websocket()
     assert exc.value.errno == errno.ECONNREFUSED
+
+
+def test_client_closing_connection(container, web_config):
+    ws_app, wait_for_sock = make_virtual_socket(
+        '127.0.0.1', web_config['WEB_SERVER_PORT'])
+
+    gt = eventlet.spawn(ws_app.run_forever)
+    wait_for_sock()
+
+    wait_for_close = Event()
+
+    def on_close(ws):
+        wait_for_close.send(None)
+
+    ws_app.on_close = on_close
+
+    ws_app.send(b'\xff\x00')  # "Close the connection" packet.
+    wait_for_close.wait()
+
+    ws_app.close()
+    gt.kill()
+
+    assert container.stop() is None
