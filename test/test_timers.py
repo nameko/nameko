@@ -11,14 +11,13 @@ from nameko.testing.utils import wait_for_call
 def test_provider():
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
-    container.config = Mock()
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = Timer(interval=0).bind(container, "method")
+    timer = Timer(interval=0.1).bind(container, "method")
     timer.setup()
     timer.start()
 
-    assert timer.interval == 0
+    assert timer.interval == 0.1
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         with Timeout(1):
