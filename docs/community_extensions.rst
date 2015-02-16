@@ -5,7 +5,7 @@ Community Extensions
 
 There are a number of extensions that are not part of the core library but that you may find useful when developing your own nameko services:
 
-    * nameko-sqlalchemy
+    * `nameko-sqlalchemy <http://pypi.python.org/pypi/nameko-sqlalchemy>`_
 
         A ``DependencyProvider`` for writing to databases with SQLAlchemy. Requires a pure-python or otherwise eventlet-compatible database driver.
 
