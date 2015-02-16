@@ -6,7 +6,7 @@ Nameko ships with a command line interface to make hosting and interacting with 
 Running a Service
 -----------------
 
-::
+.. code-block:: pycon
 
     $ nameko run <module>[:<ServiceClass>]
 
@@ -16,7 +16,7 @@ Discover and run a service class. This will start the service in the foreground 
 Interacting with running services
 ---------------------------------
 
-::
+.. code-block:: pycon
 
     $ nameko shell
 
@@ -25,20 +25,16 @@ to the built-in namespace, providing the ability to make RPC calls and dispatch 
 
 Making an RPC call to "target_service":
 
-::
+.. code-block:: pycon
 
-    Nameko Python 2.7.8 (default, Oct 19 2014, 16:02:00)
-    [GCC 4.2.1 Compatible Apple LLVM 6.0 (clang-600.0.54)] shell on darwin
-    Broker: amqp://guest:guest@localhost:5672/nameko
+    $ nameko shell
     >>> n.rpc.target_service.target_method(...)
     # RPC response
 
 
 Dispatching an event as "source_service":
 
-::
+.. code-block:: pycon
 
-    Nameko Python 2.7.8 (default, Oct 19 2014, 16:02:00)
-    [GCC 4.2.1 Compatible Apple LLVM 6.0 (clang-600.0.54)] shell on darwin
-    Broker: amqp://guest:guest@localhost:5672/nameko
+    $ nameko shell
     >>> n.dispatch_event("source_service", "event_type", "event_payload")

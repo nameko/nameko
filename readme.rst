@@ -28,7 +28,7 @@ A nameko service is just a class:
 
 You can run it in a shell:
 
-::
+.. code-block:: pycon
 
     $ nameko run helloworld
     starting services: helloworld
@@ -36,12 +36,9 @@ You can run it in a shell:
 
 And play with it from another:
 
-::
+.. code-block:: pycon
 
     $ nameko shell
-    Nameko Python 2.7.8 (default, Oct 19 2014, 16:02:00)
-    [GCC 4.2.1 Compatible Apple LLVM 6.0 (clang-600.0.54)] shell on darwin
-    Broker: amqp://guest:guest@localhost:5672/nameko
     >>> n.rpc.helloworld.hello(name="Matt")
     u'Hello, Matt!'
 

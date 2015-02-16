@@ -1,6 +1,5 @@
 from nameko.rpc import rpc, RpcProxy
 
-
 class ServiceY(object):
     name = "service_y"
 

@@ -44,7 +44,7 @@ Nameko's HTTP entrypoint supports simple GET and POST:
 
 .. literalinclude:: examples/http.py
 
-::
+.. code-block:: pycon
 
     $ nameko run http
     starting services: httpservice
@@ -74,7 +74,7 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
 
 .. literalinclude:: examples/advanced_http.py
 
-::
+.. code-block:: pycon
 
     $ nameko run advanced_http
     starting services: advancedhttpservice
