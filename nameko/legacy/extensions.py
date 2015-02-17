@@ -12,8 +12,8 @@ from nameko.rpc import RpcConsumer, Rpc, Responder
 
 
 class NovaResponder(Responder):
-    """ Extend Responder to handle double-message nova responses and transform
-    any exceptions into the format expected by the nova rpc proxy.
+    """ Extend ``Responder`` to handle double-message nova responses and
+    transform any exceptions into the format expected by the nova rpc proxy.
     """
     def __init__(self, config, msgid):
         self.config = config
@@ -59,9 +59,10 @@ class NovaResponder(Responder):
 
 
 class NovaRpcConsumer(RpcConsumer):
-    """ Extend RpcConsumer to modify the routing key, queue name, exchange
+    """ Extend ``RpcConsumer`` to modify the routing key, queue name, exchange
     name and handle the nova message payload.
-    Ensures result is handled by a NovaResponder.
+
+    The result is handled by a ``NovaResponder``.
     """
     def setup(self):
         if self.queue is None:
@@ -95,8 +96,9 @@ class NovaRpcConsumer(RpcConsumer):
 
 
 class NovaRpc(Rpc):
-    """ Extend :class:`nameko.rpc.Rpc` to handle the nova message payload.
-    Works in combination with the NovaRpcConsumer.
+    """ Extend ``Rpc`` to handle the nova message payload.
+
+    Works in combination with the ``NovaRpcConsumer``.
     """
 
     rpc_consumer = NovaRpcConsumer()

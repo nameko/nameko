@@ -24,12 +24,21 @@ def entrypoint_hook(container, method_name, context_data=None):
     in the service class. Intended to be used as an integration testing
     utility.
 
+    :Parameters:
+        container : ServiceContainer
+            The container hosting the service owning the entrypoint
+        method_name : str
+            The name of the entrypoint decorated method on the service class
+        context_data : dict
+            Context data to provide for the call, e.g. a language, auth
+            token or session.
+
     **Usage**
 
-    To verify that ServiceX and ServiceY are compatible, make an integration
-    test that checks their interaction:
+    To verify that `ServiceX` and `ServiceY` are compatible, make an
+    integration test that checks their interaction:
 
-    .. literalinclude:: examples/testing/integration_test.py
+    .. literalinclude:: ../examples/testing/integration_x_y_test.py
 
     """
     entrypoint = get_extension(container, Entrypoint, method_name=method_name)
@@ -128,46 +137,46 @@ def worker_factory(service_cls, **dependencies):
 
     **Usage**
 
-    The following example service proxies calls to a "math" service via
-    and ``RpcProxy`` dependency::
+    The following example service proxies calls to a "maths" service via
+    an ``RpcProxy`` dependency::
 
         from nameko.rpc import RpcProxy, rpc
 
         class ConversionService(object):
-            math = RpcProxy("math_service")
+            maths_rpc = RpcProxy("maths")
 
             @rpc
             def inches_to_cm(self, inches):
-                return self.math.multiply(inches, 2.54)
+                return self.maths_rpc.multiply(inches, 2.54)
 
             @rpc
             def cm_to_inches(self, cms):
-                return self.math.divide(cms, 2.54)
+                return self.maths_rpc.divide(cms, 2.54)
 
     Use the ``worker_factory`` to create an instance of
     ``ConversionService`` with its dependencies replaced by MagicMock objects::
 
         service = worker_factory(ConversionService)
 
-    Nameko's entrypoints do not modify the service methods, so they can be
-    called directly on an unhosted instance. The injection Mocks can be used
-    as any other Mock object, so a complete unit test for Service may look
-    like this::
+    Nameko's entrypoints do not modify the service methods, so instance methods
+    can be called directly with the same signature. The replaced dependencies
+    can be used as any other MagicMock object, so a complete unit test for
+    the conversion service may look like this::
 
         # create worker instance
-        service = worker_factory(Service)
+        service = worker_factory(ConversionService)
 
-        # replace "math" service
-        service.math.multiply.side_effect = lambda x, y: x * y
-        service.math.divide.side_effect = lambda x, y: x / y
+        # replace "maths" service
+        service.maths_rpc.multiply.side_effect = lambda x, y: x * y
+        service.maths_rpc.divide.side_effect = lambda x, y: x / y
 
         # test inches_to_cm business logic
         assert service.inches_to_cm(300) == 762
-        service.math.multiply.assert_called_once_with(300, 2.54)
+        service.maths_rpc.multiply.assert_called_once_with(300, 2.54)
 
         # test cms_to_inches business logic
         assert service.cms_to_inches(762) == 300
-        service.math.divide.assert_called_once_with(762, 2.54)
+        service.maths_rpc.divide.assert_called_once_with(762, 2.54)
 
     *Providing Dependencies*
 
@@ -227,25 +236,25 @@ def replace_dependencies(container, *dependencies):
     ::
 
         from nameko.rpc import RpcProxy, rpc
-        from nameko.standalone.rpc import RpcProxy as StandaloneRpcProxy
+        from nameko.standalone.rpc import ServiceRpcProxy
 
         class ConversionService(object):
-            math = RpcProxy("math_service")
+            maths_rpc = RpcProxy("maths")
 
             @rpc
             def inches_to_cm(self, inches):
-                return self.math.multiply(inches, 2.54)
+                return self.maths_rpc.multiply(inches, 2.54)
 
             @rpc
             def cm_to_inches(self, cms):
-                return self.math.divide(cms, 2.54)
+                return self.maths_rpc.divide(cms, 2.54)
 
         container = ServiceContainer(ConversionService, config)
         maths_rpc = replace_dependencies(container, "maths_rpc")
 
         container.start()
 
-        with StandaloneRpcProxy('conversionservice', config) as proxy:
+        with ServiceRpcProxy('conversionservice', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the dependency was called as expected
@@ -290,30 +299,36 @@ def restrict_entrypoints(container, *entrypoints):
 
     **Usage**
 
-    The following service definition has two entrypoints for "method"::
+    The following service definition has two entrypoints:
+
+    .. code-block:: python
 
         class Service(object):
 
-            @rpc
+            @timer(interval=1)
             def foo(self, arg):
                 pass
 
             @rpc
-            @event_handler('srcservice', 'event_one')
             def bar(self, arg)
                 pass
 
-        container = container_factory(Service, config)
+            @rpc
+            def baz(self, arg):
+                pass
 
-    To disable the entrypoints other than on "foo"::
+        container = ServiceContainer(Service, config)
 
-        restrict_entrypoints(container, "foo")
+    To disable the timer entrypoint on ``foo``, leaving just the RPC
+    entrypoints:
 
-    To maintain both the rpc and the event_handler entrypoints on "bar"::
+    .. code-block:: python
 
-        restrict_entrypoints(container, "bar")
+        restrict_entrypoints(container, "bar", "baz")
 
-    Note that it is not possible to identify entrypoints individually.
+    Note that it is not possible to identify multiple entrypoints on the same
+    method individually.
+
     """
     if container.started:
         raise RuntimeError('You must restrict entrypoints before the '

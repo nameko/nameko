@@ -147,7 +147,7 @@ class DependencyProvider(Extension):
         """
 
     def inject(self, worker_ctx):
-        """ TODO when we have better parallisation than spawningset,
+        """ TODO when we have better parallelization than ``spawningset``,
             do this injection in the container
         """
         dependency = self.get_dependency(worker_ctx)
@@ -299,7 +299,7 @@ class Entrypoint(Extension):
 
     def __repr__(self):
         if not self.is_bound():
-            return '<{} [declaration] at 0x{:x}>'.format(
+            return '<{} [unbound] at 0x{:x}>'.format(
                 type(self).__name__, id(self))
 
         service_name = self.container.service_name

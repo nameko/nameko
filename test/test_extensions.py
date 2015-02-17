@@ -215,7 +215,7 @@ def test_entrypoint_str():
     container.service_name = "sérvice"
 
     ext = Entrypoint()
-    assert str(ext).startswith('<Entrypoint [declaration] at')
+    assert str(ext).startswith('<Entrypoint [unbound] at')
 
     bound = ext.bind(container, "føbar")
     assert str(bound).startswith("<Entrypoint [sérvice.føbar] at")

@@ -1,15 +1,12 @@
 """
-In a large integration test of highly connected services, it's preferable to
-limit interactions to only those under test.
-
 This file defines several toy services that interact to form a shop of the
 famous ACME Corporation. The AcmeShopService relies on the StockService,
 InvoiceService and PaymentService to fulfil its orders. They are not best
 practice examples! They're minimal services provided for the test at the
 bottom of the file.
 
-``test_shop_integration`` is a  full integration test of the ACME shop
-"checkout" flow. It demonstrates how to test the multiple ACME services in
+``test_shop_integration`` is a full integration test of the ACME shop
+"checkout flow". It demonstrates how to test the multiple ACME services in
 combination with each other, including limiting service interactions by
 replacing certain entrypoints and dependencies.
 """
@@ -29,15 +26,15 @@ from nameko.testing.utils import get_container
 from nameko.timer import timer
 
 
-class NotLoggedIn(Exception):
+class NotLoggedInError(Exception):
     pass
 
 
-class ItemOutOfStock(Exception):
+class ItemOutOfStockError(Exception):
     pass
 
 
-class ItemDoesNotExist(Exception):
+class ItemDoesNotExistError(Exception):
     pass
 
 
@@ -64,15 +61,15 @@ class ShoppingBasket(DependencyProvider):
         try:
             user_id = worker_ctx.data['user_id']
         except KeyError:
-            raise NotLoggedIn()
+            raise NotLoggedInError()
         return Basket(self.baskets[user_id])
 
 
 class AcmeShopService(object):
 
     user_basket = ShoppingBasket()
-    stock_service = RpcProxy('stockservice')
-    invoice_service = RpcProxy('invoiceservice')
+    stock_rpc = RpcProxy('stockservice')
+    invoice_rpc = RpcProxy('invoiceservice')
     payment_rpc = RpcProxy('paymentservice')
 
     fire_event = EventDispatcher()
@@ -83,23 +80,23 @@ class AcmeShopService(object):
 
         This is a toy example! Ignore the obvious race condition.
         """
-        stock_level = self.stock_service.check_stock(item_code)
+        stock_level = self.stock_rpc.check_stock(item_code)
         if stock_level > 0:
             self.user_basket.add(item_code)
             self.fire_event("item_added_to_basket", item_code)
             return item_code
 
-        raise ItemOutOfStock(item_code)
+        raise ItemOutOfStockError(item_code)
 
     @rpc
     def checkout(self):
         """ Take payment for all items in the shopping basket.
         """
-        total_price = sum(self.stock_service.check_price(item)
+        total_price = sum(self.stock_rpc.check_price(item)
                           for item in self.user_basket)
 
         # prepare invoice
-        invoice = self.invoice_service.prepare_invoice(total_price)
+        invoice = self.invoice_rpc.prepare_invoice(total_price)
 
         # take payment
         self.payment_rpc.take_payment(invoice)
@@ -153,7 +150,7 @@ class StockService(object):
         try:
             return self.warehouse[item_code]['price']
         except KeyError:
-            raise ItemDoesNotExist(item_code)
+            raise ItemDoesNotExistError(item_code)
 
     @rpc
     def check_stock(self, item_code):
@@ -162,7 +159,7 @@ class StockService(object):
         try:
             return self.warehouse[item_code]['stock']
         except KeyError:
-            raise ItemDoesNotExist(item_code)
+            raise ItemDoesNotExistError(item_code)
 
     @rpc
     @timer(100)
@@ -173,7 +170,7 @@ class StockService(object):
         This is an expensive process that we don't want to exercise during
         integration testing...
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @event_handler('acmeshopservice', "checkout_complete")
     def dispatch_items(self, event_data):
@@ -182,7 +179,7 @@ class StockService(object):
         This is an expensive process that we don't want to exercise during
         integration testing...
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class AddressBook(DependencyProvider):
@@ -202,7 +199,7 @@ class AddressBook(DependencyProvider):
             try:
                 user_id = worker_ctx.data['user_id']
             except KeyError:
-                raise NotLoggedIn()
+                raise NotLoggedInError()
             return self.address_book.get(user_id)
         return get_user_details
 
@@ -238,7 +235,7 @@ class PaymentService(object):
         This is an expensive process that we don't want to exercise during
         integration testing...
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
 # =============================================================================
 # Begin test
@@ -304,8 +301,8 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
 
     runner = runner_factory(AcmeShopService, StockService, InvoiceService)
 
-    # replace ``event_dispatcher`` and ``payment_rpc``  injections on
-    # AcmeShopService with Mock injections
+    # replace ``event_dispatcher`` and ``payment_rpc``  dependencies on
+    # AcmeShopService with ``MockDependencyProvider``\s
     shop_container = get_container(runner, AcmeShopService)
     fire_event, payment_rpc = replace_dependencies(
         shop_container, "fire_event", "payment_rpc")
@@ -323,7 +320,7 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     # try to buy something that's out of stock
     with pytest.raises(RemoteError) as exc_info:
         shop.add_to_basket("toothpicks")
-    assert exc_info.value.exc_type == "ItemOutOfStock"
+    assert exc_info.value.exc_type == "ItemOutOfStockError"
 
     # provide a mock response from the payment service
     payment_rpc.take_payment.return_value = "Payment complete."

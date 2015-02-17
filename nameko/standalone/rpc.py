@@ -37,7 +37,7 @@ class ConsumeEvent(object):
 
         By the time the blocking call exits, self.send() will have been called
         with the body of the received message
-        (see :class:nameko.rpc.ReplyListener.handle_message).
+        (see :meth:`~nameko.rpc.ReplyListener.handle_message`).
 
         Exceptions are raised directly.
         """

@@ -49,7 +49,7 @@ class ServiceRunner(object):
         Service classes must be registered before calling start()
         """
         service_name = get_service_name(cls)
-        container = self.container_cls(cls, worker_ctx_cls, self.config)
+        container = self.container_cls(cls, self.config, worker_ctx_cls)
         self.service_map[service_name] = container
 
     def start(self):
@@ -58,7 +58,7 @@ class ServiceRunner(object):
         A new container is created for each service using the container
         class provided in the __init__ method.
 
-        All containers are started concurently and the method will block
+        All containers are started concurrently and the method will block
         until all have completed their startup routine.
         """
         service_names = ', '.join(self.service_names)

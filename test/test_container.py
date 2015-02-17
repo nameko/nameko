@@ -7,7 +7,7 @@ import greenlet
 from mock import patch, call, ANY, Mock
 import pytest
 
-from nameko.containers import ServiceContainer, WorkerContext
+from nameko.containers import ServiceContainer
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
@@ -101,9 +101,7 @@ class Service(object):
 
 @pytest.fixture
 def container():
-    container = ServiceContainer(service_cls=Service,
-                                 worker_ctx_cls=WorkerContext,
-                                 config={})
+    container = ServiceContainer(Service, config={})
     for ext in container.extensions:
         ext._reset_calls()
 
@@ -213,9 +211,7 @@ def test_container_doesnt_exhaust_max_workers(container):
             spam_called.send(a)
             spam_continue.wait()
 
-    container = ServiceContainer(service_cls=Service,
-                                 worker_ctx_cls=WorkerContext,
-                                 config={MAX_WORKERS_CONFIG_KEY: 1})
+    container = ServiceContainer(Service, config={MAX_WORKERS_CONFIG_KEY: 1})
 
     dep = get_extension(container, Entrypoint)
 

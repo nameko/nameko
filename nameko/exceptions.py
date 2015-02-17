@@ -46,7 +46,7 @@ def get_module_path(exc_type):
 
 
 class RemoteError(Exception):
-    """ Exception to raise at the caller if an exception occured in the
+    """ Exception to raise at the caller if an exception occurred in the
     remote worker.
     """
     def __init__(self, exc_type=None, value=""):
@@ -97,7 +97,7 @@ def deserialize(data):
     If the `exc_path` value matches an exception registered as
     ``deserializable``, return an instance of that exception type.
     Otherwise, return a `RemoteError` instance describing the exception
-    that occured.
+    that occurred.
     """
     key = data.get('exc_path')
     if key in registry:
