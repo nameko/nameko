@@ -26,7 +26,7 @@ A nameko service is just a class:
 
 You can run it in a shell:
 
-.. code-block:: pycon
+.. code-block:: shell
 
     $ nameko run helloworld
     starting services: helloworld

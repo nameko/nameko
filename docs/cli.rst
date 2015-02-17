@@ -6,7 +6,7 @@ Nameko ships with a command line interface to make hosting and interacting with 
 Running a Service
 -----------------
 
-.. code-block:: pycon
+.. code-block:: shell
 
     $ nameko run <module>[:<ServiceClass>]
 

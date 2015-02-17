@@ -18,4 +18,4 @@ For a quick chat or question someone is usually available on Freenode in the `#n
 Email
 -----
 
-You can email more in-depth questions to `nameko@onefinestay.com <mailto:nameko@onefinestay.com>`_.
+You can email more in-depth questions to `nameko@onefinestay.com <mailto:nameko-devs@onefinestay.com>`_.

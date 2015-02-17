@@ -7,8 +7,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from nameko.rpc import rpc
-from nameko.contrib.sqlalchemy import OrmSession
 from nameko.testing.services import worker_factory
+
+# using community extension from http://pypi.python.org/pypi/nameko-sqlalchemy
+from nameko_sqlalchemy import Session
 
 
 Base = declarative_base()
@@ -23,7 +25,7 @@ class Result(Base):
 class Service(object):
     """ Service under test
     """
-    db = OrmSession(Base)
+    db = Session(Base)
 
     @rpc
     def save(self, value):
@@ -38,9 +40,8 @@ def session():
     """
     engine = create_engine('sqlite:///:memory:')
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    return session
+    session_cls = sessionmaker(bind=engine)
+    return session_cls()
 
 
 def test_service(session):

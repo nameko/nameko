@@ -3,10 +3,12 @@
 Built-in Extensions
 ===================
 
+Nameko includes a number of built-in :ref:`extensions <extensions>`. This section introduces them and gives brief examples of their usage.
+
 RPC
 ---
 
-Nameko has a built-in implementation for RPC over AMQP. It includes the ``@rpc`` entrypoint, a proxy for services to talk to other services, and a standalone proxy that non-nameko clients can use to make RPC calls to a cluster:
+Nameko includes an implementation of RPC over AMQP. It comprises the ``@rpc`` entrypoint, a proxy for services to talk to other services, and a standalone proxy that non-nameko clients can use to make RPC calls to a cluster:
 
 .. literalinclude:: examples/rpc.py
 
@@ -35,6 +37,10 @@ The :class:`~nameko.events.EventHandler` entrypoint has three ``handler_type``\s
     * ``BROADCAST`` -- every listening service instance will receive the event.
     * ``SINGLETON`` -- exactly one listening service instance will receive the event.
 
+An example of using the ``BROADCAST`` mode:
+
+.. literalinclude:: examples/event_broadcast.py
+
 Events are serialized into JSON for transport over the wire.
 
 HTTP GET & POST
@@ -44,12 +50,12 @@ Nameko's HTTP entrypoint supports simple GET and POST:
 
 .. literalinclude:: examples/http.py
 
-.. code-block:: pycon
+.. code-block:: shell
 
     $ nameko run http
     starting services: httpservice
 
-::
+.. code-block:: shell
 
     $ curl -i localhost:8000/get/42
     HTTP/1.1 200 OK
@@ -59,7 +65,7 @@ Nameko's HTTP entrypoint supports simple GET and POST:
 
     {'value': 42}
 
-::
+.. code-block:: shell
 
     $ curl -i -d "post body" localhost:8000/post
     HTTP/1.1 200 OK
@@ -74,12 +80,12 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
 
 .. literalinclude:: examples/advanced_http.py
 
-.. code-block:: pycon
+.. code-block:: shell
 
     $ nameko run advanced_http
     starting services: advancedhttpservice
 
-::
+.. code-block:: shell
 
     $ curl -i localhost:8000/privileged
     HTTP/1.1 403 FORBIDDEN
@@ -87,7 +93,7 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
     Content-Length: 9
     Date: Fri, 13 Feb 2015 14:58:02 GMT
 
-::
+.. code-block:: shell
 
     curl -i localhost:8000/headers
     HTTP/1.1 201 CREATED
