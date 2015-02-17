@@ -18,13 +18,11 @@ def test_responder(mock_publish):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = Responder(config, message)
 
     # serialisable result
-    result, exc_info = responder.send_response(container, True, None)
+    result, exc_info = responder.send_response(True, None)
     assert result is True
     assert exc_info is None
 
@@ -41,15 +39,13 @@ def test_responder_worker_exc(mock_publish):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = Responder(config, message)
 
     # serialisable exception
     worker_exc = Exception('error')
     result, exc_info = responder.send_response(
-        container, None, (Exception, worker_exc, "tb"))
+        None, (Exception, worker_exc, "tb"))
     assert result is None
     assert exc_info == (Exception, worker_exc, "tb")
 
@@ -71,14 +67,12 @@ def test_responder_unserializable_result(mock_publish):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = Responder(config, message)
 
     # unserialisable result
     worker_result = object()
-    result, exc_info = responder.send_response(container, worker_result, None)
+    result, exc_info = responder.send_response(worker_result, None)
 
     # responder will return the TypeError from json.dumps
     assert result is None
@@ -106,10 +100,8 @@ def test_responder_cannot_unicode_exc(mock_publish):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = Responder(config, message)
 
     class CannotUnicode(object):
         def __str__(self):
@@ -119,7 +111,7 @@ def test_responder_cannot_unicode_exc(mock_publish):
     worker_exc = Exception(CannotUnicode())
 
     # send_response should not throw
-    responder.send_response(container, True, (Exception, worker_exc, "tb"))
+    responder.send_response(True, (Exception, worker_exc, "tb"))
 
 
 def test_responder_cannot_repr_exc(mock_publish):
@@ -127,10 +119,8 @@ def test_responder_cannot_repr_exc(mock_publish):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    container = Mock()
-    container.config = {AMQP_URI_CONFIG_KEY: ''}
-
-    responder = Responder(message)
+    config = {AMQP_URI_CONFIG_KEY: ''}
+    responder = Responder(config, message)
 
     class CannotRepr(object):
         def __repr__(self):
@@ -140,4 +130,4 @@ def test_responder_cannot_repr_exc(mock_publish):
     worker_exc = Exception(CannotRepr())
 
     # send_response should not throw
-    responder.send_response(container, True, (Exception, worker_exc, "tb"))
+    responder.send_response(True, (Exception, worker_exc, "tb"))

@@ -1,19 +1,29 @@
+Release Notes
+=============
+
+Here you can see the full list of changes between nameko versions. Versions
+are in form of *headline.major.minor* numbers. Backwards-compatible changes
+increment the minor version number only.
+
+
 Unreleased
 ----------
 
-* Rename the standalone rpc proxy to `ServiceRpcProxy` and add a
-  `ClusterRpcProxy`, using a single reply queue for communicating with multiple
-  remote services.
+* Rename the standalone rpc proxy to
+  :class:`~nameko.standalone.rpc.ServiceRpcProxy` and add a
+  :class:`~nameko.standalone.rpc.ClusterRpcProxy`, using a single reply queue
+  for communicating with multiple remote services.
 * Make the standalone event dispatcher more shell-friendly, connecting on
-  demand
+  demand.
 
 
 Version 1.14.0
 --------------
 
-* Remove parallel provider injection in favour of async RPC
-* Update `worker_factory` to raise if asked to replace a non-existent injection
-* Add various __repr__ methods for better logging
+* Remove parallel provider in favour of async RPC
+* Update :func:`~nameko.testing.services.worker_factory` to raise if asked to
+  replace a non-existent injection.
+* Add various ``__repr__`` methods for better logging
 * Support for timeouts in the (non-legacy) standalone RPC proxy
 * Add helper for manipulating an AMQP URI into a dict
 
@@ -23,8 +33,8 @@ Version 1.13.0
 
 * RPC reply queues now auto-delete.
 * Extra protection against badly-behaved dependencies during container kill
-* Make legacy ``NovaRpcConsumer`` more robust against failures in the
-  ``NovaRpcProvider``.
+* Make legacy :class:`~nameko.legacy.nova.NovaRpcConsumer` more robust against
+  failures in the :class:`~nameko.legacy.nova.NovaRpc` provider.
 
 
 Version 1.12.0
@@ -45,13 +55,15 @@ Version 1.11.5
 Version 1.11.4
 --------------
 
-* Make ``RpcConsumer`` more robust against failures in the ``RpcProvider``.
-* Add a new exception ``MalformedRequest`` that rpc providers can raise if
-  they detect an invalid message. Raise this exception in the default
-  ``RpcProvider`` if `args` or `kwargs` keys are missing from the message.
+* Make :class:`~nameko.rpc.RpcConsumer` more robust against failures in the
+  :class:`~nameko.rpc.Rpc` provider.
+* Add a new exception :class:`~nameko.exceptions.MalformedRequest` that RPC
+  providers can raise if they detect an invalid message. Raise this exception
+  in the default ``Rpc`` provider if ``args`` or ``kwargs`` keys are missing
+  from the message.
 * Fix issues in queue consumer tests against non-localhost brokers.
 * Upgrade to eventlet 0.15.2.
-* Include pyrabbit in requirements.txt (no longer just for tests).
+* Include pyrabbit in ``requirements.txt`` (no longer just for tests).
 * Catch dying containers in the entrypoint_hook to avoid hangs.
 * Add ``expected_exceptions`` kwarg to the rpc entrypoint to enable different
   exception handling (in dependencies) for user vs system errors.
@@ -60,57 +72,61 @@ Version 1.11.4
 Version 1.11.3
 --------------
 
-* Add more logging for workers killed by `container.kill`.
+* Add more logging for workers killed by
+  :meth:`~nameko.containers.ServiceContainer.kill`.
 
 
 Version 1.11.2
 --------------
 
-* Add a default implementation for `acquire_injection` (returning `None`) for
-  injections that are used for side-effects rather than injecting dependencies.
-* `acquire_injection` is no longer an `abstractmethod`.
+* Add a default implementation for ``acquire_injection`` (returning ``None``)
+  for dependency providers that are used for side-effects rather than injecting
+  dependencies.
 
 
 Version 1.11.1
 --------------
 
-* New test helper `nameko.testing.services.entrypoint_waiter` to wait for
-  entrypoints (e.g. event handlers) to complete.
+* New test helper :func:`~nameko.testing.services.entrypoint_waiter` to wait
+  for entrypoints (e.g. event handlers) to complete.
 
 
 Version 1.11.0
 --------------
 
-* Raise a specific RpcTimeout error in the RPC proxy rather than
- `socket.timeout` to avoid confusing kombu's Connection.ensure
+* Raise a specific ``RpcTimeout`` error in the RPC proxy rather than
+  ``socket.timeout`` to avoid confusing kombu's ``Connection.ensure``
 * Improve logging helpers
-* Use inspect.getcallargs instead of shadow lambda for RPC argument checking
+* Use ``inspect.getcallargs`` instead of shadow lambda for RPC argument
+  checking
 * Add default retry policies to all publishers
 * Stricter handling of connections between tests
-* Workarounds for rabbitmq bugs described at
+* Workarounds for RabbitMQ bugs described at
   https://groups.google.com/forum/#!topic/rabbitmq-users/lrl0tYd1L38
 
 Version 1.10.1
 --------------
 
-* Inspect the service class (instead of an instance) in `worker_factory`. Works
-  better with descriptors.
-* Explicity delete exc_info variable when not needed, to help the gc.
+* Inspect the service class (instead of an instance) in
+  :func:`~nameko.testing.services.worker_factory`. Works better with
+  descriptors.
+* Explicitly delete ``exc_info`` variable when not needed, to help the
+  garbage collector.
 
 
 Version 1.10.0
 --------------
 
 * Entrypoint providers' handle_result is now able to manipulate and modify and
-  return the (result, exc_info) tuple. This enables default post-processing
+  return the ``(result, exc_info)`` tuple. This enables default post-processing
   (e.g. serialization, translations)
-* Added serialization safety to legacy rpc entrypoint.
+* Added serialization safety to legacy RPC entrypoint.
 
 
 Version 1.9.1
 -------------
 
-* Bugfix to exception handling in `nameko.legacy.dependencies`
+* Bugfix to exception handling in ``nameko.legacy.dependencies``
 
 
 Version 1.9.0
@@ -130,37 +146,38 @@ Version 1.8.2
 Version 1.8.1
 -------------
 
-* Adding `wait_for_worker_idle` test helper.
+* Adding ``wait_for_worker_idle`` test helper.
 
 Version 1.8.0
 -------------
 
-* Now passing exc_info tuples instead of bare exceptions to `worker_result`
-  and `handle_result`, to enable exception processing in non-worker
-  greenthreads.
+* Now passing ``exc_info`` tuples instead of bare exceptions to
+  ``worker_result`` and ``handle_result``, to enable exception processing in
+  non-worker greenthreads.
 
 Version 1.7.2
 -------------
 
-* `Container._run_worker` now calls any `handle_result` method before
-  dependency teardown.
+* :meth:`~nameko.containers.ServiceContainer._run_worker` now calls any
+  ``handle_result`` method before dependency teardown.
 * Serialization errors now generate a specific error message rather
   than bubbling into the container.
-* Minor change to nameko_doc output.
+* Minor change to ``nameko_doc`` output.
 
 Version 1.7.1
 -------------
 
-* Added `language`, `auth_token` and `user_id` injections to make
-  context data available to service workers.
-* Refacted constants into their own module.
+* Added ``language``, ``auth_token`` and ``user_id`` dependency providers to
+  make context data available to service workers.
+* Refactored constants into their own module.
 * Minor test changes to enable testing on shared rabbit brokers.
 
 Version 1.7.0
 -------------
 
-* `Container.spawn_worker` now throws `ContainerBeingKilled` if a `kill` is
-  in progress, since some providers may already be dead. Providers shuold catch
+* :meth:`~nameko.containers.ServiceContainer.spawn_worker` now throws
+  :class:`~nameko.exceptions.ContainerBeingKilled` if a ``kill`` is
+  in progress, since some providers may already be dead. Providers should catch
   this and e.g. requeue rpc messages. There is a race condition between
   completing the kill sequence and remaining entrypoints firing.
 
@@ -179,9 +196,10 @@ Version 1.6.0
 -------------
 
 * Rename instance_factory to worker_factory
-* Raise IncorrectSignature as exception instead of “RemoteError: TypeError”
-  if an RPC method is called with invalid arguments
-* Raise MethodNotFound as exception instead of “RemoteError: MethodNotFound”
+* Raise :class:`~nameko.exception.IncorrectSignature` instead of
+  ``RemoteError: TypeError`` if an RPC method is called with invalid arguments.
+* Raise :class:`~nameko.exception.MethodNotFound` instead of
+  ``RemoteError: MethodNotFound`` if a non-existent RPC method is called.
 * Let log handlers format warning messages so that aggregators group them
   correctly.
 * Expose the entire dependency provider (rather than just the method name) to
@@ -191,16 +209,20 @@ Version 1.6.0
 Version 1.5.0
 -------------
 
-* Improvements to kill() enabling better tracebacks and cleaner teardown.
-  - Using sys.exc_info to preserve tracebacks
-  - No longer passing exc into DependencyProvider.kill(), removing race
-    conditions.
-  - No longer requiring exc in ServiceContainer.kill()
+* Improvements to :class:`~nameko.containers.ServiceContainer.kill()` enabling
+  better tracebacks and cleaner teardown:
+
+    - Using ``sys.exc_info`` to preserve tracebacks
+    - No longer passing exception into
+      :meth:`~nameko.extensions.DependencyProvider.kill()`, removing race
+      conditions.
+    - No longer requiring ``exc`` in
+      :class:`~nameko.containers.ServiceContainer.kill()`
 
 Version 1.4.1
 -------------
 
-* Adds the `nameko_doc` package, for easing the creation of service-oriented
+* Adds the ``nameko_doc`` package, for easing the creation of service-oriented
   documentation.
 
 
@@ -223,9 +245,9 @@ Version 1.3.5
 Version 1.3.4
 -------------
 
-* Use MagicMock for injection replacement in test utilities
-* Use autospec=True wherever possible when mocking
-* Merge ServiceContainers into a single class
+* Use ``MagicMock`` for dependency replacement in test utilities
+* Use ``autospec=True`` wherever possible when mocking
+* Merge ``ServiceContainers`` into a single class
 
 
 Version 1.3.3
@@ -238,18 +260,19 @@ Version 1.3.3
 Version 1.3.2
 -------------
 
-* Dropping headers with a `None` value because they can't be serialised by amqp
+* Dropping headers with a ``None`` value because they can't be serialized by
+  AMQP
 
 
 Version 1.3.1
 -------------
 
-* Add `event_handler_cls` kwarg to the `event_handler` entrypoint, for using
-  a custom subclass of the EventHandler provider
+* Add ``event_handler_cls`` kwarg to the ``event_handler`` entrypoint, for
+  using a custom subclass of the ``EventHandler`` provider
 
 
 Version 1.3.0
 -------------
 
 * Standalone RPC proxy interface changed to class with contextmanager interface
-  and manual start() and stop() methods.
+  and manual ``start()`` and ``stop()`` methods.

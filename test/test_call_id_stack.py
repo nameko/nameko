@@ -3,8 +3,8 @@ import pytest
 
 from nameko.containers import WorkerContext
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
-from nameko.events import event_handler, event_dispatcher, Event as NamekoEvent
-from nameko.rpc import rpc, rpc_proxy
+from nameko.events import event_handler, EventDispatcher
+from nameko.rpc import rpc, RpcProxy
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import (
     get_container, worker_context_factory, DummyProvider)
@@ -13,12 +13,12 @@ from nameko.testing.services import entrypoint_hook
 
 def get_logging_worker_context(stack_request):
     class LoggingWorkerContext(WorkerContext):
-        def __init__(self, container, service, provider, args=None,
+        def __init__(self, container, service, entrypoint, args=None,
                      kwargs=None, data=None):
             parent_stack = data.get('call_id_stack') if data else None
             stack_request(parent_stack)
             super(LoggingWorkerContext, self).__init__(
-                container, service, provider, args, kwargs, data
+                container, service, entrypoint, args, kwargs, data
             )
     return LoggingWorkerContext
 
@@ -84,14 +84,14 @@ def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
             return 1
 
     class Parent(object):
-        child_service = rpc_proxy('child')
+        child_service = RpcProxy('child')
 
         @rpc
         def parent_do(self):
             return self.child_service.child_do()
 
     class Grandparent(object):
-        parent_service = rpc_proxy('parent')
+        parent_service = RpcProxy('parent')
 
         @rpc
         def grandparent_do(self):
@@ -130,9 +130,6 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
     stack_request = Mock()
     LoggingWorkerContext = get_logging_worker_context(stack_request)
 
-    class HelloEvent(NamekoEvent):
-        type = "hello"
-
     class EventListeningServiceOne(object):
         @event_handler('event_raiser', 'hello')
         def hello(self, name):
@@ -145,11 +142,11 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
 
     class EventRaisingService(object):
         name = "event_raiser"
-        dispatch = event_dispatcher()
+        dispatch = EventDispatcher()
 
         @rpc
         def say_hello(self):
-            self.dispatch(HelloEvent(self.name))
+            self.dispatch('hello', self.name)
 
     runner = runner_factory(rabbit_config)
     runner.add_service(EventListeningServiceOne, LoggingWorkerContext)

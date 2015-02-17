@@ -1,5 +1,5 @@
 '''
-Provides core messaging decorators and dependency injection providers.
+Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 from itertools import count
@@ -16,11 +16,9 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
 from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
-from nameko.dependencies import (
-    InjectionProvider, EntrypointProvider, entrypoint, injection,
-    DependencyProvider, ProviderCollector, DependencyFactory, dependency,
-    CONTAINER_SHARED)
 from nameko.exceptions import ContainerBeingKilled
+from nameko.extensions import (
+    DependencyProvider, Entrypoint, SharedExtension, ProviderCollector)
 
 _log = getLogger(__name__)
 
@@ -67,45 +65,53 @@ class HeaderDecoder(object):
         return worker_ctx_cls.get_context_data(stripped)
 
 
-@injection
-def publisher(exchange=None, queue=None):
-    return DependencyFactory(PublishProvider, exchange, queue)
+class Publisher(DependencyProvider, HeaderEncoder):
 
+    amqp_uri = None
 
-class PublishProvider(InjectionProvider, HeaderEncoder):
-    """
-    Provides a message publisher method via dependency injection.
-
-    Publishers usually push messages to an exchange, which dispatches
-    them to bound queue.
-    To simplify this for various use cases a Publisher either accepts
-    a bound queue or an exchange and will ensure both are declared before
-    a message is published.
-
-    Example::
-
-        class Foobar(object):
-
-            publish = Publisher(exchange=...)
-
-            def spam(self, data):
-                self.publish('spam:' + data)
-
-    """
     def __init__(self, exchange=None, queue=None):
+        """ Provides an AMQP message publisher method via dependency injection.
+
+        In AMQP messages are published to *exchanges* and routed to bound
+        *queues*. This dependency accepts either an `exchange` or a bound
+        `queue`, and will ensure both are declared before publishing.
+
+        :Parameters:
+            exchange : :class:`kombu.Exchange`
+                Destination exchange
+            queue : :class:`kombu.Queue`
+                Bound queue. The event will be published to this queue's
+                exchange.
+
+        If neither `queue` nor `exchange` are provided, the message will be
+        published to the default exchange.
+
+        Example::
+
+            class Foobar(object):
+
+                publish = Publisher(exchange=...)
+
+                def spam(self, data):
+                    self.publish('spam:' + data)
+        """
         self.exchange = exchange
         self.queue = queue
 
+    # TODO: should be a module level function
     def get_connection(self):
-        # TODO: should this live outside of the class or be a class method?
-        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.amqp_uri)
         return connections[conn].acquire(block=True)
 
+    # TODO: should be a module level function
     def get_producer(self):
-        conn = Connection(self.container.config[AMQP_URI_CONFIG_KEY])
+        conn = Connection(self.amqp_uri)
         return producers[conn].acquire(block=True)
 
-    def prepare(self):
+    def setup(self):
+
+        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+
         exchange = self.exchange
         queue = self.queue
 
@@ -115,7 +121,7 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def publish(msg, **kwargs):
             exchange = self.exchange
             queue = self.queue
@@ -135,14 +141,12 @@ class PublishProvider(InjectionProvider, HeaderEncoder):
         return publish
 
 
-@dependency
-def queue_consumer():
-    return DependencyFactory(QueueConsumer)
+class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
+    amqp_uri = None
+    prefetch_count = None
 
-class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
     def __init__(self):
-        super(QueueConsumer, self).__init__()
         self._connection = None
 
         self._consumers = {}
@@ -156,14 +160,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         self._starting = False
 
         self._consumers_ready = Event()
-
-    @property
-    def _amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def _prefetch_count(self):
-        return self.container.max_workers
+        super(QueueConsumer, self).__init__()
 
     def _handle_thread_exited(self, gt):
         exc = None
@@ -175,13 +172,17 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
         if not self._consumers_ready.ready():
             self._consumers_ready.send_exception(exc)
 
+    def setup(self):
+        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+        self.prefetch_count = self.container.max_workers
+
     def start(self):
         if not self._starting:
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self.container.spawn_managed_thread(
-                self.run, protected=True)
+            self._gt = self.container.spawn_managed_thread(self.run,
+                                                           protected=True)
             self._gt.link(self._handle_thread_exited)
         try:
             _log.debug('waiting for consumer ready %s', self)
@@ -310,8 +311,11 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
     @property
     def connection(self):
         """ Kombu requirement """
+        if self.amqp_uri is None:
+            return   # don't cache a connection during introspection
+
         if self._connection is None:
-            self._connection = Connection(self._amqp_uri)
+            self._connection = Connection(self.amqp_uri)
 
         return self._connection
 
@@ -326,7 +330,7 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
             callbacks = [self._on_message, provider.handle_message]
 
             consumer = Consumer(queues=[provider.queue], callbacks=callbacks)
-            consumer.qos(prefetch_count=self._prefetch_count)
+            consumer.qos(prefetch_count=self.prefetch_count)
 
             self._consumers[provider] = consumer
 
@@ -395,44 +399,41 @@ class QueueConsumer(DependencyProvider, ProviderCollector, ConsumerMixin):
                     elapsed = 0
 
 
-@entrypoint
-def consume(queue, requeue_on_error=False):
-    """
-    Decorates a method as a message consumer.
+class Consumer(Entrypoint, HeaderDecoder):
 
-    Messages from the queue will be deserialized depending on their content
-    type and passed to the the decorated method.
-    When the consumer method returns without raising any exceptions,
-    the message will automatically be acknowledged.
-    If any exceptions are raised during the consumption and
-    `requeue_on_error` is True, the message will be requeued.
+    queue_consumer = QueueConsumer()
 
-    Example::
+    def __init__(self, queue, requeue_on_error=False):
+        """
+        Decorates a method as a message consumer.
 
-        @consume(...)
-        def handle_message(self, body):
+        Messages from the queue will be deserialized depending on their content
+        type and passed to the the decorated method.
+        When the consumer method returns without raising any exceptions,
+        the message will automatically be acknowledged.
+        If any exceptions are raised during the consumption and
+        `requeue_on_error` is True, the message will be requeued.
 
-            if not self.spam(body):
-                raise Exception('message will be requeued')
+        If `requeue_on_error` is true, handlers will return the event to the
+        queue if an error occurs while handling it. Defaults to false.
 
-            self.shrub(body)
+        Example::
 
-    Args:
-        queue: The queue to consume from.
-    """
-    return DependencyFactory(ConsumeProvider, queue, requeue_on_error)
+            @consume(...)
+            def handle_message(self, body):
 
+                if not self.spam(body):
+                    raise Exception('message will be requeued')
 
-# pylint: disable=E1101,E1123
-class ConsumeProvider(EntrypointProvider, HeaderDecoder):
+                self.shrub(body)
 
-    queue_consumer = queue_consumer(shared=CONTAINER_SHARED)
-
-    def __init__(self, queue, requeue_on_error):
+        Args:
+            queue: The queue to consume from.
+        """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
 
-    def prepare(self):
+    def setup(self):
         self.queue_consumer.register_provider(self)
 
     def stop(self):
@@ -442,6 +443,7 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
         args = (body,)
         kwargs = {}
 
+        # TODO: get valid headers from config, not worker_ctx_cls
         worker_ctx_cls = self.container.worker_ctx_cls
         context_data = self.unpack_message_headers(worker_ctx_cls, message)
 
@@ -463,6 +465,9 @@ class ConsumeProvider(EntrypointProvider, HeaderDecoder):
             self.queue_consumer.requeue_message(message)
         else:
             self.queue_consumer.ack_message(message)
+
+
+consume = Consumer.decorator
 
 
 class QueueConsumerStopped(Exception):

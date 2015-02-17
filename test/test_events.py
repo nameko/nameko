@@ -5,32 +5,22 @@ from collections import defaultdict
 from mock import Mock, patch
 
 from nameko.containers import WorkerContext, ServiceContainer
-from nameko.dependencies import ENTRYPOINT_PROVIDERS_ATTR
 from nameko.events import (
-    EventDispatcher, Event, EventTypeTooLong, EventTypeMissing,
-    EventHandlerConfigurationError, event_handler, SINGLETON, BROADCAST,
-    SERVICE_POOL, EventHandler)
+    EventDispatcher, EventHandlerConfigurationError, event_handler, SINGLETON,
+    BROADCAST, SERVICE_POOL, EventHandler)
+from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
-from nameko.testing.utils import as_context_manager, DummyProvider
+from nameko.testing.utils import DummyProvider
 
 
 EVENTS_TIMEOUT = 5
 
 
-def test_event_type_missing():
-    with pytest.raises(EventTypeMissing):
-        class MyEvent(Event):
-            pass
-
-        MyEvent('spam')
-
-
-def test_event_type_too_long():
-    with pytest.raises(EventTypeTooLong):
-        class MyEvent(Event):
-            type = 't' * 256
-
-        MyEvent('spam')
+@pytest.yield_fixture
+def queue_consumer():
+    replacement = Mock(spec=QueueConsumer)
+    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
+        yield mock_ext.return_value
 
 
 def test_reliable_broadcast_config_error():
@@ -39,15 +29,6 @@ def test_reliable_broadcast_config_error():
             'foo', 'bar', reliable_delivery=True, handler_type=BROADCAST)
         def foo():
             pass
-
-
-def test_event_handler_decorator():
-    """ Verify that the event_handler decorator generates an EventProvider
-    """
-    decorator = event_handler("servicename", "eventtype")
-    handler = decorator(lambda: None)
-    descr = list(getattr(handler, ENTRYPOINT_PROVIDERS_ATTR))[0]
-    assert descr.dep_cls is EventHandler
 
 
 def test_event_dispatcher(empty_config):
@@ -59,90 +40,71 @@ def test_event_dispatcher(empty_config):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
 
-    event_dispatcher = EventDispatcher()
-    event_dispatcher.bind("dispatch", container)
+    event_dispatcher = EventDispatcher(retry_policy={'max_retries': 5}).bind(
+        container, attr_name="dispatch")
+    event_dispatcher.setup()
 
-    path = 'nameko.messaging.PublishProvider.prepare'
-    with patch(path, autospec=True) as prepare:
+    service.dispatch = event_dispatcher.get_dependency(worker_ctx)
 
-        # test start method
-        event_dispatcher.prepare()
-        assert event_dispatcher.exchange.name == "srcservice.events"
-        assert prepare.called
+    from mock import ANY
+    with patch('nameko.standalone.events.producers') as mock_producers:
+        with mock_producers[ANY].acquire() as mock_producer:
 
-    evt = Mock(type="eventtype", data="msg")
-    event_dispatcher.inject(worker_ctx)
-
-    producer = Mock()
-
-    with patch.object(
-            event_dispatcher, 'get_producer', autospec=True) as get_producer:
-        get_producer.return_value = as_context_manager(producer)
-
-        # test dispatch
-        service.dispatch(evt, retry_policy={'max_retries': 5})
-        headers = event_dispatcher.get_message_headers(worker_ctx)
-        producer.publish.assert_called_once_with(
-            evt.data, exchange=event_dispatcher.exchange, headers=headers,
-            routing_key=evt.type, retry=True, retry_policy={'max_retries': 5})
+            service.dispatch('eventtype', 'msg')
+            headers = event_dispatcher.get_message_headers(worker_ctx)
+    mock_producer.publish.assert_called_once_with(
+        'msg', exchange=ANY, headers=headers,
+        routing_key='eventtype', retry=True, retry_policy={'max_retries': 5})
+    _, call_kwargs = mock_producer.publish.call_args
+    exchange = call_kwargs['exchange']
+    assert exchange.name == 'srcservice.events'
 
 
-@pytest.fixture
-def handler_factory(request):
-    """ Test utility to build EventHandler objects with sensible defaults.
-
-    Also injects ``service`` into the dependency as registering with a
-    container would have.
-    """
-    def make_handler(queue_consumer, service_name="srcservice",
-                     event_type="eventtype", handler_type=SERVICE_POOL,
-                     reliable_delivery=True, requeue_on_error=False):
-        handler = EventHandler(service_name, event_type, handler_type,
-                               reliable_delivery, requeue_on_error)
-        handler.queue_consumer = queue_consumer
-        return handler
-    return make_handler
-
-
-def test_event_handler(handler_factory):
+def test_event_handler(queue_consumer):
 
     container = Mock(spec=ServiceContainer)
     container.service_name = "destservice"
 
-    queue_consumer = Mock()
-
     # test default configuration
-    event_handler = handler_factory(queue_consumer)
-    event_handler.bind("foobar", container)
-    event_handler.prepare()
+    event_handler = EventHandler("srcservice", "eventtype").bind(container,
+                                                                 "foobar")
+    event_handler.setup()
+
     assert event_handler.queue.durable is True
     assert event_handler.queue.routing_key == "eventtype"
     assert event_handler.queue.exchange.name == "srcservice.events"
     queue_consumer.register_provider.assert_called_once_with(event_handler)
 
     # test service pool handler
-    event_handler = handler_factory(queue_consumer, handler_type=SERVICE_POOL)
-    event_handler.bind("foobar", container)
-    event_handler.prepare()
+    event_handler = EventHandler("srcservice", "eventtype").bind(container,
+                                                                 "foobar")
+    event_handler.setup()
+
     assert (event_handler.queue.name ==
             "evt-srcservice-eventtype--destservice.foobar")
 
     # test broadcast handler
-    event_handler = handler_factory(queue_consumer, handler_type=BROADCAST)
-    event_handler.bind("foobar", container)
-    event_handler.prepare()
+    event_handler = EventHandler("srcservice", "eventtype",
+                                 handler_type=BROADCAST,
+                                 reliable_delivery=False).bind(container,
+                                                               "foobar")
+    event_handler.setup()
+
     assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
 
     # test singleton handler
-    event_handler = handler_factory(queue_consumer, handler_type=SINGLETON)
-    event_handler.bind("foobar", container)
-    event_handler.prepare()
+    event_handler = EventHandler("srcservice", "eventtype",
+                                 handler_type=SINGLETON).bind(container,
+                                                              "foobar")
+    event_handler.setup()
+
     assert event_handler.queue.name == "evt-srcservice-eventtype"
 
     # test reliable delivery
-    event_handler = handler_factory(queue_consumer, reliable_delivery=True)
-    event_handler.bind("foobar", container)
-    event_handler.prepare()
+    event_handler = EventHandler("srcservice", "eventtype").bind(container,
+                                                                 "foobar")
+    event_handler.setup()
+
     assert event_handler.queue.auto_delete is False
 
 
@@ -155,14 +117,11 @@ services = defaultdict(list)
 events = []
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def reset_state():
+    yield
     services.clear()
     events[:] = []
-
-
-class ExampleEvent(Event):
-    type = "eventtype"
 
 
 class CustomEventHandler(EventHandler):
@@ -177,6 +136,8 @@ class CustomEventHandler(EventHandler):
             message, worker_ctx, result, exc_info)
         self._calls.append(message)
         return result, exc_info
+
+custome_event_handler = CustomEventHandler.decorator
 
 
 class HandlerService(object):
@@ -240,8 +201,7 @@ class UnreliableHandler(HandlerService):
 
 
 class CustomHandler(HandlerService):
-    @event_handler('srcservice', 'eventtype',
-                   event_handler_cls=CustomEventHandler)
+    @custome_event_handler('srcservice', 'eventtype')
     def handle(self, evt):
         super(CustomHandler, self).handle(evt)
 
@@ -296,24 +256,14 @@ def start_containers(request, container_factory, rabbit_config, reset_state):
 
 
 def test_event_handler_event_type():
-    class MyEvent(Event):
-        type = 'my_event'
 
     @event_handler('foo', 'bar')
     def foo(self):
         pass
 
-    @event_handler('foo', MyEvent)
+    @event_handler('foo', 'my_event')
     def bar(self):
         pass
-
-    class MyNonEvent(object):
-        type = 'my_non_event'
-
-    with pytest.raises(TypeError):
-        @event_handler('foo', MyNonEvent)
-        def baz(self):
-            pass
 
 
 def test_service_pooled_events(rabbit_manager, rabbit_config,
@@ -592,7 +542,7 @@ def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
 
     payload = {'custom': 'data'}
     dispatch = standalone_dispatcher(rabbit_config)
-    dispatch('srcservice', ExampleEvent.type, payload)
+    dispatch('srcservice',  "eventtype", payload)
 
     # wait for it to arrive
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -606,15 +556,15 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
 
     container = Mock(spec=ServiceContainer)
+    container.shared_extensions = {}
     container.service_name = "srcservice"
     container.config = rabbit_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider())
 
-    dispatcher = EventDispatcher()
-    dispatcher.bind("dispatch", container)
-    dispatcher.prepare()
+    dispatcher = EventDispatcher().bind(container, 'dispatch')
+    dispatcher.setup()
     dispatcher.start()
 
     # we should have an exchange but no queues
@@ -626,10 +576,10 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
     # manually add a queue to capture the events
     rabbit_manager.create_queue(vhost, "event-sink", auto_delete=True)
     rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
-                                  rt_key=ExampleEvent.type)
+                                  rt_key="eventtype")
 
-    dispatcher.inject(worker_ctx)
-    service.dispatch(ExampleEvent("msg"))
+    service.dispatch = dispatcher.get_dependency(worker_ctx)
+    service.dispatch("eventtype", "msg")
 
     # test event receieved on manually added queue
     messages = rabbit_manager.get_messages(vhost, "event-sink")

@@ -2,7 +2,7 @@ import inspect
 import logging
 
 import entities
-from nameko.rpc import RpcProvider
+from nameko.rpc import Rpc
 
 
 log = logging.getLogger(__name__)
@@ -10,11 +10,8 @@ log = logging.getLogger(__name__)
 
 def is_rpc_method(method):
     if inspect.ismethod(method) and hasattr(method, 'nameko_entrypoints'):
-        entrypoint_dep_classes = {
-            factory.dep_cls for factory in method.nameko_entrypoints
-        }
-        if any(issubclass(dep_cls, RpcProvider)
-               for dep_cls in entrypoint_dep_classes):
+        if any(isinstance(entrypoint, Rpc)
+               for entrypoint in method.nameko_entrypoints):
             # It's an RPC method
             return True
 
@@ -22,9 +19,8 @@ def is_rpc_method(method):
 
 
 class MethodExtractor(object):
-    def __init__(self, service_loader_function, event_loader_function):
+    def __init__(self, service_loader_function):
         self.service_loader_function = service_loader_function
-        self.event_loader_function = event_loader_function
 
     def extract(self):
         descriptions = []
@@ -36,20 +32,11 @@ class MethodExtractor(object):
             module_path = service_cls.__module__
             method_names = self._get_service_method_names(service_cls)
 
-            events = self.event_loader_function(service_cls)
-            event_class_paths = [
-                '{}.{}'.format(
-                    event_cls.__module__,
-                    event_cls.__name__,
-                ) for event_cls in events
-            ]
-
             description = self._create_service_description(
                 service_name,
                 module_path,
                 service_class_name,
                 method_names,
-                event_class_paths,
             )
             descriptions.append(description)
 
@@ -65,7 +52,7 @@ class MethodExtractor(object):
         return service_method_names
 
     def _create_service_description(self, service_name, module_path,
-                                    service_cls_name, methods, events):
+                                    service_cls_name, methods):
         reference_sections = [
             entities.ReferenceSection(
                 references=[
@@ -88,18 +75,8 @@ class MethodExtractor(object):
             ]
         )]
 
-        event_sections = [entities.Section(
-            'Events',
-            contents=[
-                entities.SingleEvent(
-                    event_class_path,
-                    extras=[]
-                ) for event_class_path in events
-            ]
-        )]
-
         all_sections = (
-            method_sections + event_sections + reference_sections
+            method_sections + reference_sections
         )
 
         return entities.ServiceDescription(

@@ -4,6 +4,7 @@ python:
 
 install:
   - python setup.py -q install
+  - sudo apt-get install libenchant-dev
   - pip install -r dev_requirements.txt
 
 services:
@@ -12,6 +13,7 @@ services:
 script:
   - make test
   - make docs
+  - make spelling
 
 notifications:
   email: false

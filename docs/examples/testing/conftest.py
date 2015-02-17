@@ -1,4 +1,4 @@
-""" Barebones conftest.py
+""" Minimal conftest.py
 """
 # Nameko relies on eventlet
 # You should monkey patch the standard library as early as possible to avoid
@@ -9,6 +9,7 @@ eventlet.monkey_patch()
 
 from urlparse import urlparse
 
+from kombu.pools import reset
 from pyrabbit.api import Client
 import pytest
 
@@ -25,17 +26,9 @@ def pytest_addoption(parser):
         help=("The URI for rabbit's management API."))
 
 
-def pytest_configure(config):
-    # monkey patch an encoding attribute onto GreenPipe to
-    # satisfy a pytest assertion
-    import py
-    from eventlet.greenio import GreenPipe
-    GreenPipe.encoding = py.std.sys.stdout.encoding
-
-
-@pytest.fixture(autouse=True)
-def reset_kombu_pools(request):
-    from kombu.pools import reset
+@pytest.yield_fixture(autouse=True)
+def reset_kombu_pools():
+    yield
     reset()
 
 

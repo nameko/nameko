@@ -2,7 +2,7 @@ import collections
 import inspect
 
 
-class DependencyNotFound(AttributeError):
+class ExtensionNotFound(AttributeError):
     pass
 
 
@@ -19,8 +19,8 @@ class ContainerBeingKilled(Exception):
     """Raised by :meth:`Container.spawn_worker` if it has started a ``kill``
     sequence.
 
-    Entrypoint providers should catch this and react as if they hadn't been
-    available in the first place, e.g. an rpc consumer should probably requeue
+    Entrypoints should catch this and react as if they hadn't been available
+    in the first place, e.g. an rpc consumer should probably requeue
     the message.
 
     We need this because eventlet may yield during the execution of
@@ -46,7 +46,7 @@ def get_module_path(exc_type):
 
 
 class RemoteError(Exception):
-    """ Exception to raise at the caller if an exception occured in the
+    """ Exception to raise at the caller if an exception occurred in the
     remote worker.
     """
     def __init__(self, exc_type=None, value=""):
@@ -97,7 +97,7 @@ def deserialize(data):
     If the `exc_path` value matches an exception registered as
     ``deserializable``, return an instance of that exception type.
     Otherwise, return a `RemoteError` instance describing the exception
-    that occured.
+    that occurred.
     """
     key = data.get('exc_path')
     if key in registry:
@@ -118,18 +118,22 @@ def deserialize_to_instance(exc_type):
     return exc_type
 
 
-@deserialize_to_instance
-class MalformedRequest(Exception):
+class BadRequest(Exception):
     pass
 
 
 @deserialize_to_instance
-class MethodNotFound(Exception):
+class MalformedRequest(BadRequest):
     pass
 
 
 @deserialize_to_instance
-class IncorrectSignature(Exception):
+class MethodNotFound(BadRequest):
+    pass
+
+
+@deserialize_to_instance
+class IncorrectSignature(BadRequest):
     pass
 
 
@@ -156,3 +160,7 @@ class UnserializableValueError(Exception):
 
 class CommandError(Exception):
     """Raise from subcommands to report error back to the user"""
+
+
+class ConnectionNotFound(BadRequest):
+    """Unknown websocket connection id"""
