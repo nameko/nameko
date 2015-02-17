@@ -366,15 +366,10 @@ def test_recover_from_keyboardinterrupt(
         def call():
             return proxy.spam(ham=0)
 
-        gt = eventlet.spawn(call)
-        eventlet.sleep(.1)  # make sure `call` is scheduled
-
-        gt.kill(KeyboardInterrupt('killing from test'))
-        # wait for it to die
-        try:
-            gt.wait()
-        except KeyboardInterrupt:
-            pass
+        with patch('nameko.standalone.rpc.queue_iterator') as iterator:
+            iterator.side_effect = KeyboardInterrupt('killing from test')
+            with pytest.raises(KeyboardInterrupt):
+                proxy.spam(ham=0)
 
         container = container_factory(FooService, rabbit_config)
         container.start()
