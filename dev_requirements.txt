@@ -1,5 +1,4 @@
 -r requirements.txt
--r contrib_requirements.txt
 
 websocket-client==0.23.0
 requests==2.5.0
