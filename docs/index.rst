@@ -45,7 +45,7 @@ And play with it from another:
 User Guide
 ----------
 
-This section covers most things you need to know to create and run your own nameko services.
+This section covers most things you need to know to create and run your own Nameko services.
 
 .. toctree::
    :maxdepth: 2

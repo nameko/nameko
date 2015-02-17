@@ -6,12 +6,12 @@ Philosophy
 
 Nameko's conventions are designed to make testing as easy as possible. Services are likely to be small and single-purpose, and dependency injection makes it simple to replace and isolate pieces of functionality.
 
-The examples below use `pytest <http://pytest.org/latest/>`_, which is what nameko's own test suite uses, but the helpers are test framework agnostic.
+The examples below use `pytest <http://pytest.org/latest/>`_, which is what Nameko's own test suite uses, but the helpers are test framework agnostic.
 
 Unit Testing
 ------------
 
-Unit testing in nameko usually means testing a single service in isolation -- i.e. without any or most of its dependencies.
+Unit testing in Nameko usually means testing a single service in isolation -- i.e. without any or most of its dependencies.
 
 The :func:`~nameko.testing.services.worker_factory` utility will create a worker from a given service class, with its dependencies replaced by :class:`mock.MagicMock` objects. Dependency functionality can then be imitated by adding :attr:`~mock.Mock.side_effect`\s and :attr:`~mock.Mock.return_value`\s:
 
@@ -24,7 +24,7 @@ In some circumstances it's helpful to provide an alternative dependency, rather 
 Integration Testing
 -------------------
 
-Integration testing in nameko means testing the interface between a number of services. The recommended way is to run all the services being tested in the normal way, and trigger behaviour by "firing" an entrypoint using a helper:
+Integration testing in Nameko means testing the interface between a number of services. The recommended way is to run all the services being tested in the normal way, and trigger behaviour by "firing" an entrypoint using a helper:
 
 .. literalinclude:: examples/testing/integration_test.py
 

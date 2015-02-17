@@ -3,7 +3,7 @@
 Getting in touch
 ================
 
-If you have questions for the nameko community or developers, there are a number of ways to get in touch:
+If you have questions for the Nameko community or developers, there are a number of ways to get in touch:
 
 GitHub
 ------

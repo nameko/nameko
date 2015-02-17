@@ -26,7 +26,7 @@ You can install from the source code using setuptools::
 RabbitMQ
 --------
 
-Several of nameko's built-in features rely on RabbitMQ. Installing RabbitMQ is straightforward on most platforms and they have `excellent documentation <https://www.rabbitmq.com/download.html>`_.
+Several of Nameko's built-in features rely on RabbitMQ. Installing RabbitMQ is straightforward on most platforms and they have `excellent documentation <https://www.rabbitmq.com/download.html>`_.
 
 With homebrew on a mac you can install with::
 

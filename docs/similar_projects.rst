@@ -4,9 +4,9 @@ Similar and Related Projects
 Celery
 ------
 
-`Celery <http://celery.readthedocs.org/>`_ is a distributed task queue. It lets you define "tasks" as Python functions and execute them on a set of remote workers, not unlike nameko RPC.
+`Celery <http://celery.readthedocs.org/>`_ is a distributed task queue. It lets you define "tasks" as Python functions and execute them on a set of remote workers, not unlike Nameko RPC.
 
-Celery is usually used as an add-on to existing applications, to defer processing or otherwise outsource some work to a remote machine. You could also achieve this with nameko, but Celery includes many more primitives for the distribution of tasks and the collection of results.
+Celery is usually used as an add-on to existing applications, to defer processing or otherwise outsource some work to a remote machine. You could also achieve this with Nameko, but Celery includes many more primitives for the distribution of tasks and the collection of results.
 
 Zato
 ----

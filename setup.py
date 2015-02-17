@@ -36,7 +36,7 @@ setup(
                 'developers concentrate on application logic and encourages '
                 'testability.',
     author='onefinestay',
-    author_email='engineering@onefinestay.com',
+    author_email='nameko-devs@onefinestay.com',
     url='http://github.com/onefinestay/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=requirements,

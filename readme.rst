@@ -11,7 +11,7 @@ Nameko
     A microservices framework for Python that lets service developers concentrate on application logic and encourages testability.
 
 
-A nameko service is just a class:
+A Nameko service is just a class:
 
 .. code-block:: python
 

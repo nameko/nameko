@@ -24,7 +24,7 @@ Extensions should subclass :class:`nameko.extensions.Extension`. This base class
 Dependency Providers
 --------------------
 
-It's likely that even a modest nameko application will need to define its own dependencies -- maybe to interface with a database for which there is no :ref:`community extension <community_extensions>` or to communicate with a :ref:`specific web service <travis>`.
+It's likely that even a modest Nameko application will need to define its own dependencies -- maybe to interface with a database for which there is no :ref:`community extension <community_extensions>` or to communicate with a :ref:`specific web service <travis>`.
 
 Dependency providers should subclass :class:`nameko.extensions.DependencyProvider` and implement a :meth:`~nameko.extensions.DependencyProvider.get_dependency` method that returns an object to be injected into service workers.
 

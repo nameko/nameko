@@ -1,4 +1,4 @@
-What is nameko?
+What is Nameko?
 ===============
 
 Nameko is a framework for building microservices in Python.
@@ -19,10 +19,10 @@ Nameko strongly encourages the :ref:`dependency injection <benefits_of_dependenc
 Nameko takes its name from the Japanese mushroom, which grows in clusters.
 
 
-When should I use nameko?
+When should I use Nameko?
 -------------------------
 
-Nameko is designed to help you create, run and test microservices. You should use nameko if:
+Nameko is designed to help you create, run and test microservices. You should use Nameko if:
 
     * You want to write your backend as microservices, or
     * You want to add microservices to an existing system, and
@@ -30,10 +30,11 @@ Nameko is designed to help you create, run and test microservices. You should us
 
 Nameko scales from a single instance of a single service, to a cluster with many instances of many different services.
 
-The library also ships with tools for clients, which you can use if you want to write Python code to communicate with an existing nameko cluster.
+The library also ships with tools for clients, which you can use if you want to write Python code to communicate with an existing Nameko cluster.
 
 
-When shouldn't I use nameko?
+When shouldn't I use Nameko?
 ----------------------------
 
-Nameko is not a web framework. It has built-in HTTP entrypoints but they're limited to what is useful in the realm of microservices. If you want to build a webapp for consumption by humans you should use something like `flask <http://flask.pocoo.org>`_.
+Nameko is not a web framework. It has built-in HTTP support but
+it's limited to what is useful in the realm of microservices. If you want to build a webapp for consumption by humans you should use something like `flask <http://flask.pocoo.org>`_.

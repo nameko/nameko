@@ -1,12 +1,12 @@
 Key Concepts
 ============
 
-This section introduces nameko's central concepts.
+This section introduces Nameko's central concepts.
 
 Anatomy of a Service
 --------------------
 
-A nameko service is just a Python class. The class encapsulates the application logic in its methods and declares any :ref:`dependencies <dependencies>` as attributes.
+A Nameko service is just a Python class. The class encapsulates the application logic in its methods and declares any :ref:`dependencies <dependencies>` as attributes.
 
 Methods are exposed to the outside world with :ref:`entrypoint <entrypoints>` decorators.
 
@@ -76,7 +76,7 @@ Concurrency
 
 Nameko is built on top of the `eventlet <http://eventlet.net/>`_ library, which provides concurrency via "greenthreads". The concurrency model is co-routines with implicit yielding.
 
-Implicit yielding relies on `monkey patching <http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library>`_ the standard library, to trigger a yield when a thread waits on I/O. If you host services with ``nameko run`` on the command line, nameko will apply the monkey patch for you.
+Implicit yielding relies on `monkey patching <http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library>`_ the standard library, to trigger a yield when a thread waits on I/O. If you host services with ``nameko run`` on the command line, Nameko will apply the monkey patch for you.
 
 Each worker executes in its own greenthread. The maximum number of concurrent workers can be tweaked based on the amount of time each worker will spend waiting on I/O.
 
@@ -96,11 +96,11 @@ Nameko has a number of :ref:`built-in extensions <built_in_extensions>`, some ar
 Running Services
 ----------------
 
-All that's required to run a service is the service class and any relevant configuration. The easiest way to run one or multiple services is with the nameko CLI::
+All that's required to run a service is the service class and any relevant configuration. The easiest way to run one or multiple services is with the Nameko CLI::
 
     $ nameko run module:[ServiceClass]
 
-This command will discover nameko services in the given ``module``\s and start running them. You can optionally limit it to specific ``ServiceClass``\s.
+This command will discover Nameko services in the given ``module``\s and start running them. You can optionally limit it to specific ``ServiceClass``\s.
 
 .. _containers:
 

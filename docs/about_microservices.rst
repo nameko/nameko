@@ -9,7 +9,7 @@ Microservices are usually described in contrast to a "monolith" -- an applicatio
 
 With microservices, functionality is instead split into "services" with well defined boundaries. Each of these services can be developed and deployed individually.
 
-There are many benefits as well as drawbacks to using microservices, eloquently explained in Martin Fowler's `paper <http://martinfowler.com/articles/microservices.html>`_. Not all of them always apply, so below we'll outline some that are relevant to nameko.
+There are many benefits as well as drawbacks to using microservices, eloquently explained in Martin Fowler's `paper <http://martinfowler.com/articles/microservices.html>`_. Not all of them always apply, so below we'll outline some that are relevant to Nameko.
 
 Benefits
 --------
@@ -24,11 +24,11 @@ Benefits
 
 * Explicit `published interface <http://martinfowler.com/bliki/PublishedInterface.html>`_
 
-    The entrypoints for a nameko service explicitly declare its published interface. This is the boundary between the service and its callers, and thus the point beyond which backwards compatibility must be considered or maintained.
+    The entrypoints for a Nameko service explicitly declare its published interface. This is the boundary between the service and its callers, and thus the point beyond which backwards compatibility must be considered or maintained.
 
 * Individually deployable
 
-    Unlike a monolith which can only be released all at once, nameko services can be individually deployed. A change in one service can be made and rolled out without touching any of the others. Long running and highly considered release cycles can be broken into smaller, faster iterations.
+    Unlike a monolith which can only be released all at once, Nameko services can be individually deployed. A change in one service can be made and rolled out without touching any of the others. Long running and highly considered release cycles can be broken into smaller, faster iterations.
 
 * Specialization
 
@@ -56,7 +56,7 @@ Drawbacks
 
     Splitting an application over multiple separate components introduces the requirement to understand how those components interact. This is hard when the components are in different code bases (and developer head spaces).
 
-    In the future we hope to include tools in nameko that make understanding, documenting and visualizing service interdependencies easier.
+    In the future we hope to include tools in Nameko that make understanding, documenting and visualizing service interdependencies easier.
 
 Further Notes
 -------------
