@@ -7,6 +7,15 @@ Use GitHub `issues <https://github.com/onefinestay/nameko/issues>`_ to report bu
 
 You're welcome to `fork <https://github.com/onefinestay/nameko/fork>`_ the repository and raise a pull request with your contributions.
 
+You can install all the development dependencies using::
+
+    pip install -e .[dev]
+
+and the requirements for building docs using::
+
+    pip install -e .[docs]
+
+
 Pull requests are automatically built with `Travis-CI <https://travis-ci.org/onefinestay/nameko/>`_. Travis will fail the build unless all of the following are true:
 
     * All tests pass
