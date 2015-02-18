@@ -1,42 +1,32 @@
-# See https://bugs.launchpad.net/pyflakes/+bug/1223150
-export PYFLAKES_NODOCTEST=1
-
 noop:
 	@true
 
 .PHONY: noop
 
-requirements:
-	pip install -r dev_requirements.txt -q
+dev_extras:
+	pip install -e .[dev] -q
 
-develop: requirements
-	python setup.py -q develop
+docs_extras:
+	pip install -e .[docs] -q
 
-pytest:
+pytest: dev_extras
 	coverage run --concurrency=eventlet --source nameko -m pytest test
 
-flake8:
+flake8: dev_extras
 	flake8 nameko test
 
-pylint:
+pylint: dev_extras
 	pylint nameko -E
 
 test: flake8 pylint pytest coverage-check
 
-full-test: requirements test
-
-coverage-check:
+coverage-check: dev_extras
 	coverage report --fail-under=100
 
-sphinx: develop
+sphinx: docs_extras
 	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html
 
-spelling:
+spelling: docs_extras
 	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
-
-docs/modules.rst: $(wildcard nameko/*.py) $(wildcard nameko/**/*.py)
-	sphinx-apidoc -e -f -o docs/api nameko
-
-autodoc: docs/modules.rst
 
 docs: sphinx spelling
