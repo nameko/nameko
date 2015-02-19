@@ -15,7 +15,7 @@ setup(
     install_requires=[
         "eventlet",
         "iso8601",
-        "kombu<=3.04",
+        "kombu<=3.0.4",
         "mock",
         "path.py>=6.2",
         "pyrabbit",
