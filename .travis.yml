@@ -2,21 +2,28 @@ language: python
 python:
   - "2.7"
 
-install:
-  - python setup.py -q install
-  - sudo apt-get install libenchant-dev
-  - pip install -r dev_requirements.txt
-
 services:
     - rabbitmq
 
+install:
+  - sudo apt-get install libenchant-dev
+  - pip install tox
+
+env:
+    - TOX_ENV=pinned
+    - TOX_ENV=latest
+    - TOX_ENV=docs
+
 script:
-  - make test
-  - make docs
-  - make spelling
+  - tox --envlist $TOX_ENV
 
 notifications:
   email: false
+  irc:
+    channels:
+      - "chat.freenode.net#nameko"
+    use_notice: true
+    skip_join: true
   hipchat:
     rooms:
       secure: HdQuYHfBbCnuw0mgj1tJOdlXRhF+b9Ena6JVp1nPdCjP5WX8iCpDAtR4vlTry4X6eNXodb0xsdhWmN9Zq+iDvR0FQvvtRkFUxNpxsqGPLClvUIthTNqjGLgl2lMtbZcHRT1dj/wrKY/yAVdGs/FF/Ghz0MQZgiWtGA5hnb3kZAI=
