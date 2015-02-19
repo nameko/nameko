@@ -3,30 +3,24 @@ noop:
 
 .PHONY: noop
 
-dev_extras:
-	pip install -e .[dev] -q
-
-docs_extras:
-	pip install -e .[docs] -q
-
-pytest: dev_extras
+pytest:
 	coverage run --concurrency=eventlet --source nameko -m pytest test
 
-flake8: dev_extras
+flake8:
 	flake8 nameko test
 
-pylint: dev_extras
+pylint:
 	pylint nameko -E
 
 test: flake8 pylint pytest coverage-check
 
-coverage-check: dev_extras
+coverage-check:
 	coverage report --fail-under=100
 
-sphinx: docs_extras
+sphinx:
 	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html
 
-spelling: docs_extras
+spelling:
 	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
 
-docs: sphinx spelling
+docs: spelling sphinx
