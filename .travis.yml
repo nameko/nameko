@@ -15,7 +15,7 @@ env:
     - TOX_ENV=docs
 
 script:
-  - tox --envlist $TOX_ENV
+  - tox -e $TOX_ENV
 
 notifications:
   email: false
