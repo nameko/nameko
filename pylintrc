@@ -48,7 +48,7 @@ load-plugins=
 output-format=colorized
 
 # Include message's id in output
-include-ids=yes
+msg-template={path}:{line}: [{msg_id}({symbol}), {obj}] {msg}
 
 # Include symbolic ids of messages in output
 symbols=no
