@@ -17,7 +17,7 @@ setup(
         "iso8601",
         "kombu<=3.04",
         "mock",
-        "path.py",
+        "path.py>=6.2",
         "pyrabbit",
         "Werkzeug",
     ],
