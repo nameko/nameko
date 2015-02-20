@@ -1,10 +1,8 @@
-noop:
-	@true
+# shortcuts for local dev
+#
+.PHONY: test flake8 pylint pytest docs spelling test_docs
 
-.PHONY: noop
-
-pytest:
-	coverage run --concurrency=eventlet --source nameko -m pytest test
+test: flake8 pylint pytest
 
 flake8:
 	flake8 nameko test
@@ -12,15 +10,16 @@ flake8:
 pylint:
 	pylint nameko -E
 
-test: flake8 pylint pytest coverage-check
-
-coverage-check:
+pytest:
+	coverage run --concurrency=eventlet --source nameko -m pytest test
 	coverage report --fail-under=100
 
-sphinx:
-	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html
+docs:
+	tox -e docs
 
 spelling:
-	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
+	tox -e spelling
 
-docs: spelling sphinx
+test_docs:
+	spelling
+	docs
