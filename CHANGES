@@ -102,7 +102,7 @@ Version 1.11.0
 * Add default retry policies to all publishers
 * Stricter handling of connections between tests
 * Workarounds for RabbitMQ bugs described at
-  https://groups.google.com/forum/#!topic/rabbitmq-users/lrl0tYd1L38
+  https://groups.google.com/d/topic/rabbitmq-users/lrl0tYd1L38/discussion
 
 Version 1.10.1
 --------------
