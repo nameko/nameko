@@ -14,7 +14,6 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "eventlet",
-        "iso8601",
         "kombu<=3.0.4",
         "mock",
         "path.py>=6.2",
