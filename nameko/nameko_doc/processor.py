@@ -1,5 +1,5 @@
 import logging
-from path import path
+from path import Path
 from .method_extractor import MethodExtractor
 from .rst_render import RstPagePrinter
 
@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 class ServiceDocProcessor(object):
     def __init__(self, output, service_loader_function):
-        self.output = path(output)
+        self.output = Path(output)
         self.service_loader_function = service_loader_function
 
     def write_docs(self):
