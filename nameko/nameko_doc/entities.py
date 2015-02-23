@@ -1,5 +1,5 @@
 from collections import namedtuple
-import rst_render as rst
+from . import rst_render as rst
 
 
 TITLE_LEVEL_FOR_SUBSECTIONS = 2

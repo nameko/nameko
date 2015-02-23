@@ -1,7 +1,7 @@
 import inspect
 import logging
 
-import entities
+from . import entities
 from nameko.rpc import Rpc
 
 
