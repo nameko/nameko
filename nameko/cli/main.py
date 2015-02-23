@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import argparse
 
 from nameko.exceptions import CommandError
@@ -23,4 +25,4 @@ def main():
     try:
         args.main(args)
     except CommandError as exc:
-        print "Error: {}".format(exc)
+        print("Error: {}".format(exc))
