@@ -164,7 +164,9 @@ class ServiceContainer(object):
 
     @property
     def extensions(self):
-        return self.entrypoints | self.dependencies | self.subextensions
+        return SpawningSet(
+            self.entrypoints | self.dependencies | self.subextensions
+        )
 
     @property
     def interface(self):
