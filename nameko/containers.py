@@ -10,6 +10,7 @@ import eventlet
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
+import six
 
 from nameko.constants import (
     PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED,
@@ -26,6 +27,11 @@ from nameko.utils import repr_safe_str, SpawningSet
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
 MANAGED_THREAD = object()
+
+if six.PY2:
+    is_method = inspect.ismethod
+else:
+    is_method = inspect.isfunction
 
 
 def get_service_name(service_cls):
@@ -141,8 +147,7 @@ class ServiceContainer(object):
             self.dependencies.add(bound)
             self.subextensions.update(iter_extensions(bound))
 
-        for method_name, method in inspect.getmembers(service_cls,
-                                                      inspect.ismethod):
+        for method_name, method in inspect.getmembers(service_cls, is_method):
             entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
                 bound = entrypoint.bind(self.interface, method_name)
