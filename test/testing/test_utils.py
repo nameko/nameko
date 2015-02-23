@@ -1,7 +1,6 @@
 import eventlet
 from eventlet.event import Event
 from mock import Mock, patch, call
-from pyrabbit.http import HTTPError
 import pytest
 
 from nameko.constants import DEFAULT_MAX_WORKERS
