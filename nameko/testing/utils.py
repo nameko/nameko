@@ -3,16 +3,57 @@ Common testing utilities.
 """
 from contextlib import contextmanager
 from functools import partial
-from urlparse import urlparse
+from six.moves.urllib.parse import urlparse, quote
 
 import eventlet
 from mock import Mock
-from pyrabbit.api import Client
-from pyrabbit.http import HTTPError
+# from pyrabbit.http import HTTPError
+import requests
 
 
 from nameko.containers import WorkerContextBase
 from nameko.extensions import Entrypoint
+
+
+class Client2(object):
+    def __init__(self, host_port, username, password):
+        self._base_url = 'http://{}/api'.format(host_port)
+        self._session = requests.Session()
+        self._session.auth = (username, password)
+        self._session.headers['content-type'] = 'application/json'
+
+    @staticmethod
+    def quote(value):
+        return quote(value, '')
+
+    def url(self, *args):
+        args = map(self.quote, args)
+        return '{}/{}'.format(
+            self._base_url,
+            '/'.join(args),
+        )
+
+    def get_connections(self):
+        return self._session.get(self.url('connections')).json()
+
+    def delete_connection(self, name):
+        return self._session.delete(self.url('connections', name))
+
+    def create_vhost(self, vhost):
+        return self._session.put(self.url('vhosts', vhost))
+
+    def delete_vhost(self, vhost):
+        return self._session.delete(self.url('vhosts', vhost))
+
+    def set_vhost_permissions(self, vhost, username, configure, read, write):
+        permissions = {
+            'configure': configure,
+            'read': read,
+            'write': write,
+        }
+        return self._session.put(
+            self.url('permissions', vhost, username),
+            json=permissions)
 
 
 def get_extension(container, extension_cls, **match_attrs):
@@ -153,14 +194,14 @@ def get_rabbit_config(amqp_uri):
 def get_rabbit_manager(rabbit_ctl_uri):
     uri = urlparse(rabbit_ctl_uri)
     host_port = '{0.hostname}:{0.port}'.format(uri)
-    return Client(host_port, uri.username, uri.password)
+    return Client2(host_port, uri.username, uri.password)
 
 
 def reset_rabbit_vhost(vhost, username, rabbit_manager):
 
     try:
         rabbit_manager.delete_vhost(vhost)
-    except HTTPError as exc:
+    except Exception as exc:  # TODO
         if exc.status == 404:
             pass  # vhost does not exist
         else:
@@ -183,7 +224,8 @@ def reset_rabbit_connections(vhost, rabbit_manager):
     for connection in get_rabbit_connections(vhost, rabbit_manager):
         try:
             rabbit_manager.delete_connection(connection['name'])
-        except HTTPError as exc:
+        except Exception as exc:  # TODO
+            import pdb; pdb.set_trace()
             if exc.status == 404:
                 pass  # connection closed in a race
             else:
