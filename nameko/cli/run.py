@@ -51,7 +51,7 @@ def import_service(module_name):
 
         missing_module_message = 'No module named {}'.format(module_name)
         # is there a better way to do this?
-        if exc.message != missing_module_message:
+        if str(exc) != missing_module_message:
             # found module, but importing it raised an import error elsewhere
             # let this bubble (resulting in a full stacktrace being printed)
             raise
