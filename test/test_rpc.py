@@ -75,12 +75,10 @@ class ExampleService(object):
 
     @rpc
     def task_a(self, *args, **kwargs):
-        print "task_a", args, kwargs
         return "result_a"
 
     @rpc
     def task_b(self, *args, **kwargs):
-        print "task_b", args, kwargs
         return "result_b"
 
     @rpc(expected_exceptions=ExampleError)
