@@ -2,7 +2,7 @@ from logging import getLogger
 from functools import partial
 
 from eventlet.event import Event
-
+import six
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
@@ -29,7 +29,7 @@ def response_from_result(result):
         status = 200
 
     return Response(
-        unicode(payload),
+        six.text_type(payload),
         status=status,
         headers=headers,
     )

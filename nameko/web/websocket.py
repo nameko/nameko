@@ -11,6 +11,7 @@ from nameko.exceptions import (
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.web.server import WebServer
+import six
 from werkzeug.routing import Rule
 
 _log = getLogger(__name__)
@@ -46,7 +47,7 @@ class WebSocketServer(SharedExtension, ProviderCollector):
             raise MalformedRequest('Invalid JSON data')
 
     def serialize_for_ws(self, payload):
-        return unicode(json.dumps(payload))
+        return six.text_type(json.dumps(payload))
 
     def serialize_event(self, event, data):
         return self.serialize_for_ws({
