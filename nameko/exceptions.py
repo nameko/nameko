@@ -1,6 +1,8 @@
 import collections
 import inspect
 
+import six
+
 
 class ExtensionNotFound(AttributeError):
     pass
@@ -68,7 +70,7 @@ def safe_for_json(value):
     if isinstance(value, dict):
         return {
             safe_for_json(key): safe_for_json(val)
-            for key, val in value.iteritems()
+            for key, val in six.iteritems(value)
         }
     if isinstance(value, collections.Iterable):
         return map(safe_for_json, value)

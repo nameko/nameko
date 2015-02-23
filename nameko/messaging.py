@@ -9,11 +9,11 @@ import socket
 
 import eventlet
 from eventlet.event import Event
-
 from kombu.common import maybe_declare
 from kombu.pools import producers, connections
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
+import six
 
 from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import ContainerBeingKilled
@@ -61,7 +61,7 @@ class HeaderDecoder(object):
 
     def unpack_message_headers(self, worker_ctx_cls, message):
         stripped = {self._strip_header_name(k): v
-                    for k, v in message.headers.iteritems()}
+                    for k, v in six.iteritems(message.headers)}
         return worker_ctx_cls.get_context_data(stripped)
 
 

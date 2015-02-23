@@ -90,14 +90,14 @@ class WorkerContextBase(object):
         Comprises items from ``self.data`` where the key is included in
         ``context_keys``, as well as the call stack.
         """
-        key_data = {k: v for k, v in self.data.iteritems()
+        key_data = {k: v for k, v in six.iteritems(self.data)
                     if k in self.context_keys}
         key_data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
         return key_data
 
     @classmethod
     def get_context_data(cls, incoming):
-        data = {k: v for k, v in incoming.iteritems()
+        data = {k: v for k, v in six.iteritems(incoming)
                 if k in cls.context_keys}
         return data
 
