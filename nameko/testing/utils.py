@@ -15,7 +15,13 @@ from nameko.containers import WorkerContextBase
 from nameko.extensions import Entrypoint
 
 
-class Client2(object):
+class Client(object):
+    """Pyrabbit replacement using requests instead of httplib2
+
+    Works on py3 (and better on py2)
+
+    TODO: think about apis and/or split out into separate library
+    """
     def __init__(self, host_port, username, password):
         self._base_url = 'http://{}/api'.format(host_port)
         self._session = requests.Session()
@@ -23,27 +29,67 @@ class Client2(object):
         self._session.headers['content-type'] = 'application/json'
 
     @staticmethod
-    def quote(value):
+    def _quote(value):
         return quote(value, '')
 
-    def url(self, *args):
-        args = map(self.quote, args)
+    def _build_url(self, args):
+        args = map(self._quote, args)
         return '{}/{}'.format(
             self._base_url,
             '/'.join(args),
         )
 
+    def get(self, *args):
+        url = self._build_url(args)
+        result = self._session.get(url)
+        if result.content:
+            return result.json()
+
+    def put(self, *args, **kwargs):
+        url = self._build_url(args)
+        result = self._session.put(url, **kwargs)
+        result.raise_for_status()
+
+    def delete(self, *args):
+        url = self._build_url(args)
+        result = self._session.delete(url)
+        result.raise_for_status()
+
+    def post(self, *args, **kwargs):
+        url = self._build_url(args)
+        result = self._session.post(url, **kwargs)
+        result.raise_for_status()
+        if result.content:
+            return result.json()
+
     def get_connections(self):
-        return self._session.get(self.url('connections')).json()
+        return self.get('connections')
 
     def delete_connection(self, name):
-        return self._session.delete(self.url('connections', name))
+        return self.delete('connections', name)
+
+    def get_exchanges(self, vhost):
+        return self.get('exchanges', vhost)
+
+    def get_messages(
+        self, vhost, name, count=1, requeue=False, truncate=None,
+        encoding='auto',
+    ):
+        body = {
+            'count': count,
+            'encoding': encoding,
+            'requeue': requeue,
+        }
+        if truncate is not None:
+            body['truncate'] = truncate
+
+        return self.post('queues', vhost, name, 'get', json=body)
 
     def create_vhost(self, vhost):
-        return self._session.put(self.url('vhosts', vhost))
+        return self.put('vhosts', vhost)
 
     def delete_vhost(self, vhost):
-        return self._session.delete(self.url('vhosts', vhost))
+        return self.delete('vhosts', vhost)
 
     def set_vhost_permissions(self, vhost, username, configure, read, write):
         permissions = {
@@ -51,9 +97,38 @@ class Client2(object):
             'read': read,
             'write': write,
         }
-        return self._session.put(
-            self.url('permissions', vhost, username),
+        return self.put(
+            'permissions', vhost, username,
             json=permissions)
+
+    def create_queue_binding(self, vhost, exchange, queue, routing_key):
+        body = {
+            'routing_key': routing_key,
+        }
+        return self.post(
+            'bindings', vhost, 'e', exchange, 'q', queue, json=body
+        )
+
+    def get_queue_bindings(self, vhost, name):
+        return self.get('queues', vhost, name, 'bindings')
+
+    def create_queue(self, vhost, name, **properties):
+        return self.put('queues', vhost, name, json=properties)
+
+    def get_queue(self, vhost, name):
+        return self.get('queues', vhost, name)
+
+    def get_queues(self, vhost):
+        return self.get('queues', vhost)
+
+    def publish(self, vhost, name, routing_key, payload, properties=None):
+        body = {
+            'routing_key': routing_key,
+            'payload': payload,
+            'properties': properties or {},
+            'payload_encoding': 'string',
+        }
+        return self.post('exchanges', vhost, name, 'publish', json=body)
 
 
 def get_extension(container, extension_cls, **match_attrs):
@@ -194,7 +269,7 @@ def get_rabbit_config(amqp_uri):
 def get_rabbit_manager(rabbit_ctl_uri):
     uri = urlparse(rabbit_ctl_uri)
     host_port = '{0.hostname}:{0.port}'.format(uri)
-    return Client2(host_port, uri.username, uri.password)
+    return Client(host_port, uri.username, uri.password)
 
 
 def reset_rabbit_vhost(vhost, username, rabbit_manager):
