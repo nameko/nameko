@@ -14,6 +14,7 @@ import signal
 import sys
 
 from eventlet import backdoor
+import six
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
@@ -22,6 +23,11 @@ from nameko.runners import ServiceRunner
 
 
 logger = logging.getLogger(__name__)
+
+if six.PY2:
+    MISSING_MODULE_TEMPLATE = "No module named {}"
+else:
+    MISSING_MODULE_TEMPLATE = "No module named '{}'"
 
 
 def is_type(obj):
@@ -49,7 +55,7 @@ def import_service(module_name):
                 )
             )
 
-        missing_module_message = 'No module named {}'.format(module_name)
+        missing_module_message = MISSING_MODULE_TEMPLATE.format(module_name)
         # is there a better way to do this?
         if str(exc) != missing_module_message:
             # found module, but importing it raised an import error elsewhere
