@@ -5,6 +5,10 @@ from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.rpc import Responder
 
 
+# python version compat
+EXCEPTION_MODULE = Exception.__module__
+
+
 @pytest.yield_fixture
 def mock_publish():
     path = 'nameko.rpc.producers'
@@ -52,7 +56,7 @@ def test_responder_worker_exc(mock_publish):
     expected_msg = {
         'result': None,
         'error': {
-            'exc_path': 'exceptions.Exception',
+            'exc_path': '{}.Exception'.format(EXCEPTION_MODULE),
             'value': 'error',
             'exc_type': 'Exception',
             'exc_args': ['error']

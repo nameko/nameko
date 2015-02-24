@@ -9,7 +9,7 @@ from nameko.exceptions import (
     RemoteError, UnserializableValueError)
 
 
-OBJECT_REPR = "<type 'object'>"
+OBJECT_REPR = repr(object)
 
 
 class CustomError(Exception):
