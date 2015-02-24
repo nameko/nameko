@@ -291,7 +291,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     with ServiceRpcProxy("service", rabbit_config) as service_proxy:
         with pytest.raises(MethodNotFound) as exc_info:
             service_proxy.handler_one("msg")
-        assert exc_info.value.message == "handler_one"
+        assert str(exc_info.value) == "handler_one"
 
     # dispatch an event to handler_two
     msg = "msg"

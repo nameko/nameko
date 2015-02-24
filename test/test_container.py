@@ -498,7 +498,7 @@ def test_kill_bad_dependency(container):
 
         with pytest.raises(Exception) as exc_info:
             container.wait()
-        assert exc_info.value.message == "container error"
+        assert str(exc_info.value) == "container error"
 
 
 def test_stop_during_kill(container, logger):

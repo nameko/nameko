@@ -487,7 +487,7 @@ def test_rpc_missing_method(container_factory, rabbit_config):
     with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(MethodNotFound) as exc_info:
             proxy.task_c()
-    assert exc_info.value.message == "task_c"
+    assert str(exc_info.value) == "task_c"
 
 
 def test_rpc_invalid_message():
