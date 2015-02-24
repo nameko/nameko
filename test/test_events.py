@@ -575,8 +575,8 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
 
     # manually add a queue to capture the events
     rabbit_manager.create_queue(vhost, "event-sink", auto_delete=True)
-    rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
-                                  rt_key="eventtype")
+    rabbit_manager.create_queue_binding(
+        vhost, "srcservice.events", "event-sink", routing_key="eventtype")
 
     service.dispatch = dispatcher.get_dependency(worker_ctx)
     service.dispatch("eventtype", "msg")
