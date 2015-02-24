@@ -81,7 +81,7 @@ def test_responder_unserializable_result(mock_publish):
     # responder will return the TypeError from json.dumps
     assert result is None
     assert exc_info == (TypeError, ANY, ANY)
-    assert exc_info[1].message == ("{} is not JSON "
+    assert str(exc_info[1]) == ("{} is not JSON "
                                    "serializable".format(worker_result))
 
     # and publish a dictionary-serialized UnserializableValueError
