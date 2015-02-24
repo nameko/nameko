@@ -492,8 +492,7 @@ def test_kill_bad_dependency(container):
         try:
             raise Exception('container error')
         except:
-            pass
-        exc_info = sys.exc_info()
+            exc_info = sys.exc_info()
 
         container.kill(exc_info)
 
@@ -516,8 +515,7 @@ def test_stop_during_kill(container, logger):
         try:
             raise Exception('error')
         except:
-            pass
-        exc_info = sys.exc_info()
+            exc_info = sys.exc_info()
 
         eventlet.spawn(container.kill, exc_info)
         eventlet.spawn(container.stop)
