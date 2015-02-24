@@ -73,7 +73,7 @@ def safe_for_json(value):
             for key, val in six.iteritems(value)
         }
     if isinstance(value, collections.Iterable):
-        return map(safe_for_json, value)
+        return list(map(safe_for_json, value))
 
     try:
         return six.text_type(value)
