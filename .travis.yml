@@ -12,6 +12,7 @@ install:
 env:
     - TOX_ENV=pinned
     - TOX_ENV=latest
+    - TOX_ENV=oldest
     - TOX_ENV=docs
     - TOX_ENV=spelling
 

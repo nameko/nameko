@@ -3,7 +3,8 @@ import socket
 
 import eventlet
 from eventlet import wsgi
-from eventlet.wsgi import HttpProtocol, BaseHTTPServer, support, BROKEN_SOCK
+from eventlet.support import get_errno
+from eventlet.wsgi import HttpProtocol, BaseHTTPServer, BROKEN_SOCK
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
@@ -28,7 +29,7 @@ class HttpOnlyProtocol(HttpProtocol):
             BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
         except socket.error as e:
             # Broken pipe, connection reset by peer
-            if support.get_errno(e) not in BROKEN_SOCK:
+            if get_errno(e) not in BROKEN_SOCK:
                 raise
         self.connection.close()
 

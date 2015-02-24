@@ -28,7 +28,7 @@ class Service(object):
         entrypoint_called(evt_data)
 
 
-def test_rpc_serializationx(container_factory, rabbit_config):
+def test_rpc_serialization(container_factory, rabbit_config):
 
     container = container_factory(Service, rabbit_config)
     container.start()
@@ -70,7 +70,7 @@ def test_rpc_proxy_serialization_error(container_factory, rabbit_config):
     container.start()
 
     with ServiceRpcProxy('service', rabbit_config) as proxy:
-        with pytest.raises(TypeError):
+        with pytest.raises(Exception):
             proxy.echo(uuid.uuid4())
 
         assert proxy.echo('foo') == "foo"  # subsequent calls ok

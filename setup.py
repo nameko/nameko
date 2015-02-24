@@ -13,12 +13,13 @@ setup(
     url='http://github.com/onefinestay/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        "eventlet",
-        "kombu<=3.0.4",
-        "mock",
+        "eventlet>=0.15.0",
+        "iso8601",
+        "kombu>=3.0.1",
+        "mock>=1.0.1",
         "path.py>=6.2",
-        "pyrabbit",
-        "Werkzeug",
+        "pyrabbit>=1.0.1",
+        "werkzeug>=0.9",
     ],
     extras_require={
         'dev': [
