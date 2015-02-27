@@ -64,7 +64,7 @@ def test_post(web_session):
 
 def test_custom_response(web_session):
     rv = web_session.get('/custom')
-    assert rv.content == 'response'
+    assert rv.text == 'response'
 
 
 def test_custom_status_code(web_session):

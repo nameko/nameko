@@ -24,7 +24,7 @@ def test_broken_pipe(container_factory, web_config, web_session):
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('127.0.0.1', web_config['WEB_SERVER_PORT']))
-    s.sendall('GET /large \r\n\r\n')
+    s.sendall(b'GET /large \r\n\r\n')
     s.recv(10)
     s.close()  # break connection while there is still more data coming
 
@@ -41,7 +41,7 @@ def test_other_error(container_factory, web_config, web_session):
 
     with patch.object(BaseHTTPServer.BaseHTTPRequestHandler, 'finish') as fin:
         fin.side_effect = socket.error('boom')
-        s.sendall('GET / \r\n\r\n')
+        s.sendall(b'GET / \r\n\r\n')
         s.recv(10)
         s.close()
 
