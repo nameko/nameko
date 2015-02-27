@@ -102,10 +102,7 @@ class AnyInstanceOf(object):
         return isinstance(self.cls, type) and isinstance(other, self.cls)
 
     def __ne__(self, other):
-        try:
-            return not isinstance(other, self.cls)
-        except TypeError:
-            return True
+        return not (self == other)
 
     def __repr__(self):
         obj = getattr(self.cls, '__name__', self.cls)
