@@ -25,9 +25,8 @@ class Client(object):
         )
 
     def _request(self, method, *args, **kwargs):
-        body = kwargs.pop('body', None)
         url = self._build_url(args)
-        result = self._session.request(method, url, json=body)
+        result = self._session.request(method, url, **kwargs)
         result.raise_for_status()
         if result.content:
             return result.json()
