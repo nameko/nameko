@@ -1,6 +1,5 @@
 import eventlet
 from kombu.message import Message
-from mock import patch
 import pytest
 import socket
 
@@ -11,6 +10,12 @@ from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 from nameko.exceptions import RpcConnectionError
+
+# uses autospec on method; needs newer mock for py3
+try:
+    from unittest.mock import patch
+except ImportError:  # pragma: no cover
+    from mock import patch
 
 
 class ContextReader(DependencyProvider):
