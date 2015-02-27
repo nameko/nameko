@@ -10,8 +10,9 @@ eventlet.monkey_patch()
 from urlparse import urlparse
 
 from kombu.pools import reset
-from pyrabbit.api import Client
 import pytest
+
+from nameko.testing.rabbit import Client
 
 
 def pytest_addoption(parser):
@@ -37,10 +38,7 @@ def rabbit_manager(request):
     config = request.config
 
     rabbit_ctl_uri = urlparse(config.getoption('RABBIT_CTL_URI'))
-    host_port = '{0.hostname}:{0.port}'.format(rabbit_ctl_uri)
-
-    rabbit = Client(
-        host_port, rabbit_ctl_uri.username, rabbit_ctl_uri.password)
+    rabbit = Client(rabbit_ctl_uri)
 
     return rabbit
 

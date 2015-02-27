@@ -18,7 +18,6 @@ setup(
         "kombu>=3.0.1",
         "mock>=1.0.1",
         "path.py>=6.2",
-        "pyrabbit>=1.0.1",
         "werkzeug>=0.9",
     ],
     extras_require={

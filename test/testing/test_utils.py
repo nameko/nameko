@@ -5,6 +5,7 @@ import pytest
 
 from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import rpc, Rpc
+from nameko.testing.rabbit import HTTPError
 from nameko.testing.utils import (
     AnyInstanceOf, get_extension, get_container, wait_for_call,
     reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle,
