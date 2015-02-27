@@ -35,13 +35,13 @@ class Client(object):
         return self._request('GET', *args, **kwargs)
 
     def _put(self, *args, **kwargs):
-        return self._request('GET', *args, **kwargs)
+        return self._request('PUT', *args, **kwargs)
 
     def _delete(self, *args, **kwargs):
-        return self._request('GET', *args, **kwargs)
+        return self._request('DELETE', *args, **kwargs)
 
     def _post(self, *args, **kwargs):
-        return self._request('GET', *args, **kwargs)
+        return self._request('POST', *args, **kwargs)
 
     def get_connections(self):
         return self._get('connections')
