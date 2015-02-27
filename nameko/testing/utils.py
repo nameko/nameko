@@ -151,7 +151,7 @@ def get_rabbit_config(amqp_uri):
 def reset_rabbit_vhost(vhost, username, rabbit_manager):
 
     try:
-        rabbit_manager.delete_vhosts_by_name(vhost)
+        rabbit_manager.delete_vhost(vhost)
     except HTTPError as exc:  # TODO
         if exc.response.status_code == 404:
             pass  # vhost does not exist

@@ -52,6 +52,9 @@ class Client(object):
     def get_exchanges(self, vhost):
         return self._get('exchanges', vhost)
 
+    def get_all_vhosts(self):
+        return self._get('vhosts')
+
     def create_vhost(self, vhost):
         return self._put('vhosts', vhost)
 
