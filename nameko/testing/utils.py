@@ -10,7 +10,7 @@ from mock import Mock
 
 from nameko.containers import WorkerContextBase
 from nameko.extensions import Entrypoint
-from nameko.testing.rabbit import Client, HTTPError
+from nameko.testing.rabbit import HTTPError
 
 
 def get_extension(container, extension_cls, **match_attrs):
@@ -146,11 +146,6 @@ def get_rabbit_config(amqp_uri):
     conf['username'] = uri.username
 
     return conf
-
-
-def get_rabbit_manager(rabbit_ctl_uri):
-    uri = urlparse(rabbit_ctl_uri)
-    return Client(uri)
 
 
 def reset_rabbit_vhost(vhost, username, rabbit_manager):

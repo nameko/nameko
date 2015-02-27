@@ -12,7 +12,7 @@ from urlparse import urlparse
 from kombu.pools import reset
 import pytest
 
-from nameko.testing.rabbit import Client
+from nameko.testing import rabbit
 
 
 def pytest_addoption(parser):
@@ -36,11 +36,7 @@ def reset_kombu_pools():
 @pytest.fixture(scope='session')
 def rabbit_manager(request):
     config = request.config
-
-    rabbit_ctl_uri = urlparse(config.getoption('RABBIT_CTL_URI'))
-    rabbit = Client(rabbit_ctl_uri)
-
-    return rabbit
+    return rabbit.Client(config.getoption('RABBIT_CTL_URI'))
 
 
 @pytest.yield_fixture
