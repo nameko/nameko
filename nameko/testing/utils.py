@@ -99,7 +99,8 @@ class AnyInstanceOf(object):
         self.cls = cls
 
     def __eq__(self, other):
-        return isinstance(other, self.cls)
+        return isinstance(self.cls, type) and isinstance(other, self.cls)
+
 
     def __ne__(self, other):
         try:
