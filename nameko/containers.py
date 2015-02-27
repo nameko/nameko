@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 from abc import ABCMeta, abstractproperty
 import inspect
@@ -21,7 +21,8 @@ from nameko.extensions import (
     is_dependency, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
-from nameko.utils import repr_safe_str, SpawningSet
+from nameko.six import is_method
+from nameko.utils import SpawningSet
 
 
 _log = getLogger(__name__)
@@ -103,8 +104,8 @@ class WorkerContextBase(object):
 
     def __repr__(self):
         cls_name = type(self).__name__
-        service_name = repr_safe_str(self.service_name)
-        method_name = repr_safe_str(self.entrypoint.method_name)
+        service_name = self.service_name
+        method_name = self.entrypoint.method_name
         return '<{} [{}.{}] at 0x{:x}>'.format(
             cls_name, service_name, method_name, id(self))
 
@@ -478,6 +479,6 @@ class ServiceContainer(object):
             self.kill(sys.exc_info())
 
     def __repr__(self):
-        service_name = repr_safe_str(self.service_name)
+        service_name = self.service_name
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
             service_name, id(self))
