@@ -14,7 +14,7 @@ class ExampleService(object):
 
     @http('POST', '/post')
     def do_post(self, payload):
-        data = json.loads(payload)
+        data = json.loads(payload.decode('utf-8'))
         value = data['value']
 
         return value
