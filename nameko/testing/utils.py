@@ -152,7 +152,7 @@ def reset_rabbit_vhost(vhost, username, rabbit_manager):
 
     try:
         rabbit_manager.delete_vhost(vhost)
-    except HTTPError as exc:  # TODO
+    except HTTPError as exc:
         if exc.response.status_code == 404:
             pass  # vhost does not exist
         else:
@@ -175,8 +175,7 @@ def reset_rabbit_connections(vhost, rabbit_manager):
     for connection in get_rabbit_connections(vhost, rabbit_manager):
         try:
             rabbit_manager.delete_connection(connection['name'])
-        except Exception as exc:  # TODO
-            import pdb; pdb.set_trace()
+        except HTTPError as exc:
             if exc.response.status_code == 404:
                 pass  # connection closed in a race
             else:
