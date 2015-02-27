@@ -113,4 +113,3 @@ class Client(object):
             body['truncate'] = truncate
 
         return self._post('queues', vhost, name, 'get', json=body)
-

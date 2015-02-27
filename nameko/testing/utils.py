@@ -101,7 +101,6 @@ class AnyInstanceOf(object):
     def __eq__(self, other):
         return isinstance(self.cls, type) and isinstance(other, self.cls)
 
-
     def __ne__(self, other):
         try:
             return not isinstance(other, self.cls)
