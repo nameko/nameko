@@ -24,7 +24,7 @@ from nameko.runners import ServiceRunner
 
 logger = logging.getLogger(__name__)
 
-if six.PY2:
+if six.PY2:  # pragma: no cover
     MISSING_MODULE_TEMPLATE = "No module named {}"
 else:
     MISSING_MODULE_TEMPLATE = "No module named '{}'"

@@ -27,7 +27,7 @@ _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
 MANAGED_THREAD = object()
 
-if six.PY2:
+if six.PY2:  # pragma: no cover
     is_method = inspect.ismethod
 else:
     is_method = inspect.isfunction

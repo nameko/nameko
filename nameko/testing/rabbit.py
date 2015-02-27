@@ -1,6 +1,6 @@
 from requests import HTTPError, Session
 
-from six.moves.urllib.parse import quote
+from six.moves.urllib.parse import quote  # pylint: disable=E0611
 
 __all__ = ['Client', 'HTTPError']
 
