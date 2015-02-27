@@ -100,16 +100,10 @@ class Client(object):
         }
         return self._post('exchanges', vhost, name, 'publish', json=body)
 
-    def get_messages(
-        self, vhost, name, count=1, requeue=False, truncate=None,
-        encoding='auto',
-    ):
+    def get_messages(self, vhost, name, count=1, requeue=False):
         body = {
             'count': count,
-            'encoding': encoding,
+            'encoding': 'auto',
             'requeue': requeue,
         }
-        if truncate is not None:
-            body['truncate'] = truncate
-
         return self._post('queues', vhost, name, 'get', json=body)
