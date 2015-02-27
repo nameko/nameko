@@ -21,9 +21,7 @@ from nameko.extensions import (
     is_dependency, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.log_helpers import make_timing_logger
-from nameko.six import is_method
 from nameko.utils import SpawningSet
-
 
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
