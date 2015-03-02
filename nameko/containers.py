@@ -29,7 +29,7 @@ MANAGED_THREAD = object()
 
 if six.PY2:  # pragma: no cover
     is_method = inspect.ismethod
-else:
+else:  # pragma: no cover
     is_method = inspect.isfunction
 
 
