@@ -1,5 +1,4 @@
 import errno
-import re
 import os
 import signal
 import socket
@@ -48,7 +47,8 @@ def test_import_ok():
 def test_import_missing():
     with pytest.raises(CommandError) as exc:
         import_service('non_existent')
-    assert re.match("No module named '?non_existent'?", str(exc.value))
+    assert "No module named" in str(exc.value)
+    assert "non_existent" in str(exc.value)
 
 
 def test_import_filename():
