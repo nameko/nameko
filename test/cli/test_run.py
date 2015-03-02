@@ -82,7 +82,7 @@ def test_import_no_service_classes():
 def recv_until_prompt(sock):
     data = b""
     part = b""
-    while not part[-5:] == b'\n>>> ':
+    while not data[-5:] == b'\n>>> ':
         print ("Received `{!r}`".format(part))
         part = sock.recv(4096)
         data += part
