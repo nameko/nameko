@@ -83,10 +83,8 @@ def recv_until_prompt(sock):
     data = b""
     part = b""
     while not data[-5:] == b'\n>>> ':
-        print ("Received `{!r}`".format(part))
         part = sock.recv(4096)
         data += part
-    print ("Done. Received `{!r}`".format(part))
     return data
 
 
