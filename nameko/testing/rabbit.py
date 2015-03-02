@@ -1,5 +1,6 @@
-from requests import HTTPError, Session
+import json
 
+from requests import HTTPError, Session
 from six.moves.urllib.parse import quote  # pylint: disable=E0611
 
 __all__ = ['Client', 'HTTPError']
@@ -26,6 +27,9 @@ class Client(object):
 
     def _request(self, method, *args, **kwargs):
         url = self._build_url(args)
+        json_data = kwargs.pop('json', None)
+        if json_data is not None:
+            kwargs['data'] = json.dumps(json_data)
         result = self._session.request(method, url, **kwargs)
         result.raise_for_status()
         if result.content:

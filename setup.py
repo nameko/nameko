@@ -18,6 +18,7 @@ setup(
         "kombu>=3.0.1",
         "mock>=1.0.1",
         "path.py>=6.2",
+        "requests>=1.2.0",
         "werkzeug>=0.9",
     ],
     extras_require={
@@ -30,7 +31,6 @@ setup(
             "pylint==1.0.0",
             "pytest==2.4.2",
             "pytest-timeout==0.4",
-            "requests==2.5.0",
             "websocket-client==0.23.0",
         ],
         'docs': [

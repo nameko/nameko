@@ -56,9 +56,9 @@ def test_get(web_session):
 
 
 def test_post(web_session):
-    rv = web_session.post('/post', json={
+    rv = web_session.post('/post', data=json.dumps({
         'value': 23,
-    })
+    }))
     assert rv.text == "23"
 
 
