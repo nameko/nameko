@@ -86,7 +86,7 @@ def recv_until_prompt(sock):
         print ("Received `{!r}`".format(part))
         part = sock.recv(4096)
         data += part
-    print ("Received `{!r}`".format(part))
+    print ("Done. Received `{!r}`".format(part))
     return data
 
 
