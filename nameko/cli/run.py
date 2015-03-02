@@ -62,7 +62,6 @@ def import_service(module_name):
         # let this bubble (resulting in a full stacktrace being printed)
         raise
 
-
     module = sys.modules[module_name]
 
     if obj is None:
