@@ -1,7 +1,80 @@
 import sys
+import inspect
+import re
 
 import eventlet
 from eventlet.queue import LightQueue
+
+
+REDACTED = "********"
+
+
+def get_redacted_args(method, args, kwargs, sensitive_variables):
+    """ Utility method for use with entrypoints that can be marked with
+    ``sensitive_variables`` -- e.g. :class:`nameko.rpc.Rpc` and
+    :class:`nameko.events.EventHandler`.
+
+    :Parameters:
+        method : instancemethod
+            The entrypoint decorated method
+        args : tuple
+            Positional arguments for the method call
+        kwargs : dict
+            Keyword arguments for the method call
+        sensitive_variables : tuple
+            Tuple of strings specifying the arguements or partial arguments
+            that should be refacted.
+
+            Partial arguments are specified as follows:
+
+                <argument-name>.<dict-key>.[<list-index>]
+
+    :Returns:
+        A dictionary as returned by :func:`inspect.getargspec`, but with
+        sensitive arguments or partial arguments redacted.
+
+        **Examples**::
+
+            class Service(object):
+                def method(self, foo, bar)
+
+            method = Service().method
+
+            get_redacted_args(method, ("a","b"), {}, ("foo",))
+
+    .. seealso::
+
+        The tests for this utility demonstrate its usage:
+        :class:`test.test_utils.TestGetRedactedArgs`
+
+
+    """
+    argspec = inspect.getcallargs(method, *args, **kwargs)
+    del argspec['self']
+
+    def redact(data, keys):
+        key = keys[0]
+        if len(keys) == 1:
+            try:
+                data[key] = REDACTED
+            except (KeyError, IndexError):
+                pass
+        else:
+            if key in data:
+                redact(data[key], keys[1:])
+
+    for variable in sensitive_variables:
+        keys = []
+        for dict_key, list_index in re.findall("(\w+)|\[(\d+)\]", variable):
+            if dict_key:
+                keys.append(dict_key)
+            elif list_index:
+                keys.append(int(list_index))
+
+        if keys[0] in argspec:
+            redact(argspec, keys)
+
+    return argspec
 
 
 def repr_safe_str(value):
