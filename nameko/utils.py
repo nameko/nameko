@@ -27,20 +27,11 @@ def get_redacted_args(method, args, kwargs, sensitive_variables):
 
             Partial arguments are specified as follows:
 
-                <argument-name>.<dict-key>.[<list-index>]
+                <argument-name>.<dict-key>[<list-index>]
 
     :Returns:
         A dictionary as returned by :func:`inspect.getargspec`, but with
         sensitive arguments or partial arguments redacted.
-
-        **Examples**::
-
-            class Service(object):
-                def method(self, foo, bar)
-
-            method = Service().method
-
-            get_redacted_args(method, ("a","b"), {}, ("foo",))
 
     .. seealso::
 
