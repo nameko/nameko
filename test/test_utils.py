@@ -4,8 +4,11 @@ from eventlet import GreenPool, sleep
 from eventlet.event import Event
 import pytest
 
+from nameko.containers import ServiceContainer
+from nameko.rpc import rpc, Rpc
 from nameko.utils import (
     fail_fast_imap, repr_safe_str, get_redacted_args, REDACTED)
+from nameko.testing.services import get_extension
 
 
 def test_fail_fast_imap():
@@ -56,22 +59,26 @@ def test_repr_safe_str(value, repr_safe_value):
 class TestGetRedactedArgs(object):
 
     @pytest.mark.parametrize("sensitive_variables, expected", [
-        (tuple(), {'a': 'A', 'b': 'B'}),  # nothing redacted
-        (("a",), {'a': REDACTED, 'b': 'B'}),  # only 'a' redacted
-        (("a", "b"), {'a': REDACTED, 'b': REDACTED}),  # both refacted
+        (tuple(), {'a': 'A', 'b': 'B'}),  # no sensitive variables
+        ("a", {'a': REDACTED, 'b': 'B'}),
+        (("a",), {'a': REDACTED, 'b': 'B'}),
+        (("a", "b"), {'a': REDACTED, 'b': REDACTED}),
         (("c"), {'a': 'A', 'b': 'B'}),  # 'c' not a valid argument; ignored
     ])
     def test_get_redacted_args(self, sensitive_variables, expected):
 
         class Service(object):
+            @rpc(sensitive_variables=sensitive_variables)
             def method(self, a, b):
                 pass
 
         args = ("A", "B")
         kwargs = {}
 
-        method = Service().method
-        redacted = get_redacted_args(method, args, kwargs, sensitive_variables)
+        container = ServiceContainer(Service, {})
+        entrypoint = get_extension(container, Rpc)
+
+        redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
 
     @pytest.mark.parametrize("args, kwargs", [
@@ -82,14 +89,16 @@ class TestGetRedactedArgs(object):
     def test_get_redacted_args_invocation(self, args, kwargs):
 
         class Service(object):
+            @rpc(sensitive_variables="a")
             def method(self, a, b=None):
                 pass
 
-        sensitive_variables = ("a",)
         expected = {'a': REDACTED, 'b': 'B'}
 
-        method = Service().method
-        redacted = get_redacted_args(method, args, kwargs, sensitive_variables)
+        container = ServiceContainer(Service, {})
+        entrypoint = get_extension(container, Rpc)
+
+        redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
 
     @pytest.mark.parametrize("sensitive_variables, expected", [
@@ -132,6 +141,7 @@ class TestGetRedactedArgs(object):
     def test_get_redacted_args_partial(self, sensitive_variables, expected):
 
         class Service(object):
+            @rpc(sensitive_variables=sensitive_variables)
             def method(self, a, b):
                 pass
 
@@ -143,6 +153,8 @@ class TestGetRedactedArgs(object):
         args = ("A", complex_arg)
         kwargs = {}
 
-        method = Service().method
-        redacted = get_redacted_args(method, args, kwargs, sensitive_variables)
+        container = ServiceContainer(Service, {})
+        entrypoint = get_extension(container, Rpc)
+
+        redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected

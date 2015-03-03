@@ -9,38 +9,73 @@ from eventlet.queue import LightQueue
 REDACTED = "********"
 
 
-def get_redacted_args(method, args, kwargs, sensitive_variables):
-    """ Utility method for use with entrypoints that can be marked with
+def get_redacted_args(entrypoint, *args, **kwargs):
+    """ Utility function for use with entrypoints that are marked with
     ``sensitive_variables`` -- e.g. :class:`nameko.rpc.Rpc` and
     :class:`nameko.events.EventHandler`.
 
     :Parameters:
-        method : instancemethod
-            The entrypoint decorated method
+        entrypoint : :class:`~nameko.extensions.Entrypoint`
+            The entrypoint that fired.
         args : tuple
-            Positional arguments for the method call
+            Positional arguments for the method call.
         kwargs : dict
-            Keyword arguments for the method call
-        sensitive_variables : tuple
-            Tuple of strings specifying the arguements or partial arguments
-            that should be refacted.
+            Keyword arguments for the method call.
 
-            Partial arguments are specified as follows:
+    The entrypoint should have a ``sensitive_variables`` attribute, the value
+    of which is a string or tuple of strings specifying the arguments or
+    partial arguments that should be redacted. To partially redact an argument,
+    the following syntax is used::
 
-                <argument-name>.<dict-key>[<list-index>]
+        <argument-name>.<dict-key>[<list-index>]
 
     :Returns:
         A dictionary as returned by :func:`inspect.getargspec`, but with
         sensitive arguments or partial arguments redacted.
 
+    .. note::
+
+        This function does not raise if one of the ``sensitive_variables``
+        doesn't match or partially match the calling ``args`` and ``kwargs``.
+        This allows "fuzzier" pattern matching (e.g. redact a field if it is
+        present, and otherwise do nothing).
+
+        To avoid exposing sensitive variables through a typo, it is recommend
+        to test the configuration of each entrypoint with
+        ``sensitive_variables`` individually. For example:
+
+        .. code-block:: python
+
+            class Service(object):
+                @rpc(sensitive_variables="foo.bar")
+                def method(self, foo):
+                    pass
+
+            container = ServiceContainer(Service, {})
+            entrypoint = get_extension(container, Rpc, method_name="method")
+
+            # no redaction
+            foo = "arg"
+            expected_foo = {'foo': "arg"}
+            assert get_redacted_args(entrypoint, foo) == expected
+
+            # 'bar' key redacted
+            foo = {'bar': "secret value", 'baz': "normal value"}
+            expected = {'foo': {'bar': "********", 'baz': "normal value"}}
+            assert get_redacted_args(entrypoint, foo) == expected
+
     .. seealso::
 
-        The tests for this utility demonstrate its usage:
+        The tests for this utility demonstrate its full usage:
         :class:`test.test_utils.TestGetRedactedArgs`
 
-
     """
-    argspec = inspect.getcallargs(method, *args, **kwargs)
+    sensitive_variables = entrypoint.sensitive_variables
+    if isinstance(sensitive_variables, basestring):
+        sensitive_variables = (sensitive_variables,)
+
+    method = getattr(entrypoint.container.service_cls, entrypoint.method_name)
+    argspec = inspect.getcallargs(method, None, *args, **kwargs)
     del argspec['self']
 
     def redact(data, keys):

@@ -17,25 +17,16 @@ def reset():
 
 
 class Logger(DependencyProvider):
-    """ Example DependencyProvider that makes use of ``sensitive_variables``
+    """ Example DependencyProvider that makes use of ``get_redacted_args``
+    to redact ``sensitive_variables`` on entrypoints.
     """
 
     def worker_setup(self, worker_ctx):
         entrypoint = worker_ctx.entrypoint
-
-        sensitive_variables = getattr(
-            entrypoint, 'sensitive_variables', None
-        ) or tuple()
-        if not isinstance(sensitive_variables, tuple):
-            sensitive_variables = (sensitive_variables,)
-
-        method = getattr(worker_ctx.service, entrypoint.method_name)
         args = worker_ctx.args
         kwargs = worker_ctx.kwargs
 
-        redacted.update(
-            get_redacted_args(method, args, kwargs, sensitive_variables)
-        )
+        redacted.update(get_redacted_args(entrypoint, *args, **kwargs))
 
 
 class Service(object):
