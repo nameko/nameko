@@ -95,4 +95,4 @@ def test_broken_method_expected(web_session):
 def test_bad_payload(web_session):
     rv = web_session.post('/post', json={'value': 23})
     assert rv.status_code == 500
-    assert "Unserializable value: `23`" in rv.text
+    assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text
