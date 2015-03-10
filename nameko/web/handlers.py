@@ -6,7 +6,7 @@ from eventlet.event import Event
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
-from nameko.exceptions import serialize, BadRequest
+from nameko.exceptions import serialize, BadRequest, UnserializableValueError
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
 
@@ -28,8 +28,11 @@ def response_from_result(result):
         payload = result
         status = 200
 
+    if not isinstance(payload, basestring):
+        raise UnserializableValueError(payload)
+
     return Response(
-        unicode(payload),
+        payload,
         status=status,
         headers=headers,
     )
