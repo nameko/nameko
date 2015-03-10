@@ -9,7 +9,7 @@ from kombu import pools
 from mock import patch
 import pytest
 
-from nameko.containers import ServiceContainer, WorkerContext
+from nameko.containers import ServiceContainer
 from nameko.runners import ServiceRunner
 from nameko.testing.utils import (
     get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
@@ -41,12 +41,6 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    # monkey patch an encoding attribute onto GreenPipe to
-    # satisfy a pytest assertion
-    import py
-    from eventlet.greenio import GreenPipe
-    GreenPipe.encoding = py.std.sys.stdout.encoding
-
     if config.option.blocking_detection:
         from eventlet import debug
         debug.hub_blocking_detection(True)
@@ -59,7 +53,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def empty_config(request):
-    return {}
+    return {'AMQP_URI': ""}
 
 
 @pytest.fixture(scope='session')
@@ -94,10 +88,7 @@ def container_factory(rabbit_config):
     all_containers = []
 
     def make_container(service_cls, config, worker_ctx_cls=None):
-        if worker_ctx_cls is None:
-            worker_ctx_cls = WorkerContext
-
-        container = ServiceContainer(service_cls, worker_ctx_cls, config)
+        container = ServiceContainer(service_cls, config, worker_ctx_cls)
         all_containers.append(container)
         return container
 

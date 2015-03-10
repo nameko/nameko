@@ -12,26 +12,27 @@ from pyrabbit.http import HTTPError
 
 
 from nameko.containers import WorkerContextBase
+from nameko.extensions import Entrypoint
 
 
-def get_dependency(container, dependency_cls, **match_attrs):
-    """ Inspect ``container.dependencies`` and return the first item that is
-    an instance of ``dependency_cls``.
+def get_extension(container, extension_cls, **match_attrs):
+    """ Inspect ``container.extensions`` and return the first item that is
+    an instance of ``extension_cls``.
 
     Optionally also require that the instance has an attribute with a
     particular value as given in the ``match_attrs`` kwargs.
     """
-    for dep in container.dependencies:
-        if isinstance(dep, dependency_cls):
+    for ext in container.extensions:
+        if isinstance(ext, extension_cls):
             if not match_attrs:
-                return dep
+                return ext
 
             def has_attribute(name, value):
-                return getattr(dep, name) == value
+                return getattr(ext, name) == value
 
             if all([has_attribute(name, value)
                     for name, value in match_attrs.items()]):
-                return dep
+                return ext
 
 
 def get_container(runner, service_cls):
@@ -48,8 +49,8 @@ def wait_for_call(timeout, mock_method):
     """ Return a context manager that waits ``timeout`` seconds for
     ``mock_method`` to be called, yielding the mock if so.
 
-    Raises an eventlet.TimeoutError if the method was not called within
-    ``timeout``.
+    Raises an :class:`eventlet.Timeout` if the method was not called
+    within ``timeout`` seconds.
     """
     with eventlet.Timeout(timeout):
         while not mock_method.called:
@@ -60,8 +61,8 @@ def wait_for_call(timeout, mock_method):
 def wait_for_worker_idle(container, timeout=10):
     """ Blocks until ``container`` has no running workers.
 
-    Raises an eventlet.TimeoutError if the workers did not complete within
-    ``timeout`` seconds.
+    Raises an :class:`eventlet.Timeout` if the method was not called
+    within ``timeout`` seconds.
     """
     with eventlet.Timeout(timeout):
         container._worker_pool.waitall()
@@ -69,7 +70,7 @@ def wait_for_worker_idle(container, timeout=10):
 
 def assert_stops_raising(fn, exception_type=Exception, timeout=10,
                          interval=0.1):
-    """Assert that ``fn`` returns succesfully within ``timeout``
+    """Assert that ``fn`` returns successfully within ``timeout``
        seconds, trying every ``interval`` seconds.
 
        If ``exception_type`` is provided, fail unless the exception thrown is
@@ -116,23 +117,23 @@ class AnyInstanceOf(object):
 ANY_PARTIAL = AnyInstanceOf(partial)
 
 
-class DummyProvider(object):
-    def __init__(self, name=None):
-        self.name = name
+class DummyProvider(Entrypoint):
+    def __init__(self, method_name=None):
+        self.method_name = method_name
 
 
 def worker_context_factory(*keys):
     class CustomWorkerContext(WorkerContextBase):
         context_keys = keys
 
-        def __init__(self, container=None, service=None, provider=None,
+        def __init__(self, container=None, service=None, entrypoint=None,
                      **kwargs):
             container_mock = Mock()
             container_mock.config = {}
             super(CustomWorkerContext, self).__init__(
                 container or container_mock,
                 service or Mock(),
-                provider or Mock(),
+                entrypoint or Mock(),
                 **kwargs
             )
 

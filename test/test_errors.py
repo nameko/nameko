@@ -6,10 +6,10 @@ import pytest
 
 
 from nameko.exceptions import RemoteError
-from nameko.events import event_dispatcher, EventDispatcher
-from nameko.rpc import rpc, rpc_proxy, RpcConsumer
+from nameko.events import EventDispatcher
+from nameko.rpc import rpc, RpcProxy, RpcConsumer
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.utils import get_dependency, get_container
+from nameko.testing.utils import get_extension, get_container
 from nameko.testing.services import entrypoint_hook
 
 
@@ -19,8 +19,8 @@ class ExampleError(Exception):
 
 class ExampleService(object):
 
-    dispatch = event_dispatcher()
-    rpcproxy = rpc_proxy('exampleservice')
+    dispatch = EventDispatcher()
+    rpcproxy = RpcProxy('exampleservice')
 
     @rpc
     def task(self):
@@ -72,7 +72,7 @@ def test_handle_result_error(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
     with patch.object(
             rpc_consumer, 'handle_result', autospec=True) as handle_result:
         err = "error in handle_result"
@@ -80,12 +80,8 @@ def test_handle_result_error(container_factory, rabbit_config):
 
         # use a standalone rpc proxy to call exampleservice.task()
         with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
-            # proxy.task() will never return, so give up almost immediately
-            try:
-                with eventlet.Timeout(0):
-                    proxy.task()
-            except eventlet.Timeout:
-                pass
+            # proxy.task() will hang forever because it generates an error
+            proxy.task.async()
 
         with eventlet.Timeout(1):
             with pytest.raises(Exception) as exc_info:
@@ -101,7 +97,7 @@ def test_dependency_call_lifecycle_errors(
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    dependency = get_dependency(container, EventDispatcher)
+    dependency = get_extension(container, EventDispatcher)
     with patch.object(dependency, method_name, autospec=True) as method:
         err = "error in {}".format(method_name)
         method.side_effect = Exception(err)
@@ -109,13 +105,7 @@ def test_dependency_call_lifecycle_errors(
         # use a standalone rpc proxy to call exampleservice.task()
         with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
-            # in the remote container (so never receives a response).
-            # generate and then swallow a timeout as soon as the thread yields
-            try:
-                with eventlet.Timeout(0):
-                    proxy.task()
-            except eventlet.Timeout:
-                pass
+            proxy.task.async()
 
         # verify that the error bubbles up to container.wait()
         with eventlet.Timeout(1):
@@ -131,7 +121,7 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
 
     container = get_container(runner, ExampleService)
 
-    rpc_consumer = get_dependency(container, RpcConsumer)
+    rpc_consumer = get_extension(container, RpcConsumer)
     with patch.object(
             rpc_consumer, 'handle_result', autospec=True) as handle_result:
         exception = Exception("error")
@@ -141,12 +131,7 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
             # in the remote container (so never receives a response).
-            # generate and then swallow a timeout as soon as the thread yields
-            try:
-                with eventlet.Timeout(0):
-                    proxy.task()
-            except eventlet.Timeout:
-                pass
+            proxy.task.async()
 
         # verify that the error bubbles up to runner.wait()
         with pytest.raises(Exception) as exc_info:
@@ -164,7 +149,7 @@ def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
     original_stop = second_container.stop
     with patch.object(second_container, 'stop', autospec=True,
                       wraps=original_stop) as stop:
-        rpc_consumer = get_dependency(container, RpcConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
         with patch.object(
                 rpc_consumer, 'handle_result', autospec=True) as handle_result:
             exception = Exception("error")
@@ -174,13 +159,7 @@ def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
             with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 # proxy.task() will hang forever because it generates an error
                 # in the remote container (so never receives a response).
-                # generate and then swallow a timeout as soon as the thread
-                # yields
-                try:
-                    with eventlet.Timeout(0):
-                        proxy.task()
-                except eventlet.Timeout:
-                    pass
+                proxy.task.async()
 
             # verify that the error bubbles up to runner.wait()
             with pytest.raises(Exception) as exc_info:
