@@ -133,13 +133,14 @@ class Rpc(Entrypoint, HeaderDecoder):
         :Parameters:
             expected_exceptions : exception class or tuple of exception classes
                 Specify exceptions that may be caused by the caller (e.g. by
-                providing bad arguments). Stashed on the entrypoint instance
-                for later inspection by other extensions, for example a
-                monitoring system.
+                providing bad arguments). Saved on the entrypoint instance as
+                ``entrypoint.expected_exceptions`` for later inspection by
+                other extensions, for example a monitoring system.
             sensitive_variables : string or tuple of strings
-                Mark an argument or part of an argument as sensitive. Stashed
-                on the entrypoint for later inspection by other extensions,
-                for example a logging system.
+                Mark an argument or part of an argument as sensitive. Saved on
+                the entrypoint instance as ``entrypoint.sensitive_variables``
+                for later inspection by other extensions, for example a
+                logging system.
 
                 :seealso: :func:`nameko.utils.get_redacted_args`
 

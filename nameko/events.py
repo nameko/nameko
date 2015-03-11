@@ -162,9 +162,10 @@ class EventHandler(Consumer):
                 Is true, events will be held in the queue until there is a
                 handler to consume them. Defaults to True.
             sensitive_variables : string or tuple of strings
-                Mark an argument or part of an argument as sensitive. Stashed
-                on the entrypoint for later inspection by other extensions,
-                for example a logging system.
+                Mark an argument or part of an argument as sensitive. Saved
+                on the entrypoint instance as
+                ``entrypoint.sensitive_variables`` for later inspection by
+                other extensions, for example a logging system.
 
                 :seealso: :func:`nameko.utils.get_redacted_args`
 
