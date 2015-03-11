@@ -6,9 +6,17 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
-Unreleased
-----------
+Version 2.0.0
+-------------
 
+* Added HTTP entrypoints and experimental websocket support (contributed by
+  Armin Ronacher)
+* Added CLI and console script
+* Introduction of nameko "extensions" and nomenclature clarification
+* Removal of ``DependencyFactory`` in favour of prototype pattern
+* Complete documentation rewrite
+* Spun out ``nameko.contrib.sqlalchemy`` into `nameko-sqlalchemy <https://pypi.python.org/pypi/nameko-sqlalchemy>`_ as a **community extension**.
+* Spun out ``nameko.legacy`` package into `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
 * Rename the standalone rpc proxy to
   :class:`~nameko.standalone.rpc.ServiceRpcProxy` and add a
   :class:`~nameko.standalone.rpc.ClusterRpcProxy`, using a single reply queue

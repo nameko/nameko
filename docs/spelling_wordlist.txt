@@ -21,7 +21,6 @@ conftest
 contextdata
 contextmanager
 contrib
-copywrite
 ctx
 debian
 deployable
