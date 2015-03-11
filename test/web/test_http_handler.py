@@ -57,9 +57,9 @@ def test_get(web_session):
 
 def test_post(web_session):
     rv = web_session.post('/post', json={
-        'value': 23,
+        'value': 'foo',
     })
-    assert rv.text == "23"
+    assert rv.text == "foo"
 
 
 def test_custom_response(web_session):
@@ -90,3 +90,9 @@ def test_broken_method_expected(web_session):
     rv = web_session.get('/fail_expected')
     assert rv.status_code == 400
     assert "ValueError: oops" in rv.text
+
+
+def test_bad_payload(web_session):
+    rv = web_session.post('/post', json={'value': 23})
+    assert rv.status_code == 500
+    assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text

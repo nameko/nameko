@@ -28,8 +28,11 @@ def response_from_result(result):
         payload = result
         status = 200
 
+    if not isinstance(payload, basestring):
+        raise TypeError("Payload must be a string. Got `{!r}`".format(payload))
+
     return Response(
-        unicode(payload),
+        payload,
         status=status,
         headers=headers,
     )
