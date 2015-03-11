@@ -131,6 +131,13 @@ class TestGetRedactedArgs(object):
             }
         ),
         (
+            ("a.not_a_dictionary",),   # incorrect partials ignored
+            {
+                'a': "A",
+                'b': {'foo': [1, 2, 3], 'bar': "BAR"},
+            }
+        ),
+        (
             ("a", "b.foo[0]", "b.foo[2]", "b.bar"),  # multiple keys
             {
                 'a': REDACTED,

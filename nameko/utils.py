@@ -83,7 +83,7 @@ def get_redacted_args(entrypoint, *args, **kwargs):
         if len(keys) == 1:
             try:
                 data[key] = REDACTED
-            except (KeyError, IndexError):
+            except (KeyError, IndexError, TypeError):
                 pass
         else:
             if key in data:
