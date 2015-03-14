@@ -14,6 +14,7 @@ from nameko.extensions import ProviderCollector, SharedExtension
 
 WEB_SERVER_HOST_CONFIG_KEY = 'WEB_SERVER_HOST'
 WEB_SERVER_PORT_CONFIG_KEY = 'WEB_SERVER_PORT'
+WEB_SERVER_BASEURL_CONFIG_KEY = 'WEB_SERVER_BASE_URL'
 
 
 class HttpOnlyProtocol(HttpProtocol):
@@ -81,8 +82,9 @@ class WebServer(ProviderCollector, SharedExtension):
 
     def make_url_map(self):
         url_map = Map()
+        base_url = self.container.config.get(WEB_SERVER_BASEURL_CONFIG_KEY, '')
         for provider in self._providers:
-            rule = provider.get_url_rule()
+            rule = provider.get_url_rule(base_url)
             rule.endpoint = provider
             url_map.add(rule)
         return url_map

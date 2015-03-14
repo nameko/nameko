@@ -9,34 +9,39 @@ from nameko.web.handlers import http
 class ExampleService(object):
 
     @http('GET', '/foo/<int:bar>')
-    def do_get(self, bar):
+    def do_get(self, req, bar):
         return 'value: {}'.format(bar)
 
-    @http('POST', '/post')
-    def do_post(self, payload):
+    @http('POST', '/post/<int:bar>')
+    def do_post(self, req, bar):
+        payload = req.get_data()
         data = json.loads(payload)
-        value = data['value']
+        value = '{}:{}'.format(data['value'], bar)
 
         return value
 
+    @http('POST', '/post/bad-payload')
+    def do_post_bad(self, req):
+        return 23
+
     @http('GET', '/custom')
-    def do_custom(self):
+    def do_custom(self, req):
         return Response('response')
 
     @http('GET', '/status_code')
-    def do_status_code(self):
+    def do_status_code(self, req):
         return 201, 'created'
 
     @http('GET', '/headers')
-    def do_headers(self):
+    def do_headers(self, req):
         return 201, {'x-foo': 'bar'}, 'created'
 
     @http('GET', '/fail')
-    def fail(self):
+    def fail(self, req):
         raise ValueError('oops')
 
     @http('GET', '/fail_expected', expected_exceptions=ValueError)
-    def fail_expected(self):
+    def fail_expected(self, req):
         raise ValueError('oops')
 
 
@@ -56,10 +61,8 @@ def test_get(web_session):
 
 
 def test_post(web_session):
-    rv = web_session.post('/post', json={
-        'value': 'foo',
-    })
-    assert rv.text == "foo"
+    rv = web_session.post('/post/123', json={'value': 'foo'})
+    assert rv.text == "foo:123"
 
 
 def test_custom_response(web_session):
@@ -93,6 +96,6 @@ def test_broken_method_expected(web_session):
 
 
 def test_bad_payload(web_session):
-    rv = web_session.post('/post', json={'value': 23})
+    rv = web_session.post('/post/bad-payload', json={'value': 23})
     assert rv.status_code == 500
     assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text

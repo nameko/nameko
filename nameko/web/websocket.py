@@ -55,7 +55,7 @@ class WebSocketServer(SharedExtension, ProviderCollector):
             'data': data,
         })
 
-    def get_url_rule(self):
+    def get_url_rule(self, base_url):
         return Rule('/ws', methods=['GET'])
 
     def handle_request(self, request):

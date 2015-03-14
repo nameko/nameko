@@ -9,11 +9,11 @@ from nameko.web.server import BaseHTTPServer
 class ExampleService(object):
 
     @http('GET', '/')
-    def do_index(self):
+    def do_index(self, req):
         return ''
 
     @http('GET', '/large')
-    def do_large(self):
+    def do_large(self, req):
         # more than a buffer's worth
         return 'x' * (10**6)
 

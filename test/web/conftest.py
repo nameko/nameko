@@ -16,6 +16,7 @@ def web_config(rabbit_config):
 
     cfg = rabbit_config
     cfg['WEB_SERVER_PORT'] = port
+    cfg['WEB_SERVER_BASE_URL'] = '/test'
     yield cfg
 
 
@@ -25,10 +26,11 @@ def web_session(web_config):
     from werkzeug.urls import url_join
 
     port = web_config['WEB_SERVER_PORT']
+    base_url = web_config['WEB_SERVER_BASE_URL']
 
     class WebSession(Session):
         def request(self, method, url, *args, **kwargs):
-            url = url_join('http://127.0.0.1:%d/' % port, url)
+            url = url_join('http://127.0.0.1:{}'.format(port), base_url + url)
             return Session.request(self, method, url, *args, **kwargs)
 
     sess = WebSession()

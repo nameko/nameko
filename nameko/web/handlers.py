@@ -41,13 +41,13 @@ def response_from_result(result):
 class HttpRequestHandler(Entrypoint):
     server = WebServer()
 
-    def __init__(self, method, url, expected_exceptions=()):
+    def __init__(self, method, url, pass_req=False, expected_exceptions=()):
         self.method = method
         self.url = url
         self.expected_exceptions = expected_exceptions
 
-    def get_url_rule(self):
-        return Rule(self.url, methods=[self.method])
+    def get_url_rule(self, base_url):
+        return Rule(base_url + self.url, methods=[self.method])
 
     def setup(self):
         self.server.register_provider(self)
@@ -57,12 +57,7 @@ class HttpRequestHandler(Entrypoint):
         super(HttpRequestHandler, self).stop()
 
     def process_request_data(self, request):
-        if request.method == 'POST':
-            data = request.get_data()
-            args = (data,)
-        else:
-            args = ()
-
+        args = (request,)
         kwargs = request.path_values
         return args, kwargs
 

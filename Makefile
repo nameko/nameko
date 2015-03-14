@@ -23,3 +23,9 @@ spelling:
 test_docs:
 	spelling
 	docs
+
+install-dev:
+	pip install -e .[develop]
+
+install:
+	pip install -e .
