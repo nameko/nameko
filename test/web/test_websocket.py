@@ -14,6 +14,8 @@ from nameko.testing.websocket import make_virtual_socket
 
 
 class ExampleService(object):
+    name = "exampleservice"
+
     websocket_hub = WebSocketHubProvider()
 
     @rpc

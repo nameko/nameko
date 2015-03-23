@@ -40,6 +40,7 @@ class TestQueueIteratorTimeout(object):
     def test_end_to_end(self, container_factory, rabbit_config):
 
         class Service(object):
+            name = "service"
 
             @rpc
             def wait(self):

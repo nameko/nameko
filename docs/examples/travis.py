@@ -28,6 +28,7 @@ class TravisWebservice(DependencyProvider):
 
 
 class Travis(object):
+    name = "travis_service"
 
     webservice = TravisWebservice()
 

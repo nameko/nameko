@@ -414,6 +414,7 @@ def test_async_rpc(container_factory, rabbit_config):
 def test_rpc_incorrect_signature(container_factory, rabbit_config):
 
     class Service(object):
+        name = "service"
 
         @rpc
         def no_args(self):

@@ -23,6 +23,7 @@ class Timer(Entrypoint):
             timer = Timer.decorator
 
             class Service(object):
+                name = "service"
 
                 @timer(interval=5)
                 def tick(self):

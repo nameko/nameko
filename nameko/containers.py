@@ -29,7 +29,12 @@ MANAGED_THREAD = object()
 
 
 def get_service_name(service_cls):
-    return getattr(service_cls, "name", service_cls.__name__.lower())
+    service_name = getattr(service_cls, 'name', None)
+    if service_name is None:
+        raise RuntimeError('Service class must define a `name` attribute')
+    if not isinstance(service_name, basestring):
+        raise RuntimeError('Service name must be a string')
+    return service_name
 
 
 def new_call_id():

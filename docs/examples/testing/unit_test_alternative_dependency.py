@@ -25,6 +25,8 @@ class Result(Base):
 class Service(object):
     """ Service under test
     """
+    name = "service"
+
     db = Session(Base)
 
     @rpc

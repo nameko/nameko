@@ -61,6 +61,8 @@ def test_get_extension(rabbit_config):
     from nameko.containers import ServiceContainer
 
     class Service(object):
+        name = "service"
+
         @rpc
         def foo(self):
             pass
@@ -203,6 +205,7 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
     event = Event()
 
     class Service(object):
+        name = "service"
 
         @rpc
         def wait_for_event(self):

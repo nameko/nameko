@@ -7,6 +7,7 @@ from nameko.web.handlers import http
 
 
 class ExampleService(object):
+    name = "exampleservice"
 
     @http('GET', '/foo/<int:bar>')
     def do_get(self, bar):

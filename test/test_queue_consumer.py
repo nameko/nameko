@@ -345,6 +345,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
 def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
     class Service(object):
+        name = "service"
 
         @rpc
         def echo(self, arg):

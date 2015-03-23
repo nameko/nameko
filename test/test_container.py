@@ -7,7 +7,7 @@ import greenlet
 from mock import patch, call, ANY, Mock
 import pytest
 
-from nameko.containers import ServiceContainer
+from nameko.containers import ServiceContainer, get_service_name
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
@@ -527,3 +527,30 @@ def test_stop_during_kill(container, logger):
         assert logger.debug.call_args_list == [
             call("already being killed %s", container),
         ]
+
+
+def test_get_service_name():
+
+    class Service():
+        name = "str"
+
+    class UnicodeService():
+        name = u"unicode"
+
+    class BadNameService():
+        name = object()
+
+    class AnonymousService():
+        pass
+
+    assert get_service_name(Service) == "str"
+    assert get_service_name(UnicodeService) == u"unicode"
+
+    with pytest.raises(RuntimeError) as exc_info:
+        get_service_name(BadNameService)
+    assert exc_info.value.message == 'Service name must be a string'
+
+    with pytest.raises(RuntimeError) as exc_info:
+        get_service_name(AnonymousService)
+    assert exc_info.value.message == (
+       'Service class must define a `name` attribute')
