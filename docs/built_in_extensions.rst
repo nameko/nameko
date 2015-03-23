@@ -53,7 +53,7 @@ Nameko's HTTP entrypoint supports simple GET and POST:
 .. code-block:: shell
 
     $ nameko run http
-    starting services: httpservice
+    starting services: http_service
 
 .. code-block:: shell
 
@@ -88,7 +88,7 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
 .. code-block:: shell
 
     $ nameko run advanced_http
-    starting services: advancedhttpservice
+    starting services: advanced_http_service
 
 .. code-block:: shell
 
