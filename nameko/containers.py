@@ -18,7 +18,7 @@ from nameko.constants import (
 
 from nameko.extensions import (
     is_dependency, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
-from nameko.exceptions import ContainerBeingKilled
+from nameko.exceptions import ContainerBeingKilled, ConfigurationError
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import repr_safe_str, SpawningSet
 
@@ -31,9 +31,11 @@ MANAGED_THREAD = object()
 def get_service_name(service_cls):
     service_name = getattr(service_cls, 'name', None)
     if service_name is None:
-        raise RuntimeError('Service class must define a `name` attribute')
+        raise ConfigurationError(
+            'Service class must define a `name` attribute')
     if not isinstance(service_name, basestring):
-        raise RuntimeError('Service name must be a string')
+        raise ConfigurationError(
+            'Service name must be a string')
     return service_name
 
 

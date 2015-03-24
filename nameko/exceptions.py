@@ -158,6 +158,10 @@ class UnserializableValueError(Exception):
         return "Unserializable value: `{}`".format(self.repr_value)
 
 
+class ConfigurationError(Exception):
+    pass
+
+
 class CommandError(Exception):
     """Raise from subcommands to report error back to the user"""
 

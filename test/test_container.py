@@ -9,6 +9,7 @@ import pytest
 
 from nameko.containers import ServiceContainer, get_service_name
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
+from nameko.exceptions import ConfigurationError
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
 
@@ -546,11 +547,11 @@ def test_get_service_name():
     assert get_service_name(Service) == "str"
     assert get_service_name(UnicodeService) == u"unicode"
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(ConfigurationError) as exc_info:
         get_service_name(BadNameService)
     assert exc_info.value.message == 'Service name must be a string'
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(ConfigurationError) as exc_info:
         get_service_name(AnonymousService)
     assert exc_info.value.message == (
        'Service class must define a `name` attribute')
