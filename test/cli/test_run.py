@@ -4,12 +4,12 @@ import signal
 import socket
 
 import eventlet
-from mock import patch, DEFAULT
+from mock import patch
 import pytest
 
 from nameko.cli.main import setup_parser
 from nameko.cli.run import import_service, setup_backdoor, main, run
-from nameko.exceptions import CommandError, ConfigurationError
+from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 
