@@ -17,7 +17,8 @@ A nameko service is just a class:
 
     from nameko.rpc import rpc
 
-    class HelloWorld(object):
+    class GreetingService(object):
+        name = "greeting_service"
 
         @rpc
         def hello(self, name):
@@ -29,7 +30,7 @@ You can run it in a shell:
 .. code-block:: shell
 
     $ nameko run helloworld
-    starting services: helloworld
+    starting services: greeting_service
     ...
 
 And play with it from another:
@@ -37,7 +38,7 @@ And play with it from another:
 .. code-block:: pycon
 
     $ nameko shell
-    >>> n.rpc.helloworld.hello(name="Matt")
+    >>> n.rpc.greeting_service.hello(name="Matt")
     u'Hello, Matt!'
 
 
