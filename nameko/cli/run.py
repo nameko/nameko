@@ -16,7 +16,7 @@ import sys
 from eventlet import backdoor
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
-from nameko.exceptions import CommandError
+from nameko.exceptions import CommandError, ConfigurationError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
 
@@ -110,7 +110,13 @@ def setup_backdoor(runner, port):
 def run(services, config, backdoor_port=None):
     service_runner = ServiceRunner(config)
     for service_cls in services:
-        service_runner.add_service(service_cls)
+        try:
+            service_runner.add_service(service_cls)
+        except ConfigurationError as exc:
+            print "ConfigurationError:"
+            print "    {}".format(exc)
+            print "Quitting..."
+            return
 
     def shutdown(signum, frame):
         # signal handlers are run by the MAINLOOP and cannot use eventlet

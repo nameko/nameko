@@ -551,9 +551,12 @@ def test_get_service_name():
 
     with pytest.raises(ConfigurationError) as exc_info:
         get_service_name(BadNameService)
-    assert exc_info.value.message == 'Service name must be a string'
+    assert exc_info.value.message == (
+        'Service name attribute must be a string '
+        '(test.test_container.BadNameService.name)')
 
     with pytest.raises(ConfigurationError) as exc_info:
         get_service_name(AnonymousService)
     assert exc_info.value.message == (
-       'Service class must define a `name` attribute')
+        'Service class must define a `name` attribute '
+        '(test.test_container.AnonymousService)')

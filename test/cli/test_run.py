@@ -4,12 +4,12 @@ import signal
 import socket
 
 import eventlet
-from mock import patch
+from mock import patch, DEFAULT
 import pytest
 
 from nameko.cli.main import setup_parser
 from nameko.cli.run import import_service, setup_backdoor, main, run
-from nameko.exceptions import CommandError
+from nameko.exceptions import CommandError, ConfigurationError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 
@@ -164,3 +164,15 @@ def test_other_errors_propagate(rabbit_config):
             gt = eventlet.spawn(run, [Service], rabbit_config)
             with pytest.raises(OSError):
                 gt.wait()
+
+
+def test_service_configuration_error(rabbit_config):
+    with patch.multiple(
+        ServiceRunner, start=DEFAULT, add_service=DEFAULT
+    ) as patches:
+        patches['add_service'].side_effect = ConfigurationError
+
+        gt = eventlet.spawn(run, [Service], rabbit_config)
+        gt.wait()  # will complete
+
+        assert not patches['start'].called  # runner not started

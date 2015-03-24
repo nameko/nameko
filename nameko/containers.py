@@ -32,10 +32,12 @@ def get_service_name(service_cls):
     service_name = getattr(service_cls, 'name', None)
     if service_name is None:
         raise ConfigurationError(
-            'Service class must define a `name` attribute')
+            'Service class must define a `name` attribute ({}.{})'.format(
+                service_cls.__module__, service_cls.__name__))
     if not isinstance(service_name, basestring):
         raise ConfigurationError(
-            'Service name must be a string')
+            'Service name attribute must be a string ({}.{}.name)'.format(
+                service_cls.__module__, service_cls.__name__))
     return service_name
 
 
