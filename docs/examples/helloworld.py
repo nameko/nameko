@@ -1,7 +1,7 @@
 from nameko.rpc import rpc
 
-class HelloWorld(object):
-    name = "hello_world"
+class GreetingService(object):
+    name = "greeting_service"
 
     @rpc
     def hello(self, name):
