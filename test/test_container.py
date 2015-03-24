@@ -1,3 +1,5 @@
+# coding: utf-8
+
 import sys
 
 import eventlet
@@ -536,7 +538,7 @@ def test_get_service_name():
         name = "str"
 
     class UnicodeService():
-        name = u"unicode"
+        name = u"unicøde"
 
     class BadNameService():
         name = object()
@@ -545,7 +547,7 @@ def test_get_service_name():
         pass
 
     assert get_service_name(Service) == "str"
-    assert get_service_name(UnicodeService) == u"unicode"
+    assert get_service_name(UnicodeService) == u"unicøde"
 
     with pytest.raises(ConfigurationError) as exc_info:
         get_service_name(BadNameService)
