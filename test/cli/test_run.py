@@ -164,15 +164,3 @@ def test_other_errors_propagate(rabbit_config):
             gt = eventlet.spawn(run, [Service], rabbit_config)
             with pytest.raises(OSError):
                 gt.wait()
-
-
-def test_service_configuration_error(rabbit_config):
-    with patch.multiple(
-        ServiceRunner, start=DEFAULT, add_service=DEFAULT
-    ) as patches:
-        patches['add_service'].side_effect = ConfigurationError
-
-        gt = eventlet.spawn(run, [Service], rabbit_config)
-        gt.wait()  # will complete
-
-        assert not patches['start'].called  # runner not started
