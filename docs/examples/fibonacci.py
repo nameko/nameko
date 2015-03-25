@@ -14,6 +14,7 @@ class DataStore(DependencyProvider):
 
 
 class Fibonacci(object):
+    name = "fibonacci"
 
     store = DataStore()
 

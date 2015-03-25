@@ -8,6 +8,7 @@ from nameko.testing.services import entrypoint_hook
 class HelloService(object):
     """ Service under test
     """
+    name = "hello_service"
 
     language = Language()
 

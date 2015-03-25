@@ -7,6 +7,7 @@ from nameko.web.server import BaseHTTPServer
 
 
 class ExampleService(object):
+    name = "exampleservice"
 
     @http('GET', '/')
     def do_index(self):

@@ -13,6 +13,7 @@ entrypoint_called = Mock()
 
 
 class Service(object):
+    name = "service"
 
     @rpc
     def echo(self, arg):

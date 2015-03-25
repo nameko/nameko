@@ -46,6 +46,7 @@ custom_rpc = CustomRpc.decorator
 
 
 class ExampleService(object):
+    name = "exampleservice"
 
     collector = ResultCollector()
 

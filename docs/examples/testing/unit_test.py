@@ -8,6 +8,8 @@ from nameko.testing.services import worker_factory
 class ConversionService(object):
     """ Service under test
     """
+    name = "conversions"
+
     maths_rpc = RpcProxy("maths")
 
     @rpc

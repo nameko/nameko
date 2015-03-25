@@ -18,7 +18,7 @@ from nameko.constants import (
 
 from nameko.extensions import (
     is_dependency, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
-from nameko.exceptions import ContainerBeingKilled
+from nameko.exceptions import ContainerBeingKilled, ConfigurationError
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import repr_safe_str, SpawningSet
 
@@ -29,7 +29,16 @@ MANAGED_THREAD = object()
 
 
 def get_service_name(service_cls):
-    return getattr(service_cls, "name", service_cls.__name__.lower())
+    service_name = getattr(service_cls, 'name', None)
+    if service_name is None:
+        raise ConfigurationError(
+            'Service class must define a `name` attribute ({}.{})'.format(
+                service_cls.__module__, service_cls.__name__))
+    if not isinstance(service_name, basestring):
+        raise ConfigurationError(
+            'Service name attribute must be a string ({}.{}.name)'.format(
+                service_cls.__module__, service_cls.__name__))
+    return service_name
 
 
 def new_call_id():

@@ -137,12 +137,14 @@ class CustomEventHandler(EventHandler):
         self._calls.append(message)
         return result, exc_info
 
-custome_event_handler = CustomEventHandler.decorator
+custom_event_handler = CustomEventHandler.decorator
 
 
 class HandlerService(object):
     """ Generic service that handles events.
     """
+    name = "handlerservice"
+
     def __init__(self):
         self.events = []
         services[self.name].append(self)
@@ -201,7 +203,7 @@ class UnreliableHandler(HandlerService):
 
 
 class CustomHandler(HandlerService):
-    @custome_event_handler('srcservice', 'eventtype')
+    @custom_event_handler('srcservice', 'eventtype')
     def handle(self, evt):
         super(CustomHandler, self).handle(evt)
 
