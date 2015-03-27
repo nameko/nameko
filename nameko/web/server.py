@@ -64,7 +64,8 @@ class WebServer(ProviderCollector, SharedExtension):
 
     @property
     def bind_addr(self):
-        address_str = self.container.config.get(WEB_SERVER_CONFIG_KEY, '8000')
+        address_str = self.container.config.get(
+            WEB_SERVER_CONFIG_KEY, '0.0.0.0:8000')
         return parse_address(address_str)
 
     def run(self):
