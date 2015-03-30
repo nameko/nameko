@@ -89,7 +89,7 @@ def test_handle_result_error(container_factory, rabbit_config):
         with eventlet.Timeout(1):
             with pytest.raises(Exception) as exc_info:
                 container.wait()
-            assert exc_info.value.message == err
+            assert str(exc_info.value) == err
 
 
 @pytest.mark.parametrize("method_name",
@@ -114,7 +114,7 @@ def test_dependency_call_lifecycle_errors(
         with eventlet.Timeout(1):
             with pytest.raises(Exception) as exc_info:
                 container.wait()
-            assert exc_info.value.message == err
+            assert str(exc_info.value) == err
 
 
 def test_runner_catches_container_errors(runner_factory, rabbit_config):

@@ -48,7 +48,8 @@ def test_import_ok():
 def test_import_missing():
     with pytest.raises(CommandError) as exc:
         import_service('non_existent')
-    assert 'No module named non_existent' in str(exc)
+    assert "No module named" in str(exc.value)
+    assert "non_existent" in str(exc.value)
 
 
 def test_import_filename():
@@ -80,9 +81,9 @@ def test_import_no_service_classes():
 
 
 def recv_until_prompt(sock):
-    data = ""
-    part = ""
-    while not part.endswith('\n>>> '):
+    data = b""
+    part = b""
+    while not data[-5:] == b'\n>>> ':
         part = sock.recv(4096)
         data += part
     return data
@@ -97,13 +98,13 @@ def test_backdoor():
     sock.connect(socket_name)
     recv_until_prompt(sock)  # banner
 
-    sock.sendall("runner\n")
+    sock.sendall(b"runner\n")
     runner_repr = recv_until_prompt(sock)
-    assert str(runner) in runner_repr
+    assert repr(runner) in str(runner_repr)
 
-    sock.sendall("quit()\n")
+    sock.sendall(b"quit()\n")
     error = recv_until_prompt(sock)
-    assert 'RuntimeError: This would kill your service' in error
+    assert 'RuntimeError: This would kill your service' in str(error)
     sock.close()
     gt.kill()
 

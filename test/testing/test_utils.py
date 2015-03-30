@@ -1,8 +1,8 @@
 import eventlet
 from eventlet.event import Event
 from mock import Mock, patch, call
-from pyrabbit.http import HTTPError
 import pytest
+from requests import Response, HTTPError
 
 from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import rpc, Rpc
@@ -121,14 +121,18 @@ def test_reset_rabbit_vhost_errors():
     rabbit_manager = Mock()
 
     # 500 error
-    error_500 = HTTPError({'reason': 'error'}, status=500)
+    response_500 = Response()
+    response_500.status_code = 50
+    error_500 = HTTPError(response=response_500)
     rabbit_manager.delete_vhost.side_effect = error_500
 
     with pytest.raises(HTTPError):
         reset_rabbit_vhost("vhost", "username", rabbit_manager)
 
     # 404 error
-    error_404 = HTTPError({'reason': 'error'}, status=404)
+    response_404 = Response()
+    response_404.status_code = 404
+    error_404 = HTTPError(response=response_404)
     rabbit_manager.delete_vhost.side_effect = error_404
 
     # does not raise
@@ -186,14 +190,18 @@ def test_reset_rabbit_connection_errors():
         }]
 
         # 500 error
-        error_500 = HTTPError({'reason': 'err'}, status=500)
+        response_500 = Response()
+        response_500.status_code = 500
+        error_500 = HTTPError(response=response_500)
         rabbit_manager.delete_connection.side_effect = error_500
 
         with pytest.raises(HTTPError):
             reset_rabbit_connections("vhost_name", rabbit_manager)
 
         # 404 error
-        error_404 = HTTPError({'reason': 'err'}, status=404)
+        response_404 = Response()
+        response_404.status_code = 404
+        error_404 = HTTPError(response=response_404)
         rabbit_manager.delete_connection.side_effect = error_404
 
         # does not raise

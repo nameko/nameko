@@ -495,14 +495,13 @@ def test_kill_bad_dependency(container):
         try:
             raise Exception('container error')
         except:
-            pass
-        exc_info = sys.exc_info()
+            exc_info = sys.exc_info()
 
         container.kill(exc_info)
 
         with pytest.raises(Exception) as exc_info:
             container.wait()
-        assert exc_info.value.message == "container error"
+        assert str(exc_info.value) == "container error"
 
 
 def test_stop_during_kill(container, logger):
@@ -519,8 +518,7 @@ def test_stop_during_kill(container, logger):
         try:
             raise Exception('error')
         except:
-            pass
-        exc_info = sys.exc_info()
+            exc_info = sys.exc_info()
 
         eventlet.spawn(container.kill, exc_info)
         eventlet.spawn(container.stop)
@@ -551,12 +549,14 @@ def test_get_service_name():
 
     with pytest.raises(ConfigurationError) as exc_info:
         get_service_name(BadNameService)
-    assert exc_info.value.message == (
+    assert str(exc_info.value) == (
         'Service name attribute must be a string '
-        '(test.test_container.BadNameService.name)')
+        '(test.test_container.BadNameService.name)'
+    )
 
     with pytest.raises(ConfigurationError) as exc_info:
         get_service_name(AnonymousService)
-    assert exc_info.value.message == (
+    assert str(exc_info.value) == (
         'Service class must define a `name` attribute '
-        '(test.test_container.AnonymousService)')
+        '(test.test_container.AnonymousService)'
+    )

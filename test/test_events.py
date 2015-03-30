@@ -350,7 +350,7 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
 
     # one lucky handler should have received the event
     assert len(services) == 1
-    lucky_service = next(services.iterkeys())
+    lucky_service = next(iter(services))
     assert len(services[lucky_service]) == 1
     assert isinstance(services[lucky_service][0], SingletonHandler)
     assert services[lucky_service][0].events == ["msg"]
@@ -577,8 +577,8 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
 
     # manually add a queue to capture the events
     rabbit_manager.create_queue(vhost, "event-sink", auto_delete=True)
-    rabbit_manager.create_binding(vhost, "srcservice.events", "event-sink",
-                                  rt_key="eventtype")
+    rabbit_manager.create_queue_binding(
+        vhost, "srcservice.events", "event-sink", routing_key="eventtype")
 
     service.dispatch = dispatcher.get_dependency(worker_ctx)
     service.dispatch("eventtype", "msg")

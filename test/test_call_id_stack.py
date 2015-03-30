@@ -45,7 +45,7 @@ def test_worker_context_gets_stack(container_factory):
     assert context.call_id_stack == ['baz.bar.0', 'baz.foo.1']
 
     # Long stack
-    many_ids = [str(i) for i in xrange(10)]
+    many_ids = [str(i) for i in range(10)]
     context = context_cls(container, service, DummyProvider("long"),
                           data={'call_id_stack': many_ids})
     expected = many_ids + ['baz.long.2']
@@ -63,7 +63,7 @@ def test_short_call_stack(container_factory):
     service = FooService()
 
     # Trim stack
-    many_ids = [str(i) for i in xrange(100)]
+    many_ids = [str(i) for i in range(100)]
     context = context_cls(container, service, DummyProvider("long"),
                           data={'call_id_stack': many_ids})
     assert context.call_id_stack == ['99', 'baz.long.0']

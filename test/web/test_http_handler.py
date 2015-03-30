@@ -15,7 +15,7 @@ class ExampleService(object):
 
     @http('POST', '/post')
     def do_post(self, request):
-        data = json.loads(request.get_data())
+        data = json.loads(request.get_data(as_text=True))
         value = data['value']
 
         return value
@@ -57,15 +57,15 @@ def test_get(web_session):
 
 
 def test_post(web_session):
-    rv = web_session.post('/post', json={
+    rv = web_session.post('/post', data=json.dumps({
         'value': 'foo',
-    })
+    }))
     assert rv.text == "foo"
 
 
 def test_custom_response(web_session):
     rv = web_session.get('/custom')
-    assert rv.content == 'response'
+    assert rv.text == 'response'
 
 
 def test_custom_status_code(web_session):
@@ -94,6 +94,6 @@ def test_broken_method_expected(web_session):
 
 
 def test_bad_payload(web_session):
-    rv = web_session.post('/post', json={'value': 23})
+    rv = web_session.post('/post', data=json.dumps({'value': 23}))
     assert rv.status_code == 500
     assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text

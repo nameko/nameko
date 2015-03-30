@@ -3,16 +3,14 @@ Common testing utilities.
 """
 from contextlib import contextmanager
 from functools import partial
-from urlparse import urlparse
+from six.moves.urllib.parse import urlparse  # pylint: disable=E0611
 
 import eventlet
 from mock import Mock
-from pyrabbit.api import Client
-from pyrabbit.http import HTTPError
-
 
 from nameko.containers import WorkerContextBase
 from nameko.extensions import Entrypoint
+from nameko.testing.rabbit import HTTPError
 
 
 def get_extension(container, extension_cls, **match_attrs):
@@ -101,13 +99,10 @@ class AnyInstanceOf(object):
         self.cls = cls
 
     def __eq__(self, other):
-        return isinstance(other, self.cls)
+        return isinstance(self.cls, type) and isinstance(other, self.cls)
 
     def __ne__(self, other):
-        try:
-            return not isinstance(other, self.cls)
-        except TypeError:
-            return True
+        return not (self == other)
 
     def __repr__(self):
         obj = getattr(self.cls, '__name__', self.cls)
@@ -150,18 +145,12 @@ def get_rabbit_config(amqp_uri):
     return conf
 
 
-def get_rabbit_manager(rabbit_ctl_uri):
-    uri = urlparse(rabbit_ctl_uri)
-    host_port = '{0.hostname}:{0.port}'.format(uri)
-    return Client(host_port, uri.username, uri.password)
-
-
 def reset_rabbit_vhost(vhost, username, rabbit_manager):
 
     try:
         rabbit_manager.delete_vhost(vhost)
     except HTTPError as exc:
-        if exc.status == 404:
+        if exc.response.status_code == 404:
             pass  # vhost does not exist
         else:
             raise
@@ -184,7 +173,7 @@ def reset_rabbit_connections(vhost, rabbit_manager):
         try:
             rabbit_manager.delete_connection(connection['name'])
         except HTTPError as exc:
-            if exc.status == 404:
+            if exc.response.status_code == 404:
                 pass  # connection closed in a race
             else:
                 raise

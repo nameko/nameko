@@ -18,7 +18,7 @@ setup(
         "kombu>=3.0.1",
         "mock>=1.0.1",
         "path.py>=6.2",
-        "pyrabbit>=1.0.1",
+        "requests>=1.2.0",
         "werkzeug>=0.9",
     ],
     extras_require={
@@ -31,7 +31,6 @@ setup(
             "pylint==1.0.0",
             "pytest==2.4.2",
             "pytest-timeout==0.4",
-            "requests==2.5.0",
             "websocket-client==0.23.0",
         ],
         'docs': [
@@ -52,7 +51,11 @@ setup(
         "Programming Language :: Python",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: POSIX",
+        "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
         "Topic :: Internet",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Intended Audience :: Developers",

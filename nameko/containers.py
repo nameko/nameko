@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 from abc import ABCMeta, abstractproperty
 import inspect
@@ -10,6 +10,7 @@ import eventlet
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
+import six
 
 from nameko.constants import (
     PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED,
@@ -20,12 +21,16 @@ from nameko.extensions import (
     is_dependency, ENTRYPOINT_EXTENSIONS_ATTR, iter_extensions)
 from nameko.exceptions import ContainerBeingKilled, ConfigurationError
 from nameko.log_helpers import make_timing_logger
-from nameko.utils import repr_safe_str, SpawningSet
-
+from nameko.utils import SpawningSet
 
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
 MANAGED_THREAD = object()
+
+if six.PY2:  # pragma: no cover
+    is_method = inspect.ismethod
+else:  # pragma: no cover
+    is_method = inspect.isfunction
 
 
 def get_service_name(service_cls):
@@ -34,7 +39,7 @@ def get_service_name(service_cls):
         raise ConfigurationError(
             'Service class must define a `name` attribute ({}.{})'.format(
                 service_cls.__module__, service_cls.__name__))
-    if not isinstance(service_name, basestring):
+    if not isinstance(service_name, six.string_types):
         raise ConfigurationError(
             'Service name attribute must be a string ({}.{}.name)'.format(
                 service_cls.__module__, service_cls.__name__))
@@ -93,21 +98,21 @@ class WorkerContextBase(object):
         Comprises items from ``self.data`` where the key is included in
         ``context_keys``, as well as the call stack.
         """
-        key_data = {k: v for k, v in self.data.iteritems()
+        key_data = {k: v for k, v in six.iteritems(self.data)
                     if k in self.context_keys}
         key_data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
         return key_data
 
     @classmethod
     def get_context_data(cls, incoming):
-        data = {k: v for k, v in incoming.iteritems()
+        data = {k: v for k, v in six.iteritems(incoming)
                 if k in cls.context_keys}
         return data
 
     def __repr__(self):
         cls_name = type(self).__name__
-        service_name = repr_safe_str(self.service_name)
-        method_name = repr_safe_str(self.entrypoint.method_name)
+        service_name = self.service_name
+        method_name = self.entrypoint.method_name
         return '<{} [{}.{}] at 0x{:x}>'.format(
             cls_name, service_name, method_name, id(self))
 
@@ -150,8 +155,7 @@ class ServiceContainer(object):
             self.dependencies.add(bound)
             self.subextensions.update(iter_extensions(bound))
 
-        for method_name, method in inspect.getmembers(service_cls,
-                                                      inspect.ismethod):
+        for method_name, method in inspect.getmembers(service_cls, is_method):
             entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
             for entrypoint in entrypoints:
                 bound = entrypoint.bind(self.interface, method_name)
@@ -168,7 +172,9 @@ class ServiceContainer(object):
 
     @property
     def extensions(self):
-        return self.entrypoints | self.dependencies | self.subextensions
+        return SpawningSet(
+            self.entrypoints | self.dependencies | self.subextensions
+        )
 
     @property
     def interface(self):
@@ -480,6 +486,6 @@ class ServiceContainer(object):
             self.kill(sys.exc_info())
 
     def __repr__(self):
-        service_name = repr_safe_str(self.service_name)
+        service_name = self.service_name
         return '<ServiceContainer [{}] at 0x{:x}>'.format(
             service_name, id(self))

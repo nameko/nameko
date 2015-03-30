@@ -11,6 +11,7 @@ Version 2.0.0
 
 Released 2015-XX-XX
 
+* python 3 compatibility
 * Added HTTP entrypoints and experimental websocket support (contributed by
   Armin Ronacher)
 * Added CLI and console script

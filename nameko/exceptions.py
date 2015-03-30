@@ -1,6 +1,8 @@
 import collections
 import inspect
 
+import six
+
 
 class ExtensionNotFound(AttributeError):
     pass
@@ -63,18 +65,18 @@ def safe_for_json(value):
     and all other values are stringified, with a fallback value if that fails
     """
 
-    if isinstance(value, basestring):
+    if isinstance(value, six.string_types):
         return value
     if isinstance(value, dict):
         return {
             safe_for_json(key): safe_for_json(val)
-            for key, val in value.iteritems()
+            for key, val in six.iteritems(value)
         }
     if isinstance(value, collections.Iterable):
-        return map(safe_for_json, value)
+        return list(map(safe_for_json, value))
 
     try:
-        return unicode(value)
+        return six.text_type(value)
     except Exception:
         return '[__unicode__ failed]'
 
@@ -86,7 +88,7 @@ def serialize(exc):
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'exc_args': map(safe_for_json, exc.args),
+        'exc_args': list(map(safe_for_json, exc.args)),
         'value': safe_for_json(exc),
     }
 

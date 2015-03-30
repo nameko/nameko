@@ -11,8 +11,9 @@ import pytest
 
 from nameko.containers import ServiceContainer
 from nameko.runners import ServiceRunner
+from nameko.testing import rabbit
 from nameko.testing.utils import (
-    get_rabbit_manager, reset_rabbit_vhost, reset_rabbit_connections,
+    reset_rabbit_vhost, reset_rabbit_connections,
     get_rabbit_connections, get_rabbit_config)
 
 
@@ -59,7 +60,7 @@ def empty_config(request):
 @pytest.fixture(scope='session')
 def rabbit_manager(request):
     config = request.config
-    return get_rabbit_manager(config.getoption('RABBIT_CTL_URI'))
+    return rabbit.Client(config.getoption('RABBIT_CTL_URI'))
 
 
 @pytest.yield_fixture()

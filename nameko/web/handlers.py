@@ -2,7 +2,7 @@ from logging import getLogger
 from functools import partial
 
 from eventlet.event import Event
-
+import six
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
@@ -28,7 +28,7 @@ def response_from_result(result):
         payload = result
         status = 200
 
-    if not isinstance(payload, basestring):
+    if not isinstance(payload, six.string_types):
         raise TypeError("Payload must be a string. Got `{!r}`".format(payload))
 
     return Response(

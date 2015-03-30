@@ -50,7 +50,7 @@ def get_message(ws):
     # matches the broadcast rpc call
     event_type, event_data = ws.wait_for_event('test_message')
     assert event_type == 'test_message'
-    assert event_data.keys() == ['value']
+    assert list(event_data) == ['value']
     return event_data['value']
 
 

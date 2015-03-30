@@ -76,6 +76,7 @@ pre
 programmatically
 pseudocode
 py
+pyrabbit
 pytest
 rabbitmq
 reconnected
