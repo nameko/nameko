@@ -12,7 +12,6 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import os
 import pkg_resources
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -105,7 +104,7 @@ modindex_common_prefix = ['nameko.']
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-# html_theme = 'default'
+html_theme = 'nameko'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -271,19 +270,6 @@ intersphinx_mapping = {
     'werkzeug': ('http://werkzeug.pocoo.org/docs', None),
 }
 autoclass_content = 'both'
-
-# -- Read The Docs Theme --------------------------------------------------
-
-# on_rtd is whether we are on readthedocs.org
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-
-# otherwise, readthedocs.org uses their theme by default,
-# so no need to specify it
 
 # -- sphinxcontrib.spelling ------------------------------------------------
 
