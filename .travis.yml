@@ -1,3 +1,4 @@
+sudo: false
 language: python
 python:
   - "2.7"
@@ -5,8 +6,11 @@ python:
 services:
     - rabbitmq
 
+addons:
+  apt_packages:
+    - libenchant-dev
+
 install:
-  - sudo apt-get install libenchant-dev
   - pip install tox
 
 env:
