@@ -10,34 +10,34 @@ class ExampleService(object):
     name = "exampleservice"
 
     @http('GET', '/foo/<int:bar>')
-    def do_get(self, bar):
+    def do_get(self, request, bar):
         return 'value: {}'.format(bar)
 
     @http('POST', '/post')
-    def do_post(self, payload):
-        data = json.loads(payload)
+    def do_post(self, request):
+        data = json.loads(request.get_data())
         value = data['value']
 
         return value
 
     @http('GET', '/custom')
-    def do_custom(self):
+    def do_custom(self, request):
         return Response('response')
 
     @http('GET', '/status_code')
-    def do_status_code(self):
+    def do_status_code(self, request):
         return 201, 'created'
 
     @http('GET', '/headers')
-    def do_headers(self):
+    def do_headers(self, request):
         return 201, {'x-foo': 'bar'}, 'created'
 
     @http('GET', '/fail')
-    def fail(self):
+    def fail(self, request):
         raise ValueError('oops')
 
     @http('GET', '/fail_expected', expected_exceptions=ValueError)
-    def fail_expected(self):
+    def fail_expected(self, request):
         raise ValueError('oops')
 
 

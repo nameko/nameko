@@ -56,13 +56,8 @@ class HttpRequestHandler(Entrypoint):
         self.server.unregister_provider(self)
         super(HttpRequestHandler, self).stop()
 
-    def process_request_data(self, request):
-        if request.method == 'POST':
-            data = request.get_data()
-            args = (data,)
-        else:
-            args = ()
-
+    def get_entrypoint_parameters(self, request):
+        args = (request,)
         kwargs = request.path_values
         return args, kwargs
 
@@ -70,7 +65,7 @@ class HttpRequestHandler(Entrypoint):
         request.shallow = False
         try:
             context_data = self.server.context_data_from_headers(request)
-            args, kwargs = self.process_request_data(request)
+            args, kwargs = self.get_entrypoint_parameters(request)
 
             self.check_signature(args, kwargs)
             event = Event()
