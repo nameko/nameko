@@ -88,7 +88,7 @@ def serialize(exc):
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'exc_args': list(map(safe_for_json, exc.args)),  # TODO: do later?
+        'exc_args': list(map(safe_for_json, exc.args)),
         'value': safe_for_json(exc),
     }
 
