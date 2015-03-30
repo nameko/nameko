@@ -1,0 +1,4 @@
+# ReadTheDocs doesn't support installation of requirements via extras_require
+# See https://github.com/rtfd/readthedocs.org/issues/173
+
+-e .[docs]
