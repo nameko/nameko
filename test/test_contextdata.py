@@ -22,6 +22,7 @@ class CustomWorkerContext(WorkerContext):
 
 
 class Service(object):
+    name = "service"
 
     # builtin context data dependencies
     auth_token = AuthToken()

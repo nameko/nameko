@@ -229,6 +229,8 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
 
 
 class ExampleService(object):
+    name = "exampleservice"
+
     def callback(self):
         # to be patched out with mock
         pass

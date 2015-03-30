@@ -84,6 +84,8 @@ def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
             return 1
 
     class Parent(object):
+        name = "parent"
+
         child_service = RpcProxy('child')
 
         @rpc
@@ -91,6 +93,8 @@ def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
             return self.child_service.child_do()
 
     class Grandparent(object):
+        name = "grandparent"
+
         parent_service = RpcProxy('parent')
 
         @rpc
@@ -131,11 +135,15 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
     LoggingWorkerContext = get_logging_worker_context(stack_request)
 
     class EventListeningServiceOne(object):
+        name = "listener_one"
+
         @event_handler('event_raiser', 'hello')
         def hello(self, name):
             one_called()
 
     class EventListeningServiceTwo(object):
+        name = "listener_two"
+
         @event_handler('event_raiser', 'hello')
         def hello(self, name):
             two_called()

@@ -25,6 +25,8 @@ simple = SimpleEntrypoint.decorator
 
 
 class Service(object):
+    name = "service"
+
     dep = SimpleDependencyProvider()
 
     @simple
@@ -114,6 +116,7 @@ def test_extension_defined_on_instance(container_factory):
             self.ext = ExtensionWithParams(ext_arg)
 
     class Service(object):
+        name = "service"
         dep = DynamicDependencyProvider("argument_for_extension")
 
     container = container_factory(Service, {})
@@ -147,6 +150,8 @@ def test_is_entrypoint():
 def test_entrypoint_decorator_does_not_mutate_service():
 
     class Service():
+        name = "service"
+
         @simple
         def echo(self, arg):
             return arg
@@ -172,6 +177,7 @@ def test_entrypoint_decorator(method_name, expected_args, expected_kwargs,
     configurable = ConfigurableEntrypoint.decorator
 
     class Service():
+        name = "service"
 
         @configurable
         def implicit_no_args(self):

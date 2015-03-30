@@ -14,6 +14,8 @@ from nameko.testing.websocket import make_virtual_socket
 
 
 class ExampleService(object):
+    name = "exampleservice"
+
     websocket_hub = WebSocketHubProvider()
 
     @rpc
@@ -167,9 +169,8 @@ def test_connection_not_found(container, websocket):
     assert exc.value.exc_type == 'ConnectionNotFound'
 
 
-def test_badly_encoded_data(container, web_config):
-    ws_app, wait_for_sock = make_virtual_socket(
-        '127.0.0.1', web_config['WEB_SERVER_PORT'])
+def test_badly_encoded_data(container, web_config_port):
+    ws_app, wait_for_sock = make_virtual_socket('127.0.0.1', web_config_port)
 
     gt = eventlet.spawn(ws_app.run_forever)
     wait_for_sock()
@@ -197,9 +198,8 @@ def test_websocket_helper_error(websocket):
     assert exc.value.errno == errno.ECONNREFUSED
 
 
-def test_client_closing_connection(container, web_config):
-    ws_app, wait_for_sock = make_virtual_socket(
-        '127.0.0.1', web_config['WEB_SERVER_PORT'])
+def test_client_closing_connection(container, web_config_port):
+    ws_app, wait_for_sock = make_virtual_socket('127.0.0.1', web_config_port)
 
     gt = eventlet.spawn(ws_app.run_forever)
     wait_for_sock()

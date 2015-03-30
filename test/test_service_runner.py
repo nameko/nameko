@@ -27,6 +27,7 @@ def reset_mock():
 
 
 class Service(object):
+    name = "service"
 
     @rpc
     @event_handler("srcservice", "testevent", handler_type=BROADCAST,

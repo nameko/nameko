@@ -1,7 +1,7 @@
 from nameko.containers import ServiceContainer
 
 class Service(object):
-    pass
+    name = "service"
 
 # create a container
 container = ServiceContainer(Service, config={})

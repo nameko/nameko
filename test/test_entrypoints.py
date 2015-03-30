@@ -16,6 +16,8 @@ def reset():
 def test_decorator_without_args(container_factory):
 
     class Service(object):
+        name = "service"
+
         @once
         def method(self, a="a", b="b"):
             method_called(a, b)
@@ -30,6 +32,8 @@ def test_decorator_without_args(container_factory):
 def test_decorator_with_args(container_factory):
 
     class Service(object):
+        name = "service"
+
         @once("x")
         def method(self, a, b="b"):
             method_called(a, b)
@@ -44,6 +48,8 @@ def test_decorator_with_args(container_factory):
 def test_decorator_with_kwargs(container_factory):
 
     class Service(object):
+        name = "service"
+
         @once(b="x")
         def method(self, a="a", b="b"):
             method_called(a, b)

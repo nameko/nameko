@@ -1,4 +1,6 @@
+from collections import namedtuple
 from functools import partial
+import re
 import socket
 
 import eventlet
@@ -9,11 +11,26 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
 
+from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
 
 
-WEB_SERVER_HOST_CONFIG_KEY = 'WEB_SERVER_HOST'
-WEB_SERVER_PORT_CONFIG_KEY = 'WEB_SERVER_PORT'
+WEB_SERVER_CONFIG_KEY = 'WEB_SERVER_ADDRESS'
+
+BindAddress = namedtuple("BindAddress", ['address', 'port'])
+
+
+def parse_address(address_string):
+    address_re = re.compile('^((?P<address>[^:]+):)?(?P<port>\d+)$')
+    match = address_re.match(address_string)
+    if match is None:
+        raise ConfigurationError(
+            'Misconfigured bind address `{}`. '
+            'Should be `[address:]port`'.format(address_string)
+        )
+    address = match.group('address') or ''
+    port = int(match.group('port'))
+    return BindAddress(address, port)
 
 
 class HttpOnlyProtocol(HttpProtocol):
@@ -47,10 +64,9 @@ class WebServer(ProviderCollector, SharedExtension):
 
     @property
     def bind_addr(self):
-        return (
-            self.container.config.get(WEB_SERVER_HOST_CONFIG_KEY, ''),
-            self.container.config.get(WEB_SERVER_PORT_CONFIG_KEY, 8000),
-        )
+        address_str = self.container.config.get(
+            WEB_SERVER_CONFIG_KEY, '0.0.0.0:8000')
+        return parse_address(address_str)
 
     def run(self):
         while self._is_accepting:

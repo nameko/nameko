@@ -28,8 +28,11 @@ def response_from_result(result):
         payload = result
         status = 200
 
+    if not isinstance(payload, six.string_types):
+        raise TypeError("Payload must be a string. Got `{!r}`".format(payload))
+
     return Response(
-        six.text_type(payload),
+        payload,
         status=status,
         headers=headers,
     )
@@ -53,13 +56,8 @@ class HttpRequestHandler(Entrypoint):
         self.server.unregister_provider(self)
         super(HttpRequestHandler, self).stop()
 
-    def process_request_data(self, request):
-        if request.method == 'POST':
-            data = request.get_data()
-            args = (data,)
-        else:
-            args = ()
-
+    def get_entrypoint_parameters(self, request):
+        args = (request,)
         kwargs = request.path_values
         return args, kwargs
 
@@ -67,7 +65,7 @@ class HttpRequestHandler(Entrypoint):
         request.shallow = False
         try:
             context_data = self.server.context_data_from_headers(request)
-            args, kwargs = self.process_request_data(request)
+            args, kwargs = self.get_entrypoint_parameters(request)
 
             self.check_signature(args, kwargs)
             event = Event()

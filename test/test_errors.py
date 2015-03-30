@@ -18,6 +18,7 @@ class ExampleError(Exception):
 
 
 class ExampleService(object):
+    name = "exampleservice"
 
     dispatch = EventDispatcher()
     rpcproxy = RpcProxy('exampleservice')
@@ -39,6 +40,8 @@ class ExampleService(object):
 
 
 class SecondService(object):
+    name = "secondservice"
+
     @rpc
     def task(self):
         return 'task_result'

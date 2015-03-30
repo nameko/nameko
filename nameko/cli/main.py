@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import argparse
 
-from nameko.exceptions import CommandError
+from nameko.exceptions import CommandError, ConfigurationError
 from . import backdoor, run, shell
 
 
@@ -24,5 +24,5 @@ def main():
     args = parser.parse_args()
     try:
         args.main(args)
-    except CommandError as exc:
+    except (CommandError, ConfigurationError) as exc:
         print("Error: {}".format(exc))

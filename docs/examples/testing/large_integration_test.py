@@ -66,6 +66,7 @@ class ShoppingBasket(DependencyProvider):
 
 
 class AcmeShopService(object):
+    name = "acmeshopservice"
 
     user_basket = ShoppingBasket()
     stock_rpc = RpcProxy('stockservice')
@@ -140,6 +141,7 @@ class Warehouse(DependencyProvider):
 
 
 class StockService(object):
+    name = "stockservice"
 
     warehouse = Warehouse()
 
@@ -205,6 +207,7 @@ class AddressBook(DependencyProvider):
 
 
 class InvoiceService(object):
+    name = "invoiceservice"
 
     get_user_details = AddressBook()
 
@@ -227,6 +230,7 @@ class InvoiceService(object):
 
 
 class PaymentService(object):
+    name = "paymentservice"
 
     @rpc
     def take_payment(self, invoice):
