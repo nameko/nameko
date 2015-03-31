@@ -1,20 +1,41 @@
+sudo: false
 language: python
 python:
   - "2.7"
 
-install:
-  - python setup.py -q install
-  - pip install -r dev_requirements.txt
-
 services:
     - rabbitmq
 
+addons:
+  apt_packages:
+    - libenchant-dev
+
+install:
+  - pip install tox
+
+env:
+    - TOX_ENV=py27-oldest
+    - TOX_ENV=py27-pinned
+    - TOX_ENV=py27-latest
+    - TOX_ENV=py33-oldest
+    - TOX_ENV=py33-pinned
+    - TOX_ENV=py33-latest
+    - TOX_ENV=py34-oldest
+    - TOX_ENV=py34-pinned
+    - TOX_ENV=py34-latest
+    - TOX_ENV=docs
+    - TOX_ENV=spelling
+
 script:
-  - make test
-  - make docs
+  - tox -e $TOX_ENV
 
 notifications:
   email: false
+  irc:
+    channels:
+      - "chat.freenode.net#nameko"
+    use_notice: true
+    skip_join: true
   hipchat:
     rooms:
       secure: HdQuYHfBbCnuw0mgj1tJOdlXRhF+b9Ena6JVp1nPdCjP5WX8iCpDAtR4vlTry4X6eNXodb0xsdhWmN9Zq+iDvR0FQvvtRkFUxNpxsqGPLClvUIthTNqjGLgl2lMtbZcHRT1dj/wrKY/yAVdGs/FF/Ghz0MQZgiWtGA5hnb3kZAI=

@@ -1,7 +1,7 @@
 import eventlet
 import pytest
 
-from nameko.events import event_handler, Event, BROADCAST
+from nameko.events import event_handler, BROADCAST
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.rpc import rpc
@@ -20,19 +20,17 @@ class TestService2(object):
 received = []
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def reset_mock():
+    yield
     del received[:]
 
 
-class TestEvent(Event):
-    type = "testevent"
-
-
 class Service(object):
+    name = "service"
 
     @rpc
-    @event_handler("srcservice", TestEvent.type, handler_type=BROADCAST,
+    @event_handler("srcservice", "testevent", handler_type=BROADCAST,
                    reliable_delivery=False)
     def handle(self, msg):
         received.append(msg)
@@ -202,7 +200,7 @@ def test_multiple_runners_coexist(runner_factory, rabbit_config,
     # test events (both services will receive if in "broadcast" mode)
     event_data = "msg"
     dispatch = event_dispatcher(rabbit_config)
-    dispatch('srcservice', TestEvent, event_data)
+    dispatch('srcservice', "testevent", event_data)
 
     with eventlet.Timeout(1):
         while len(received) < 2:
@@ -241,7 +239,7 @@ def test_runner_with_duplicate_services(runner_factory, rabbit_config):
     # test events (only one service is hosted)
     event_data = "msg"
     dispatch = event_dispatcher(rabbit_config)
-    dispatch('srcservice', TestEvent, event_data)
+    dispatch('srcservice', 'testevent', event_data)
 
     with eventlet.Timeout(1):
         while len(received) == 0:

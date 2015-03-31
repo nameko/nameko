@@ -1,39 +1,39 @@
 import eventlet
 from kombu.message import Message
-from mock import patch
 import pytest
 import socket
 
 from nameko.containers import WorkerContext
-from nameko.dependencies import injection, InjectionProvider, DependencyFactory
+from nameko.extensions import DependencyProvider
 from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.rpc import rpc, Responder
 from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 from nameko.exceptions import RpcConnectionError
 
+# uses autospec on method; needs newer mock for py3
+try:
+    from unittest.mock import patch
+except ImportError:  # pragma: no cover
+    from mock import patch
 
-class ContextReader(InjectionProvider):
+
+class ContextReader(DependencyProvider):
     """ Access values from the worker context data.
 
-    This is a test facilty! Write specific InjectionProviders to make use of
+    This is a test facilty! Write specific Dependencies to make use of
     values in ``WorkerContext.data``, don't expose it directly.
     """
-    def acquire_injection(self, worker_ctx):
+    def get_dependency(self, worker_ctx):
         def get_context_value(key):
             return worker_ctx.data.get(key)
         return get_context_value
 
 
-@injection
-def context_reader():
-    return DependencyFactory(ContextReader)
-
-
 class FooService(object):
     name = 'foobar'
 
-    get_context_value = context_reader()
+    get_context_value = ContextReader()
 
     @rpc
     def spam(self, ham):
@@ -179,9 +179,9 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
             'reply_to': proxy.reply_listener.routing_key,
             'correlation_id': 'invalid',
         })
-        responder = Responder(message)
+        responder = Responder(container.config, message)
         with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
-            responder.send_response(container, None, None)
+            responder.send_response(None, None)
             assert proxy.spam(ham='eggs') == 'eggs'
             assert logger.debug.call_count == 1
 
@@ -229,6 +229,8 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
 
 
 class ExampleService(object):
+    name = "exampleservice"
+
     def callback(self):
         # to be patched out with mock
         pass
@@ -358,3 +360,26 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         assert proxy.foobar.spam(ham=1) == 1
+
+
+def test_recover_from_keyboardinterrupt(
+    container_factory, rabbit_manager, rabbit_config
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()  # create rpc queues
+    container.stop()  # but make sure call doesn't complete
+
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy:
+        def call():
+            return proxy.spam(ham=0)
+
+        with patch('nameko.standalone.rpc.queue_iterator') as iterator:
+            iterator.side_effect = KeyboardInterrupt('killing from test')
+            with pytest.raises(KeyboardInterrupt):
+                proxy.spam(ham=0)
+
+        container = container_factory(FooService, rabbit_config)
+        container.start()
+
+        # proxy should still work
+        assert proxy.spam(ham=1) == 1

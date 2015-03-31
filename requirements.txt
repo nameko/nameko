@@ -1,6 +1,0 @@
-eventlet==0.15.2
-iso8601==0.1.8
-kombu==3.0.4
-mock==1.0.1
-path.py==5.1
-pyrabbit==1.1.0

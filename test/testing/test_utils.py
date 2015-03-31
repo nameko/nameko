@@ -1,13 +1,13 @@
 import eventlet
 from eventlet.event import Event
 from mock import Mock, patch, call
-from pyrabbit.http import HTTPError
 import pytest
+from requests import Response, HTTPError
 
 from nameko.constants import DEFAULT_MAX_WORKERS
-from nameko.rpc import rpc
+from nameko.rpc import rpc, Rpc
 from nameko.testing.utils import (
-    AnyInstanceOf, get_dependency, get_container, wait_for_call,
+    AnyInstanceOf, get_extension, get_container, wait_for_call,
     reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle,
     reset_rabbit_connections)
 
@@ -54,13 +54,15 @@ def test_wait_for_call():
             pass
 
 
-def test_get_dependency(rabbit_config):
+def test_get_extension(rabbit_config):
 
     from nameko.messaging import QueueConsumer
-    from nameko.rpc import RpcProvider, RpcConsumer
-    from nameko.containers import ServiceContainer, WorkerContext
+    from nameko.rpc import Rpc, RpcConsumer
+    from nameko.containers import ServiceContainer
 
     class Service(object):
+        name = "service"
+
         @rpc
         def foo(self):
             pass
@@ -69,15 +71,15 @@ def test_get_dependency(rabbit_config):
         def bar(self):
             pass
 
-    container = ServiceContainer(Service, WorkerContext, rabbit_config)
+    container = ServiceContainer(Service, rabbit_config)
 
-    rpc_consumer = get_dependency(container, RpcConsumer)
-    queue_consumer = get_dependency(container, QueueConsumer)
-    foo_rpc = get_dependency(container, RpcProvider, name="foo")
-    bar_rpc = get_dependency(container, RpcProvider, name="bar")
+    rpc_consumer = get_extension(container, RpcConsumer)
+    queue_consumer = get_extension(container, QueueConsumer)
+    foo_rpc = get_extension(container, Rpc, method_name="foo")
+    bar_rpc = get_extension(container, Rpc, method_name="bar")
 
-    all_deps = container.dependencies
-    assert all_deps == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
+    extensions = container.extensions
+    assert extensions == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
 
 
 def test_get_container(runner_factory, rabbit_config):
@@ -119,14 +121,18 @@ def test_reset_rabbit_vhost_errors():
     rabbit_manager = Mock()
 
     # 500 error
-    error_500 = HTTPError({'reason': 'error'}, status=500)
+    response_500 = Response()
+    response_500.status_code = 50
+    error_500 = HTTPError(response=response_500)
     rabbit_manager.delete_vhost.side_effect = error_500
 
     with pytest.raises(HTTPError):
         reset_rabbit_vhost("vhost", "username", rabbit_manager)
 
     # 404 error
-    error_404 = HTTPError({'reason': 'error'}, status=404)
+    response_404 = Response()
+    response_404.status_code = 404
+    error_404 = HTTPError(response=response_404)
     rabbit_manager.delete_vhost.side_effect = error_404
 
     # does not raise
@@ -184,14 +190,18 @@ def test_reset_rabbit_connection_errors():
         }]
 
         # 500 error
-        error_500 = HTTPError({'reason': 'err'}, status=500)
+        response_500 = Response()
+        response_500.status_code = 500
+        error_500 = HTTPError(response=response_500)
         rabbit_manager.delete_connection.side_effect = error_500
 
         with pytest.raises(HTTPError):
             reset_rabbit_connections("vhost_name", rabbit_manager)
 
         # 404 error
-        error_404 = HTTPError({'reason': 'err'}, status=404)
+        response_404 = Response()
+        response_404.status_code = 404
+        error_404 = HTTPError(response=response_404)
         rabbit_manager.delete_connection.side_effect = error_404
 
         # does not raise
@@ -203,6 +213,7 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
     event = Event()
 
     class Service(object):
+        name = "service"
 
         @rpc
         def wait_for_event(self):
@@ -219,7 +230,7 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
         wait_for_worker_idle(container)
 
     # spawn a worker
-    wait_for_event = get_dependency(container, rpc.provider_cls)
+    wait_for_event = get_extension(container, Rpc)
     container.spawn_worker(wait_for_event, [], {})
 
     # verify that wait_for_worker_idle does not return while worker active

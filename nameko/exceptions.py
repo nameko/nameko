@@ -1,8 +1,10 @@
 import collections
 import inspect
 
+import six
 
-class DependencyNotFound(AttributeError):
+
+class ExtensionNotFound(AttributeError):
     pass
 
 
@@ -19,8 +21,8 @@ class ContainerBeingKilled(Exception):
     """Raised by :meth:`Container.spawn_worker` if it has started a ``kill``
     sequence.
 
-    Entrypoint providers should catch this and react as if they hadn't been
-    available in the first place, e.g. an rpc consumer should probably requeue
+    Entrypoints should catch this and react as if they hadn't been available
+    in the first place, e.g. an rpc consumer should probably requeue
     the message.
 
     We need this because eventlet may yield during the execution of
@@ -46,7 +48,7 @@ def get_module_path(exc_type):
 
 
 class RemoteError(Exception):
-    """ Exception to raise at the caller if an exception occured in the
+    """ Exception to raise at the caller if an exception occurred in the
     remote worker.
     """
     def __init__(self, exc_type=None, value=""):
@@ -63,18 +65,18 @@ def safe_for_json(value):
     and all other values are stringified, with a fallback value if that fails
     """
 
-    if isinstance(value, basestring):
+    if isinstance(value, six.string_types):
         return value
     if isinstance(value, dict):
         return {
             safe_for_json(key): safe_for_json(val)
-            for key, val in value.iteritems()
+            for key, val in six.iteritems(value)
         }
     if isinstance(value, collections.Iterable):
-        return map(safe_for_json, value)
+        return list(map(safe_for_json, value))
 
     try:
-        return unicode(value)
+        return six.text_type(value)
     except Exception:
         return '[__unicode__ failed]'
 
@@ -86,7 +88,7 @@ def serialize(exc):
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'exc_args': map(safe_for_json, exc.args),
+        'exc_args': list(map(safe_for_json, exc.args)),
         'value': safe_for_json(exc),
     }
 
@@ -97,7 +99,7 @@ def deserialize(data):
     If the `exc_path` value matches an exception registered as
     ``deserializable``, return an instance of that exception type.
     Otherwise, return a `RemoteError` instance describing the exception
-    that occured.
+    that occurred.
     """
     key = data.get('exc_path')
     if key in registry:
@@ -118,18 +120,22 @@ def deserialize_to_instance(exc_type):
     return exc_type
 
 
-@deserialize_to_instance
-class MalformedRequest(Exception):
+class BadRequest(Exception):
     pass
 
 
 @deserialize_to_instance
-class MethodNotFound(Exception):
+class MalformedRequest(BadRequest):
     pass
 
 
 @deserialize_to_instance
-class IncorrectSignature(Exception):
+class MethodNotFound(BadRequest):
+    pass
+
+
+@deserialize_to_instance
+class IncorrectSignature(BadRequest):
     pass
 
 
@@ -154,5 +160,13 @@ class UnserializableValueError(Exception):
         return "Unserializable value: `{}`".format(self.repr_value)
 
 
+class ConfigurationError(Exception):
+    pass
+
+
 class CommandError(Exception):
     """Raise from subcommands to report error back to the user"""
+
+
+class ConnectionNotFound(BadRequest):
+    """Unknown websocket connection id"""

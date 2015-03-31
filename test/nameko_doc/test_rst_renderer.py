@@ -137,8 +137,10 @@ def test_render_page():
 
 @pytest.yield_fixture
 def mock_write():
+    with open('/dev/null') as test:
+        file_type = type(test)  # can we get this from six?
     with patch('nameko.nameko_doc.rst_render.open', create=True) as m:
-        m.return_value = MagicMock(spec=file)
+        m.return_value = MagicMock(spec=file_type)
         yield m, m.return_value.__enter__.return_value
 
 
