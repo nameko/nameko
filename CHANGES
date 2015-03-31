@@ -9,7 +9,7 @@ increment the minor version number only.
 Version 2.0.0
 -------------
 
-Released 2015-XX-XX
+Released 2015-03-31
 
 * python 3 compatibility
 * Added HTTP entrypoints and experimental websocket support (contributed by
