@@ -35,9 +35,9 @@ setup(
         ],
         'docs': [
             "pyenchant==1.6.6",
-            "Sphinx==1.2",
+            "Sphinx==1.3",
             "sphinxcontrib-spelling==2.1.1",
-            "sphinx-rtd-theme==0.1.6",
+            "sphinx-nameko-theme==0.0.2",
         ],
     },
     entry_points={
