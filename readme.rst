@@ -56,7 +56,6 @@ Features
 Getting Started
 ---------------
 
-    * `Download <https://pypi.python.org/packages/source/n/nameko/nameko-1.14.0.tar.gz#md5=fca6606fdd38d325ad96a40a383e035d>`_ the latest version.
     * Check out the `documentation <http://nameko.readthedocs.org>`_.
 
 
