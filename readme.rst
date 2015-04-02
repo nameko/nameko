@@ -20,7 +20,7 @@ A Nameko service is just a class:
     from nameko.rpc import rpc
 
     class HelloWorld(object):
-
+        name="nameko"
         @rpc
         def hello(self, name):
             return "Hello, {}!".format(name)
