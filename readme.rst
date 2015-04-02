@@ -11,7 +11,7 @@ Nameko
     A microservices framework for Python that lets service developers concentrate on application logic and encourages testability.
 
 
-A Nameko service is just a class:
+A nameko service is just a class:
 
 .. code-block:: python
 
@@ -19,7 +19,8 @@ A Nameko service is just a class:
 
     from nameko.rpc import rpc
 
-    class HelloWorld(object):
+    class GreetingService(object):
+        name = "greeting_service"
 
         @rpc
         def hello(self, name):
@@ -31,7 +32,7 @@ You can run it in a shell:
 .. code-block:: shell
 
     $ nameko run helloworld
-    starting services: helloworld
+    starting services: greeting_service
     ...
 
 And play with it from another:
@@ -39,7 +40,7 @@ And play with it from another:
 .. code-block:: pycon
 
     $ nameko shell
-    >>> n.rpc.helloworld.hello(name="Matt")
+    >>> n.rpc.greeting_service.hello(name="Matt")
     u'Hello, Matt!'
 
 
@@ -55,7 +56,6 @@ Features
 Getting Started
 ---------------
 
-    * `Download <https://pypi.python.org/packages/source/n/nameko/nameko-1.14.0.tar.gz#md5=fca6606fdd38d325ad96a40a383e035d>`_ the latest version.
     * Check out the `documentation <http://nameko.readthedocs.org>`_.
 
 
