@@ -178,7 +178,7 @@ def init_parser(parser):
         metavar='module[:service class]',
         help='python path to one or more service classes to run')
     parser.add_argument(
-        '--broker', default='amqp://guest:guest@localhost:5672/nameko',
+        '--broker', default='amqp://guest:guest@localhost:5672/',
         help='RabbitMQ broker url')
     parser.add_argument(
         '--backdoor-port', type=int,
