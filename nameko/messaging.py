@@ -92,7 +92,11 @@ class ConnectionTester(amqp.Connection):
 def verify_amqp_uri(amqp_uri):
     # From `kombu.transport.pyamqy.Transport.establish_connection`.  We let
     # kombu parse the uri and supply defaults.
-    transport = Connection(amqp_uri).transport
+    connection = Connection(amqp_uri)
+    if connection.transport_cls != 'amqp':
+        return
+    transport = connection.transport
+
     conninfo = transport.client
     for name, default_value in transport.default_connection_params.items():
         if not getattr(conninfo, name, None):
