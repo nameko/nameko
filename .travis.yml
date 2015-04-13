@@ -28,18 +28,3 @@ env:
 
 script:
   - tox -e $TOX_ENV
-
-notifications:
-  email: false
-  irc:
-    channels:
-      - "chat.freenode.net#nameko"
-    use_notice: true
-    skip_join: true
-  hipchat:
-    rooms:
-      secure: HdQuYHfBbCnuw0mgj1tJOdlXRhF+b9Ena6JVp1nPdCjP5WX8iCpDAtR4vlTry4X6eNXodb0xsdhWmN9Zq+iDvR0FQvvtRkFUxNpxsqGPLClvUIthTNqjGLgl2lMtbZcHRT1dj/wrKY/yAVdGs/FF/Ghz0MQZgiWtGA5hnb3kZAI=
-    format: html
-    template:
-      - '%{repository}#%{build_number} (%{branch} - %{commit} : %{author}): %{message} (<a href="%{build_url}">Details</a>/<a href="%{compare_url}">Diff</a>)'
-
