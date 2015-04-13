@@ -6,8 +6,8 @@ import pytest
 
 from nameko.exceptions import RpcTimeout
 from nameko.kombu_helpers import queue_iterator, drain_consumer
-from nameko.legacy.dependencies import rpc
-from nameko.legacy.proxy import RPCProxy
+from nameko.rpc import rpc
+from nameko.standalone.rpc import ServiceRpcProxy
 
 
 class TestQueueIteratorTimeout(object):
@@ -37,22 +37,21 @@ class TestQueueIteratorTimeout(object):
         with pytest.raises(socket.timeout):
             list(queue_iterator(queue, timeout=None))
 
-    def test_timeout(self, container_factory, rabbit_config):
+    def test_end_to_end(self, container_factory, rabbit_config):
 
-        class NovaService(object):
+        class Service(object):
+            name = "service"
 
             @rpc
             def wait(self):
                 Event().wait()
 
-        container = container_factory(NovaService, rabbit_config)
+        container = container_factory(Service, rabbit_config)
         container.start()
 
-        uri = rabbit_config['AMQP_URI']
-        proxy = RPCProxy(uri)
-
-        with pytest.raises(RpcTimeout):
-            proxy.novaservice.wait(timeout=1)
+        with ServiceRpcProxy("service", rabbit_config, timeout=.01) as proxy:
+            with pytest.raises(RpcTimeout):
+                proxy.wait()
 
         # container won't stop gracefully with a running worker
         container.kill()

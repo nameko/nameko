@@ -49,7 +49,7 @@ class ServiceRunner(object):
         Service classes must be registered before calling start()
         """
         service_name = get_service_name(cls)
-        container = self.container_cls(cls, worker_ctx_cls, self.config)
+        container = self.container_cls(cls, self.config, worker_ctx_cls)
         self.service_map[service_name] = container
 
     def start(self):
@@ -58,34 +58,37 @@ class ServiceRunner(object):
         A new container is created for each service using the container
         class provided in the __init__ method.
 
-        All containers are started concurently and the method will block
+        All containers are started concurrently and the method will block
         until all have completed their startup routine.
         """
-        _log.info('starting services: %s', self.service_names)
+        service_names = ', '.join(self.service_names)
+        _log.info('starting services: %s', service_names)
 
         SpawningProxy(self.containers).start()
 
-        _log.info('services started: %s', self.service_names)
+        _log.debug('services started: %s', service_names)
 
     def stop(self):
         """ Stop all running containers concurrently.
         The method blocks until all containers have stopped.
         """
-        _log.info('stopping services: %s', self.service_names)
+        service_names = ', '.join(self.service_names)
+        _log.info('stopping services: %s', service_names)
 
         SpawningProxy(self.containers).stop()
 
-        _log.info('services stopped: %s', self.service_names)
+        _log.debug('services stopped: %s', service_names)
 
     def kill(self):
         """ Kill all running containers concurrently.
         The method will block until all containers have stopped.
         """
-        _log.info('killing services: %s', self.service_names)
+        service_names = ', '.join(self.service_names)
+        _log.info('killing services: %s', service_names)
 
         SpawningProxy(self.containers).kill()
 
-        _log.info('services killed: %s ', self.service_names)
+        _log.debug('services killed: %s ', service_names)
 
     def wait(self):
         """ Wait for all running containers to stop.

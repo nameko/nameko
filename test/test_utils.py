@@ -4,7 +4,7 @@ from eventlet import GreenPool, sleep
 from eventlet.event import Event
 import pytest
 
-from nameko.utils import fail_fast_imap, repr_safe_str
+from nameko.utils import fail_fast_imap
 
 
 def test_fail_fast_imap():
@@ -21,7 +21,9 @@ def test_fail_fast_imap():
         sleep(5)
         slow_call_returned.send()
 
-    identity_fn = lambda x: x()
+    def identity_fn(fn):
+        return fn()
+
     calls = [slow_call, failing_call]
 
     pool = GreenPool(2)
@@ -34,17 +36,3 @@ def test_fail_fast_imap():
     # The slow call won't go past the sleep as it was killed
     assert not slow_call_returned.ready()
     assert pool.free() == 2
-
-
-@pytest.mark.parametrize("value, repr_safe_value", [
-    ("bytestr", b"bytestr"),
-    ("bÿtestr", b"b\xc3\xbftestr"),
-    (u"unicode", b"unicode"),
-    (u"unicøde", b"unic\xc3\xb8de"),
-    (None, b"None"),  # cannot encode non-string
-    (object, b"<type 'object'>"),  # cannot encode non-string
-])
-def test_repr_safe_str(value, repr_safe_value):
-    res = repr_safe_str(value)
-    assert res == repr_safe_value
-    assert isinstance(res, bytes)

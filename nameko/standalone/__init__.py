@@ -19,16 +19,12 @@ initiate some action inside a nameko cluster.
 
 .. Example:
 
-    Dispatch a ``CustomEvent`` as ``srcservice``::
+    Dispatch a ``custom_event`` as ``srcservice``::
 
-    >>> from nameko.events import Event
     >>> from nameko.standalone.events import event_dispatcher
     >>>
-    >>> class CustomEvent(Event):
-    ...    type = "custom"
-    ...
     >>> with event_dispatcher("srcservice", config) as dispatch:
-    ...     dispatch(CustomEvent("msg"))
+    ...     dispatch("custom_event", "msg")
     ...
     >>>
 

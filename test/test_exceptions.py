@@ -2,13 +2,14 @@ import json
 
 from mock import patch
 import pytest
+import six
 
 from nameko.exceptions import (
     serialize, safe_for_json, deserialize, deserialize_to_instance,
     RemoteError, UnserializableValueError)
 
 
-OBJECT_REPR = "<type 'object'>"
+OBJECT_REPR = repr(object)
 
 
 class CustomError(Exception):
@@ -176,5 +177,5 @@ def test_safe_for_json_bad_str():
 
     obj = BadStr()
     safe = safe_for_json(obj)
-    assert isinstance(safe, basestring)
+    assert isinstance(safe, six.string_types)
     assert 'failed' in safe

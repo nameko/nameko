@@ -4,7 +4,7 @@ from mock import patch
 import pytest
 
 from nameko.cli.main import main, setup_parser
-from nameko.exceptions import CommandError
+from nameko.exceptions import CommandError, ConfigurationError
 
 
 @pytest.yield_fixture(autouse=True)
@@ -18,7 +18,7 @@ def fake_argv():
             '--broker',
             'my_broker',
             'test.sample:Service',
-            ],
+        ],
     ):
         yield
 
@@ -31,9 +31,10 @@ def test_run():
     assert args.broker == 'my_broker'
 
 
-def test_error(capsys):
+@pytest.mark.parametrize('exception', (CommandError, ConfigurationError))
+def test_error(exception, capsys):
     with patch('nameko.cli.main.run.main') as run:
-        run.side_effect = CommandError('boom')
+        run.side_effect = exception('boom')
         main()
     out, _ = capsys.readouterr()
     assert out.strip() == 'Error: boom'
