@@ -1,5 +1,8 @@
+from __future__ import absolute_import
+
 import amqp
 from kombu import Connection
+from kombu.transport.pyamqp import Transport
 import six
 
 
@@ -26,32 +29,15 @@ class ConnectionTester(amqp.Connection):
                 ), exc)
 
 
+class TestTransport(Transport):
+    Connection = ConnectionTester
+
+
 def verify_amqp_uri(amqp_uri):
-    # From `kombu.transport.pyamqy.Transport.establish_connection`.  We let
-    # kombu parse the uri and supply defaults.
     connection = Connection(amqp_uri)
     if connection.transport_cls != 'amqp':
         return
-    transport = connection.transport
 
-    conninfo = transport.client
-    for name, default_value in transport.default_connection_params.items():
-        if not getattr(conninfo, name, None):
-            setattr(conninfo, name, default_value)
-    if conninfo.hostname == 'localhost':
-        conninfo.hostname = '127.0.0.1'
-    opts = dict({
-        'host': conninfo.host,
-        'userid': conninfo.userid,
-        'password': conninfo.password,
-        'login_method': conninfo.login_method,
-        'virtual_host': conninfo.virtual_host,
-        'insist': conninfo.insist,
-        'ssl': conninfo.ssl,
-        'connect_timeout': conninfo.connect_timeout,
-        'heartbeat': conninfo.heartbeat,
-    }, **conninfo.transport_options or {})
-    with ConnectionTester(**opts):
+    transport = TestTransport(connection.transport.client)
+    with transport.establish_connection():
         pass
-
-
