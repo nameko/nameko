@@ -14,11 +14,11 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "eventlet>=0.15.0",
-        "iso8601",
         "kombu>=3.0.1",
         "mock>=1.0.1",
         "path.py>=6.2",
         "requests>=1.2.0",
+        "six>=1.4.0",
         "werkzeug>=0.9",
     ],
     extras_require={
@@ -37,7 +37,7 @@ setup(
             "pyenchant==1.6.6",
             "Sphinx==1.3",
             "sphinxcontrib-spelling==2.1.1",
-            "sphinx-nameko-theme==0.0.2",
+            "sphinx-nameko-theme==0.0.3",
         ],
     },
     entry_points={
