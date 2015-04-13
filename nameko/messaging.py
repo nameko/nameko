@@ -110,7 +110,8 @@ def verify_amqp_uri(amqp_uri):
         'connect_timeout': conninfo.connect_timeout,
         'heartbeat': conninfo.heartbeat,
     }, **conninfo.transport_options or {})
-    ConnectionTester(**opts)
+    with ConnectionTester(**opts):
+        pass
 
 
 class Publisher(DependencyProvider, HeaderEncoder):
