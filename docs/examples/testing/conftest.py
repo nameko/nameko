@@ -18,7 +18,7 @@ from nameko.testing import rabbit
 def pytest_addoption(parser):
     parser.addoption(
         "--amqp-uri", action="store", dest='AMQP_URI',
-        default='amqp://guest:guest@localhost:5672/nameko',
+        default='amqp://guest:guest@localhost:5672/nameko_test',
         help=("The AMQP-URI to connect to rabbit with."))
 
     parser.addoption(

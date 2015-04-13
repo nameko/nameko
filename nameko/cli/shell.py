@@ -15,7 +15,7 @@ from nameko.standalone.events import event_dispatcher
 
 def init_parser(parser):
     parser.add_argument(
-        '--broker', default='amqp://guest:guest@localhost:5672/nameko',
+        '--broker', default='amqp://guest:guest@localhost',
         help='RabbitMQ broker url')
     return parser
 

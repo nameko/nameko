@@ -33,7 +33,7 @@ class ServiceY(object):
 def test_service_x_y_integration():
 
     # run services in the normal manner
-    config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/'}
+    config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/nameko_test'}
     runner = ServiceRunner(config)
     runner.add_service(ServiceX)
     runner.add_service(ServiceY)

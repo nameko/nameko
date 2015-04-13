@@ -114,6 +114,7 @@ traceback
 tracebacks
 tuple
 tuples
+unconfigured
 unhandled
 unregister
 unregistered
