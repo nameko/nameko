@@ -163,6 +163,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
         exchange = self.exchange
         queue = self.queue
 
+        verify_amqp_uri(self.amqp_uri)
+
         with self.get_connection() as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
@@ -223,6 +225,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     def setup(self):
         self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
         self.prefetch_count = self.container.max_workers
+        verify_amqp_uri(self.amqp_uri)
 
     def start(self):
         if not self._starting:
