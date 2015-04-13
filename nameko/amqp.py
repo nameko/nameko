@@ -36,6 +36,7 @@ class TestTransport(Transport):
 def verify_amqp_uri(amqp_uri):
     connection = Connection(amqp_uri)
     if connection.transport_cls != 'amqp':
+        # Can't use these heuristics. Fall back to the existing error behaviour
         return
 
     transport = TestTransport(connection.transport.client)
