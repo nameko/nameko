@@ -6,6 +6,12 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Unreleased
+----------
+
+* Changed default AMQP URI so examples work with an unconfigured RabbitMQ
+
+
 Version 2.0.0
 -------------
 
