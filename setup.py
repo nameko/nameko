@@ -37,7 +37,7 @@ setup(
             "pyenchant==1.6.6",
             "Sphinx==1.3",
             "sphinxcontrib-spelling==2.1.1",
-            "sphinx-nameko-theme==0.0.2",
+            "sphinx-nameko-theme==0.0.3",
         ],
     },
     entry_points={
