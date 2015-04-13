@@ -352,8 +352,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     def on_connection_error(self, exc, interval):
         _log.warn(
             "Error connecting to broker at {} ({}).\n"
-            "Is the broker running? "
-            "Do you have permission to access to the vhost?\n"
             "Retrying in {} seconds.".format(self.amqp_uri, exc, interval))
 
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
