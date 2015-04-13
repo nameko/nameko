@@ -18,7 +18,7 @@ setup(
         "mock>=1.0.1",
         "path.py>=6.2",
         "requests>=1.2.0",
-        "six>=1.4.0",
+        "six>=1.9.0",
         "werkzeug>=0.9",
     ],
     extras_require={
@@ -31,6 +31,7 @@ setup(
             "pylint==1.0.0",
             "pytest==2.4.2",
             "pytest-timeout==0.4",
+            "urllib3==1.10.2",
             "websocket-client==0.23.0",
         ],
         'docs': [
