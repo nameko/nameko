@@ -1,7 +1,7 @@
 import socket
 
-from requests.packages.urllib3.util import parse_url, Url
 import pytest
+from urllib3.util import parse_url, Url
 
 from nameko.messaging import verify_amqp_uri
 
@@ -10,9 +10,9 @@ from nameko.messaging import verify_amqp_uri
 def uris(rabbit_config):
     amqp_uri = rabbit_config['AMQP_URI']
     scheme, auth, host, port, path, _, _ = parse_url(amqp_uri)
-    bad_port = str(Url(scheme, auth, host, port + 1, path))
-    bad_user = str(Url(scheme, 'invalid:invalid', host, port, path))
-    bad_vhost = str(Url(scheme, auth, host, port, '/unknown'))
+    bad_port = Url(scheme, auth, host, port + 1, path).url
+    bad_user = Url(scheme, 'invalid:invalid', host, port, path).url
+    bad_vhost = Url(scheme, auth, host, port, '/unknown').url
     return {
         'good': amqp_uri,
         'bad_port': bad_port,

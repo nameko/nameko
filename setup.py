@@ -31,6 +31,7 @@ setup(
             "pylint==1.0.0",
             "pytest==2.4.2",
             "pytest-timeout==0.4",
+            "urllib3==1.10.2",
             "websocket-client==0.23.0",
         ],
         'docs': [
