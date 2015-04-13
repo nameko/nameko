@@ -3,7 +3,7 @@ import socket
 import pytest
 from urllib3.util import parse_url, Url
 
-from nameko.messaging import verify_amqp_uri
+from nameko.amqp import verify_amqp_uri
 
 
 @pytest.fixture
