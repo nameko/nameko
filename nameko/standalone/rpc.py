@@ -6,11 +6,11 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 
+from nameko.amqp import verify_amqp_uri
 from nameko.containers import WorkerContext
 from nameko.extensions import Entrypoint
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.kombu_helpers import queue_iterator
-from nameko.messaging import verify_amqp_uri
 from nameko.rpc import ServiceProxy, ReplyListener
 
 
