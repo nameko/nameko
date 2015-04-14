@@ -37,3 +37,4 @@ deploy:
   on:
     tags: true
     repo: onefinestay/nameko
+  distributions: "sdist bdist_wheel"
