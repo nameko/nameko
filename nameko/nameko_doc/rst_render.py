@@ -1,5 +1,5 @@
 from collections import namedtuple
-from path import path
+from path import Path
 
 SERVICE_INDEX_FILENAME = 'index.rst'
 
@@ -37,7 +37,7 @@ class RstPagePrinter(object):
 
     @property
     def output_path(self):
-        return path(self.output)
+        return Path(self.output)
 
     @property
     def sorted_pages(self):

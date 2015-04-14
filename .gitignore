@@ -10,3 +10,4 @@ docs/build
 ## Packages
 *.egg-info
 dist
+.tox

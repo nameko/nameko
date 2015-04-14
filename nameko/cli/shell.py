@@ -1,7 +1,7 @@
 """Launch an interactive python shell for working with remote nameko services.
 
 This is a regular interactive interpreter, with a special module ``n`` added
-to the builtin namespace, providing ``n.rpc`` and ``n.dispatch_event``.
+to the built-in namespace, providing ``n.rpc`` and ``n.dispatch_event``.
 """
 import code
 import os
@@ -15,7 +15,7 @@ from nameko.standalone.events import event_dispatcher
 
 def init_parser(parser):
     parser.add_argument(
-        '--broker', default='amqp://guest:guest@localhost:5672/nameko',
+        '--broker', default='amqp://guest:guest@localhost',
         help='RabbitMQ broker url')
     return parser
 

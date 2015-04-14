@@ -1,74 +1,79 @@
 Nameko
-######
+======
 
 .. image:: https://secure.travis-ci.org/onefinestay/nameko.png?branch=master
    :target: http://travis-ci.org/onefinestay/nameko
 
-**Nameko** ``[nah-meh-koh]`` (noun)
+*[nah-meh-koh]*
 
-#. amber-brown mushroom with a slightly gelatinous coating that is used as an
-   ingredient in miso soup and nabemono.
-#. python framework for building service orientated software
+.. pull-quote ::
 
-Features:
----------
-
- * Quickly build, host and deploy services
- * Highly declarative, lets you concentrate on your business logic
- * RPC, Events (Pub-Sub) and AMQP Messaging out-of-the-box
- * Extensible, so you can write your own service interactions
+    A microservices framework for Python that lets service developers concentrate on application logic and encourages testability.
 
 
-Getting Started:
-----------------
+A nameko service is just a class:
 
-The best way to appreciate nameko's features is to use them in some simple
-examples.  Follow the `getting started tutorial
-<http://nameko.readthedocs.org/en/latest/#getting-started>`_ in the docs to do
-just that.
+.. code-block:: python
 
+    # helloworld.py
 
-Documentation:
---------------
+    from nameko.rpc import rpc
 
-Nameko is using Sphinx, and the latest documentation can be found here:
+    class GreetingService(object):
+        name = "greeting_service"
 
-  http://nameko.readthedocs.org
-
-
-Prerequisites:
---------------
-
-Nameko requires an AMQP broker and is tested with
-`RabbitMQ <http://http://www.rabbitmq.com/>`_.
-
-The RabbitMQ `tutorials <http://www.rabbitmq.com/getstarted.html>`_ are very
-good and serve as an excellent introduction to messaging and AMQP.
+        @rpc
+        def hello(self, name):
+            return "Hello, {}!".format(name)
 
 
-Installation:
--------------
+You can run it in a shell:
 
-Stable releases of nameko are available on the Python Package Index (
-`PyPI <https://pypi.python.org/pypi/nameko>`_). Install it using ``pip`` or
-``easy_install``:
+.. code-block:: shell
 
- * pip install -U nameko
- * easy_install -U nameko
+    $ nameko run helloworld
+    starting services: greeting_service
+    ...
 
+And play with it from another:
 
-Contributing:
--------------
+.. code-block:: pycon
 
-Nameko is developed on GitHub, primarily by the development team at 
-`onefinestay <http://www.onefinestay.com>`_. The GitHub repository is
-https://github.com/onefinestay/nameko.
-
-You are welcome and encouraged to contribute comments, suggestions, patches
-and feature requests.
+    $ nameko shell
+    >>> n.rpc.greeting_service.hello(name="Matt")
+    u'Hello, Matt!'
 
 
-License:
+Features
 --------
+
+    * AMQP RPC and Events (pub-sub)
+    * HTTP GET, POST & websockets
+    * CLI for easy and rapid development
+    * Utilities for unit and integration testing
+
+
+Getting Started
+---------------
+
+    * Check out the `documentation <http://nameko.readthedocs.org>`_.
+
+
+Support
+-------
+
+    * Join the mailing list
+    * Find us on IRC
+
+
+Contribute
+----------
+
+    * Fork the repository
+    * Raise an issue or make a feature request
+
+
+License
+-------
 
 Apache 2.0. See LICENSE for details.
