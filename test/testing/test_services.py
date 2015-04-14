@@ -359,7 +359,7 @@ def test_entrypoint_waiter_timeout(container_factory, rabbit_config):
     with pytest.raises(EntrypointWaiter.Timeout) as exc_info:
         with entrypoint_waiter(container, 'handle', timeout=0.01):
             pass
-    assert exc_info.value.message == (
+    assert str(exc_info.value) == (
         "Entrypoint service.handle failed to complete within 0.01 seconds")
 
 
