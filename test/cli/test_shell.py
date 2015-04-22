@@ -1,4 +1,5 @@
-from mock import patch
+import sys
+from mock import patch, Mock
 
 from nameko.standalone.rpc import ClusterProxy
 from nameko.cli.main import setup_parser
@@ -27,4 +28,47 @@ def test_basic(tmpdir):
     local = kwargs['local']
     assert 'n' in local.keys()
     assert local['foo'] == 42
+    local['n'].disconnect()
+
+
+def test_plain():
+    parser = setup_parser()
+    args = parser.parse_args(['shell', '--plain'])
+
+    with patch('nameko.cli.shell.code') as code:
+        main(args)
+
+    _, kwargs = code.interact.call_args
+    local = kwargs['local']
+    assert 'n' in local.keys()
+    local['n'].disconnect()
+
+
+def test_bpython():
+    parser = setup_parser()
+    args = parser.parse_args(['shell', '--interface', 'bpython'])
+
+    sys.modules['bpython'] = Mock()
+
+    with patch('bpython.embed') as embed:
+        main(args)
+
+    _, kwargs = embed.call_args
+    local = kwargs['locals_']
+    assert 'n' in local.keys()
+    local['n'].disconnect()
+
+
+def test_ipython():
+    parser = setup_parser()
+    args = parser.parse_args(['shell', '--interface', 'ipython'])
+
+    sys.modules['IPython'] = Mock()
+
+    with patch('IPython.embed') as embed:
+        main(args)
+
+    _, kwargs = embed.call_args
+    local = kwargs['user_ns']
+    assert 'n' in local.keys()
     local['n'].disconnect()
