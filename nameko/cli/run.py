@@ -182,7 +182,7 @@ def init_parser(parser):
         help='RabbitMQ broker url')
     parser.add_argument(
         '--backdoor-port', type=int,
-        help='Specity a port number to host a backdoor, which can be connected'
+        help='Specify a port number to host a backdoor, which can be connected'
         ' to for an interactive interpreter within the running service'
         ' process using `nameko backdoor`.'
     )
