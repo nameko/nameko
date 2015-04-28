@@ -383,3 +383,29 @@ def test_recover_from_keyboardinterrupt(
 
         # proxy should still work
         assert proxy.spam(ham=1) == 1
+
+
+def test_call_id(container_factory, rabbit_manager, rabbit_config):
+
+    class CallerIdReader(DependencyProvider):
+        def get_dependency(self, worker_ctx):
+            return worker_ctx.call_id_stack[-2]
+
+    class Service(object):
+        name = 'foo'
+        caller_id = CallerIdReader()
+
+        @rpc
+        def call_id(self):
+            return self.caller_id
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        call_id = proxy.foo.call_id()
+        assert call_id.startswith('standalone_rpc_proxy.call.')
+
+    with ClusterRpcProxy(rabbit_config, caller_name='my_call_id') as proxy:
+        call_id = proxy.foo.call_id()
+        assert call_id.startswith('standalone_rpc_proxy.my_call_id.')

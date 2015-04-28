@@ -174,22 +174,22 @@ class StandaloneProxyBase(object):
             self.config = config
             self.shared_extensions = {}
 
-    class Dummy(Entrypoint):
-        method_name = "call"
-
     _proxy = None
 
     def __init__(
         self, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
+        caller_name='call', worker_ctx_cls=WorkerContext,
     ):
         container = self.ServiceContainer(config)
 
         reply_listener = SingleThreadedReplyListener(timeout=timeout).bind(
             container)
 
+        class Dummy(Entrypoint):
+            method_name = caller_name
+
         self._worker_ctx = worker_ctx_cls(
-            container, service=None, entrypoint=self.Dummy,
+            container, service=None, entrypoint=Dummy,
             data=context_data)
         self._reply_listener = reply_listener
 

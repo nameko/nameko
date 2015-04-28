@@ -6,6 +6,13 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Unreleased
+----------
+
+* Standalone rpc proxies accept a ``caller_name`` parameter to produce more
+  semantic ids for the call stack
+
+
 Version 2.1.0
 -------------
 
