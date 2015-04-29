@@ -187,7 +187,7 @@ def worker_factory(service_cls, **dependencies):
     service against a real database:
 
     .. literalinclude::
-        ../examples/testing/unit_test_alternative_dependency.py
+        ../examples/testing/alternative_dependency_unit_test.py
 
     If a named dependency provider does not exist on ``service_cls``, a
     ``ExtensionNotFound`` exception is raised.

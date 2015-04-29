@@ -5,6 +5,7 @@ from nameko.contextdata import Language
 from nameko.rpc import rpc
 from nameko.testing.services import entrypoint_hook
 
+
 class HelloService(object):
     """ Service under test
     """
@@ -22,18 +23,19 @@ class HelloService(object):
 
         return "{}, {}!".format(greeting, name)
 
-    @pytest.parametrize("language, greeting", [
-        ("en", "Hello"),
-        ("fr", "Bonjour"),
-        ("de", "Gutentag"),
-    ])
-    def test_hello_languages(language, greeting, rabbit_config):
 
-        container = ServiceContainer(HelloService, rabbit_config)
-        container.start()
+@pytest.mark.parametrize("language, greeting", [
+    ("en", "Hello"),
+    ("fr", "Bonjour"),
+    ("de", "Gutentag"),
+])
+def test_hello_languages(language, greeting, rabbit_config):
 
-        context_data = {'language': language}
-        with entrypoint_hook(container, 'hello', context_data) as hook:
-            assert hook("Matt") == "{}, Matt!".format(greeting)
+    container = ServiceContainer(HelloService, rabbit_config)
+    container.start()
 
-        container.stop()
+    context_data = {'language': language}
+    with entrypoint_hook(container, 'hello', context_data) as hook:
+        assert hook("Matt") == "{}, Matt!".format(greeting)
+
+    container.stop()

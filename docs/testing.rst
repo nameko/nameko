@@ -19,7 +19,7 @@ The :func:`~nameko.testing.services.worker_factory` utility will create a worker
 
 In some circumstances it's helpful to provide an alternative dependency, rather than use a mock. This may be a fully functioning replacement (e.g. a test database session) or a lightweight shim that provides partial functionality.
 
-.. literalinclude:: examples/testing/unit_test_alternative_dependency.py
+.. literalinclude:: examples/testing/alternative_dependency_unit_test.py
 
 Integration Testing
 -------------------
@@ -61,14 +61,14 @@ The entrypoint hook allows a service entrypoint to be called manually. This is u
 
 You can provide `context_data` for the call to mimic specific call context, for example language, user agent or auth token.
 
-.. literalinclude:: examples/testing/entrypoint_hook.py
+.. literalinclude:: examples/testing/entrypoint_hook_test.py
 
 entrypoint_waiter
 ^^^^^^^^^^^^^^^^^
 
 The entrypoint waiter is a context manager that does not exit until a named entrypoint has fired and completed. This is useful when testing integration points between services that are asynchronous, for example receiving an event:
 
-.. literalinclude:: examples/testing/entrypoint_waiter.py
+.. literalinclude:: examples/testing/entrypoint_waiter_test.py
 
 Note that the context manager waits not only for the entrypoint method to complete, but also for any dependency teardown. Dependency-based loggers such as (TODO: link to bundled logger) for example would have also completed.
 
@@ -78,5 +78,5 @@ Minimal conftest.py
 
 Below is a minimal conftest for pytest that includes configuration and fixtures for communicating with RabbitMQ as well as the eventlet monkey patch. It is a good base for service tests if you're using pytest.
 
-.. literalinclude:: examples/testing/conftest.py
+.. literalinclude:: examples/conftest.py
 
