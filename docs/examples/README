@@ -1,0 +1,7 @@
+This directory (nameko/docs/examples) contains example services and code
+snippets for reference or use in the documentation. `test_examples.py`
+contains pytest-based tests to check the examples work as expected.
+These tests are verified to pass as part of nameko's release process.
+
+The `testing` subdirectory contains examples demonstrating best practice use
+of the test utilities that ship with nameko. These tests must also verified to pass as part of nameko's release process.

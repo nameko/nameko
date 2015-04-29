@@ -24,6 +24,7 @@ env:
     - TOX_ENV=py34-pinned
     - TOX_ENV=py34-latest
     - TOX_ENV=docs
+    - TOX_ENV=examples
     - TOX_ENV=spelling
 
 script:
