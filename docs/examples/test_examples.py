@@ -231,6 +231,18 @@ class TestRpc(object):
             execfile(filepath, globals(), ns)
 
 
+class TestServiceContainer(object):
+
+    def test_service_container(self):
+        from . import service_container
+
+
+class TestServiceRunner(object):
+
+    def test_service_runner(self):
+        from . import service_runner
+
+
 class TestTimer(object):
 
     def test_timer(self, container_factory, rabbit_config):
