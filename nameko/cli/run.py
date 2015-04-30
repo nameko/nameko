@@ -6,6 +6,8 @@ specific service can be specified via ``nameko run module:ServiceClass``.  """
 import eventlet
 eventlet.monkey_patch()  # noqa (code before rest of imports)
 
+from __future__ import print_function
+
 import errno
 import inspect
 import logging
@@ -145,11 +147,11 @@ def run(services, config, backdoor_port=None):
                 continue
             raise
         except KeyboardInterrupt:
-            print  # looks nicer with the ^C e.g. bash prints in the terminal
+            print()  # looks nicer with the ^C e.g. bash prints in the terminal
             try:
                 service_runner.stop()
             except KeyboardInterrupt:
-                print  # as above
+                print()  # as above
                 service_runner.kill()
         else:
             # runner.wait completed

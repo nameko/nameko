@@ -11,7 +11,7 @@ class ServiceB(object):
 
     @event_handler("service_a", "event_type")
     def handle_event(self, payload):
-        print "service b received", payload
+        print("service b received", payload)
 
 
 def test_event_interface(rabbit_config):
@@ -24,6 +24,6 @@ def test_event_interface(rabbit_config):
     # prints "service b received payload" before "exited"
     with entrypoint_waiter(container, 'handle_event'):
         dispatch("service_a", "event_type", "payload")
-    print "exited"
+    print("exited")
 
     container.stop()

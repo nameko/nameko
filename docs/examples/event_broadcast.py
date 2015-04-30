@@ -8,4 +8,4 @@ class ListenerService(object):
     )
     def ping(self, payload):
         # all running services will respond
-        print "pong from {}".format(self.name)
+        print("pong from {}".format(self.name))

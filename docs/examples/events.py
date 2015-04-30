@@ -18,4 +18,4 @@ class ServiceB(object):
 
     @event_handler("service_a", "event_type")
     def handle_event(self, payload):
-        print "service b received", payload
+        print("service b received", payload)
