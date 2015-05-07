@@ -31,17 +31,18 @@ class ShellRunner(object):
         embed(banner1=self.banner, user_ns=self.local)
 
     def plain(self):
+        code.interact(banner=self.banner, local=self.local)
+
+    def start_shell(self, name):
+        available_shells = [name] if name else SHELLS
+
         # Support the regular Python interpreter startup script if someone
         # is using it.
         startup = os.environ.get('PYTHONSTARTUP')
         if startup and os.path.isfile(startup):
             with open(startup, 'r') as f:
                 eval(compile(f.read(), startup, 'exec'), self.local)
-
-        code.interact(banner=self.banner, local=self.local)
-
-    def start_shell(self, name):
-        available_shells = [name] if name else SHELLS
+            del os.environ['PYTHONSTARTUP']
 
         for name in available_shells:
             try:
