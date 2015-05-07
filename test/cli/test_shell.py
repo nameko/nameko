@@ -44,6 +44,19 @@ def test_plain():
     local['n'].disconnect()
 
 
+def test_plain_fallback():
+    parser = setup_parser()
+    args = parser.parse_args(['shell', '--interface', 'bpython'])
+
+    with patch('nameko.cli.shell.code') as code:
+        main(args)
+
+    _, kwargs = code.interact.call_args
+    local = kwargs['local']
+    assert 'n' in local.keys()
+    local['n'].disconnect()
+
+
 def test_bpython():
     parser = setup_parser()
     args = parser.parse_args(['shell', '--interface', 'bpython'])
