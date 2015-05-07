@@ -33,7 +33,7 @@ def test_basic(tmpdir):
 
 def test_plain():
     parser = setup_parser()
-    args = parser.parse_args(['shell', '--plain'])
+    args = parser.parse_args(['shell', '--interface', 'plain'])
 
     with patch('nameko.cli.shell.code') as code:
         main(args)
