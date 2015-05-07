@@ -13,7 +13,42 @@ from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.standalone.events import event_dispatcher
 
 
-SHELLS = ['bpython', 'ipython']
+SHELLS = ['bpython', 'ipython', 'plain']
+
+
+class ShellRunner(object):
+
+    def __init__(self, banner, local):
+        self.banner = banner
+        self.local = local
+
+    def bpython(self):
+        import bpython
+        bpython.embed(banner=self.banner, locals_=self.local)
+
+    def ipython(self):
+        from IPython import embed
+        embed(banner1=self.banner, user_ns=self.local)
+
+    def plain(self):
+        # Support the regular Python interpreter startup script if someone
+        # is using it.
+        startup = os.environ.get('PYTHONSTARTUP')
+        if startup and os.path.isfile(startup):
+            with open(startup, 'r') as f:
+                eval(compile(f.read(), startup, 'exec'), self.local)
+
+        code.interact(banner=self.banner, local=self.local)
+
+    def start_shell(self, name):
+        available_shells = [name] if name else SHELLS
+
+        for name in available_shells:
+            try:
+                return getattr(self, name)()
+            except ImportError:
+                pass
+        self.plain()
 
 
 def init_parser(parser):
@@ -23,9 +58,6 @@ def init_parser(parser):
     parser.add_argument(
         '--interface', choices=SHELLS,
         help='Specify an interactive interpreter interface.')
-    parser.add_argument(
-        '--plain', action='store_true',
-        help='Use the regular Python interpreter.')
     return parser
 
 
@@ -51,27 +83,6 @@ Usage:
     return module
 
 
-def bpython(banner, local):
-    import bpython
-    bpython.embed(banner=banner, locals_=local)
-
-
-def ipython(banner, local):
-    from IPython import embed
-    embed(banner1=banner, user_ns=local)
-
-
-def run_shell(shell=None, banner=None, local=None):
-    available_shells = [shell] if shell else SHELLS
-
-    for shell in available_shells:
-        try:
-            return globals()[shell](banner, local)
-        except ImportError:
-            pass
-    raise ImportError
-
-
 def main(args):
     banner = 'Nameko Python %s shell on %s\nBroker: %s' % (
         sys.version,
@@ -83,17 +94,5 @@ def main(args):
     ctx = {}
     ctx['n'] = make_nameko_helper(config)
 
-    try:
-        if args.plain:
-            raise ImportError
-
-        run_shell(shell=args.interface, banner=banner, local=ctx)
-    except ImportError:
-        # Support the regular Python interpreter startup script if someone
-        # is using it.
-        startup = os.environ.get('PYTHONSTARTUP')
-        if startup and os.path.isfile(startup):
-            with open(startup, 'r') as f:
-                eval(compile(f.read(), startup, 'exec'), ctx)
-
-        code.interact(banner=banner, local=ctx)
+    runner = ShellRunner(banner, ctx)
+    runner.start_shell(name=args.interface)
