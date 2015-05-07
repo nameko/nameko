@@ -10,7 +10,6 @@ from nameko.amqp import verify_amqp_uri
 from nameko.containers import WorkerContext
 from nameko.extensions import Entrypoint
 from nameko.exceptions import RpcConnectionError, RpcTimeout
-from nameko.kombu_helpers import queue_iterator
 from nameko.rpc import ServiceProxy, ReplyListener
 
 
@@ -90,6 +89,43 @@ class PollingQueueConsumer(object):
     def ack_message(self, msg):
         msg.ack()
 
+    # lifted from kombu, unrolled to allow re-setting timeout
+    def _queue_iterator(self):
+        queue = self.queue
+        channel = queue.channel
+
+        from collections import deque
+        import socket
+        from kombu.messaging import Consumer
+        from nameko.exceptions import RpcTimeout
+
+        consumer = Consumer(channel, queues=[queue], no_ack=False)
+
+        acc = deque()
+
+        def on_message(body, message):
+            acc.append((body, message))
+
+        consumer.callbacks = [on_message]
+
+        try:
+            with consumer:
+                client = consumer.channel.connection.client
+                while True:
+                    client.drain_events(timeout=self.timeout)
+                    yield acc.popleft()
+
+        except socket.timeout:
+            if self.timeout is not None:
+                # we raise a different exception type here because we bubble out
+                # to our caller, but `socket.timeout` errors get caught if
+                # our connection is "ensured" with `kombu.Connection.ensure`;
+                # the reference to the connection is destroyed so it can't be
+                # closed later - see https://github.com/celery/kombu/blob/v3.0.4/
+                # kombu/connection.py#L446
+                raise RpcTimeout(self.timeout)
+            raise
+
     def _poll_messages(self):
         replies = {}
 
@@ -97,9 +133,7 @@ class PollingQueueConsumer(object):
 
         while True:
             try:
-                for body, msg in queue_iterator(
-                    self.queue, timeout=self.timeout
-                ):
+                for body, msg in self._queue_iterator():
                     msg_correlation_id = msg.properties.get('correlation_id')
 
                     if msg_correlation_id not in self.provider._reply_events:

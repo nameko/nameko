@@ -373,7 +373,9 @@ def test_recover_from_keyboardinterrupt(
         def call():
             return proxy.spam(ham=0)
 
-        with patch('nameko.standalone.rpc.queue_iterator') as iterator:
+        with patch(
+            'nameko.standalone.rpc.PollingQueueConsumer._queue_iterator'
+        ) as iterator:
             iterator.side_effect = KeyboardInterrupt('killing from test')
             with pytest.raises(KeyboardInterrupt):
                 proxy.spam(ham=0)
