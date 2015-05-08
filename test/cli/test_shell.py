@@ -26,7 +26,10 @@ def pystartup(tmpdir):
 
 @pytest.yield_fixture(autouse=True)
 def fake_alternative_interpreters():
-    # make sure these appear unavailable even if installed
+    # Make sure these appear unavailable even if installed. We cheat slightly,
+    # and have the call to `embed` raise the ImportError, rather than the
+    # actual module import (this is easier to do and has the same effect in our
+    # case).
     fake_module = Mock()
     fake_module.embed.side_effect = ImportError
     with patch.dict(sys.modules, {
