@@ -373,10 +373,8 @@ def test_recover_from_keyboardinterrupt(
         def call():
             return proxy.spam(ham=0)
 
-        with patch(
-            'nameko.standalone.rpc.PollingQueueConsumer._queue_iterator'
-        ) as iterator:
-            iterator.side_effect = KeyboardInterrupt('killing from test')
+        with patch('kombu.connection.Connection.drain_events') as drain_events:
+            drain_events.side_effect = KeyboardInterrupt('killing from test')
             with pytest.raises(KeyboardInterrupt):
                 proxy.spam(ham=0)
 

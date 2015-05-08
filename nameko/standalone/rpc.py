@@ -101,35 +101,21 @@ class PollingQueueConsumer(object):
 
         self.replies[msg_correlation_id] = (body, message)
 
-    # lifted from kombu, unrolled to allow re-setting timeout
-    def _queue_iterator(self):
-        try:
-            client = self.consumer.channel.connection.client
-            return client.drain_events(timeout=self.timeout)
-
-        except socket.timeout:
-            if self.timeout is not None:
-                # we raise a different exception type here because we bubble out
-                # to our caller, but `socket.timeout` errors get caught if
-                # our connection is "ensured" with `kombu.Connection.ensure`;
-                # the reference to the connection is destroyed so it can't be
-                # closed later - see https://github.com/celery/kombu/blob/v3.0.4/
-                # kombu/connection.py#L446
-                raise RpcTimeout(self.timeout)
-            raise
-
     def get_message(self, correlation_id):
 
         try:
             while correlation_id not in self.replies:
-                self._queue_iterator()
+                self.consumer.channel.connection.client.drain_events(
+                    timeout=self.timeout
+                )
 
             body, message = self.replies.pop(correlation_id)
             self.provider.handle_message(body, message)
 
-        except RpcTimeout as exc:
+        except socket.timeout:
+            timeout_error = RpcTimeout(self.timeout)
             event = self.provider._reply_events.pop(correlation_id)
-            event.send_exception(exc)
+            event.send_exception(timeout_error)
 
             # timeout is implemented using socket timeout, so when it
             # fires the connection is closed, causing the reply queue
