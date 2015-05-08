@@ -24,6 +24,18 @@ def pystartup(tmpdir):
         yield
 
 
+@pytest.yield_fixture(autouse=True)
+def fake_alternative_interpreters():
+    # make sure these appear unavailable even if installed
+    fake_module = Mock()
+    fake_module.embed.side_effect = ImportError
+    with patch.dict(sys.modules, {
+        'IPython': fake_module,
+        'bpython': fake_module,
+    }):
+        yield
+
+
 def test_basic(pystartup):
     parser = setup_parser()
     args = parser.parse_args(['shell'])
@@ -70,8 +82,6 @@ def test_bpython(pystartup):
     parser = setup_parser()
     args = parser.parse_args(['shell', '--interface', 'bpython'])
 
-    sys.modules['bpython'] = Mock()
-
     with patch('bpython.embed') as embed:
         main(args)
 
@@ -85,8 +95,6 @@ def test_bpython(pystartup):
 def test_ipython(pystartup):
     parser = setup_parser()
     args = parser.parse_args(['shell', '--interface', 'ipython'])
-
-    sys.modules['IPython'] = Mock()
 
     with patch('IPython.embed') as embed:
         main(args)
