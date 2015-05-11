@@ -13,10 +13,52 @@ from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.standalone.events import event_dispatcher
 
 
+SHELLS = ['bpython', 'ipython', 'plain']
+
+
+class ShellRunner(object):
+
+    def __init__(self, banner, local):
+        self.banner = banner
+        self.local = local
+
+    def bpython(self):
+        import bpython
+        bpython.embed(banner=self.banner, locals_=self.local)
+
+    def ipython(self):
+        from IPython import embed
+        embed(banner1=self.banner, user_ns=self.local)
+
+    def plain(self):
+        code.interact(banner=self.banner, local=self.local)
+
+    def start_shell(self, name):
+        available_shells = [name] if name else SHELLS
+
+        # Support the regular Python interpreter startup script if someone
+        # is using it.
+        startup = os.environ.get('PYTHONSTARTUP')
+        if startup and os.path.isfile(startup):
+            with open(startup, 'r') as f:
+                eval(compile(f.read(), startup, 'exec'), self.local)
+            del os.environ['PYTHONSTARTUP']
+
+        for name in available_shells:
+            try:
+                return getattr(self, name)()
+            except ImportError:
+                pass
+        self.plain()
+
+
 def init_parser(parser):
     parser.add_argument(
         '--broker', default='amqp://guest:guest@localhost',
         help='RabbitMQ broker url')
+    parser.add_argument(
+        '--interface', choices=SHELLS,
+        help='Specify an interactive interpreter interface.')
     return parser
 
 
@@ -53,11 +95,5 @@ def main(args):
     ctx = {}
     ctx['n'] = make_nameko_helper(config)
 
-    # Support the regular Python interpreter startup script if someone
-    # is using it.
-    startup = os.environ.get('PYTHONSTARTUP')
-    if startup and os.path.isfile(startup):
-        with open(startup, 'r') as f:
-            eval(compile(f.read(), startup, 'exec'), ctx)
-
-    code.interact(banner=banner, local=ctx)
+    runner = ShellRunner(banner, ctx)
+    runner.start_shell(name=args.interface)

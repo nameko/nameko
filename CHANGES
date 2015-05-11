@@ -6,6 +6,12 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Unreleased
+----------
+
+* Nameko shell to use bpython or ipython interpreter if available
+
+
 Version 2.1.0
 -------------
 
