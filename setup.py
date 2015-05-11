@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='nameko',
-    version='2.1.0',
+    version='2.1.1',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
