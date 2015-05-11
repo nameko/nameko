@@ -1,5 +1,13 @@
 #!/usr/bin/env python
+from codecs import open
+import os
 from setuptools import setup, find_packages
+
+
+here = os.path.abspath(os.path.dirname(__file__))
+
+with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
+    readme = handle.read()
 
 
 setup(
@@ -8,6 +16,7 @@ setup(
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
+    long_description=readme,
     author='onefinestay',
     author_email='nameko-devs@onefinestay.com',
     url='http://github.com/onefinestay/nameko',
