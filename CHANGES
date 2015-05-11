@@ -9,6 +9,34 @@ increment the minor version number only.
 Unreleased
 ----------
 
+* Nameko shell to use bpython or ipython interpreter if available
+
+
+Version 2.1.0
+-------------
+
+Released 2015-04-13
+
+* Changed default AMQP URI so examples work with an unconfigured RabbitMQ.
+* Heuristic messages for AMQP connection errors.
+* Added six to requirements.
+* Minor documentation fixes.
+
+
+Version 2.0.0
+-------------
+
+Released 2015-03-31
+
+* python 3 compatibility
+* Added HTTP entrypoints and experimental websocket support (contributed by
+  Armin Ronacher)
+* Added CLI and console script
+* Introduction of nameko "extensions" and nomenclature clarification
+* Removal of ``DependencyFactory`` in favour of prototype pattern
+* Complete documentation rewrite
+* Spun out ``nameko.contrib.sqlalchemy`` into `nameko-sqlalchemy <https://pypi.python.org/pypi/nameko-sqlalchemy>`_ as a **community extension**.
+* Spun out ``nameko.legacy`` package into `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
 * Rename the standalone rpc proxy to
   :class:`~nameko.standalone.rpc.ServiceRpcProxy` and add a
   :class:`~nameko.standalone.rpc.ClusterRpcProxy`, using a single reply queue
@@ -19,6 +47,8 @@ Unreleased
 
 Version 1.14.0
 --------------
+
+Released 2014-12-19
 
 * Remove parallel provider in favour of async RPC
 * Update :func:`~nameko.testing.services.worker_factory` to raise if asked to
@@ -31,6 +61,8 @@ Version 1.14.0
 Version 1.13.0
 --------------
 
+Released 2014-12-02
+
 * RPC reply queues now auto-delete.
 * Extra protection against badly-behaved dependencies during container kill
 * Make legacy :class:`~nameko.legacy.nova.NovaRpcConsumer` more robust against
@@ -40,6 +72,8 @@ Version 1.13.0
 Version 1.12.0
 --------------
 
+Released 2014-11-25
+
 * Add ability to make asynchronous rpc calls using the rpc proxy.
 * Add a new nameko context key ``user_agent`` to support including such info
   in the rpc header.
@@ -48,12 +82,16 @@ Version 1.12.0
 Version 1.11.5
 --------------
 
+Released 2014-11-18
+
 * Have the standalone rpc proxy mark its reply queues as auto-delete, to stop
   them staying around after use.
 
 
 Version 1.11.4
 --------------
+
+Released 2014-11-10
 
 * Make :class:`~nameko.rpc.RpcConsumer` more robust against failures in the
   :class:`~nameko.rpc.Rpc` provider.
@@ -72,12 +110,16 @@ Version 1.11.4
 Version 1.11.3
 --------------
 
+Released 2014-10-10
+
 * Add more logging for workers killed by
   :meth:`~nameko.containers.ServiceContainer.kill`.
 
 
 Version 1.11.2
 --------------
+
+Released 2014-09-18
 
 * Add a default implementation for ``acquire_injection`` (returning ``None``)
   for dependency providers that are used for side-effects rather than injecting
@@ -87,12 +129,16 @@ Version 1.11.2
 Version 1.11.1
 --------------
 
+Released 2014-09-15
+
 * New test helper :func:`~nameko.testing.services.entrypoint_waiter` to wait
   for entrypoints (e.g. event handlers) to complete.
 
 
 Version 1.11.0
 --------------
+
+Released 2014-09-01
 
 * Raise a specific ``RpcTimeout`` error in the RPC proxy rather than
   ``socket.timeout`` to avoid confusing kombu's ``Connection.ensure``
@@ -107,6 +153,8 @@ Version 1.11.0
 Version 1.10.1
 --------------
 
+Released 2014-08-27
+
 * Inspect the service class (instead of an instance) in
   :func:`~nameko.testing.services.worker_factory`. Works better with
   descriptors.
@@ -117,6 +165,8 @@ Version 1.10.1
 Version 1.10.0
 --------------
 
+Released 2014-08-14
+
 * Entrypoint providers' handle_result is now able to manipulate and modify and
   return the ``(result, exc_info)`` tuple. This enables default post-processing
   (e.g. serialization, translations)
@@ -126,11 +176,15 @@ Version 1.10.0
 Version 1.9.1
 -------------
 
+Released 2014-08-12
+
 * Bugfix to exception handling in ``nameko.legacy.dependencies``
 
 
 Version 1.9.0
 -------------
+
+Released 2014-07-15
 
 * No longer relying on eventlet for standalone RPC proxy timeouts.
 * Introduced RPC entrypoints compatible with the 'legacy' proxy.
@@ -139,6 +193,8 @@ Version 1.9.0
 Version 1.8.2
 -------------
 
+Released 2014-07-07
+
 * Documentation generator accepts a function listing event classes and adds
   to output accordingly.
 
@@ -146,10 +202,14 @@ Version 1.8.2
 Version 1.8.1
 -------------
 
+Released 2014-06-23
+
 * Adding ``wait_for_worker_idle`` test helper.
 
 Version 1.8.0
 -------------
+
+Released 2014-06-13
 
 * Now passing ``exc_info`` tuples instead of bare exceptions to
   ``worker_result`` and ``handle_result``, to enable exception processing in
@@ -157,6 +217,8 @@ Version 1.8.0
 
 Version 1.7.2
 -------------
+
+Released 2014-06-10
 
 * :meth:`~nameko.containers.ServiceContainer._run_worker` now calls any
   ``handle_result`` method before dependency teardown.
@@ -167,6 +229,8 @@ Version 1.7.2
 Version 1.7.1
 -------------
 
+Released 2014-05-20
+
 * Added ``language``, ``auth_token`` and ``user_id`` dependency providers to
   make context data available to service workers.
 * Refactored constants into their own module.
@@ -174,6 +238,8 @@ Version 1.7.1
 
 Version 1.7.0
 -------------
+
+Released 2014-05-07
 
 * :meth:`~nameko.containers.ServiceContainer.spawn_worker` now throws
   :class:`~nameko.exceptions.ContainerBeingKilled` if a ``kill`` is
@@ -185,6 +251,8 @@ Version 1.7.0
 Version 1.6.1
 -------------
 
+Released 2014-04-03
+
 * Revert changes to legacy exception serialization to maintain backwards
   compatibility with old clients.
 * Add forwards compatibility for future clients that wish to serialize
@@ -194,6 +262,8 @@ Version 1.6.1
 
 Version 1.6.0
 -------------
+
+Released 2014-03-31
 
 * Rename instance_factory to worker_factory
 * Raise :class:`~nameko.exception.IncorrectSignature` instead of
@@ -209,6 +279,8 @@ Version 1.6.0
 Version 1.5.0
 -------------
 
+Released 2014-03-27
+
 * Improvements to :class:`~nameko.containers.ServiceContainer.kill()` enabling
   better tracebacks and cleaner teardown:
 
@@ -222,12 +294,16 @@ Version 1.5.0
 Version 1.4.1
 -------------
 
+Released 2014-03-26
+
 * Adds the ``nameko_doc`` package, for easing the creation of service-oriented
   documentation.
 
 
 Version 1.4.0
 -------------
+
+Released 2014-03-20
 
 * RPC calls to non-existent services (no queues bound to the RPC exchange with
   the appropriate routing key) now raise an exception instead of hanging
@@ -238,12 +314,16 @@ Version 1.4.0
 Version 1.3.5
 -------------
 
+Released 2014-03-05
+
 * Increased test resilience. Force-closing existing connections on rabbit
   reset
 
 
 Version 1.3.4
 -------------
+
+Released 2014-03-05
 
 * Use ``MagicMock`` for dependency replacement in test utilities
 * Use ``autospec=True`` wherever possible when mocking
@@ -253,12 +333,16 @@ Version 1.3.4
 Version 1.3.3
 -------------
 
+Released 2014-02-25
+
 * Bugfixes enabling reconnection to the broker if the connection is temporarily
   lost.
 
 
 Version 1.3.2
 -------------
+
+Released 2014-02-13
 
 * Dropping headers with a ``None`` value because they can't be serialized by
   AMQP
@@ -267,12 +351,16 @@ Version 1.3.2
 Version 1.3.1
 -------------
 
+Released 2014-01-28
+
 * Add ``event_handler_cls`` kwarg to the ``event_handler`` entrypoint, for
   using a custom subclass of the ``EventHandler`` provider
 
 
 Version 1.3.0
 -------------
+
+Released 2014-01-23
 
 * Standalone RPC proxy interface changed to class with contextmanager interface
   and manual ``start()`` and ``stop()`` methods.

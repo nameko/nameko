@@ -1,15 +1,16 @@
 import inspect
 import logging
 
-import entities
+from nameko.containers import is_method
 from nameko.rpc import Rpc
+from . import entities
 
 
 log = logging.getLogger(__name__)
 
 
 def is_rpc_method(method):
-    if inspect.ismethod(method) and hasattr(method, 'nameko_entrypoints'):
+    if is_method(method) and hasattr(method, 'nameko_entrypoints'):
         if any(isinstance(entrypoint, Rpc)
                for entrypoint in method.nameko_entrypoints):
             # It's an RPC method

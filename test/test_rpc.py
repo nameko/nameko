@@ -75,12 +75,10 @@ class ExampleService(object):
 
     @rpc
     def task_a(self, *args, **kwargs):
-        print "task_a", args, kwargs
         return "result_a"
 
     @rpc
     def task_b(self, *args, **kwargs):
-        print "task_b", args, kwargs
         return "result_b"
 
     @rpc(expected_exceptions=ExampleError)
@@ -414,6 +412,7 @@ def test_async_rpc(container_factory, rabbit_config):
 def test_rpc_incorrect_signature(container_factory, rabbit_config):
 
     class Service(object):
+        name = "service"
 
         @rpc
         def no_args(self):
@@ -489,7 +488,7 @@ def test_rpc_missing_method(container_factory, rabbit_config):
     with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(MethodNotFound) as exc_info:
             proxy.task_c()
-    assert exc_info.value.message == "task_c"
+    assert str(exc_info.value) == "task_c"
 
 
 def test_rpc_invalid_message():

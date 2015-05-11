@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
 import json
 import sys
@@ -18,7 +18,6 @@ from nameko.exceptions import (
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
-from nameko.utils import repr_safe_str
 
 _log = getLogger(__name__)
 
@@ -417,6 +416,6 @@ class MethodProxy(HeaderEncoder):
         return RpcReply(reply_event)
 
     def __repr__(self):
-        service_name = repr_safe_str(self.service_name)
-        method_name = repr_safe_str(self.method_name)
+        service_name = self.service_name
+        method_name = self.method_name
         return '<proxy method: {}.{}>'.format(service_name, method_name)

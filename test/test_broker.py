@@ -40,6 +40,7 @@ def logger():
 
 
 class ExampleService(object):
+    name = "exampleservice"
 
     @rpc
     def echo(self, arg):
@@ -66,6 +67,8 @@ class ExampleService(object):
 
 
 class ProxyService(object):
+    name = "proxyservice"
+
     example_rpc = RpcProxy('exampleservice')
 
     @dummy

@@ -32,6 +32,7 @@ def reset_mock():
 
 
 class Service(object):
+    name = "service"
 
     a = RpcProxy("service_a")
     language = LanguageReporter()
@@ -167,6 +168,7 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
 def test_worker_factory():
 
     class Service(object):
+        name = "service"
         foo_proxy = RpcProxy("foo_service")
         bar_proxy = RpcProxy("bar_service")
 
@@ -198,6 +200,7 @@ def test_worker_factory():
 def test_replace_dependencies(container_factory, rabbit_config):
 
     class Service(object):
+        name = "service"
         foo_proxy = RpcProxy("foo_service")
         bar_proxy = RpcProxy("bar_service")
         baz_proxy = RpcProxy("baz_service")
@@ -236,6 +239,7 @@ def test_replace_dependencies(container_factory, rabbit_config):
 def test_replace_non_dependency(container_factory, rabbit_config):
 
     class Service(object):
+        name = "service"
         proxy = RpcProxy("foo_service")
 
         @rpc
@@ -257,6 +261,7 @@ def test_replace_dependencies_container_already_started(container_factory,
                                                         rabbit_config):
 
     class Service(object):
+        name = "service"
         proxy = RpcProxy("foo_service")
 
     container = container_factory(Service, rabbit_config)
@@ -271,6 +276,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     method_called = Mock()
 
     class Service(object):
+        name = "service"
 
         @rpc
         @once("assert not seen")
@@ -291,7 +297,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     with ServiceRpcProxy("service", rabbit_config) as service_proxy:
         with pytest.raises(MethodNotFound) as exc_info:
             service_proxy.handler_one("msg")
-        assert exc_info.value.message == "handler_one"
+        assert str(exc_info.value) == "handler_one"
 
     # dispatch an event to handler_two
     msg = "msg"
@@ -308,6 +314,8 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
 def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
 
     class Service(object):
+        name = "service"
+
         @rpc
         def method(self, arg):
             pass
@@ -322,6 +330,8 @@ def test_restrict_entrypoint_container_already_started(container_factory,
                                                        rabbit_config):
 
     class Service(object):
+        name = "service"
+
         @rpc
         def method(self, arg):
             pass

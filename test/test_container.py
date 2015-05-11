@@ -1,3 +1,5 @@
+# coding: utf-8
+
 import sys
 
 import eventlet
@@ -7,8 +9,9 @@ import greenlet
 from mock import patch, call, ANY, Mock
 import pytest
 
-from nameko.containers import ServiceContainer
+from nameko.containers import ServiceContainer, get_service_name
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
+from nameko.exceptions import ConfigurationError
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
 
@@ -492,14 +495,13 @@ def test_kill_bad_dependency(container):
         try:
             raise Exception('container error')
         except:
-            pass
-        exc_info = sys.exc_info()
+            exc_info = sys.exc_info()
 
         container.kill(exc_info)
 
         with pytest.raises(Exception) as exc_info:
             container.wait()
-        assert exc_info.value.message == "container error"
+        assert str(exc_info.value) == "container error"
 
 
 def test_stop_during_kill(container, logger):
@@ -516,8 +518,7 @@ def test_stop_during_kill(container, logger):
         try:
             raise Exception('error')
         except:
-            pass
-        exc_info = sys.exc_info()
+            exc_info = sys.exc_info()
 
         eventlet.spawn(container.kill, exc_info)
         eventlet.spawn(container.stop)
@@ -527,3 +528,35 @@ def test_stop_during_kill(container, logger):
         assert logger.debug.call_args_list == [
             call("already being killed %s", container),
         ]
+
+
+def test_get_service_name():
+
+    class Service():
+        name = "str"
+
+    class UnicodeService():
+        name = u"unicøde"
+
+    class BadNameService():
+        name = object()
+
+    class AnonymousService():
+        pass
+
+    assert get_service_name(Service) == "str"
+    assert get_service_name(UnicodeService) == u"unicøde"
+
+    with pytest.raises(ConfigurationError) as exc_info:
+        get_service_name(BadNameService)
+    assert str(exc_info.value) == (
+        'Service name attribute must be a string '
+        '(test.test_container.BadNameService.name)'
+    )
+
+    with pytest.raises(ConfigurationError) as exc_info:
+        get_service_name(AnonymousService)
+    assert str(exc_info.value) == (
+        'Service class must define a `name` attribute '
+        '(test.test_container.AnonymousService)'
+    )

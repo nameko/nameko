@@ -30,7 +30,7 @@ class Extension(object):
     container = None
 
     def __new__(cls, *args, **kwargs):
-        inst = super(Extension, cls).__new__(cls, *args, **kwargs)
+        inst = super(Extension, cls).__new__(cls)
         inst.__params = (args, kwargs)
         return inst
 

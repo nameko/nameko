@@ -52,7 +52,11 @@ def test_basic(running_backdoor):
         mock_call.return_value = 0
         main(args)
     (cmd, ), _ = mock_call.call_args
-    expected = ['rlwrap', 'netcat'] + map(str, running_backdoor) + ['--close']
+    expected = (
+        ['rlwrap', 'netcat'] +
+        list(map(str, running_backdoor)) +
+        ['--close']
+    )
     assert cmd == expected
 
 

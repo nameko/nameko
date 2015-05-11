@@ -2,10 +2,10 @@ from nameko.runners import ServiceRunner
 from nameko.utils import get_container
 
 class ServiceA(object):
-    pass
+    name = "service_a"
 
 class ServiceB(object):
-    pass
+    name = "service_b"
 
 # create a runner for ServiceA and ServiceB
 runner = ServiceRunner(config={})

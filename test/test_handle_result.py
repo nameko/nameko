@@ -46,6 +46,7 @@ custom_rpc = CustomRpc.decorator
 
 
 class ExampleService(object):
+    name = "exampleservice"
 
     collector = ResultCollector()
 
@@ -71,7 +72,7 @@ def test_handle_result(container_factory, rabbit_manager, rabbit_config):
 
         with pytest.raises(RemoteError) as exc:
             proxy.unserializable()
-        assert "is not JSON serializable" in exc.value.message
+        assert "is not JSON serializable" in str(exc.value)
 
     wait_for_worker_idle(container)
 

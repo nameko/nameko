@@ -45,7 +45,7 @@ def test_worker_context_gets_stack(container_factory):
     assert context.call_id_stack == ['baz.bar.0', 'baz.foo.1']
 
     # Long stack
-    many_ids = [str(i) for i in xrange(10)]
+    many_ids = [str(i) for i in range(10)]
     context = context_cls(container, service, DummyProvider("long"),
                           data={'call_id_stack': many_ids})
     expected = many_ids + ['baz.long.2']
@@ -63,7 +63,7 @@ def test_short_call_stack(container_factory):
     service = FooService()
 
     # Trim stack
-    many_ids = [str(i) for i in xrange(100)]
+    many_ids = [str(i) for i in range(100)]
     context = context_cls(container, service, DummyProvider("long"),
                           data={'call_id_stack': many_ids})
     assert context.call_id_stack == ['99', 'baz.long.0']
@@ -84,6 +84,8 @@ def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
             return 1
 
     class Parent(object):
+        name = "parent"
+
         child_service = RpcProxy('child')
 
         @rpc
@@ -91,6 +93,8 @@ def test_call_id_stack(rabbit_config, predictable_call_ids, runner_factory):
             return self.child_service.child_do()
 
     class Grandparent(object):
+        name = "grandparent"
+
         parent_service = RpcProxy('parent')
 
         @rpc
@@ -131,11 +135,15 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
     LoggingWorkerContext = get_logging_worker_context(stack_request)
 
     class EventListeningServiceOne(object):
+        name = "listener_one"
+
         @event_handler('event_raiser', 'hello')
         def hello(self, name):
             one_called()
 
     class EventListeningServiceTwo(object):
+        name = "listener_two"
+
         @event_handler('event_raiser', 'hello')
         def hello(self, name):
             two_called()

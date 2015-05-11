@@ -345,6 +345,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config):
 def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
     class Service(object):
+        name = "service"
 
         @rpc
         def echo(self, arg):
@@ -370,7 +371,7 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
     # container will have died with the messaging handling error
     with pytest.raises(Exception) as exc_info:
         container.wait()
-    assert exc_info.value.message == "error handling message"
+    assert str(exc_info.value) == "error handling message"
 
     # queueconsumer will have warned about the exc raised by its greenthread
     assert logger.warn.call_args_list == [

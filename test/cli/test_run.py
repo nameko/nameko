@@ -10,6 +10,7 @@ import pytest
 from nameko.cli.main import setup_parser
 from nameko.cli.run import import_service, setup_backdoor, main, run
 from nameko.exceptions import CommandError
+from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 
 from test.sample import Service
@@ -47,7 +48,8 @@ def test_import_ok():
 def test_import_missing():
     with pytest.raises(CommandError) as exc:
         import_service('non_existent')
-    assert 'No module named non_existent' in str(exc)
+    assert "No module named" in str(exc.value)
+    assert "non_existent" in str(exc.value)
 
 
 def test_import_filename():
@@ -79,9 +81,9 @@ def test_import_no_service_classes():
 
 
 def recv_until_prompt(sock):
-    data = ""
-    part = ""
-    while not part.endswith('\n>>> '):
+    data = b""
+    part = b""
+    while not data[-5:] == b'\n>>> ':
         part = sock.recv(4096)
         data += part
     return data
@@ -96,13 +98,13 @@ def test_backdoor():
     sock.connect(socket_name)
     recv_until_prompt(sock)  # banner
 
-    sock.sendall("runner\n")
+    sock.sendall(b"runner\n")
     runner_repr = recv_until_prompt(sock)
-    assert str(runner) in runner_repr
+    assert repr(runner) in str(runner_repr)
 
-    sock.sendall("quit()\n")
+    sock.sendall(b"quit()\n")
     error = recv_until_prompt(sock)
-    assert 'RuntimeError: This would kill your service' in error
+    assert 'RuntimeError: This would kill your service' in str(error)
     sock.close()
     gt.kill()
 
@@ -114,7 +116,7 @@ def test_stopping(rabbit_config):
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, [object], rabbit_config)
+        gt = eventlet.spawn(run, [Service], rabbit_config)
         gt.wait()
         # should complete
 
@@ -131,7 +133,7 @@ def test_stopping_twice(rabbit_config):
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
 
-            gt = eventlet.spawn(run, [object], rabbit_config)
+            gt = eventlet.spawn(run, [Service], rabbit_config)
             gt.wait()
 
 
@@ -142,8 +144,11 @@ def test_os_error_for_signal(rabbit_config):
             OSError(errno.EINTR, ''),
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, [object], rabbit_config)
-        gt.wait()
+        # don't actually start the service -- we're not firing a real signal
+        # so the signal handler won't stop it again
+        with patch.object(ServiceRunner, 'start'):
+            gt = eventlet.spawn(run, [Service], rabbit_config)
+            gt.wait()
         # should complete
 
 
@@ -154,6 +159,9 @@ def test_other_errors_propagate(rabbit_config):
             OSError(0, ''),
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, [object], rabbit_config)
-        with pytest.raises(OSError):
-            gt.wait()
+        # don't actually start the service -- there's no real OSError that
+        # would otherwise kill the whole process
+        with patch.object(ServiceRunner, 'start'):
+            gt = eventlet.spawn(run, [Service], rabbit_config)
+            with pytest.raises(OSError):
+                gt.wait()

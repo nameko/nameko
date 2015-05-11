@@ -53,7 +53,7 @@ Nameko's HTTP entrypoint supports simple GET and POST:
 .. code-block:: shell
 
     $ nameko run http
-    starting services: httpservice
+    starting services: http_service
 
 .. code-block:: shell
 
@@ -76,14 +76,19 @@ Nameko's HTTP entrypoint supports simple GET and POST:
     received: post body
 
 
-The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_. Service methods can return specific status codes and headers, or a :class:`werkzeug.wrappers.Response` object:
+The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_. Service methods must return one of:
+
+- a string, which becomes the response body
+- a 2-tuple ``(status code, response body)``
+- a 3-tuple ``(status_code, headers dict, response body)``
+- an instance of :class:`werkzeug.wrappers.Response`
 
 .. literalinclude:: examples/advanced_http.py
 
 .. code-block:: shell
 
     $ nameko run advanced_http
-    starting services: advancedhttpservice
+    starting services: advanced_http_service
 
 .. code-block:: shell
 

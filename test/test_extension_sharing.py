@@ -31,6 +31,7 @@ def test_simple_sharing(container_factory):
         ext = SimpleSharedExtension()
 
     class Service(object):
+        name = "service"
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 
@@ -58,6 +59,7 @@ def test_custom_sharing_key(container_factory):
         ext_b = CustomSharedExtension("b")
 
     class Service(object):
+        name = "service"
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 
@@ -91,6 +93,7 @@ def test_shared_intermediate(container_factory):
         ext = SharedIntermediate()
 
     class Service(object):
+        name = "service"
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 
@@ -113,6 +116,7 @@ def test_shared_extension_uniqueness(container_factory):
         ext = SimpleSharedExtension()
 
     class Service(object):
+        name = "service"
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 

@@ -30,6 +30,7 @@ class Logger(DependencyProvider):
 
 
 class Service(object):
+    name = "service"
 
     logger = Logger()
 

@@ -6,8 +6,7 @@ import pytest
 
 from nameko.containers import ServiceContainer
 from nameko.rpc import rpc, Rpc
-from nameko.utils import (
-    fail_fast_imap, repr_safe_str, get_redacted_args, REDACTED)
+from nameko.utils import fail_fast_imap, get_redacted_args, REDACTED
 from nameko.testing.services import get_extension
 
 
@@ -42,20 +41,6 @@ def test_fail_fast_imap():
     assert pool.free() == 2
 
 
-@pytest.mark.parametrize("value, repr_safe_value", [
-    ("bytestr", b"bytestr"),
-    ("bÿtestr", b"b\xc3\xbftestr"),
-    (u"unicode", b"unicode"),
-    (u"unicøde", b"unic\xc3\xb8de"),
-    (None, b"None"),  # cannot encode non-string
-    (object, b"<type 'object'>"),  # cannot encode non-string
-])
-def test_repr_safe_str(value, repr_safe_value):
-    res = repr_safe_str(value)
-    assert res == repr_safe_value
-    assert isinstance(res, bytes)
-
-
 class TestGetRedactedArgs(object):
 
     @pytest.mark.parametrize("sensitive_variables, expected", [
@@ -68,6 +53,8 @@ class TestGetRedactedArgs(object):
     def test_get_redacted_args(self, sensitive_variables, expected):
 
         class Service(object):
+            name = "service"
+
             @rpc(sensitive_variables=sensitive_variables)
             def method(self, a, b):
                 pass
@@ -89,6 +76,8 @@ class TestGetRedactedArgs(object):
     def test_get_redacted_args_invocation(self, args, kwargs):
 
         class Service(object):
+            name = "service"
+
             @rpc(sensitive_variables="a")
             def method(self, a, b=None):
                 pass
@@ -148,6 +137,8 @@ class TestGetRedactedArgs(object):
     def test_get_redacted_args_partial(self, sensitive_variables, expected):
 
         class Service(object):
+            name = "service"
+
             @rpc(sensitive_variables=sensitive_variables)
             def method(self, a, b):
                 pass

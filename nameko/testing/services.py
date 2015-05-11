@@ -143,6 +143,8 @@ def worker_factory(service_cls, **dependencies):
         from nameko.rpc import RpcProxy, rpc
 
         class ConversionService(object):
+            name = "conversions"
+
             maths_rpc = RpcProxy("maths")
 
             @rpc
@@ -239,6 +241,8 @@ def replace_dependencies(container, *dependencies):
         from nameko.standalone.rpc import ServiceRpcProxy
 
         class ConversionService(object):
+            name = "conversions"
+
             maths_rpc = RpcProxy("maths")
 
             @rpc
@@ -304,6 +308,7 @@ def restrict_entrypoints(container, *entrypoints):
     .. code-block:: python
 
         class Service(object):
+            name = "service"
 
             @timer(interval=1)
             def foo(self, arg):

@@ -10,6 +10,7 @@ import errno
 import inspect
 import logging
 import os
+import re
 import signal
 import sys
 
@@ -22,6 +23,8 @@ from nameko.runners import ServiceRunner
 
 
 logger = logging.getLogger(__name__)
+
+MISSING_MODULE_TEMPLATE = "^No module named '?{}'?$"
 
 
 def is_type(obj):
@@ -49,14 +52,15 @@ def import_service(module_name):
                 )
             )
 
-        missing_module_message = 'No module named {}'.format(module_name)
+        missing_module_re = MISSING_MODULE_TEMPLATE.format(module_name)
         # is there a better way to do this?
-        if exc.message != missing_module_message:
-            # found module, but importing it raised an import error elsewhere
-            # let this bubble (resulting in a full stacktrace being printed)
-            raise
 
-        raise CommandError(exc)
+        if re.match(missing_module_re, str(exc)):
+            raise CommandError(exc)
+
+        # found module, but importing it raised an import error elsewhere
+        # let this bubble (resulting in a full stacktrace being printed)
+        raise
 
     module = sys.modules[module_name]
 
@@ -174,11 +178,11 @@ def init_parser(parser):
         metavar='module[:service class]',
         help='python path to one or more service classes to run')
     parser.add_argument(
-        '--broker', default='amqp://guest:guest@localhost:5672/nameko',
+        '--broker', default='amqp://guest:guest@localhost',
         help='RabbitMQ broker url')
     parser.add_argument(
         '--backdoor-port', type=int,
-        help='Specity a port number to host a backdoor, which can be connected'
+        help='Specify a port number to host a backdoor, which can be connected'
         ' to for an interactive interpreter within the running service'
         ' process using `nameko backdoor`.'
     )

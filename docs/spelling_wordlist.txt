@@ -9,6 +9,7 @@ args
 async
 auth
 backend
+bpython
 bugfix
 bugfixes
 bytestring
@@ -21,7 +22,6 @@ conftest
 contextdata
 contextmanager
 contrib
-copywrite
 ctx
 debian
 deployable
@@ -46,6 +46,7 @@ instantiate
 instantiation
 interdependencies
 interdependency
+ipython
 iterable
 iterables
 javascript
@@ -77,6 +78,7 @@ pre
 programmatically
 pseudocode
 py
+pyrabbit
 pytest
 rabbitmq
 reconnected
@@ -114,6 +116,7 @@ traceback
 tracebacks
 tuple
 tuples
+unconfigured
 unhandled
 unregister
 unregistered
