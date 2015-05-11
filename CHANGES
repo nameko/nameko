@@ -6,6 +6,23 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Unreleased
+----------
+
+* Nameko shell to use bpython or ipython interpreter if available
+
+
+Version 2.1.0
+-------------
+
+Released 2015-04-13
+
+* Changed default AMQP URI so examples work with an unconfigured RabbitMQ.
+* Heuristic messages for AMQP connection errors.
+* Added six to requirements.
+* Minor documentation fixes.
+
+
 Version 2.0.0
 -------------
 

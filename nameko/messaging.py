@@ -15,6 +15,7 @@ from kombu import Connection
 from kombu.mixins import ConsumerMixin
 import six
 
+from nameko.amqp import verify_amqp_uri
 from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -115,6 +116,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
         exchange = self.exchange
         queue = self.queue
 
+        verify_amqp_uri(self.amqp_uri)
+
         with self.get_connection() as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
@@ -175,6 +178,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     def setup(self):
         self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
         self.prefetch_count = self.container.max_workers
+        verify_amqp_uri(self.amqp_uri)
 
     def start(self):
         if not self._starting:
@@ -350,8 +354,9 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self.should_stop = True
 
     def on_connection_error(self, exc, interval):
-        _log.warn('broker connection error: {}. '
-                  'Retrying in {} seconds.'.format(exc, interval))
+        _log.warn(
+            "Error connecting to broker at {} ({}).\n"
+            "Retrying in {} seconds.".format(self.amqp_uri, exc, interval))
 
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
         """ Kombu callback when consumers are ready to accept messages.
