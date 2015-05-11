@@ -4,7 +4,7 @@ import re
 
 import eventlet
 from eventlet.queue import LightQueue
-
+import six
 
 REDACTED = "********"
 
@@ -71,7 +71,7 @@ def get_redacted_args(entrypoint, *args, **kwargs):
 
     """
     sensitive_variables = entrypoint.sensitive_variables
-    if isinstance(sensitive_variables, basestring):
+    if isinstance(sensitive_variables, six.string_types):
         sensitive_variables = (sensitive_variables,)
 
     method = getattr(entrypoint.container.service_cls, entrypoint.method_name)
