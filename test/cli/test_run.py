@@ -2,7 +2,7 @@ import errno
 import os
 import signal
 import socket
-
+from os.path import join, dirname, abspath
 import eventlet
 from mock import patch
 import pytest
@@ -14,6 +14,9 @@ from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 
 from test.sample import Service
+
+
+RUN_CONFIG_FILE = abspath(join(dirname(__file__), 'run-config.yaml'))
 
 
 def test_run(rabbit_config):
@@ -38,6 +41,26 @@ def test_run(rabbit_config):
     pid = os.getpid()
     os.kill(pid, signal.SIGTERM)
     gt.wait()
+
+
+def test_main_with_config(rabbit_config):
+    parser = setup_parser()
+    args = parser.parse_args([
+        'run',
+        '--config',
+        RUN_CONFIG_FILE,
+        'foobar',
+    ])
+
+    with patch('nameko.cli.run.run') as run:
+        main(args)
+        assert run.call_count == 1
+        (_, config) = run.call_args[0]
+
+        assert config == {
+            'WEB_SERVER_ADDRESS': '0.0.0.0:8001',
+            'AMQP_URI': 'amqp://foo:bar@example.org'
+        }
 
 
 def test_import_ok():
