@@ -49,7 +49,7 @@ def test_main_with_config(rabbit_config):
         'run',
         '--config',
         RUN_CONFIG_FILE,
-        'foobar',
+        'test.sample',
     ])
 
     with patch('nameko.cli.run.run') as run:
