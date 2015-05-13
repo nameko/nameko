@@ -1,7 +1,10 @@
 from kombu import Connection, Exchange
 from kombu.pools import producers, connections
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.constants import (
+    DEFAULT_RETRY_POLICY, SERIALIZER_CONFIG_KEY,
+    DEFAULT_SERIALIZER)
+
 from nameko.messaging import PERSISTENT, AMQP_URI_CONFIG_KEY
 
 
@@ -31,6 +34,9 @@ def event_dispatcher(nameko_config, **kwargs):
     def dispatch(service_name, event_type, event_data):
         conn = Connection(nameko_config[AMQP_URI_CONFIG_KEY])
 
+        serializer = nameko_config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+
         exchange = get_event_exchange(service_name)
 
         with connections[conn].acquire(block=True) as connection:
@@ -41,6 +47,7 @@ def event_dispatcher(nameko_config, **kwargs):
                 producer.publish(
                     msg,
                     exchange=exchange,
+                    serializer=serializer,
                     routing_key=routing_key,
                     retry=retry,
                     retry_policy=retry_policy,

@@ -6,10 +6,11 @@ import logging
 import sys
 
 from kombu import pools
-from mock import patch
+from mock import Mock, patch
 import pytest
 
 from nameko.containers import ServiceContainer
+from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
 from nameko.runners import ServiceRunner
 from nameko.testing import rabbit
 from nameko.testing.utils import (
@@ -128,3 +129,13 @@ def predictable_call_ids(request):
     with patch('nameko.containers.new_call_id', autospec=True) as get_id:
         get_id.side_effect = (str(i) for i in itertools.count())
         yield get_id
+
+
+@pytest.fixture
+def mock_container(request, empty_config):
+    container = Mock(spec=ServiceContainer)
+    container.config = empty_config
+    container.config[SERIALIZER_CONFIG_KEY] = DEFAULT_SERIALIZER
+    container.serializer = container.config[SERIALIZER_CONFIG_KEY]
+    container.accept = [DEFAULT_SERIALIZER]
+    return container
