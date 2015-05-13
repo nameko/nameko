@@ -97,7 +97,7 @@ def container_factory(rabbit_config):
 
     for c in all_containers:
         try:
-            c.stop()
+            c.kill()
         except:
             pass
 

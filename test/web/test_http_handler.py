@@ -1,9 +1,11 @@
 import json
 
+from mock import patch
 import pytest
 from werkzeug.wrappers import Response
 
-from nameko.web.handlers import http
+from nameko.testing.utils import get_extension
+from nameko.web.handlers import http, HttpRequestHandler
 
 
 class ExampleService(object):
@@ -39,6 +41,14 @@ class ExampleService(object):
     @http('GET', '/fail_expected', expected_exceptions=ValueError)
     def fail_expected(self, request):
         raise ValueError('oops')
+
+
+class SimpleService(object):
+    name = "simpleservice"
+
+    @http('GET', '/method')
+    def method(self, request):
+        pass
 
 
 @pytest.fixture
@@ -97,3 +107,18 @@ def test_bad_payload(web_session):
     rv = web_session.post('/post', data=json.dumps({'value': 23}))
     assert rv.status_code == 500
     assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text
+
+
+def test_lifecycle(container_factory, web_config):
+
+    container = container_factory(SimpleService, web_config)
+
+    http = get_extension(container, HttpRequestHandler)
+
+    with patch.object(http.server, 'register_provider') as register:
+        container.start()
+        register.assert_called_with(http)
+
+    with patch.object(http.server, 'unregister_provider') as unregister:
+        container.stop()
+        unregister.assert_called_with(http)
