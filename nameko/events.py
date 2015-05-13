@@ -101,7 +101,7 @@ class EventDispatcher(Publisher):
 class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=True, requeue_on_error=False):
+                 reliable_delivery=None, requeue_on_error=False):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``source_service``. ``event_type`` must be either a subclass of
@@ -155,7 +155,8 @@ class EventHandler(Consumer):
         queue if an error occurs while handling it. Defaults to false.
 
         If `reliable_delivery` is true, events will be held in the queue
-        until there is a handler to consume them. Defaults to true.
+        until there is a handler to consume them. Defaults to true unless
+        the ``handler_type`` is ``BROADCAST``.
 
         Raises an ``EventHandlerConfigurationError`` if the ``handler_type``
         is set to ``BROADCAST`` and ``reliable_delivery`` is set to ``True``.
@@ -164,6 +165,11 @@ class EventHandler(Consumer):
             raise EventHandlerConfigurationError(
                 "Broadcast event handlers cannot be configured with reliable "
                 "delivery.")
+
+        if handler_type is BROADCAST:
+            reliable_delivery = False
+        elif reliable_delivery is None:
+            reliable_delivery = True
 
         self.source_service = source_service
         self.event_type = event_type
