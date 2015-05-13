@@ -17,7 +17,7 @@ setup(
         "kombu>=3.0.1",
         "mock>=1.0.1",
         "path.py>=6.2",
-        "pyyaml>=3.11",
+        "pyyaml>=3.10",
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
