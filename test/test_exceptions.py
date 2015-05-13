@@ -5,7 +5,7 @@ import pytest
 import six
 
 from nameko.exceptions import (
-    serialize, safe_for_json, deserialize, deserialize_to_instance,
+    serialize, safe_for_serialization, deserialize, deserialize_to_instance,
     RemoteError, UnserializableValueError)
 
 
@@ -166,16 +166,16 @@ def test_unserializable_value_error():
     ((1, 2), ['1', '2']),
     ([1, [2]], ['1', ['2']]),
 ])
-def test_safe_for_json(value, safe_value):
-    assert safe_for_json(value) == safe_value
+def test_safe_for_serialization(value, safe_value):
+    assert safe_for_serialization(value) == safe_value
 
 
-def test_safe_for_json_bad_str():
+def test_safe_for_serialization_bad_str():
     class BadStr(object):
         def __str__(self):
             raise Exception('boom')
 
     obj = BadStr()
-    safe = safe_for_json(obj)
+    safe = safe_for_serialization(obj)
     assert isinstance(safe, six.string_types)
     assert 'failed' in safe
