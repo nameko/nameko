@@ -1,7 +1,7 @@
 from mock import ANY, Mock, patch
 import pytest
 
-from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.constants import AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 from nameko.rpc import Responder
 
 
@@ -15,6 +15,13 @@ def mock_publish():
     with patch(path) as patched:
         publish = patched[ANY].acquire().__enter__().publish
         yield publish
+
+
+@pytest.yield_fixture
+def unserializable():
+    def unserializable_inner():
+        pass
+    yield unserializable_inner
 
 
 def test_responder(mock_publish):
@@ -66,23 +73,30 @@ def test_responder_worker_exc(mock_publish):
     assert msg == expected_msg
 
 
-def test_responder_unserializable_result(mock_publish):
+@pytest.mark.parametrize("serializer,exception_info_string", [
+    ('json', "is not JSON serializable"),
+    ('pickle', "Can't pickle")])
+def test_responder_unserializable_result(
+        mock_publish, unserializable,
+        serializer, exception_info_string):
 
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    config = {AMQP_URI_CONFIG_KEY: ''}
+    config = {AMQP_URI_CONFIG_KEY: '',
+              SERIALIZER_CONFIG_KEY: serializer}
     responder = Responder(config, message)
 
     # unserialisable result
-    worker_result = object()
+    worker_result = unserializable
     result, exc_info = responder.send_response(worker_result, None)
 
-    # responder will return the TypeError from json.dumps
+    # responder will return the error from the serializer
     assert result is None
-    assert exc_info == (TypeError, ANY, ANY)
-    assert str(exc_info[1]) == "{} is not JSON serializable".format(
-        worker_result)
+    # Different kombu versions return different exceptions, so
+    # testing for the concrete exception is not feasible
+    assert exc_info == (ANY, ANY, ANY)
+    assert exception_info_string in str(exc_info[1])
 
     # and publish a dictionary-serialized UnserializableValueError
     # on worker_result
