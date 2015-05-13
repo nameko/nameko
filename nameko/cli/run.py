@@ -3,10 +3,10 @@ nameko services, will host and run them. By default this will try to find
 classes that look like services (anything with nameko entrypoints), but a
 specific service can be specified via ``nameko run module:ServiceClass``.  """
 
+from __future__ import print_function
+
 import eventlet
 eventlet.monkey_patch()  # noqa (code before rest of imports)
-
-from __future__ import print_function
 
 import errno
 import inspect
