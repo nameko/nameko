@@ -67,7 +67,8 @@ def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
     container.spawn_managed_thread.assert_called_once_with(ANY, protected=True)
 
     vhost = rabbit_config['vhost']
-    rabbit_manager.publish(vhost, 'spam', '', 'shrub')
+    rabbit_manager.publish(vhost, 'spam', '', 'shrub',
+                           properties=dict(content_type=content_type))
 
     message = handler.wait()
 
@@ -290,13 +291,16 @@ def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
     vhost = rabbit_config['vhost']
     # the first consumer only has a prefetch_count of 1 and will only
     # consume 1 message and wait in handler1()
-    rabbit_manager.publish(vhost, 'spam', '', 'ham')
+    rabbit_manager.publish(vhost, 'spam', '', 'ham',
+                           properties=dict(content_type=content_type))
     # the next message will go to handler2() no matter of any prefetch_count
-    rabbit_manager.publish(vhost, 'spam', '', 'eggs')
+    rabbit_manager.publish(vhost, 'spam', '', 'eggs',
+                           properties=dict(content_type=content_type))
     # the third message is only going to handler2 because the first consumer
     # has a prefetch_count of 1 and thus is unable to deal with another message
     # until having ACKed the first one
-    rabbit_manager.publish(vhost, 'spam', '', 'bacon')
+    rabbit_manager.publish(vhost, 'spam', '', 'bacon',
+                           properties=dict(content_type=content_type))
 
     with eventlet.Timeout(TIMEOUT):
         while len(messages) < 2:

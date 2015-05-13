@@ -218,6 +218,7 @@ def test_publish_custom_headers(mock_container, maybe_declare,
     service.publish(msg, publish_kwarg="value")
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
+        serializer=container.serializer,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
@@ -287,7 +288,8 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
                                      DummyProvider('method'), data=ctx_data)
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
+        exchange=foobar_ex, serializer=None,
+        queue=foobar_queue).bind(container, "publish")
 
     # test queue, exchange and binding created in rabbit
     publisher.setup()
@@ -305,7 +307,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
-    assert ['msg'] == [msg['payload'] for msg in messages]
+    assert ['"msg"'] == [msg['payload'] for msg in messages]
 
     # test message headers
     assert messages[0]['properties']['headers'] == {
@@ -389,8 +391,10 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     container.spawn_worker.return_value = worker_ctx
 
     headers = {'nameko.language': 'en', 'nameko.customheader': 'customvalue'}
+
     rabbit_manager.publish(
-        vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
+        vhost, foobar_ex.name, '', 'msg',
+        properties=dict(headers=headers, content_type=content_type))
 
     ctx_data = {
         'language': 'en',

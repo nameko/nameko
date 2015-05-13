@@ -284,7 +284,8 @@ def test_service_pooled_events(rabbit_manager, rabbit_config,
     assert len(bar_queue['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
+                           properties=dict(content_type='application/json'))
 
     # a total of two events should be received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -318,7 +319,8 @@ def test_service_pooled_events_multiple_handlers(
     assert len(foo_queue_2['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
+                           properties=dict(content_type='application/json'))
 
     # each handler (3 of them) of the two services should have received the evt
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -341,7 +343,8 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
     assert len(queue['consumer_details']) == 3
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
+                           properties=dict(content_type='application/json'))
 
     # exactly one event should have been received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -371,7 +374,8 @@ def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
         assert len(queue['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
+                           properties=dict(content_type='application/json'))
 
     # a total of three events should be received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -409,7 +413,8 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
     assert len(queue['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
+                           properties=dict(content_type='application/json'))
 
     # the event will be received multiple times as it gets requeued and then
     # consumed again
@@ -441,7 +446,8 @@ def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
 
     # publish an event
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_1')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_1"',
+                           properties=dict(content_type='application/json'))
 
     # wait for the event to be received
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -457,11 +463,12 @@ def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert len(queue['consumer_details']) == 0
 
     # publish another event while nobody is listening
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_2')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_2"',
+                           properties=dict(content_type='application/json'))
 
     # verify the message gets queued
     messages = rabbit_manager.get_messages(vhost, queue_name, requeue=True)
-    assert ['msg_2'] == [msg['payload'] for msg in messages]
+    assert ['"msg_2"'] == [msg['payload'] for msg in messages]
 
     # start another container
     (container,) = start_containers(ServicePoolHandler, ('service-pool',))
@@ -495,7 +502,8 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 
     # publish an event
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_1')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_1"',
+                           properties=dict(content_type='application/json'))
 
     # wait for it to arrive in both services
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -513,7 +521,8 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert queue_name not in [q['name'] for q in queues]
 
     # publish a second event while nobody is listening
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_2')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_2"',
+                           properties=dict(content_type='application/json'))
 
     # start another container
     start_containers(UnreliableHandler, ('unreliable',))
@@ -523,7 +532,8 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert len(queue['consumer_details']) == 1
 
     # publish a third event
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', 'msg_3')
+    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_3"',
+                           properties=dict(content_type='application/json'))
 
     # wait for it to arrive in both services
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
@@ -585,4 +595,4 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     # test event receieved on manually added queue
     messages = rabbit_manager.get_messages(vhost, "event-sink")
-    assert ['msg'] == [msg['payload'] for msg in messages]
+    assert ['"msg"'] == [msg['payload'] for msg in messages]
