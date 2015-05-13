@@ -30,7 +30,7 @@ def get_redacted_args(entrypoint, *args, **kwargs):
         <argument-name>.<dict-key>[<list-index>]
 
     :Returns:
-        A dictionary as returned by :func:`inspect.getargspec`, but with
+        A dictionary as returned by :func:`inspect.getcallargs`, but with
         sensitive arguments or partial arguments redacted.
 
     .. note::
@@ -75,8 +75,8 @@ def get_redacted_args(entrypoint, *args, **kwargs):
         sensitive_variables = (sensitive_variables,)
 
     method = getattr(entrypoint.container.service_cls, entrypoint.method_name)
-    argspec = inspect.getcallargs(method, None, *args, **kwargs)
-    del argspec['self']
+    callargs = inspect.getcallargs(method, None, *args, **kwargs)
+    del callargs['self']
 
     def redact(data, keys):
         key = keys[0]
@@ -97,10 +97,10 @@ def get_redacted_args(entrypoint, *args, **kwargs):
             elif list_index:
                 keys.append(int(list_index))
 
-        if keys[0] in argspec:
-            redact(argspec, keys)
+        if keys[0] in callargs:
+            redact(callargs, keys)
 
-    return argspec
+    return callargs
 
 
 def fail_fast_imap(pool, call, items):
