@@ -15,6 +15,7 @@ import six
 from nameko.constants import (
     PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED,
     MAX_WORKERS_CONFIG_KEY, DEFAULT_MAX_WORKERS,
+    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER,
     CALL_ID_STACK_CONTEXT_KEY, NAMEKO_CONTEXT_KEYS)
 
 from nameko.extensions import (
@@ -144,6 +145,11 @@ class ServiceContainer(object):
 
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
+
+        self.serializer = config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+
+        self.accept = [self.serializer]
 
         self.entrypoints = SpawningSet()
         self.dependencies = SpawningSet()

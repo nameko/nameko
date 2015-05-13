@@ -58,7 +58,7 @@ class RemoteError(Exception):
         super(RemoteError, self).__init__(message)
 
 
-def safe_for_json(value):
+def safe_for_serialization(value):
     """ Transform a value in preparation for serializing as json
 
     no-op for strings, mappings and iterables have their entries made safe,
@@ -69,11 +69,11 @@ def safe_for_json(value):
         return value
     if isinstance(value, dict):
         return {
-            safe_for_json(key): safe_for_json(val)
+            safe_for_serialization(key): safe_for_serialization(val)
             for key, val in six.iteritems(value)
         }
     if isinstance(value, collections.Iterable):
-        return list(map(safe_for_json, value))
+        return list(map(safe_for_serialization, value))
 
     try:
         return six.text_type(value)
@@ -88,8 +88,8 @@ def serialize(exc):
     return {
         'exc_type': type(exc).__name__,
         'exc_path': get_module_path(type(exc)),
-        'exc_args': list(map(safe_for_json, exc.args)),
-        'value': safe_for_json(exc),
+        'exc_args': list(map(safe_for_serialization, exc.args)),
+        'value': safe_for_serialization(exc),
     }
 
 

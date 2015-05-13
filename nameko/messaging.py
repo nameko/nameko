@@ -16,7 +16,9 @@ from kombu.mixins import ConsumerMixin
 import six
 
 from nameko.amqp import verify_amqp_uri
-from nameko.constants import DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY
+from nameko.constants import (
+    DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, SharedExtension, ProviderCollector)
@@ -70,7 +72,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     amqp_uri = None
 
-    def __init__(self, exchange=None, queue=None):
+    def __init__(self, exchange=None, queue=None,
+                 serializer=DEFAULT_SERIALIZER):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP messages are published to *exchanges* and routed to bound
@@ -83,9 +86,14 @@ class Publisher(DependencyProvider, HeaderEncoder):
             queue : :class:`kombu.Queue`
                 Bound queue. The event will be published to this queue's
                 exchange.
+            serializer : :type:`str`
+                Serializer name. Any serializer registered by
+                 `kombu.serialization.register`
 
         If neither `queue` nor `exchange` are provided, the message will be
         published to the default exchange.
+
+        Serializer will be always overriden by containers configuration
 
         Example::
 
@@ -98,6 +106,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         """
         self.exchange = exchange
         self.queue = queue
+        self.serializer = serializer
 
     # TODO: should be a module level function
     def get_connection(self):
@@ -112,6 +121,10 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def setup(self):
 
         self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+
+        self.serializer = self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
 
         exchange = self.exchange
         queue = self.queue
@@ -128,6 +141,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         def publish(msg, **kwargs):
             exchange = self.exchange
             queue = self.queue
+            serializer = self.serializer
 
             if exchange is None and queue is not None:
                 exchange = queue.exchange
@@ -139,6 +153,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 headers = self.get_message_headers(worker_ctx)
                 producer.publish(
                     msg, exchange=exchange, headers=headers,
+                    serializer=serializer,
                     retry=retry, retry_policy=retry_policy, **kwargs)
 
         return publish
@@ -177,6 +192,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     def setup(self):
         self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+        self.accept = self.container.accept
         self.prefetch_count = self.container.max_workers
         verify_amqp_uri(self.amqp_uri)
 
@@ -333,7 +349,8 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         for provider in self._providers:
             callbacks = [self._on_message, provider.handle_message]
 
-            consumer = Consumer(queues=[provider.queue], callbacks=callbacks)
+            consumer = Consumer(queues=[provider.queue], callbacks=callbacks,
+                                accept=self.accept)
             consumer.qos(prefetch_count=self.prefetch_count)
 
             self._consumers[provider] = consumer

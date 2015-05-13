@@ -5,6 +5,7 @@ from kombu.common import eventloop
 from kombu.messaging import Consumer
 
 from nameko.exceptions import RpcTimeout
+from nameko.constants import DEFAULT_SERIALIZER
 
 
 # lifted from kombu, modified to accept `ignore_timeouts`
@@ -28,10 +29,11 @@ def drain_consumer(consumer, limit=1, timeout=None, callbacks=None,
                 pass
 
 
-def queue_iterator(queue, no_ack=False, timeout=None):
+def queue_iterator(queue, no_ack=False, timeout=None,
+                   accept=[DEFAULT_SERIALIZER]):
     channel = queue.channel
 
-    consumer = Consumer(channel, queues=[queue], no_ack=no_ack)
+    consumer = Consumer(channel, queues=[queue], no_ack=no_ack, accept=accept)
     try:
         for body, msg in drain_consumer(
             consumer, limit=None, timeout=timeout, ignore_timeouts=False
