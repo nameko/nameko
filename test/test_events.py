@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from mock import Mock, patch
 
-from nameko.containers import WorkerContext, ServiceContainer
+from nameko.containers import WorkerContext
 from nameko.events import (
     EventDispatcher, EventHandlerConfigurationError, event_handler, SINGLETON,
     BROADCAST, SERVICE_POOL, EventHandler)
@@ -31,11 +31,10 @@ def test_reliable_broadcast_config_error():
             pass
 
 
-def test_event_dispatcher(empty_config):
+def test_event_dispatcher(mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.service_name = "srcservice"
-    container.config = empty_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
@@ -54,15 +53,16 @@ def test_event_dispatcher(empty_config):
             headers = event_dispatcher.get_message_headers(worker_ctx)
     mock_producer.publish.assert_called_once_with(
         'msg', exchange=ANY, headers=headers,
+        serializer=container.serializer,
         routing_key='eventtype', retry=True, retry_policy={'max_retries': 5})
     _, call_kwargs = mock_producer.publish.call_args
     exchange = call_kwargs['exchange']
     assert exchange.name == 'srcservice.events'
 
 
-def test_event_handler(queue_consumer):
+def test_event_handler(queue_consumer, mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.service_name = "destservice"
 
     # test default configuration
@@ -553,11 +553,11 @@ def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
     assert CustomEventHandler._calls[0].payload == payload
 
 
-def test_dispatch_to_rabbit(rabbit_manager, rabbit_config):
+def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     vhost = rabbit_config['vhost']
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.service_name = "srcservice"
     container.config = rabbit_config
