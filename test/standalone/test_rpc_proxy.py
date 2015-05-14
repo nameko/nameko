@@ -405,7 +405,11 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
         # extra setup, as after e.g. connection error
         proxy.reply_listener.queue_consumer._setup_consumer()
 
-        with patch.object(proxy.reply_listener.queue_consumer, 'replies', fake_replies):
+        with patch.object(
+            proxy.reply_listener.queue_consumer,
+            'replies',
+            fake_replies
+        ):
             count = 10
             replies = [proxy.spam.async('hello') for _ in range(count)]
             assert [reply.result() for reply in replies] == ['hello'] * count
