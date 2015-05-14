@@ -65,11 +65,16 @@ class PollingQueueConsumer(object):
     separate thread it provides a polling method to block until a message with
     the same correlation ID of the RPC-proxy call arrives.
     """
+    consumer = None
+
     def __init__(self, timeout=None):
         self.timeout = timeout
         self.replies = {}
 
     def _setup_consumer(self):
+        if self.consumer is not None:
+            self.consumer.cancel()
+
         channel = self.connection.channel()
         # queue.bind returns a bound copy
         self.queue = self.queue.bind(channel)
