@@ -73,7 +73,10 @@ class PollingQueueConsumer(object):
 
     def _setup_consumer(self):
         if self.consumer is not None:
-            self.consumer.cancel()
+            try:
+                self.consumer.cancel()
+            except socket.error:
+                pass  # already disconnected
 
         channel = self.connection.channel()
         # queue.bind returns a bound copy
