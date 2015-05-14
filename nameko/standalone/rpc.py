@@ -69,7 +69,7 @@ class PollingQueueConsumer(object):
         self.timeout = timeout
         self.replies = {}
 
-    def _setup_queue(self):
+    def _setup_consumer(self):
         channel = self.connection.channel()
         # queue.bind returns a bound copy
         self.queue = self.queue.bind(channel)
@@ -85,7 +85,7 @@ class PollingQueueConsumer(object):
         verify_amqp_uri(amqp_uri)
         self.connection = Connection(amqp_uri)
         self.queue = provider.queue
-        self._setup_queue()
+        self._setup_consumer()
 
     def unregister_provider(self, provider):
         self.connection.close()
@@ -120,7 +120,7 @@ class PollingQueueConsumer(object):
             # timeout is implemented using socket timeout, so when it
             # fires the connection is closed, causing the reply queue
             # to be deleted
-            self._setup_queue()
+            self._setup_consumer()
 
         except ConnectionError as exc:
             for event in self.provider._reply_events.values():
@@ -130,13 +130,13 @@ class PollingQueueConsumer(object):
             self.provider._reply_events.clear()
             # In case this was a temporary error, attempt to reconnect. If
             # we fail, the connection error will bubble.
-            self._setup_queue()
+            self._setup_consumer()
 
         except KeyboardInterrupt as exc:
             event = self.provider._reply_events.pop(correlation_id)
             event.send_exception(exc)
             # exception may have killed the connection
-            self._setup_queue()
+            self._setup_consumer()
 
 
 class SingleThreadedReplyListener(ReplyListener):
