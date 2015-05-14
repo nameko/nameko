@@ -11,7 +11,8 @@ from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.constants import AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, RPC_EXCHANGE_CONFIG_KEY)
 from nameko.exceptions import (
     ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
     RpcConnectionError, serialize, UnknownService, UnserializableValueError)
@@ -22,7 +23,6 @@ from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
 _log = getLogger(__name__)
 
 
-RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 

@@ -12,6 +12,30 @@ Running a Service
 
 Discover and run a service class. This will start the service in the foreground and run it until the process terminates.
 
+It is prossible to override the default settings using a ``--config`` switch
+
+.. code-block:: shell
+
+    $ nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
+
+
+and providing a simple YAML configuration file:
+
+.. code-block:: yaml
+
+    # foobar.yaml
+
+    AMQP_URI: 'amqp://guest:guest@localhost'
+
+    WEB_SERVER_ADDRESS: '0.0.0.0:8000'
+
+    rpc_exchange: 'nameko-rpc'
+
+    max_workers: 10
+
+    parent_calls_tracked: 10
+
+
 
 Interacting with running services
 ---------------------------------
@@ -38,3 +62,4 @@ Dispatching an event as "source_service":
 
     $ nameko shell
     >>> n.dispatch_event("source_service", "event_type", "event_payload")
+
