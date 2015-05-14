@@ -75,7 +75,7 @@ class PollingQueueConsumer(object):
         if self.consumer is not None:
             try:
                 self.consumer.cancel()
-            except socket.error:
+            except socket.error:  # noqa
                 pass  # already disconnected
 
         channel = self.connection.channel()
