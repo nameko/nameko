@@ -415,6 +415,8 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
             assert [reply.result() for reply in replies] == ['hello'] * count
 
     consumer_tags = set()
+    # there should only be a single consumer. we check by looking at the
+    # consumer tag on the received messages
     for _, message in fake_replies.messages:
         consumer_tags.add(message.delivery_info['consumer_tag'])
     assert len(consumer_tags) == 1
