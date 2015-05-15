@@ -12,7 +12,7 @@ Running a Service
 
 Discover and run a service class. This will start the service in the foreground and run it until the process terminates.
 
-It is prossible to override the default settings using a ``--config`` switch
+It is possible to override the default settings using a ``--config`` switch
 
 .. code-block:: shell
 
