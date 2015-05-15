@@ -47,30 +47,30 @@ And play with it from another:
 Features
 --------
 
-    * AMQP RPC and Events (pub-sub)
-    * HTTP GET, POST & websockets
-    * CLI for easy and rapid development
-    * Utilities for unit and integration testing
+* AMQP RPC and Events (pub-sub)
+* HTTP GET, POST & websockets
+* CLI for easy and rapid development
+* Utilities for unit and integration testing
 
 
 Getting Started
 ---------------
 
-    * Check out the `documentation <http://nameko.readthedocs.org>`_.
+* Check out the `documentation <http://nameko.readthedocs.org>`_.
 
 
 Support
 -------
 
-    * Join the mailing list
-    * Find us on IRC
+* Join the mailing list
+* Find us on IRC
 
 
 Contribute
 ----------
 
-    * Fork the repository
-    * Raise an issue or make a feature request
+* Fork the repository
+* Raise an issue or make a feature request
 
 
 License
