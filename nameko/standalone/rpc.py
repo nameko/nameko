@@ -9,6 +9,7 @@ from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
 from nameko.amqp import verify_amqp_uri
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.extensions import Entrypoint
 from nameko.exceptions import RpcConnectionError, RpcTimeout
@@ -93,7 +94,7 @@ class PollingQueueConsumer(object):
 
     def register_provider(self, provider):
         self.provider = provider
-        amqp_uri = provider.container.config['AMQP_URI']
+        amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
         verify_amqp_uri(amqp_uri)
         self.connection = Connection(amqp_uri)
         self.queue = provider.queue
