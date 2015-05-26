@@ -373,8 +373,8 @@ def test_recover_from_keyboardinterrupt(
         def call():
             return proxy.spam(ham=0)
 
-        with patch('nameko.standalone.rpc.queue_iterator') as iterator:
-            iterator.side_effect = KeyboardInterrupt('killing from test')
+        with patch('kombu.connection.Connection.drain_events') as drain_events:
+            drain_events.side_effect = KeyboardInterrupt('killing from test')
             with pytest.raises(KeyboardInterrupt):
                 proxy.spam(ham=0)
 
@@ -383,3 +383,40 @@ def test_recover_from_keyboardinterrupt(
 
         # proxy should still work
         assert proxy.spam(ham=1) == 1
+
+
+def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    class FakeRepliesDict(dict):
+        # act like the internal replies dict, but keep a list of messages
+        # passing through for later inspection
+        def __init__(self):
+            self.messages = []
+
+        def __setitem__(self, key, value):
+            self.messages.append(value)
+            super(FakeRepliesDict, self).__setitem__(key, value)
+
+    fake_replies = FakeRepliesDict()
+
+    with ServiceRpcProxy('foobar', rabbit_config) as proxy:
+        # extra setup, as after e.g. connection error
+        proxy.reply_listener.queue_consumer._setup_consumer()
+
+        with patch.object(
+            proxy.reply_listener.queue_consumer,
+            'replies',
+            fake_replies
+        ):
+            count = 10
+            replies = [proxy.spam.async('hello') for _ in range(count)]
+            assert [reply.result() for reply in replies] == ['hello'] * count
+
+    consumer_tags = set()
+    # there should only be a single consumer. we check by looking at the
+    # consumer tag on the received messages
+    for _, message in fake_replies.messages:
+        consumer_tags.add(message.delivery_info['consumer_tag'])
+    assert len(consumer_tags) == 1
