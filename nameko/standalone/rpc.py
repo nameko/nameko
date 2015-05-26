@@ -76,7 +76,11 @@ class PollingQueueConsumer(object):
             try:
                 self.consumer.cancel()
             except socket.error:  # pragma: no cover
-                pass  # already disconnected
+                # On some systems (e.g. os x) we need to explicitly cancel the
+                # consumer here. However, e.g. on ubuntu 14.04, the
+                # disconnection has already closed the socket. We try to
+                # cancel, and ignore any socket errors.
+                pass
 
         channel = self.connection.channel()
         # queue.bind returns a bound copy
