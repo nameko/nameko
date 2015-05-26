@@ -11,7 +11,7 @@ Version 2.1.2
 
 Released 2015-05-26
 
-* Recator the standalone queue consumer for more extensability
+* Refactor the standalone queue consumer for more extensibility
 
 
 Version 2.1.1
