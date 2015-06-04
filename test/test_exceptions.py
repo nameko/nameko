@@ -1,3 +1,5 @@
+# coding: utf-8
+
 import json
 
 from mock import patch
@@ -60,14 +62,14 @@ def test_serialize_args():
 
 def test_deserialize_to_remote_error():
 
-    exc = CustomError('something went wrong')
+    exc = CustomError(u'something went ಠ_ಠ')
     data = serialize(exc)
 
     deserialized = deserialize(data)
     assert type(deserialized) == RemoteError
     assert deserialized.exc_type == "CustomError"
-    assert deserialized.value == "something went wrong"
-    assert str(deserialized) == "CustomError something went wrong"
+    assert deserialized.value == u"something went ಠ_ಠ"
+    assert six.text_type(deserialized) == u"CustomError something went ಠ_ಠ"
 
 
 @pytest.mark.usefixtures('registry')
