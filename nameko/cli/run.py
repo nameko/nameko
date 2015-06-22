@@ -13,6 +13,7 @@ import os
 import re
 import signal
 import sys
+import yaml
 
 from eventlet import backdoor
 
@@ -168,7 +169,14 @@ def main(args):
             import_service(path)
         )
 
-    config = {AMQP_URI_CONFIG_KEY: args.broker}
+    config = {}
+
+    if args.config:
+        with open(args.config) as fle:
+            config = yaml.load(fle)
+    else:
+        config[AMQP_URI_CONFIG_KEY] = args.broker
+
     run(services, config, backdoor_port=args.backdoor_port)
 
 
@@ -177,13 +185,19 @@ def init_parser(parser):
         'services', nargs='+',
         metavar='module[:service class]',
         help='python path to one or more service classes to run')
+
+    parser.add_argument(
+        '--config', default='',
+        help='The YAML configuration file')
+
     parser.add_argument(
         '--broker', default='amqp://guest:guest@localhost',
         help='RabbitMQ broker url')
+
     parser.add_argument(
         '--backdoor-port', type=int,
-        help='Specity a port number to host a backdoor, which can be connected'
+        help='Specify a port number to host a backdoor, which can be connected'
         ' to for an interactive interpreter within the running service'
-        ' process using `nameko backdoor`.'
-    )
+        ' process using `nameko backdoor`.')
+
     return parser

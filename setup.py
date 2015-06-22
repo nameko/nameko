@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='nameko',
-    version='2.1.0',
+    version='2.1.2',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
@@ -17,6 +17,7 @@ setup(
         "kombu>=3.0.1",
         "mock>=1.0.1",
         "path.py>=6.2",
+        "pyyaml>=3.10",
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",

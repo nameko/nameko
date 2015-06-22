@@ -6,6 +6,23 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.1.2
+-------------
+
+Released 2015-05-26
+
+* Refactor the standalone queue consumer for more extensibility
+
+
+Version 2.1.1
+-------------
+
+Released 2015-05-11
+
+* Nameko shell to use bpython or ipython interpreter if available
+* Support for marking entrypoint arguments as sensitive (for later redaction)
+
+
 Version 2.1.0
 -------------
 
