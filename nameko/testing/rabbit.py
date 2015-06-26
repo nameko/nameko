@@ -81,6 +81,9 @@ class Client(object):
     def create_queue(self, vhost, name, **properties):
         return self._put('queues', vhost, name, json=properties)
 
+    def delete_queue(self, vhost, name):
+        return self._delete('queues', vhost, name)
+
     def get_queues(self, vhost):
         return self._get('queues', vhost)
 
