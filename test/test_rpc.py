@@ -5,7 +5,6 @@ from eventlet.event import Event
 from mock import patch, Mock, call
 import pytest
 
-from nameko.constants import SERIALIZER_CONFIG_KEY
 from nameko.containers import (
     ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.extensions import DependencyProvider
@@ -401,20 +400,13 @@ def test_rpc_existing_method(container_factory, rabbit_config):
         assert proxy.task_b() == "result_b"
 
 
-@pytest.mark.parametrize("serializer,expected", [
-    ('json', ["result_b", "result_a", [[], {}]]),
-    ('pickle', ["result_b", "result_a", ((), {})])
-])
-def test_async_rpc(container_factory, rabbit_config,
-                   serializer, expected):
+def test_async_rpc(container_factory, rabbit_config):
 
-    config = rabbit_config
-    config[SERIALIZER_CONFIG_KEY] = serializer
-    container = container_factory(ExampleService, config)
+    container = container_factory(ExampleService, rabbit_config)
     container.start()
 
     with entrypoint_hook(container, 'call_async') as call_async:
-        assert call_async() == expected
+        assert call_async() == ["result_b", "result_a", [[], {}]]
 
 
 def test_rpc_incorrect_signature(container_factory, rabbit_config):
