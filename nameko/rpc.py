@@ -195,7 +195,7 @@ class Responder(object):
         if exc_info is not None:
             error = serialize(exc_info[1])
 
-        # disaster avoidance serialization check: `result` must be json
+        # disaster avoidance serialization check: `result` must be
         # serializable, otherwise the container will commit suicide assuming
         # unrecoverable errors (and the message will be requeued for another
         # victim)
