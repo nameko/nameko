@@ -101,65 +101,68 @@ class EventDispatcher(Publisher):
 class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=None, requeue_on_error=False):
+                 reliable_delivery=None, requeue_on_error=False,
+                 sensitive_variables=()):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
-        called ``source_service``. ``event_type`` must be either a subclass of
-        :class:`~.Event` with a class attribute ``type`` or a string matching
-        the
-        value of this attribute.
-        ``handler_type`` determines the behaviour of the handler:
+        called ``source_service``.
+        :Parameters:
+            source_service : str
+                Name of the service that dispatches the event
+            event_type : str
+                Type of the event to handle
+            handler_type : str
+                Determines the behaviour of the handler in a cluster:
+                - ``events.SERVICE_POOL``:
+                    Event handlers are pooled by service type and method,
+                    and one service instance from each pool receives the
+                    event. ::
+                                   .-[queue]- (service X handler-meth-1)
+                                  /
+                        exchange o --[queue]- (service X handler-meth-2)
+                                  \
+                                   \          (service Y(inst. 1) handler-meth)
+                                    \       /
+                                     [queue]
+                                            \
+                                              (service Y(inst. 2) handler-meth)
+                - ``events.SINGLETON``:
+                    Events are received by only one registered handler,
+                    regardless of service type. If requeued on error, they may
+                    be handled by a different service instance. ::
+                                               (service X handler-meth)
+                                             /
+                        exchange o -- [queue]
+                                             \
+                                               (service Y handler-meth)
+                - ``events.BROADCAST``:
+                    Events will be received by every handler. Events are
+                    broadcast to every service instance, not just every service
+                    type - use wisely! ::
+                                    [queue]- (service X(inst. 1) handler-meth)
+                                  /
+                        exchange o - [queue]- (service X(inst. 2) handler-meth)
+                                  \
+                                    [queue]- (service Y handler-meth)
 
-            - ``events.SERVICE_POOL``:
+            requeue_on_error : bool  # TODO: defined by Consumer actually..
+                If true, handlers will return the event to the queue if an
+                error occurs while handling it. Defaults to False.
+            reliable_delivery : bool
+                If true, events will be held in the queue until there is a
+                handler to consume them. Defaults to True unless the
+                ``handler_type`` is ``BROADCAST``.
+            sensitive_variables : string or tuple of strings
+                Mark an argument or part of an argument as sensitive. Saved
+                on the entrypoint instance as
+                ``entrypoint.sensitive_variables`` for later inspection by
+                other extensions, for example a logging system.
+                :seealso: :func:`nameko.utils.get_redacted_args`
 
-                Event handlers are pooled by service type and method,
-                and one service instance from each pool receives the event. ::
-
-                               .-[queue]- (service X handler-meth-1)
-                              /
-                    exchange o --[queue]- (service X handler-meth-2)
-                              \
-                               \          (service Y(instance 1) handler-meth)
-                                \       /
-                                 [queue]
-                                        \
-                                          (service Y(instance 2) handler-meth)
-
-
-            - ``events.SINGLETON``:
-
-                Events are received by only one registered handler, regardless
-                of service type. If requeued on error, they may be handled
-                by a different service instance. ::
-
-                                           (service X handler-meth)
-                                         /
-                    exchange o -- [queue]
-                                         \
-                                           (service Y handler-meth)
-
-            - ``events.BROADCAST``:
-
-                Events will be received by every handler. Events are broadcast
-                to every service instance, not just every service type
-                - use wisely! ::
-
-                                [queue]- (service X(instance 1) handler-meth)
-                              /
-                    exchange o - [queue]- (service X(instance 2) handler-meth)
-                              \
-                                [queue]- (service Y handler-meth)
-
-        # TODO: this is defined by the Consumer actually...
-        If `requeue_on_error` is true, handlers will return the event to the
-        queue if an error occurs while handling it. Defaults to false.
-
-        If `reliable_delivery` is true, events will be held in the queue
-        until there is a handler to consume them. Defaults to true unless
-        the ``handler_type`` is ``BROADCAST``.
-
-        Raises an ``EventHandlerConfigurationError`` if the ``handler_type``
-        is set to ``BROADCAST`` and ``reliable_delivery`` is set to ``True``.
+        :Raises:
+            :exc:`EventHandlerConfigurationError` if the ``handler_type``
+            is set to ``BROADCAST`` and ``reliable_delivery`` is set to
+            ``True``.
         """
         if reliable_delivery and handler_type is BROADCAST:
             raise EventHandlerConfigurationError(
@@ -175,6 +178,7 @@ class EventHandler(Consumer):
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
+        self.sensitive_variables = sensitive_variables
 
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)

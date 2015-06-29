@@ -11,11 +11,10 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
 
+from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
 
-
-WEB_SERVER_CONFIG_KEY = 'WEB_SERVER_ADDRESS'
 
 BindAddress = namedtuple("BindAddress", ['address', 'port'])
 

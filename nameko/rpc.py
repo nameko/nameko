@@ -11,7 +11,8 @@ from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
 
-from nameko.constants import AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, RPC_EXCHANGE_CONFIG_KEY)
 from nameko.exceptions import (
     ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
     RpcConnectionError, serialize, UnknownService, UnserializableValueError)
@@ -22,7 +23,6 @@ from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
 _log = getLogger(__name__)
 
 
-RPC_EXCHANGE_CONFIG_KEY = 'rpc_exchange'
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 
@@ -126,16 +126,26 @@ class Rpc(Entrypoint, HeaderDecoder):
 
     rpc_consumer = RpcConsumer()
 
-    def __init__(self, expected_exceptions=()):
+    def __init__(self, expected_exceptions=(), sensitive_variables=()):
         """ Mark a method to be exposed over rpc
 
         :Parameters:
             expected_exceptions : exception class or tuple of exception classes
-                Stashed on the entrypoint instance for later inspection by
-                other extensions in the worker lifecycle. Use for exceptions
-                caused by the caller (e.g. bad arguments).
+                Specify exceptions that may be caused by the caller (e.g. by
+                providing bad arguments). Saved on the entrypoint instance as
+                ``entrypoint.expected_exceptions`` for later inspection by
+                other extensions, for example a monitoring system.
+            sensitive_variables : string or tuple of strings
+                Mark an argument or part of an argument as sensitive. Saved on
+                the entrypoint instance as ``entrypoint.sensitive_variables``
+                for later inspection by other extensions, for example a
+                logging system.
+
+                :seealso: :func:`nameko.utils.get_redacted_args`
+
         """
         self.expected_exceptions = expected_exceptions
+        self.sensitive_variables = sensitive_variables
 
     def setup(self):
         self.rpc_consumer.register_provider(self)
