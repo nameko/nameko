@@ -288,8 +288,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
                                      DummyProvider('method'), data=ctx_data)
 
     publisher = Publisher(
-        exchange=foobar_ex, serializer=None,
-        queue=foobar_queue).bind(container, "publish")
+        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
 
     # test queue, exchange and binding created in rabbit
     publisher.setup()

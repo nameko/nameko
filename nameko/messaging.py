@@ -71,6 +71,7 @@ class HeaderDecoder(object):
 class Publisher(DependencyProvider, HeaderEncoder):
 
     amqp_uri = None
+    serializer = None
 
     def __init__(self, exchange=None, queue=None,
                  serializer=DEFAULT_SERIALIZER):
@@ -86,14 +87,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
             queue : :class:`kombu.Queue`
                 Bound queue. The event will be published to this queue's
                 exchange.
-            serializer : :type:`str`
-                Serializer name. Any serializer registered by
-                 `kombu.serialization.register`
 
         If neither `queue` nor `exchange` are provided, the message will be
         published to the default exchange.
-
-        Serializer will be always overriden by containers configuration
 
         Example::
 
