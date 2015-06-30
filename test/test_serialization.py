@@ -58,28 +58,40 @@ class Service(object):
         entrypoint_called(evt_data)
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def sniffer_queue_factory(rabbit_config, rabbit_manager):
-
+    """ Return a function that creates message queues to 'sniff' messages
+    published to exchanges.
+    """
     vhost = rabbit_config['vhost']
-    all_queues = []
 
     def make(exchange, routing_key="*"):
+        """ Create a uniquely named queue and bind it to an exchange so that
+        it collects messages published to that exchange.
+
+        :Parameters:
+            exchange : str
+                Name of the exchange to bind to
+            routing_key : str
+                Routing key to bind with
+
+        :Returns:
+            A function that returns all the messages received by the queue
+
+        """
         queue_name = "sniffer_{}".format(uuid.uuid4())
         rabbit_manager.create_queue(vhost, queue_name, auto_delete=True)
         rabbit_manager.create_queue_binding(
             vhost, exchange, queue_name, routing_key=routing_key)
 
-        all_queues.append(queue_name)
-
         def get_messages():
+            """ Return all messages received by the sniffer queue and remove
+            them from the queue.
+            """
             return rabbit_manager.get_messages(vhost, queue_name)
         return get_messages
 
-    yield make
-
-    for queue_name in all_queues:
-        rabbit_manager.delete_queue(vhost, queue_name)
+    return make
 
 
 @pytest.mark.parametrize("serializer", ['json', 'pickle'])
