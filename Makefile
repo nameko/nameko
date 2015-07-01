@@ -1,6 +1,4 @@
-# shortcuts for local dev
-#
-.PHONY: test flake8 pylint pytest docs spelling test_docs
+.PHONY: test flake8 pylint pytest test_docs docs spelling
 
 test: flake8 pylint pytest
 
@@ -14,12 +12,11 @@ pytest:
 	coverage run --concurrency=eventlet --source nameko -m pytest test
 	coverage report --fail-under=100
 
+test_docs: docs spelling
+
 docs:
-	tox -e docs
+	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html
 
 spelling:
-	tox -e spelling
-
-test_docs:
-	spelling
-	docs
+	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
+	# sphinx-build -W -b linkcheck -d docs/build/doctrees docs docs/build/linkcheck
