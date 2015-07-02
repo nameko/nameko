@@ -46,6 +46,9 @@ setup(
         'console_scripts': [
             'nameko=nameko.cli.main:main',
         ],
+        'pytest11': [
+            'pytest_nameko=nameko.testing.pytest'
+        ]
     },
     zip_safe=True,
     license='Apache License, Version 2.0',

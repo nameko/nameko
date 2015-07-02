@@ -1,8 +1,13 @@
+""" pytest plugin serving as a default conftest for nameko projects.
+"""
+from __future__ import absolute_import
+
 import eventlet
 eventlet.monkey_patch()  # noqa (code before rest of imports)
 
 import itertools
 import logging
+import socket
 import sys
 
 from kombu import pools
@@ -15,6 +20,8 @@ from nameko.testing import rabbit
 from nameko.testing.utils import (
     reset_rabbit_vhost, reset_rabbit_connections,
     get_rabbit_connections, get_rabbit_config)
+from nameko.testing.websocket import make_virtual_socket
+from nameko.web.server import parse_address
 
 
 def pytest_addoption(parser):
@@ -42,7 +49,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    if config.option.blocking_detection:
+    if config.option.blocking_detection:  # pragma: no cover
         from eventlet import debug
         debug.hub_blocking_detection(True)
 
@@ -78,7 +85,7 @@ def rabbit_config(request, rabbit_manager):
 
     # raise a runtime error if the test leaves any connections lying around
     connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
-    if connections:
+    if connections:  # pragma: no cover
         count = len(connections)
         raise RuntimeError("{} rabbit connection(s) left open.".format(count))
 
@@ -98,7 +105,7 @@ def container_factory(rabbit_config):
     for c in all_containers:
         try:
             c.stop()
-        except:
+        except:  # pragma: no cover
             pass
 
 
@@ -119,7 +126,7 @@ def runner_factory(rabbit_config):
     for r in all_runners:
         try:
             r.stop()
-        except:
+        except:  # pragma: no cover
             pass
 
 
@@ -128,3 +135,58 @@ def predictable_call_ids(request):
     with patch('nameko.containers.new_call_id', autospec=True) as get_id:
         get_id.side_effect = (str(i) for i in itertools.count())
         yield get_id
+
+
+@pytest.yield_fixture()
+def web_config(rabbit_config):
+    # find a port that's likely to be free
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(('127.0.0.1', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    cfg = rabbit_config
+    cfg['WEB_SERVER_ADDRESS'] = str(port)
+    yield cfg
+
+
+@pytest.fixture()
+def web_config_port(web_config):
+    return parse_address(web_config['WEB_SERVER_ADDRESS']).port
+
+
+@pytest.yield_fixture()
+def web_session(web_config_port):
+    from requests import Session
+    from werkzeug.urls import url_join
+
+    class WebSession(Session):
+        def request(self, method, url, *args, **kwargs):
+            url = url_join('http://127.0.0.1:%d/' % web_config_port, url)
+            return Session.request(self, method, url, *args, **kwargs)
+
+    sess = WebSession()
+    with sess:
+        yield sess
+
+
+@pytest.yield_fixture()
+def websocket(web_config_port):
+    active_sockets = []
+
+    def socket_creator():
+        ws_app, wait_for_sock = make_virtual_socket(
+            '127.0.0.1', web_config_port)
+        gr = eventlet.spawn(ws_app.run_forever)
+        active_sockets.append((gr, ws_app))
+        return wait_for_sock()
+
+    try:
+        yield socket_creator
+    finally:
+        for gr, ws_app in active_sockets:
+            try:
+                ws_app.close()
+            except Exception:  # pragma: no cover
+                pass
+            gr.kill()
