@@ -3,8 +3,8 @@
 from __future__ import absolute_import
 
 # all imports are inline to make sure they happen after eventlet.monkey_patch
-# which is called in pytest_configure (calling monkey_patch at import time
-# breaks the pytest capturemanager)
+# which is called in pytest_load_initial_conftests (calling monkey_patch at
+# import time breaks the pytest capturemanager)
 
 import pytest
 
@@ -33,12 +33,15 @@ def pytest_addoption(parser):
         help=("The URI for rabbit's management API."))
 
 
+def pytest_load_initial_conftests():
+    # make sure we monkey_patch before local conftests
+    import eventlet
+    eventlet.monkey_patch()
+
+
 def pytest_configure(config):
     import logging
     import sys
-    import eventlet
-
-    eventlet.monkey_patch()  # noqa (code before rest of imports)
 
     if config.option.blocking_detection:  # pragma: no cover
         from eventlet import debug
