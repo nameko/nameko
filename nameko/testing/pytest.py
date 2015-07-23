@@ -2,26 +2,11 @@
 """
 from __future__ import absolute_import
 
-import eventlet
-eventlet.monkey_patch()  # noqa (code before rest of imports)
+# all imports are inline to make sure they happen after eventlet.monkey_patch
+# which is called in pytest_load_initial_conftests (calling monkey_patch at
+# import time breaks the pytest capturemanager)
 
-import itertools
-import logging
-import socket
-import sys
-
-from kombu import pools
-from mock import patch
 import pytest
-
-from nameko.containers import ServiceContainer
-from nameko.runners import ServiceRunner
-from nameko.testing import rabbit
-from nameko.testing.utils import (
-    reset_rabbit_vhost, reset_rabbit_connections,
-    get_rabbit_connections, get_rabbit_config)
-from nameko.testing.websocket import make_virtual_socket
-from nameko.web.server import parse_address
 
 
 def pytest_addoption(parser):
@@ -48,7 +33,16 @@ def pytest_addoption(parser):
         help=("The URI for rabbit's management API."))
 
 
+def pytest_load_initial_conftests():
+    # make sure we monkey_patch before local conftests
+    import eventlet
+    eventlet.monkey_patch()
+
+
 def pytest_configure(config):
+    import logging
+    import sys
+
     if config.option.blocking_detection:  # pragma: no cover
         from eventlet import debug
         debug.hub_blocking_detection(True)
@@ -66,12 +60,19 @@ def empty_config(request):
 
 @pytest.fixture(scope='session')
 def rabbit_manager(request):
+    from nameko.testing import rabbit
+
     config = request.config
     return rabbit.Client(config.getoption('RABBIT_CTL_URI'))
 
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
+    from kombu import pools
+    from nameko.testing.utils import (
+        reset_rabbit_vhost, reset_rabbit_connections,
+        get_rabbit_connections, get_rabbit_config)
+
     amqp_uri = request.config.getoption('AMQP_URI')
 
     conf = get_rabbit_config(amqp_uri)
@@ -92,6 +93,7 @@ def rabbit_config(request, rabbit_manager):
 
 @pytest.yield_fixture
 def container_factory(rabbit_config):
+    from nameko.containers import ServiceContainer
 
     all_containers = []
 
@@ -111,6 +113,7 @@ def container_factory(rabbit_config):
 
 @pytest.yield_fixture
 def runner_factory(rabbit_config):
+    from nameko.runners import ServiceRunner
 
     all_runners = []
 
@@ -132,6 +135,9 @@ def runner_factory(rabbit_config):
 
 @pytest.yield_fixture
 def predictable_call_ids(request):
+    import itertools
+    from mock import patch
+
     with patch('nameko.containers.new_call_id', autospec=True) as get_id:
         get_id.side_effect = (str(i) for i in itertools.count())
         yield get_id
@@ -139,6 +145,8 @@ def predictable_call_ids(request):
 
 @pytest.yield_fixture()
 def web_config(rabbit_config):
+    import socket
+
     # find a port that's likely to be free
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(('127.0.0.1', 0))
@@ -152,6 +160,7 @@ def web_config(rabbit_config):
 
 @pytest.fixture()
 def web_config_port(web_config):
+    from nameko.web.server import parse_address
     return parse_address(web_config['WEB_SERVER_ADDRESS']).port
 
 
@@ -172,6 +181,9 @@ def web_session(web_config_port):
 
 @pytest.yield_fixture()
 def websocket(web_config_port):
+    import eventlet
+    from nameko.testing.websocket import make_virtual_socket
+
     active_sockets = []
 
     def socket_creator():
