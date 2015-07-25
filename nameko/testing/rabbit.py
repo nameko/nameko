@@ -1,6 +1,6 @@
 import json
 
-from requests import HTTPError, Session
+from requests import HTTPError, Session, ConnectionError
 from six.moves.urllib.parse import quote  # pylint: disable=E0611
 
 __all__ = ['Client', 'HTTPError']
@@ -17,6 +17,7 @@ class Client(object):
         self._base_url = '{}/api'.format(uri)
         self._session = Session()
         self._session.headers['content-type'] = 'application/json'
+        self._verify_api_connection()
 
     def _build_url(self, args):
         args = map(_quote, args)
@@ -30,7 +31,13 @@ class Client(object):
         json_data = kwargs.pop('json', None)
         if json_data is not None:
             kwargs['data'] = json.dumps(json_data)
-        result = self._session.request(method, url, **kwargs)
+
+        try:
+            result = self._session.request(method, url, **kwargs)
+        except ConnectionError:
+            raise Exception('Connection error for the RabbitMQ management HTTP'
+                            ' API at {}, is it enabled?'.format(url))
+
         result.raise_for_status()
         if result.content:
             return result.json()
@@ -46,6 +53,9 @@ class Client(object):
 
     def _post(self, *args, **kwargs):
         return self._request('POST', *args, **kwargs)
+
+    def _verify_api_connection(self):
+        self._get('overview')
 
     def get_connections(self):
         return self._get('connections')
