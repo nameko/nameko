@@ -252,7 +252,8 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
 
 def test_rabbit_connection_refused_error():
 
-    bad_port_uri = 'http://localhost:11111'
+    # port 4 is an official unassigned port, so no one should be using it
+    bad_port_uri = 'http://localhost:4'
     with pytest.raises(Exception) as exc_info:
         Client(bad_port_uri)
 
