@@ -1,6 +1,6 @@
 import json
 
-from requests import HTTPError, Session
+from requests import HTTPError, Session, ConnectionError
 from six.moves.urllib.parse import quote  # pylint: disable=E0611
 
 __all__ = ['Client', 'HTTPError']
@@ -30,7 +30,13 @@ class Client(object):
         json_data = kwargs.pop('json', None)
         if json_data is not None:
             kwargs['data'] = json.dumps(json_data)
-        result = self._session.request(method, url, **kwargs)
+
+        try:
+            result = self._session.request(method, url, **kwargs)
+        except ConnectionError:
+            raise Exception('Could not connect to RabbitMQ management plugin'
+                            'at {}, is it enabled?'.format(url))
+
         result.raise_for_status()
         if result.content:
             return result.json()
