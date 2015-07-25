@@ -6,11 +6,11 @@ flake8:
 	flake8 nameko test
 
 pylint:
-	pylint nameko -E
+	pylint --rcfile=pylintrc nameko -E
 
 pytest:
 	coverage run --concurrency=eventlet --source nameko -m pytest test
-	coverage report --fail-under=100
+	coverage report --show-missing --fail-under=100
 
 test_docs: docs spelling
 
