@@ -250,9 +250,9 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
     assert container._worker_pool.free() == max_workers
 
 
-def test_rabbit_connectipdateon_refused_error():
+def test_rabbit_connection_refused_error():
 
-    bad_port_uri = 'http://guest:guest@localhost:11111'
+    bad_port_uri = 'http://localhost:11111'
     with pytest.raises(Exception) as exc_info:
         Client(bad_port_uri)
 
