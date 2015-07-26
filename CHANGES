@@ -6,6 +6,14 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.1.3
+-------------
+
+UNRELEASED (backwards compatible)
+
+* Add support for alternative serializers in AMQP messages
+
+
 Version 2.1.2
 -------------
 
