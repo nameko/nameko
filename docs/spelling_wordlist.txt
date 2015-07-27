@@ -29,6 +29,7 @@ deserializable
 deserialization
 deserialize
 deserialized
+deserializers
 deserializes
 deserializing
 entrypoint
@@ -97,6 +98,7 @@ serializable
 serialization
 serialize
 serialized
+serializers
 serializes
 serializing
 specialization
