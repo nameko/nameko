@@ -1,5 +1,5 @@
 from nameko.runners import ServiceRunner
-from nameko.utils import get_container
+from nameko.testing.utils import get_container
 
 class ServiceA(object):
     name = "service_a"
