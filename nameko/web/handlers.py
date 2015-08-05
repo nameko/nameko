@@ -6,7 +6,7 @@ import six
 from werkzeug.wrappers import Response
 from werkzeug.routing import Rule
 
-from nameko.exceptions import serialize, BadRequest
+from nameko.exceptions import serialize, BadRequest, HttpError
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
 
@@ -77,15 +77,21 @@ class HttpRequestHandler(Entrypoint):
             response = response_from_result(result)
 
         except Exception as exc:
-            if (
+            payload = None
+            if isinstance(exc, HttpError):
+                payload = exc.payload
+                status_code = exc.status_code
+            elif (
                 isinstance(exc, self.expected_exceptions) or
                 isinstance(exc, BadRequest)
             ):
                 status_code = 400
             else:
                 status_code = 500
-            error_dict = serialize(exc)
-            payload = u'Error: {exc_type}: {value}\n'.format(**error_dict)
+
+            if not payload:
+                error_dict = serialize(exc)
+                payload = u'Error: {exc_type}: {value}\n'.format(**error_dict)
 
             response = Response(
                 payload,

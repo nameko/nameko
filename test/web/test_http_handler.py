@@ -3,7 +3,11 @@ import json
 import pytest
 from werkzeug.wrappers import Response
 
+from nameko.exceptions import HttpError
 from nameko.web.handlers import http
+
+class CustomHttpError(HttpError):
+    pass
 
 
 class ExampleService(object):
@@ -39,6 +43,14 @@ class ExampleService(object):
     @http('GET', '/fail_expected', expected_exceptions=ValueError)
     def fail_expected(self, request):
         raise ValueError('oops')
+
+    @http('GET', '/fail_custom_payload')
+    def fail_expected(self, request):
+        raise CustomHttpError(json.dumps({
+            "error": "SOMETHING_IS_MISSING",
+            "description": "Something is missing",
+            "code": 404
+        }), 404)
 
 
 @pytest.fixture
@@ -97,3 +109,9 @@ def test_bad_payload(web_session):
     rv = web_session.post('/post', data=json.dumps({'value': 23}))
     assert rv.status_code == 500
     assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text
+
+def test_custom_error_payload(web_session):
+    rv = web_session.get('/fail_custom_payload')
+    assert rv.status_code == 404
+    assert rv.json()["description"] == "Something is missing"
+
