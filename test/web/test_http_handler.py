@@ -6,6 +6,7 @@ from werkzeug.wrappers import Response
 from nameko.exceptions import HttpError
 from nameko.web.handlers import http
 
+
 class CustomHttpError(HttpError):
     pass
 
@@ -45,7 +46,7 @@ class ExampleService(object):
         raise ValueError('oops')
 
     @http('GET', '/fail_custom_payload')
-    def fail_expected(self, request):
+    def fail_custom_payload(self, request):
         raise CustomHttpError(json.dumps({
             "error": "SOMETHING_IS_MISSING",
             "description": "Something is missing",
@@ -110,8 +111,8 @@ def test_bad_payload(web_session):
     assert rv.status_code == 500
     assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text
 
+
 def test_custom_error_payload(web_session):
     rv = web_session.get('/fail_custom_payload')
     assert rv.status_code == 404
     assert rv.json()["description"] == "Something is missing"
-

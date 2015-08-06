@@ -171,6 +171,7 @@ class CommandError(Exception):
 class ConnectionNotFound(BadRequest):
     """Unknown websocket connection id"""
 
+
 class HttpError(Exception):
     def __init__(self, payload, status_code):
         self.payload = payload
