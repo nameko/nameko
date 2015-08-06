@@ -76,7 +76,7 @@ class HttpRequestHandler(Entrypoint):
 
             response = response_from_result(result)
 
-        except Exception as exc:
+        except (Exception, HttpError) as exc:
             payload = None
             if isinstance(exc, HttpError):
                 payload = exc.payload
