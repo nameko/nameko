@@ -1,0 +1,6 @@
+[run]
+concurrency = eventlet
+source = nameko
+
+[report]
+show_missing = true
