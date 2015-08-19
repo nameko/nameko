@@ -91,7 +91,7 @@ def rabbit_config(request, rabbit_manager):
     open_connections = [
         conn for conn in connections if conn['state'] != "closed"
     ]
-    if open_connections:
+    if open_connections:  # pragma: no cover
         count = len(open_connections)
         raise RuntimeError("{} rabbit connection(s) left open.".format(count))
 
