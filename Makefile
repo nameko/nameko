@@ -11,9 +11,7 @@ pylint:
 	pylint nameko -E
 
 pytest:
-	coverage run -p --concurrency=eventlet --source nameko -m pytest test
-	coverage combine
-	coverage report --fail-under=100
+	py.test test --cov
 
 docs:
 	tox -e docs
