@@ -73,9 +73,9 @@ The entrypoint waiter is a context manager that does not exit until a named entr
 Note that the context manager waits not only for the entrypoint method to complete, but also for any dependency teardown. Dependency-based loggers such as (TODO: link to bundled logger) for example would have also completed.
 
 
-Using py.test
--------------
+Using pytest
+------------
 
-Nameko's test suite uses py.test, and makes some useful configuration and fixtures available for your own tests if you choose to use pytest.
+Nameko's test suite uses pytest, and makes some useful configuration and fixtures available for your own tests if you choose to use pytest.
 
 They are contained in :mod:`nameko.testing.pytest`. This module is `automatically registered as a pytest plugin <https://pytest.org/latest/plugins.html#setuptools-entry-points>`_ by setuptools if you have pytest installed.
