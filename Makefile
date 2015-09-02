@@ -9,7 +9,7 @@ pylint:
 	pylint --rcfile=pylintrc nameko -E
 
 pytest:
-	py.test test --cov --cov-config=$(CURDIR)/.coveragerc
+	py.test test --cov=$(CURDIR)/nameko --cov-config=$(CURDIR)/.coveragerc
 
 test_docs: docs spelling
 

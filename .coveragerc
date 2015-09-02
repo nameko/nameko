@@ -1,6 +1,5 @@
 [run]
 concurrency = eventlet
-source = nameko
 parallel = true
 data_file = /tmp/.coverage
 
