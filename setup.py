@@ -24,7 +24,7 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.0a1",
+            "coverage==4.0b2",
             "flake8==2.1.0",
             "mccabe==0.3",
             "pep8==1.6.1",
