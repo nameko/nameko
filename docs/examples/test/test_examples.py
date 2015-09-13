@@ -6,7 +6,7 @@ from mock import call, patch
 import requests
 
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
 from nameko.testing.services import entrypoint_waiter
 
 
@@ -161,7 +161,6 @@ class TestRpc(object):
 
         # async example doesn't import due to undefined variables
         # use execfile with a local namespace
-        from nameko.standalone.rpc import ClusterRpcProxy
         ns = {
             'config': rabbit_config,
             'ClusterRpcProxy': ClusterRpcProxy
