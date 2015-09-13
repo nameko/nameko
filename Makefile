@@ -15,7 +15,7 @@ test_examples:
 	py.test docs/examples/test --cov=docs/examples
 	py.test docs/examples/testing
 
-test_docs: docs spelling linkcheck
+test_docs: docs spelling #linkcheck
 
 docs:
 	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html
