@@ -65,8 +65,31 @@ class TestEvents(object):
             with patch.object(ServiceB, 'handle_event') as handle_event:
 
                 with entrypoint_waiter(container_b, 'handle_event'):
-                    service_a_rpc.dispatching_method()
-                assert handle_event.call_args_list == [call("payload")]
+                    service_a_rpc.dispatching_method("event payload")
+                assert handle_event.call_args_list == [call("event payload")]
+
+            # test without the patch to catch any errors in the handler method
+            with entrypoint_waiter(container_b, 'handle_event'):
+                service_a_rpc.dispatching_method("event payload")
+
+    def test_standalone_events(self, container_factory, rabbit_config):
+
+        from examples.events import ServiceB
+
+        container_b = container_factory(ServiceB, rabbit_config)
+        container_b.start()
+
+        # standalone example doesn't import due to undefined variables
+        # use execfile with a local namespace
+        ns = {'AMQP_URI': rabbit_config['AMQP_URI']}
+
+        dirpath = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        filepath = os.path.join(dirpath, 'standalone_events.py')
+
+        with entrypoint_waiter(container_b, 'handle_event'):
+            with open(filepath) as f:
+                code = compile(f.read(), filepath, 'exec')
+                exec(code, globals(), ns)
 
     def test_event_broadcast(self, container_factory, rabbit_config):
 
@@ -87,6 +110,10 @@ class TestEvents(object):
             with waiter_1, waiter_2:
                 dispatch("monitor", "ping", "payload")
             assert ping.call_count == 2
+
+        # test without the patch to catch any errors in the handler method
+        with entrypoint_waiter(container_1, 'ping'):
+            dispatch("monitor", "ping", "payload")
 
 
 class TestAnatomy(object):
@@ -197,6 +224,20 @@ class TestTimer(object):
 
         with entrypoint_waiter(container, 'ping'):
             container.start()
+
+
+class TestTravis(object):
+
+    def test_travis(self, container_factory, rabbit_config):
+
+        from examples.travis import Travis
+
+        container = container_factory(Travis, rabbit_config)
+        container.start()
+
+        with ServiceRpcProxy('travis_service', rabbit_config) as travis_rpc:
+            status = travis_rpc.status_message("travis-ci", "cpython-builder")
+            assert "Project travis-ci/cpython-builder" in status
 
 
 class TestWebsocketRpc(object):

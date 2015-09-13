@@ -8,8 +8,8 @@ class ServiceA(object):
     dispatch = EventDispatcher()
 
     @rpc
-    def dispatching_method(self):
-        self.dispatch("event_type", "payload")
+    def dispatching_method(self, payload):
+        self.dispatch("event_type", payload)
 
 
 class ServiceB(object):
@@ -18,4 +18,4 @@ class ServiceB(object):
 
     @event_handler("service_a", "event_type")
     def handle_event(self, payload):
-        print("service b received", payload)
+        print("service b received:", payload)
