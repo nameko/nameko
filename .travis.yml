@@ -13,22 +13,8 @@ addons:
 install:
   - pip install tox
 
-env:
-    - TOX_ENV=py27-oldest
-    - TOX_ENV=py27-pinned
-    - TOX_ENV=py27-latest
-    - TOX_ENV=py33-oldest
-    - TOX_ENV=py33-pinned
-    - TOX_ENV=py33-latest
-    - TOX_ENV=py34-oldest
-    - TOX_ENV=py34-pinned
-    - TOX_ENV=py34-latest
-    - TOX_ENV=docs
-    - TOX_ENV=examples
-    - TOX_ENV=spelling
-
 script:
-  - tox -e $TOX_ENV
+  - tox
 
 deploy:
   provider: pypi
