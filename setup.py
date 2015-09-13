@@ -42,6 +42,9 @@ setup(
             "sphinxcontrib-spelling==2.1.1",
             "sphinx-nameko-theme==0.0.3",
         ],
+        'examples': [
+            "nameko-sqlalchemy==0.0.1"
+        ]
     },
     entry_points={
         'console_scripts': [

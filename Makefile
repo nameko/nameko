@@ -1,6 +1,6 @@
-.PHONY: test flake8 pylint pytest test_docs docs spelling
+.PHONY: test docs
 
-test: flake8 pylint pytest
+test: flake8 pylint test_codebase
 
 flake8:
 	flake8 nameko test
@@ -8,10 +8,15 @@ flake8:
 pylint:
 	pylint --rcfile=pylintrc nameko -E
 
-pytest:
+test_codebase:
 	py.test test --cov=$(CURDIR)/nameko --cov-config=$(CURDIR)/.coveragerc
 
-test_docs: docs spelling
+test_examples:
+	py.test docs/examples/test --cov=docs/examples
+	py.test docs/examples/testing
+
+test_docs:
+	docs spelling
 
 docs:
 	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html

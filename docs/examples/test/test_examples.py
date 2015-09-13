@@ -1,58 +1,13 @@
-""" Tests for the files in nameko/docs/examples
+""" Tests for the files and snippets in nameko/docs/examples
 """
 import os
 
-import eventlet
 from mock import call, patch
-import pytest
 import requests
 
-from nameko.containers import ServiceContainer
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_waiter
-from nameko.testing.websocket import make_virtual_socket
-
-
-@pytest.yield_fixture
-def container_factory(rabbit_config):
-
-    all_containers = []
-
-    def make_container(service_cls, config, worker_ctx_cls=None):
-        container = ServiceContainer(service_cls, config, worker_ctx_cls)
-        all_containers.append(container)
-        return container
-
-    yield make_container
-
-    for c in all_containers:
-        try:
-            c.stop()
-        except:
-            pass
-
-
-@pytest.yield_fixture()
-def websocket():
-    active_sockets = []
-
-    def socket_creator():
-        ws_app, wait_for_sock = make_virtual_socket(
-            '127.0.0.1', 8000)
-        gr = eventlet.spawn(ws_app.run_forever)
-        active_sockets.append((gr, ws_app))
-        return wait_for_sock()
-
-    try:
-        yield socket_creator
-    finally:
-        for gr, ws_app in active_sockets:
-            try:
-                ws_app.close()
-            except Exception:
-                pass
-            gr.kill()
 
 
 class TestHttp(object):
@@ -61,7 +16,7 @@ class TestHttp(object):
 
     def test_http(self, container_factory, rabbit_config):
 
-        from http import HttpService
+        from examples.http import HttpService
 
         container = container_factory(HttpService, rabbit_config)
         container.start()
@@ -76,7 +31,7 @@ class TestHttp(object):
 
     def test_advanced(self, container_factory, rabbit_config):
 
-        from advanced_http import Service
+        from examples.advanced_http import Service
 
         container = container_factory(Service, rabbit_config)
         container.start()
@@ -98,7 +53,7 @@ class TestEvents(object):
 
     def test_events(self, container_factory, rabbit_config):
 
-        from events import ServiceA, ServiceB
+        from examples.events import ServiceA, ServiceB
 
         container_a = container_factory(ServiceA, rabbit_config)
         container_b = container_factory(ServiceB, rabbit_config)
@@ -115,7 +70,7 @@ class TestEvents(object):
 
     def test_event_broadcast(self, container_factory, rabbit_config):
 
-        from event_broadcast import ListenerService
+        from examples.event_broadcast import ListenerService
 
         container_1 = container_factory(ListenerService, rabbit_config)
         container_2 = container_factory(ListenerService, rabbit_config)
@@ -138,7 +93,7 @@ class TestExample(object):
 
     def test_example(self, container_factory, rabbit_config):
 
-        from example import Service
+        from examples.example import Service
 
         container = container_factory(Service, rabbit_config)
         container.start()
@@ -151,7 +106,7 @@ class TestFibonacci(object):
 
     def test_fibonaccci(self, container_factory, rabbit_config):
 
-        from fibonacci import Fibonacci
+        from examples.fibonacci import Fibonacci
 
         container = container_factory(Fibonacci, rabbit_config)
         container.start()
@@ -165,7 +120,7 @@ class TestHelloWorld(object):
 
     def test_hello_world(self, container_factory, rabbit_config):
 
-        from helloworld import GreetingService
+        from examples.helloworld import GreetingService
 
         container = container_factory(GreetingService, rabbit_config)
         container.start()
@@ -178,7 +133,7 @@ class TestRpc(object):
 
     def test_rpc(self, container_factory, rabbit_config):
 
-        from rpc import ServiceX, ServiceY
+        from examples.rpc import ServiceX, ServiceY
 
         container_x = container_factory(ServiceX, rabbit_config)
         container_y = container_factory(ServiceY, rabbit_config)
@@ -190,7 +145,7 @@ class TestRpc(object):
 
     def test_standalone_rpc(self, container_factory, rabbit_config):
 
-        from rpc import ServiceX, ServiceY
+        from examples.rpc import ServiceX, ServiceY
 
         container_x = container_factory(ServiceX, rabbit_config)
         container_y = container_factory(ServiceY, rabbit_config)
@@ -201,15 +156,17 @@ class TestRpc(object):
         # use execfile with a local namespace
         ns = {'AMQP_URI': rabbit_config['AMQP_URI']}
 
-        dirpath = os.path.dirname(os.path.realpath(__file__))
+        dirpath = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         filepath = os.path.join(dirpath, 'standalone_rpc.py')
 
         with entrypoint_waiter(container_x, 'remote_method'):
-            execfile(filepath, globals(), ns)
+            with open(filepath) as f:
+                code = compile(f.read(), filepath, 'exec')
+                exec(code, globals(), ns)
 
     def test_async_rpc(self, container_factory, rabbit_config):
 
-        from rpc import ServiceX, ServiceY
+        from examples.rpc import ServiceX, ServiceY
 
         container_x = container_factory(ServiceX, rabbit_config)
         container_y = container_factory(ServiceY, rabbit_config)
@@ -224,30 +181,32 @@ class TestRpc(object):
             'ClusterRpcProxy': ClusterRpcProxy
         }
 
-        dirpath = os.path.dirname(os.path.realpath(__file__))
+        dirpath = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         filepath = os.path.join(dirpath, 'async_rpc.py')
 
         with entrypoint_waiter(container_x, 'remote_method'):
-            execfile(filepath, globals(), ns)
+            with open(filepath) as f:
+                code = compile(f.read(), filepath, 'exec')
+                exec(code, globals(), ns)
 
 
 class TestServiceContainer(object):
 
     def test_service_container(self):
-        from . import service_container
+        from examples import service_container
 
 
 class TestServiceRunner(object):
 
     def test_service_runner(self):
-        from . import service_runner
+        from examples import service_runner
 
 
 class TestTimer(object):
 
     def test_timer(self, container_factory, rabbit_config):
 
-        from timer import Service
+        from examples.timer import Service
 
         container = container_factory(Service, rabbit_config)
 
@@ -257,11 +216,11 @@ class TestTimer(object):
 
 class TestWebsocketRpc(object):
 
-    def test_websocket_rpc(self, container_factory, rabbit_config, websocket):
+    def test_websocket_rpc(self, container_factory, web_config, websocket):
 
-        from websocket_rpc import WebsocketRpc
+        from examples.websocket_rpc import WebsocketRpc
 
-        container = container_factory(WebsocketRpc, rabbit_config)
+        container = container_factory(WebsocketRpc, web_config)
         container.start()
 
         ws = websocket()
