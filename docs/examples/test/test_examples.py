@@ -102,20 +102,6 @@ class TestExample(object):
             assert service_rpc.method() == None
 
 
-class TestFibonacci(object):
-
-    def test_fibonaccci(self, container_factory, rabbit_config):
-
-        from examples.fibonacci import Fibonacci
-
-        container = container_factory(Fibonacci, rabbit_config)
-        container.start()
-
-        with ServiceRpcProxy('fibonacci', rabbit_config) as fibonacci_rpc:
-            for number in [1, 2, 3, 5, 8, 13]:
-                assert fibonacci_rpc.next() == number
-
-
 class TestHelloWorld(object):
 
     def test_hello_world(self, container_factory, rabbit_config):
