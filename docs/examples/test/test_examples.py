@@ -89,17 +89,17 @@ class TestEvents(object):
             assert ping.call_count == 2
 
 
-class TestExample(object):
+class TestAnatomy(object):
 
-    def test_example(self, container_factory, rabbit_config):
+    def test_anatomy(self, container_factory, rabbit_config):
 
-        from examples.example import Service
+        from examples.anatomy import Service
 
         container = container_factory(Service, rabbit_config)
         container.start()
 
         with ServiceRpcProxy('service', rabbit_config) as service_rpc:
-            assert service_rpc.method() == None
+            assert service_rpc.method() is None
 
 
 class TestHelloWorld(object):
