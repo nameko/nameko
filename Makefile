@@ -15,12 +15,13 @@ test_examples:
 	py.test docs/examples/test --cov=docs/examples
 	py.test docs/examples/testing
 
-test_docs:
-	docs spelling
+test_docs: docs spelling linkcheck
 
 docs:
 	sphinx-build -n -b html -d docs/build/doctrees docs docs/build/html
 
 spelling:
 	sphinx-build -b spelling -d docs/build/doctrees docs docs/build/spelling
-	# sphinx-build -W -b linkcheck -d docs/build/doctrees docs docs/build/linkcheck
+
+linkcheck:
+	sphinx-build -W -b linkcheck -d docs/build/doctrees docs docs/build/linkcheck
