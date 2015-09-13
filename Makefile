@@ -1,6 +1,6 @@
 .PHONY: test docs
 
-test: flake8 pylint test_codebase
+test: flake8 pylint test_codebase test_examples
 
 flake8:
 	flake8 nameko test
