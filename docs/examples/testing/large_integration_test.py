@@ -247,27 +247,6 @@ class PaymentService(object):
 
 
 @pytest.yield_fixture
-def runner_factory(rabbit_config):
-
-    all_runners = []
-
-    def make_runner(*service_classes):
-        runner = ServiceRunner(rabbit_config)
-        for service_cls in service_classes:
-            runner.add_service(service_cls)
-        all_runners.append(runner)
-        return runner
-
-    yield make_runner
-
-    for r in all_runners:
-        try:
-            r.stop()
-        except:
-            pass
-
-
-@pytest.yield_fixture
 def rpc_proxy_factory(rabbit_config):
     """ Factory fixture for standalone RPC proxies.
 
@@ -288,7 +267,9 @@ def rpc_proxy_factory(rabbit_config):
         proxy.stop()
 
 
-def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
+def test_shop_checkout_integration(
+    rabbit_config, runner_factory, rpc_proxy_factory
+):
     """ Simulate a checkout flow as an integration test.
 
     Requires instances of AcmeShopService, StockService and InvoiceService
@@ -303,7 +284,8 @@ def test_shop_checkout_integration(runner_factory, rpc_proxy_factory):
     context_data = {'user_id': 'wile_e_coyote'}
     shop = rpc_proxy_factory('acmeshopservice', context_data=context_data)
 
-    runner = runner_factory(AcmeShopService, StockService, InvoiceService)
+    runner = runner_factory(
+        rabbit_config, AcmeShopService, StockService, InvoiceService)
 
     # replace ``event_dispatcher`` and ``payment_rpc``  dependencies on
     # AcmeShopService with ``MockDependencyProvider``\s
