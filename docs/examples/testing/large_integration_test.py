@@ -19,7 +19,6 @@ from nameko.extensions import DependencyProvider
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc, RpcProxy
-from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import replace_dependencies, restrict_entrypoints
 from nameko.testing.utils import get_container
