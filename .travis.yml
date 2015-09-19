@@ -13,7 +13,7 @@ addons:
 install:
   - pip install tox
 
--env:
+env:
   - TOX_ENV=py27-oldest-lib
   - TOX_ENV=py27-pinned-lib
   - TOX_ENV=py27-latest-lib
