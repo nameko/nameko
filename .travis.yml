@@ -13,6 +13,10 @@ addons:
 install:
   - pip install tox
 
+cache:
+  directories:
+    - $HOME/.cache/pip
+
 env:
   - TOX_ENV=py27-oldest-lib
   - TOX_ENV=py27-pinned-lib
