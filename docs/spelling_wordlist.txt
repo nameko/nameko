@@ -76,6 +76,7 @@ namespace
 onefinestay
 parallelization
 parallelize
+plugin
 pre
 programmatically
 pseudocode
