@@ -60,6 +60,20 @@ def empty_config(request):
     }
 
 
+@pytest.fixture
+def mock_container(request, empty_config):
+    from mock import Mock
+    from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+    from nameko.containers import ServiceContainer
+
+    container = Mock(spec=ServiceContainer)
+    container.config = empty_config
+    container.config[SERIALIZER_CONFIG_KEY] = DEFAULT_SERIALIZER
+    container.serializer = container.config[SERIALIZER_CONFIG_KEY]
+    container.accept = [DEFAULT_SERIALIZER]
+    return container
+
+
 @pytest.fixture(scope='session')
 def rabbit_manager(request):
     from nameko.testing import rabbit

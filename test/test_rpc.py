@@ -126,9 +126,9 @@ def queue_consumer():
         yield mock_ext.return_value
 
 
-def test_rpc_consumer(get_rpc_exchange, queue_consumer):
+def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.config = {}
     container.service_name = "exampleservice"
@@ -189,9 +189,9 @@ def test_rpc_consumer_unregisters_if_no_providers(
     assert rpc_consumer._unregistered_from_queue_consumer.ready()
 
 
-def test_reply_listener(get_rpc_exchange, queue_consumer):
+def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.config = {}
     container.service_name = "exampleservice"

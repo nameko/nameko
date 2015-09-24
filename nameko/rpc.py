@@ -1,6 +1,5 @@
 from __future__ import absolute_import, unicode_literals
 
-import json
 import sys
 import uuid
 from functools import partial
@@ -10,9 +9,11 @@ from eventlet.event import Event
 from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
+import kombu.serialization
 
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, RPC_EXCHANGE_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, RPC_EXCHANGE_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
 from nameko.exceptions import (
     ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
     RpcConnectionError, serialize, UnknownService, UnserializableValueError)
@@ -194,12 +195,16 @@ class Responder(object):
         if exc_info is not None:
             error = serialize(exc_info[1])
 
-        # disaster avoidance serialization check: `result` must be json
+        # disaster avoidance serialization check: `result` must be
         # serializable, otherwise the container will commit suicide assuming
         # unrecoverable errors (and the message will be requeued for another
         # victim)
+
+        serializer = self.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+
         try:
-            json.dumps(result)
+            kombu.serialization.dumps(result, serializer)
         except Exception:
             exc_info = sys.exc_info()
             # `error` below is guaranteed to serialize to json
@@ -224,6 +229,7 @@ class Responder(object):
             producer.publish(
                 msg, retry=retry, retry_policy=retry_policy,
                 exchange=exchange, routing_key=routing_key,
+                serializer=serializer,
                 correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
@@ -361,6 +367,9 @@ class MethodProxy(HeaderEncoder):
             transport_options={'confirm_publish': True},
         )
 
+        serializer = container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+
         # We use the `mandatory` flag in `producer.publish` below to catch rpc
         # calls to non-existent services, which would otherwise wait forever
         # for a reply that will never arrive.
@@ -394,6 +403,7 @@ class MethodProxy(HeaderEncoder):
                 exchange=exchange,
                 routing_key=routing_key,
                 mandatory=True,
+                serializer=serializer,
                 reply_to=reply_to_routing_key,
                 headers=headers,
                 correlation_id=correlation_id,
