@@ -2,7 +2,6 @@
 """
 
 from nameko.rpc import rpc, RpcProxy
-from nameko.runners import ServiceRunner
 from nameko.testing.utils import get_container
 from nameko.testing.services import entrypoint_hook
 
@@ -30,13 +29,10 @@ class ServiceY(object):
         return "{}-y".format(value)
 
 
-def test_service_x_y_integration():
+def test_service_x_y_integration(runner_factory, rabbit_config):
 
     # run services in the normal manner
-    config = {'AMQP_URI': 'amqp://guest:guest@localhost:5672/nameko_test'}
-    runner = ServiceRunner(config)
-    runner.add_service(ServiceX)
-    runner.add_service(ServiceY)
+    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
     runner.start()
 
     # artificially fire the "remote_method" entrypoint on ServiceX
@@ -44,5 +40,3 @@ def test_service_x_y_integration():
     container = get_container(runner, ServiceX)
     with entrypoint_hook(container, "remote_method") as entrypoint:
         assert entrypoint("value") == "value-x-y"
-
-    runner.stop()

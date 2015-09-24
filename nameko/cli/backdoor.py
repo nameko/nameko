@@ -3,6 +3,7 @@
 If a backdoor is running this will connect to a remote shell.  The
 runner is generally available as `runner`.
 """
+from __future__ import print_function
 
 import os
 from subprocess import call
@@ -40,7 +41,7 @@ def main(args):
                 'Backdoor unreachable on {}'.format(target)
             )
     except (EOFError, KeyboardInterrupt):
-        print
+        print()
         if choice == 'telnet' and rlwrap:
             call(['reset'])
 

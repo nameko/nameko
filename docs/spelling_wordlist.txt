@@ -34,6 +34,7 @@ deserializing
 entrypoint
 entrypoints
 eventlet
+extensibility
 freenode
 greenthread
 greenthreads

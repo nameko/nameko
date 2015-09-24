@@ -23,14 +23,6 @@ def queue_consumer():
         yield mock_ext.return_value
 
 
-def test_reliable_broadcast_config_error():
-    with pytest.raises(EventHandlerConfigurationError):
-        @event_handler(
-            'foo', 'bar', reliable_delivery=True, handler_type=BROADCAST)
-        def foo():
-            pass
-
-
 def test_event_dispatcher(empty_config):
 
     container = Mock(spec=ServiceContainer)
@@ -85,9 +77,8 @@ def test_event_handler(queue_consumer):
 
     # test broadcast handler
     event_handler = EventHandler("srcservice", "eventtype",
-                                 handler_type=BROADCAST,
-                                 reliable_delivery=False).bind(container,
-                                                               "foobar")
+                                 handler_type=BROADCAST).bind(container,
+                                                              "foobar")
     event_handler.setup()
 
     assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
@@ -106,6 +97,24 @@ def test_event_handler(queue_consumer):
     event_handler.setup()
 
     assert event_handler.queue.auto_delete is False
+
+
+def test_event_hander_reliable_delivery_defaults():
+    handler = EventHandler("srcservice", "eventtype")
+    assert handler.handler_type is SERVICE_POOL
+    assert handler.reliable_delivery is True
+
+    handler = EventHandler("srcservice", "eventtype", handler_type=BROADCAST)
+    assert handler.handler_type is BROADCAST
+    assert handler.reliable_delivery is False
+
+    handler = EventHandler("srcservice", "eventtype", handler_type=SINGLETON)
+    assert handler.handler_type is SINGLETON
+    assert handler.reliable_delivery is True
+
+    with pytest.raises(EventHandlerConfigurationError):
+        EventHandler("srcservice", "eventtype",
+                     reliable_delivery=True, handler_type=BROADCAST)
 
 
 # =============================================================================
@@ -181,8 +190,7 @@ class SingletonHandler(HandlerService):
 
 class BroadcastHandler(HandlerService):
 
-    @event_handler('srcservice', 'eventtype', handler_type=BROADCAST,
-                   reliable_delivery=False)
+    @event_handler('srcservice', 'eventtype', handler_type=BROADCAST)
     def handle(self, evt):
         super(BroadcastHandler, self).handle(evt)
 

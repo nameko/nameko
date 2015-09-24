@@ -17,7 +17,7 @@ from nameko.rpc import (
     rpc, RpcProxy, RpcConsumer, Rpc, ReplyListener,
 )
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import entrypoint_hook
+from nameko.testing.services import entrypoint_hook, restrict_entrypoints
 from nameko.testing.utils import (
     get_extension, wait_for_call, wait_for_worker_idle)
 
@@ -166,6 +166,27 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer):
 
     consumer.unregister_provider(entrypoint)
     assert consumer._providers == set()
+
+
+def test_rpc_consumer_unregisters_if_no_providers(
+    container_factory, rabbit_config
+):
+    class Service(object):
+        name = "service"
+
+        @rpc
+        def method(self):
+            pass
+
+    container = container_factory(Service, rabbit_config)
+    restrict_entrypoints(container)  # disable 'method' entrypoint
+
+    rpc_consumer = get_extension(container, RpcConsumer)
+    with patch.object(rpc_consumer, 'queue_consumer') as queue_consumer:
+        rpc_consumer.stop()
+
+    assert queue_consumer.unregister_provider.called
+    assert rpc_consumer._unregistered_from_queue_consumer.ready()
 
 
 def test_reply_listener(get_rpc_exchange, queue_consumer):

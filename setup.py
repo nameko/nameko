@@ -24,13 +24,14 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.0a1",
+            "coverage==4.0b3",
             "flake8==2.1.0",
             "mccabe==0.3",
             "pep8==1.6.1",
             "pyflakes==0.8.1",
             "pylint==1.0.0",
-            "pytest==2.4.2",
+            "pytest==2.7.2",
+            "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
             "urllib3==1.10.2",
             "websocket-client==0.23.0",
@@ -41,11 +42,17 @@ setup(
             "sphinxcontrib-spelling==2.1.1",
             "sphinx-nameko-theme==0.0.3",
         ],
+        'examples': [
+            "nameko-sqlalchemy==0.0.1"
+        ]
     },
     entry_points={
         'console_scripts': [
             'nameko=nameko.cli.main:main',
         ],
+        'pytest11': [
+            'pytest_nameko=nameko.testing.pytest'
+        ]
     },
     zip_safe=True,
     license='Apache License, Version 2.0',

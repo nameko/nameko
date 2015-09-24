@@ -100,7 +100,7 @@ def test_import_not_a_class():
 
 def test_import_no_service_classes():
     with pytest.raises(CommandError):
-        import_service('test.conftest')
+        import_service('test')
 
 
 def recv_until_prompt(sock):
