@@ -8,8 +8,8 @@ from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    entrypoint_hook, worker_factory, replace_dependencies,
-    restrict_entrypoints, entrypoint_waiter, once)
+    entrypoint_hook, worker_factory, replace_dependencies, once,
+    restrict_entrypoints, entrypoint_waiter, EntrypointWaiter)
 from nameko.testing.utils import get_container
 
 
@@ -350,6 +350,17 @@ def test_entrypoint_waiter(container_factory, rabbit_config):
     dispatch = event_dispatcher(rabbit_config)
     with entrypoint_waiter(container, 'handle'):
         dispatch('srcservice', 'eventtype', "")
+
+
+def test_entrypoint_waiter_timeout(container_factory, rabbit_config):
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with pytest.raises(EntrypointWaiter.Timeout) as exc_info:
+        with entrypoint_waiter(container, 'handle', timeout=0.01):
+            pass
+    assert str(exc_info.value) == (
+        "Entrypoint service.handle failed to complete within 0.01 seconds")
 
 
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
