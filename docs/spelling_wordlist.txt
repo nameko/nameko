@@ -1,6 +1,7 @@
 ack
 ack'd
 acks
+ascii
 aggregator
 aggregators
 amqp
