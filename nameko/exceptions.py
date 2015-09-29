@@ -54,7 +54,7 @@ class RemoteError(Exception):
     def __init__(self, exc_type=None, value=""):
         self.exc_type = exc_type
         self.value = value
-        message = '{} {}'.format(exc_type, value)
+        message = u'{} {}'.format(exc_type, value)
         super(RemoteError, self).__init__(message)
 
 
