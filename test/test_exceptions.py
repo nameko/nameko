@@ -79,8 +79,6 @@ def test_deserialize_to_remote_error_with_non_ascii():
     assert type(deserialized) == RemoteError
     assert deserialized.exc_type == "CustomError"
     assert deserialized.value == u"something w\xe9nt wrong"
-    assert repr(deserialized) == (
-        "RemoteError(u'CustomError something w\\xe9nt wrong',)")
 
 
 @pytest.mark.usefixtures('registry')
