@@ -151,7 +151,10 @@ html_theme_path = [sphinx_nameko_theme.get_html_theme_path()]
 # html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
-#html_sidebars = {}
+html_sidebars = {
+    '**': ['localtoc.html', 'relations.html', 'sourcelink.html',
+           'sidebarlinks.html', 'searchbox.html']
+}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
