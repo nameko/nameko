@@ -1,5 +1,3 @@
-Nameko is written and maintained by onefinestay.
-
 Contributions have been made by:
 
 Edward George (@edwardgeorge)
@@ -16,4 +14,7 @@ Armin Ronacher (@mitsuhiko)
 Mar Bartolome (@marbru)
 AhnSeongHyun (@sh84ahn)
 T. Zengerink (@Mytho)
+David Winterbottom (@codeinthehole)
 David Weterings (@davidweterings)
+Radek Jankiewicz (@radekj)
+Miguel Flores Ruiz de Eguino (@miguelfrde)

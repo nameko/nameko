@@ -3,6 +3,8 @@ nameko services, will host and run them. By default this will try to find
 classes that look like services (anything with nameko entrypoints), but a
 specific service can be specified via ``nameko run module:ServiceClass``.  """
 
+from __future__ import print_function
+
 import eventlet
 eventlet.monkey_patch()  # noqa (code before rest of imports)
 
@@ -146,11 +148,11 @@ def run(services, config, backdoor_port=None):
                 continue
             raise
         except KeyboardInterrupt:
-            print  # looks nicer with the ^C e.g. bash prints in the terminal
+            print()  # looks nicer with the ^C e.g. bash prints in the terminal
             try:
                 service_runner.stop()
             except KeyboardInterrupt:
-                print  # as above
+                print()  # as above
                 service_runner.kill()
         else:
             # runner.wait completed

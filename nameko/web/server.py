@@ -92,6 +92,7 @@ class WebServer(ProviderCollector, SharedExtension):
     def stop(self):
         self._is_accepting = False
         self._gt.kill()
+        self._sock.close()
         super(WebServer, self).stop()
 
     def make_url_map(self):

@@ -1,7 +1,10 @@
 from kombu import Connection, Exchange
 from kombu.pools import producers, connections
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.constants import (
+    DEFAULT_RETRY_POLICY, SERIALIZER_CONFIG_KEY,
+    DEFAULT_SERIALIZER)
+
 from nameko.messaging import PERSISTENT, AMQP_URI_CONFIG_KEY
 
 
@@ -17,11 +20,7 @@ def get_event_exchange(service_name):
 
 
 def event_dispatcher(nameko_config, **kwargs):
-    """ Returns a function that dispatches events claiming to originate from
-    a service called `container_service_name`.
-
-    Enables services not hosted by nameko to dispatch events into a nameko
-    cluster.
+    """ Return a function that dispatches nameko events.
     """
 
     kwargs = kwargs.copy()
@@ -29,7 +28,13 @@ def event_dispatcher(nameko_config, **kwargs):
     retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
 
     def dispatch(service_name, event_type, event_data):
+        """ Dispatch an event claiming to originate from `service_name` with
+        the given `event_type` and `event_data`.
+        """
         conn = Connection(nameko_config[AMQP_URI_CONFIG_KEY])
+
+        serializer = nameko_config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
 
         exchange = get_event_exchange(service_name)
 
@@ -41,6 +46,7 @@ def event_dispatcher(nameko_config, **kwargs):
                 producer.publish(
                     msg,
                     exchange=exchange,
+                    serializer=serializer,
                     routing_key=routing_key,
                     retry=retry,
                     retry_policy=retry_policy,

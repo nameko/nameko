@@ -8,7 +8,7 @@ from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import Publisher, Consumer, HeaderEncoder, HeaderDecoder
 from nameko.containers import (
-    WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS, ServiceContainer)
+    WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
 from nameko.testing.utils import (
     wait_for_call, as_context_manager, ANY_PARTIAL, worker_context_factory,
     DummyProvider)
@@ -47,13 +47,12 @@ def maybe_declare():
         yield patched
 
 
-def test_consume_provider(empty_config):
+def test_consume_provider(mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
-    container.config = empty_config
 
     worker_ctx = WorkerContext(container, None, DummyProvider())
 
@@ -111,10 +110,9 @@ def test_consume_provider(empty_config):
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
-    container = Mock(spec=ServiceContainer)
+def test_publish_to_exchange(maybe_declare, patch_publisher, mock_container):
+    container = mock_container
     container.service_name = "srcservice"
-    container.config = empty_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("publish"))
@@ -142,15 +140,15 @@ def test_publish_to_exchange(empty_config, maybe_declare, patch_publisher):
     }
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
+        serializer=container.serializer,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
-    container = Mock(spec=ServiceContainer)
+def test_publish_to_queue(maybe_declare, patch_publisher, mock_container):
+    container = mock_container
     container.shared_extensions = {}
     container.service_name = "srcservice"
-    container.config = empty_config
 
     ctx_data = {'language': 'en'}
     service = Mock()
@@ -181,15 +179,16 @@ def test_publish_to_queue(empty_config, maybe_declare, patch_publisher):
     service.publish(msg, publish_kwarg="value")
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
+        serializer=container.serializer,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
+def test_publish_custom_headers(mock_container, maybe_declare,
+                                patch_publisher):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.service_name = "srcservice"
-    container.config = empty_config
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
@@ -219,6 +218,7 @@ def test_publish_custom_headers(empty_config, maybe_declare, patch_publisher):
     service.publish(msg, publish_kwarg="value")
     producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
+        serializer=container.serializer,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
@@ -273,11 +273,11 @@ def test_header_decoder():
 # =============================================================================
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_rabbit(rabbit_manager, rabbit_config):
+def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     vhost = rabbit_config['vhost']
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.service_name = "service"
     container.config = rabbit_config
     container.spawn_managed_thread = eventlet.spawn
@@ -306,7 +306,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish("msg")
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
-    assert ['msg'] == [msg['payload'] for msg in messages]
+    assert ['"msg"'] == [msg['payload'] for msg in messages]
 
     # test message headers
     assert messages[0]['properties']['headers'] == {
@@ -317,11 +317,11 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config):
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_unserialisable_headers(rabbit_manager, rabbit_config):
+def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
 
     vhost = rabbit_config['vhost']
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.service_name = "service"
     container.config = rabbit_config
     container.spawn_managed_thread = eventlet.spawn
@@ -348,16 +348,19 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config):
     }
 
 
-def test_consume_from_rabbit(container_factory, rabbit_manager, rabbit_config):
+def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     vhost = rabbit_config['vhost']
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.worker_ctx_cls = CustomWorkerContext
     container.service_name = "service"
     container.config = rabbit_config
     container.max_workers = 10
+
+    content_type = 'application/data'
+    container.accept = [content_type]
 
     def spawn_thread(method, protected):
         return eventlet.spawn(method)
@@ -387,8 +390,10 @@ def test_consume_from_rabbit(container_factory, rabbit_manager, rabbit_config):
     container.spawn_worker.return_value = worker_ctx
 
     headers = {'nameko.language': 'en', 'nameko.customheader': 'customvalue'}
+
     rabbit_manager.publish(
-        vhost, foobar_ex.name, '', 'msg', properties=dict(headers=headers))
+        vhost, foobar_ex.name, '', 'msg',
+        properties=dict(headers=headers, content_type=content_type))
 
     ctx_data = {
         'language': 'en',

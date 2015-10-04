@@ -10,7 +10,7 @@ A Nameko service is just a Python class. The class encapsulates the application 
 
 Methods are exposed to the outside world with :ref:`entrypoint <entrypoints>` decorators.
 
-.. literalinclude:: examples/example.py
+.. literalinclude:: examples/anatomy.py
 
 .. _entrypoints:
 

@@ -1,0 +1,8 @@
+[run]
+concurrency = eventlet
+parallel = true
+data_file = /tmp/.coverage
+
+[report]
+show_missing = true
+fail_under = 100

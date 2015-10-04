@@ -9,7 +9,6 @@ from kombu.exceptions import TimeoutError
 from mock import ANY, call, Mock, patch
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
-from nameko.containers import ServiceContainer
 from nameko.messaging import QueueConsumer
 from nameko.rpc import rpc, RpcConsumer
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -45,13 +44,15 @@ def spawn_thread(method, protected):
     return eventlet.spawn(method)
 
 
-def test_lifecycle(rabbit_manager, rabbit_config):
+def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 3
     container.spawn_managed_thread.side_effect = spawn_thread
+    content_type = 'application/data'
+    container.accept = [content_type]
 
     queue_consumer = QueueConsumer().bind(container)
 
@@ -66,7 +67,8 @@ def test_lifecycle(rabbit_manager, rabbit_config):
     container.spawn_managed_thread.assert_called_once_with(ANY, protected=True)
 
     vhost = rabbit_config['vhost']
-    rabbit_manager.publish(vhost, 'spam', '', 'shrub')
+    rabbit_manager.publish(vhost, 'spam', '', 'shrub',
+                           properties=dict(content_type=content_type))
 
     message = handler.wait()
 
@@ -95,8 +97,8 @@ def test_lifecycle(rabbit_manager, rabbit_config):
     queue_consumer.kill()
 
 
-def test_reentrant_start_stops():
-    container = Mock(spec=ServiceContainer)
+def test_reentrant_start_stops(mock_container):
+    container = mock_container
     container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
@@ -115,10 +117,10 @@ def test_reentrant_start_stops():
     queue_consumer.kill()
 
 
-def test_stop_while_starting(rabbit_config):
+def test_stop_while_starting(rabbit_config, mock_container):
     started = Event()
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 3
@@ -163,8 +165,8 @@ def test_stop_while_starting(rabbit_config):
         assert queue_consumer._gt.dead
 
 
-def test_error_stops_consumer_thread():
-    container = Mock(spec=ServiceContainer)
+def test_error_stops_consumer_thread(mock_container):
+    container = mock_container
     container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
@@ -188,8 +190,8 @@ def test_error_stops_consumer_thread():
     assert exc_info.value.args == ('test',)
 
 
-def test_on_consume_error_kills_consumer():
-    container = Mock(spec=ServiceContainer)
+def test_on_consume_error_kills_consumer(mock_container):
+    container = mock_container
     container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 1
@@ -209,9 +211,9 @@ def test_on_consume_error_kills_consumer():
             queue_consumer._gt.wait()
 
 
-def test_reconnect_on_socket_error(rabbit_config):
+def test_reconnect_on_socket_error(rabbit_config, mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
@@ -240,12 +242,14 @@ def test_reconnect_on_socket_error(rabbit_config):
     queue_consumer.stop()
 
 
-def test_prefetch_count(rabbit_manager, rabbit_config):
-    container = Mock(spec=ServiceContainer)
+def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
+    container = mock_container
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
     container.spawn_managed_thread = spawn_thread
+    content_type = 'application/data'
+    container.accept = [content_type]
 
     class NonShared(QueueConsumer):
         @property
@@ -287,13 +291,16 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     # the first consumer only has a prefetch_count of 1 and will only
     # consume 1 message and wait in handler1()
-    rabbit_manager.publish(vhost, 'spam', '', 'ham')
+    rabbit_manager.publish(vhost, 'spam', '', 'ham',
+                           properties=dict(content_type=content_type))
     # the next message will go to handler2() no matter of any prefetch_count
-    rabbit_manager.publish(vhost, 'spam', '', 'eggs')
+    rabbit_manager.publish(vhost, 'spam', '', 'eggs',
+                           properties=dict(content_type=content_type))
     # the third message is only going to handler2 because the first consumer
     # has a prefetch_count of 1 and thus is unable to deal with another message
     # until having ACKed the first one
-    rabbit_manager.publish(vhost, 'spam', '', 'bacon')
+    rabbit_manager.publish(vhost, 'spam', '', 'bacon',
+                           properties=dict(content_type=content_type))
 
     with eventlet.Timeout(TIMEOUT):
         while len(messages) < 2:
@@ -311,9 +318,10 @@ def test_prefetch_count(rabbit_manager, rabbit_config):
     queue_consumer2.kill()
 
 
-def test_kill_closes_connections(rabbit_manager, rabbit_config):
+def test_kill_closes_connections(rabbit_manager, rabbit_config,
+                                 mock_container):
 
-    container = Mock(spec=ServiceContainer)
+    container = mock_container
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1

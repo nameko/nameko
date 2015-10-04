@@ -30,8 +30,7 @@ class Service(object):
     name = "service"
 
     @rpc
-    @event_handler("srcservice", "testevent", handler_type=BROADCAST,
-                   reliable_delivery=False)
+    @event_handler("srcservice", "testevent", handler_type=BROADCAST)
     def handle(self, msg):
         received.append(msg)
 

@@ -14,6 +14,8 @@ from nameko.containers import WorkerContext
 from nameko.extensions import Entrypoint
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.rpc import ServiceProxy, ReplyListener
+from nameko.constants import (
+    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
 
 
 _logger = logging.getLogger(__name__)
@@ -87,16 +89,23 @@ class PollingQueueConsumer(object):
         # queue.bind returns a bound copy
         self.queue = self.queue.bind(channel)
         maybe_declare(self.queue, channel)
-        consumer = Consumer(channel, queues=[self.queue], no_ack=False)
+        consumer = Consumer(
+            channel, queues=[self.queue], accept=self.accept, no_ack=False)
         consumer.callbacks = [self.on_message]
         consumer.consume()
         self.consumer = consumer
 
     def register_provider(self, provider):
         self.provider = provider
+
+        self.serializer = provider.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+        self.accept = [self.serializer]
+
         amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
         verify_amqp_uri(amqp_uri)
         self.connection = Connection(amqp_uri)
+
         self.queue = provider.queue
         self._setup_consumer()
 

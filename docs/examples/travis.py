@@ -1,11 +1,9 @@
-from urlparse import urljoin
-
 import requests
 
 from nameko.extensions import DependencyProvider
 from nameko.rpc import rpc
 
-API_ENDPOINT = "https://api.travis-ci.org/"
+URL_TEMPLATE = "https://api.travis-ci.org/repos/{}/{}"
 
 
 class ApiWrapper(object):
@@ -14,8 +12,8 @@ class ApiWrapper(object):
         self.session = session
 
     def repo_status(self, owner, repo):
-        url = urljoin(API_ENDPOINT, "repos", owner, repo)
-        return self.session.get(url)
+        url = URL_TEMPLATE.format(owner, repo)
+        return self.session.get(url).json()
 
 
 class TravisWebservice(DependencyProvider):
@@ -37,8 +35,8 @@ class Travis(object):
         status = self.webservice.repo_status(owner, repo)
         outcome = "passing" if status['last_build_result'] else "failing"
 
-        return "Project {slug} {outcome} since {timestamp}.".format({
-            'repo': status['slug'],
-            'outcome': outcome,
-            'timestamp': status['last_build_finished_at']
-        })
+        return "Project {repo} {outcome} since {timestamp}.".format(
+            repo=status['slug'],
+            outcome=outcome,
+            timestamp=status['last_build_finished_at']
+        )

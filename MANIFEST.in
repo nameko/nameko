@@ -1,8 +1,5 @@
 include readme.rst
 include LICENSE
-include requirements.txt
-include dev_requirements.txt
-include contrib_requirements.txt
 include pylintrc
 
 graft docs

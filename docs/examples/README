@@ -1,0 +1,8 @@
+This directory (nameko/docs/examples) contains example services and code
+snippets for reference or use in the documentation. The `test` subdirectory
+contains pytest-based tests to check the examples work as expected.
+These tests are executed as part of nameko's CI process.
+
+The `testing` subdirectory contains examples demonstrating best practice use
+of the test utilities that ship with nameko. They are self-contained modules
+that are also run as part of nameko's CI process.

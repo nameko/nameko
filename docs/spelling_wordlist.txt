@@ -1,6 +1,7 @@
 ack
 ack'd
 acks
+ascii
 aggregator
 aggregators
 amqp
@@ -29,11 +30,13 @@ deserializable
 deserialization
 deserialize
 deserialized
+deserializers
 deserializes
 deserializing
 entrypoint
 entrypoints
 eventlet
+extensibility
 freenode
 greenthread
 greenthreads
@@ -74,6 +77,7 @@ namespace
 onefinestay
 parallelization
 parallelize
+plugin
 pre
 programmatically
 pseudocode
@@ -97,6 +101,7 @@ serializable
 serialization
 serialize
 serialized
+serializers
 serializes
 serializing
 specialization

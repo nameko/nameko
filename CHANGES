@@ -6,6 +6,18 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.2.0
+-------------
+
+Released 2015-10-04
+
+* Add support for alternative serializers in AMQP messages
+* Add pytest plugin with common fixtures
+* Fix examples in documentation and add tests to prevent future breakage
+* Fix bug handling non-ascii characters in exception messages
+* Various documentation fixes
+
+
 Version 2.1.2
 -------------
 
