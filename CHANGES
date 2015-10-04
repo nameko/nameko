@@ -9,7 +9,7 @@ increment the minor version number only.
 Version 2.2.0
 -------------
 
-UNRELEASED
+Released 2015-10-04
 
 * Add support for alternative serializers in AMQP messages
 * Add pytest plugin with common fixtures
