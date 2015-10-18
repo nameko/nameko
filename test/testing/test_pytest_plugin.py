@@ -1,5 +1,7 @@
 import socket
 
+import pytest
+
 from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
 from nameko.rpc import rpc, RpcProxy
@@ -10,7 +12,6 @@ from nameko.web.handlers import http
 from nameko.web.server import parse_address
 from nameko.web.websocket import rpc as wsrpc
 
-import pytest
 
 pytest_plugins = "pytester"
 
@@ -22,6 +23,34 @@ def test_empty_config(empty_config):
 def test_rabbit_manager(rabbit_manager):
     assert isinstance(rabbit_manager, rabbit.Client)
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
+
+
+def test_rabbit_config_random_vhost(testdir):
+
+    testdir.makepyfile(
+        """
+        import re
+
+        def test_rabbit_config(rabbit_config):
+            assert re.search("test_[a-z]+$", rabbit_config['AMQP_URI'])
+        """
+    )
+    result = testdir.runpytest()
+    assert result.ret == 0
+
+
+def test_rabbit_config_specific_vhost(testdir):
+
+    testdir.makepyfile(
+        """
+        def test_rabbit_config(rabbit_config):
+            assert "specified_vhost" in rabbit_config['AMQP_URI']
+        """
+    )
+    result = testdir.runpytest(
+        "--amqp-uri", "amqp://guest:guest@localhost:5672/specified_vhost"
+    )
+    assert result.ret == 0
 
 
 def test_rabbit_config_leftover_connections(testdir):

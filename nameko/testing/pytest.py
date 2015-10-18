@@ -23,7 +23,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--amqp-uri", action="store", dest='AMQP_URI',
-        default='amqp://guest:guest@localhost:5672/nameko_test',
+        default='amqp://guest:guest@localhost:5672/:random:',
         help=("The AMQP-URI to connect to rabbit with."))
 
     parser.addoption(
@@ -53,7 +53,7 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def empty_config(request):
+def empty_config():
     from nameko.constants import AMQP_URI_CONFIG_KEY
     return {
         AMQP_URI_CONFIG_KEY: ""
@@ -84,17 +84,31 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
+    import random
+    import string
     from kombu import pools
-    from nameko.testing.utils import (
-        reset_rabbit_vhost, reset_rabbit_connections,
-        get_rabbit_connections, get_rabbit_config)
+    from nameko.testing.utils import get_rabbit_connections
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0611
 
     amqp_uri = request.config.getoption('AMQP_URI')
 
-    conf = get_rabbit_config(amqp_uri)
+    uri = urlparse(amqp_uri)
+    username = uri.username
+    vhost = uri.path[1:]
 
-    reset_rabbit_connections(conf['vhost'], rabbit_manager)
-    reset_rabbit_vhost(conf['vhost'], conf['username'], rabbit_manager)
+    if vhost == ":random:":
+        vhost = "test_{}".format(
+            "".join(random.choice(string.lowercase) for _ in range(10))
+        )
+        amqp_uri = amqp_uri.replace(":random:", vhost)
+        rabbit_manager.create_vhost(vhost)
+        rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+
+    conf = {
+        'AMQP_URI': amqp_uri,
+        'username': username,
+        'vhost': vhost
+    }
 
     yield conf
 
