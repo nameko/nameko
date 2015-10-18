@@ -96,7 +96,9 @@ def rabbit_config(request, rabbit_manager):
     username = uri.username
     vhost = uri.path[1:]
 
-    if vhost == ":random:":
+    use_random_vost = vhost == ":random:"
+
+    if use_random_vost:
         vhost = "test_{}".format(
             "".join(random.choice(string.lowercase) for _ in range(10))
         )
@@ -115,13 +117,18 @@ def rabbit_config(request, rabbit_manager):
     pools.reset()  # close connections in pools
 
     # raise a runtime error if the test leaves any connections lying around
-    connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
-    open_connections = [
-        conn for conn in connections if conn['state'] != "closed"
-    ]
-    if open_connections:
-        count = len(open_connections)
-        raise RuntimeError("{} rabbit connection(s) left open.".format(count))
+    try:
+        connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
+        open_connections = [
+            conn for conn in connections if conn['state'] != "closed"
+        ]
+        if open_connections:
+            count = len(open_connections)
+            raise RuntimeError(
+                "{} rabbit connection(s) left open.".format(count))
+    finally:
+        if use_random_vost:
+            rabbit_manager.delete_vhost(vhost)
 
 
 @pytest.fixture
