@@ -8,7 +8,7 @@ flake8:
 pylint:
 	pylint --rcfile=pylintrc nameko -E
 
-test_codebase:
+test_lib:
 	py.test test --cov=$(CURDIR)/nameko --cov-config=$(CURDIR)/.coveragerc
 
 test_examples:
