@@ -1,0 +1,7 @@
+# nameko config file for testing
+# $> nameko run --config run-config.yaml foobar
+
+WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+
+AMQP_URI: 'amqp://guest:guest@localhost'
+serializer: 'json'
