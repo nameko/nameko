@@ -8,10 +8,10 @@ import pytest
 from nameko.standalone.rpc import ClusterProxy
 from nameko.cli.main import setup_parser
 from nameko.cli.shell import make_nameko_helper, main
-from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, \
-    SERIALIZER_CONFIG_KEY
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 
-SHELL_CONFIG_FILE = abspath(join(dirname(__file__), 'shell-config.yaml'))
+TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
 
 
 def test_helper_module(rabbit_config):
@@ -116,7 +116,7 @@ def test_ipython(pystartup):
 
 def test_config(pystartup):
     parser = setup_parser()
-    args = parser.parse_args(['shell', '--config', SHELL_CONFIG_FILE])
+    args = parser.parse_args(['shell', '--config', TEST_CONFIG_FILE])
 
     with patch('nameko.cli.shell.code') as code:
         main(args)
