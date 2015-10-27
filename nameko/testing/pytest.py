@@ -103,7 +103,7 @@ def rabbit_config(request, rabbit_manager):
         vhost = "test_{}".format(
             "".join(random.choice(string.lowercase) for _ in range(10))
         )
-        amqp_uri = amqp_uri.replace(":random:", vhost)
+        amqp_uri = "{}://{}/{}".format(uri.scheme, uri.netloc, vhost)
         rabbit_manager.create_vhost(vhost)
         rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
