@@ -97,7 +97,7 @@ def rabbit_config(request, rabbit_manager):
     username = uri.username
     vhost = uri.path[1:]
 
-    use_random_vost = vhost == ":random:"
+    use_random_vost = (vhost == ":random:")
 
     if use_random_vost:
         vhost = "test_{}".format(
