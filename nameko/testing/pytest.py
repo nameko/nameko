@@ -1,11 +1,12 @@
 from __future__ import absolute_import
 
+import pytest
+
+
 # all imports are inline to make sure they happen after eventlet.monkey_patch
 # which is called in pytest_load_initial_conftests
 # (calling monkey_patch at import time breaks the pytest capturemanager - see
 #  https://github.com/eventlet/eventlet/pull/239)
-
-import pytest
 
 
 def pytest_addoption(parser):
@@ -87,8 +88,8 @@ def rabbit_config(request, rabbit_manager):
     import random
     import string
     from kombu import pools
-    from nameko.testing.utils import get_rabbit_connections
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0611
+    from nameko.testing.utils import get_rabbit_connections
 
     amqp_uri = request.config.getoption('AMQP_URI')
 
