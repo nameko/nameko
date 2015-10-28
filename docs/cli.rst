@@ -25,7 +25,7 @@ and providing a simple YAML configuration file:
 
     # foobar.yaml
 
-    AMQP_URI: 'amqp://guest:guest@localhost'
+    AMQP_URI: 'pyamqp://guest:guest@localhost'
 
     WEB_SERVER_ADDRESS: '0.0.0.0:8000'
 
