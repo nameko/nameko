@@ -108,6 +108,37 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
     Date: Fri, 13 Feb 2015 14:58:48 GMT
 
 
+Exceptions can be raised safely if added to ``expected_exceptions``. You can also change exceptions formatting by overriding :meth:`~nameko.web.HttpRequestHandler.response_from_exception`:
+
+.. literalinclude:: examples/http_exceptions.py
+
+.. code-block:: shell
+
+    $ nameko run http_exceptions
+    starting services: http_exceptions_service
+
+.. code-block:: shell
+
+    $ curl -i http://localhost:8000/expected_exception
+    HTTP/1.1 400 BAD REQUEST
+    Content-Type: text/plain; charset=utf-8
+    Content-Length: 41
+    Date: Thu, 06 Aug 2015 10:03:39 GMT
+
+    Error: ApplicationError: Invalid request
+
+.. code-block:: shell
+
+    $ curl -i http://localhost:8000/expected_custom_exception
+    HTTP/1.1 400 BAD REQUEST
+    Content-Type: application/json
+    Content-Length: 96
+    Date: Thu, 06 Aug 2015 09:53:56 GMT
+
+    "{\"code\": 400, \"description\": \"This is invalid request.\", \"error\": \"INVALID_REQUEST\"}"
+
+
+
 Timer
 -----
 
