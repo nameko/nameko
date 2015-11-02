@@ -1,5 +1,6 @@
 """ Tests for the files and snippets in nameko/docs/examples
 """
+import json
 import os
 
 from mock import call, patch
@@ -47,6 +48,33 @@ class TestHttp(object):
         res = requests.get(self.base_url + "/custom")
         assert res.status_code == 200
         assert res.text == 'payload'
+
+    def test_expected_exception(self, container_factory, rabbit_config):
+
+        from examples.http_exceptions import Service
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        res = requests.get(self.base_url + "/expected_exception")
+        assert res.status_code == 400
+        assert res.text == 'Error: ApplicationError: Invalid request\n'
+
+    def test_expected_custom_exception(self, container_factory, rabbit_config):
+
+        from examples.http_exceptions import Service
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        res = requests.get(self.base_url + "/expected_custom_exception")
+        assert res.status_code == 400
+        assert res.headers['Content-Type'] == 'application/json'
+        assert json.loads(res.json()) == {
+            "code": 400,
+            "description": "This is invalid request.",
+            "error": "INVALID_REQUEST"
+        }
 
 
 class TestEvents(object):
