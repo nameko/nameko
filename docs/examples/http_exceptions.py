@@ -42,8 +42,8 @@ class Service(object):
     @http('GET', '/expected_custom_exception',
           expected_exceptions=HttpError)
     def expected_custom_exception(self, request):
-        raise HttpError(json.dumps({
+        raise HttpError({
             'error': 'INVALID_REQUEST',
             'description': 'This is invalid request.',
             'code': 400
-        }), 400)
+        }, 400)
