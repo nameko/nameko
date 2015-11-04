@@ -132,10 +132,10 @@ Expected exceptions can be added to ``expected_exceptions``. This will result in
     $ curl -i http://localhost:8000/expected_custom_exception
     HTTP/1.1 400 BAD REQUEST
     Content-Type: application/json
-    Content-Length: 84
+    Content-Length: 64
     Date: Thu, 06 Aug 2015 09:53:56 GMT
 
-    {"code": 400, "description": "This is invalid request.", "error": "INVALID_REQUEST"}
+    {"message": "Argument foo is required.", "error": "BAD_REQUEST"}
 
 
 

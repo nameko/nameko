@@ -72,9 +72,8 @@ class TestHttp(object):
         assert res.status_code == 400
         assert res.headers['Content-Type'] == 'application/json'
         assert res.json() == {
-            "code": 400,
-            "description": "This is invalid request.",
-            "error": "INVALID_REQUEST"
+            'error': 'BAD_REQUEST',
+            'message': "Argument foo is required.",
         }
 
 

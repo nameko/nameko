@@ -10,14 +10,22 @@ class ApplicationError(Exception):
 
 class HttpError(Exception):
 
-    def __init__(self, payload, status_code=None):
-        self.payload = payload
+    def __init__(self, message, error, status_code):
+        self.payload = {
+            'error': error,
+            'message': message
+        }
         self.status_code = status_code
-        super(HttpError, self).__init__(payload)
+        super(HttpError, self).__init__(self.payload)
+
+
+class BadRequestError(HttpError):
+
+    def __init__(self, message):
+        super(BadRequestError, self).__init__(message, 'BAD_REQUEST', 400)
 
 
 class HttpEntrypoint(HttpRequestHandler):
-
     def response_from_exception(self, exc):
         if isinstance(exc, HttpError):
             response = Response(
@@ -40,10 +48,6 @@ class Service(object):
         raise ApplicationError("Invalid request")
 
     @http('GET', '/expected_custom_exception',
-          expected_exceptions=HttpError)
+          expected_exceptions=BadRequestError)
     def expected_custom_exception(self, request):
-        raise HttpError({
-            'error': 'INVALID_REQUEST',
-            'description': 'This is invalid request.',
-            'code': 400
-        }, 400)
+        raise BadRequestError("Argument foo is required.")
