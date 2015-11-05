@@ -56,6 +56,7 @@ javascript
 kombu
 kwarg
 kwargs
+librabbitmq
 lifealike
 lifecycle
 localhost
@@ -72,6 +73,7 @@ mixin
 monolith
 monolithic
 monospaced
+mysqldb
 nameko
 namespace
 onefinestay
@@ -82,6 +84,7 @@ pre
 programmatically
 pseudocode
 py
+pyamqp
 pyrabbit
 pytest
 rabbitmq

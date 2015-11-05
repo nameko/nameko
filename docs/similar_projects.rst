@@ -22,7 +22,7 @@ Kombu
 
 Nameko's AMQP features are built using Kombu but don't include support for the "virtual" transports.
 
-Also, due to the usage of `eventlet <http://eventlet.net/>`_ for green concurrency, Nameko can't make use of C extensions such as `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_ that Kombu uses by default if it's available. If you want to have `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_ in your environment for other purposes than Nameko, you can force Kombu to use standard Python implementation of AMQP by defining broker urls as ``pyamqp://`` instead of ``amqp://``
+Also, due to the usage of `eventlet <http://eventlet.net/>`_ for green concurrency, Nameko can't make use of C-extensions such as `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_ that Kombu uses by default if it's available. If you want to have `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_ in your environment for other purposes than Nameko, you can force Kombu to use standard Python implementation of AMQP by defining broker urls as ``pyamqp://`` instead of ``amqp://``
 
 Eventlet
 --------
