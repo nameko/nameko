@@ -171,13 +171,11 @@ def main(args):
             import_service(path)
         )
 
-    config = {}
-
     if args.config:
         with open(args.config) as fle:
             config = yaml.load(fle)
     else:
-        config[AMQP_URI_CONFIG_KEY] = args.broker
+        config = {AMQP_URI_CONFIG_KEY: args.broker}
 
     run(services, config, backdoor_port=args.backdoor_port)
 
