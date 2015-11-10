@@ -18,7 +18,7 @@ class HttpEntrypoint(HttpRequestHandler):
             response = Response(
                 json.dumps({
                     'error': exc.error_code,
-                    'message': unicode(exc),
+                    'message': str(exc),
                 }),
                 status=exc.status_code,
                 mimetype='application/json'
