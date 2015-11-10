@@ -3,7 +3,6 @@
 import os
 
 from mock import call, patch
-import requests
 
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
@@ -46,35 +45,37 @@ class TestHttp(object):
         assert res.status_code == 200
         assert res.text == 'payload'
 
-    def test_expected_exception(
-        self, container_factory, web_config, web_session
-    ):
+    def test_custom_exception(self, container_factory, web_config, web_session):
 
         from examples.http_exceptions import Service
 
         container = container_factory(Service, web_config)
         container.start()
 
-        res = web_session.get("/expected_exception")
-        assert res.status_code == 400
-        assert res.text == 'Error: ApplicationError: Invalid request\n'
-
-    def test_expected_custom_exception(
-        self, container_factory, web_config, web_session
-    ):
-
-        from examples.http_exceptions import Service
-
-        container = container_factory(Service, web_config)
-        container.start()
-
-        res = web_session.get("/expected_custom_exception")
+        res = web_session.get("/custom_exception")
         assert res.status_code == 400
         assert res.headers['Content-Type'] == 'application/json'
         assert res.json() == {
-            'error': 'BAD_REQUEST',
-            'message': "Argument foo is required.",
+            'error': 'INVALID_ARGUMENTS',
+            'message': "Argument `foo` is required.",
         }
+
+    def test_will_not_handle_unknown_exception(self, container_factory, web_config, web_session):
+
+        from examples.http_exceptions import http
+
+        class Service(object):
+            name = "service"
+
+            @http('GET', '/exception')
+            def exception(self, request):
+                raise ValueError("Argument `foo` is required.")
+
+        container = container_factory(Service, web_config)
+        container.start()
+
+        res = web_session.get("/exception")
+        assert res.status_code == 500
 
 
 class TestEvents(object):

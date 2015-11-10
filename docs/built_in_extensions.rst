@@ -108,34 +108,24 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
     Date: Fri, 13 Feb 2015 14:58:48 GMT
 
 
-Expected exceptions can be added to ``expected_exceptions``. This will result in 400 HTTP error to be returned to the client. You can also change exception's formatting by overriding :meth:`~nameko.web.HttpRequestHandler.response_from_exception`:
+You can control formatting of errors returned from your service by overriding :meth:`~nameko.web.HttpRequestHandler.response_from_exception`:
 
 .. literalinclude:: examples/http_exceptions.py
 
 .. code-block:: shell
 
     $ nameko run http_exceptions
-    starting services: http_exceptions_service
+    starting services: http_service
 
 .. code-block:: shell
 
-    $ curl -i http://localhost:8000/expected_exception
-    HTTP/1.1 400 BAD REQUEST
-    Content-Type: text/plain; charset=utf-8
-    Content-Length: 41
-    Date: Thu, 06 Aug 2015 10:03:39 GMT
-
-    Error: ApplicationError: Invalid request
-
-.. code-block:: shell
-
-    $ curl -i http://localhost:8000/expected_custom_exception
+    $ curl -i http://localhost:8000/custom_exception
     HTTP/1.1 400 BAD REQUEST
     Content-Type: application/json
-    Content-Length: 64
+    Content-Length: 72
     Date: Thu, 06 Aug 2015 09:53:56 GMT
 
-    {"message": "Argument foo is required.", "error": "BAD_REQUEST"}
+    {"message": "Argument `foo` is required.", "error": "INVALID_ARGUMENTS"}
 
 
 
