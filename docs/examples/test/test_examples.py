@@ -3,7 +3,6 @@
 import os
 
 from mock import call, patch
-import requests
 
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
@@ -12,41 +11,71 @@ from nameko.testing.services import entrypoint_waiter
 
 class TestHttp(object):
 
-    base_url = "http://localhost:8000"
-
-    def test_http(self, container_factory, rabbit_config):
+    def test_http(self, container_factory, web_config, web_session):
 
         from examples.http import HttpService
 
-        container = container_factory(HttpService, rabbit_config)
+        container = container_factory(HttpService, web_config)
         container.start()
 
-        res = requests.get(self.base_url + "/get/42")
+        res = web_session.get("/get/42")
         assert res.status_code == 200
         assert res.text == '{"value": 42}'
 
-        res = requests.post(self.base_url + "/post", data="Hello")
+        res = web_session.post("/post", data="Hello")
         assert res.status_code == 200
         assert res.text == 'received: Hello'
 
-    def test_advanced(self, container_factory, rabbit_config):
+    def test_advanced(self, container_factory, web_config, web_session):
 
         from examples.advanced_http import Service
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service, web_config)
         container.start()
 
-        res = requests.get(self.base_url + "/privileged")
+        res = web_session.get("/privileged")
         assert res.status_code == 403
         assert res.text == 'Forbidden'
 
-        res = requests.get(self.base_url + "/headers")
+        res = web_session.get("/headers")
         assert res.status_code == 201
         assert res.headers['location'] == 'https://www.example.com/widget/1'
 
-        res = requests.get(self.base_url + "/custom")
+        res = web_session.get("/custom")
         assert res.status_code == 200
         assert res.text == 'payload'
+
+    def test_custom_exception(self, container_factory, web_config, web_session):
+
+        from examples.http_exceptions import Service
+
+        container = container_factory(Service, web_config)
+        container.start()
+
+        res = web_session.get("/custom_exception")
+        assert res.status_code == 400
+        assert res.headers['Content-Type'] == 'application/json'
+        assert res.json() == {
+            'error': 'INVALID_ARGUMENTS',
+            'message': "Argument `foo` is required.",
+        }
+
+    def test_will_not_handle_unknown_exception(self, container_factory, web_config, web_session):
+
+        from examples.http_exceptions import http
+
+        class Service(object):
+            name = "service"
+
+            @http('GET', '/exception')
+            def exception(self, request):
+                raise ValueError("Argument `foo` is required.")
+
+        container = container_factory(Service, web_config)
+        container.start()
+
+        res = web_session.get("/exception")
+        assert res.status_code == 500
 
 
 class TestEvents(object):
