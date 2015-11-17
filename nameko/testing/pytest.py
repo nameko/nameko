@@ -101,7 +101,7 @@ def rabbit_config(request, rabbit_manager):
 
     if use_random_vost:
         vhost = "test_{}".format(
-            "".join(random.choice(string.lowercase) for _ in range(10))
+            "".join(random.choice(string.ascii_lowercase) for _ in range(10))
         )
         amqp_uri = "{}://{}/{}".format(uri.scheme, uri.netloc, vhost)
         rabbit_manager.create_vhost(vhost)
