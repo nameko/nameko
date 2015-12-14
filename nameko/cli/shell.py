@@ -24,11 +24,11 @@ class ShellRunner(object):
         self.local = local
 
     def bpython(self):
-        import bpython
+        import bpython  # pylint: disable=E0401
         bpython.embed(banner=self.banner, locals_=self.local)
 
     def ipython(self):
-        from IPython import embed
+        from IPython import embed  # pylint: disable=E0401
         embed(banner1=self.banner, user_ns=self.local)
 
     def plain(self):
