@@ -38,7 +38,7 @@ setup(
             "mccabe==0.3",
             "pep8==1.6.1",
             "pyflakes==0.8.1",
-            "pylint==1.0.0",
+            "pylint==1.5.1",
             "pytest==2.7.2",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
