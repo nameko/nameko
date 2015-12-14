@@ -55,7 +55,7 @@ For this step you will need to get into this terminal of the linux virtual machi
 - then navigate down with the space bar until you see the `eth1` paragraph
 ![](https://s3-eu-west-1.amazonaws.com/uploads-eu.hipchat.com/30565/816445/g32USeIRw7OMsKk/Screen%20Shot%202015-12-14%20at%2015.27.00.png)
 
-- In this case the IP that we are interested in is `192.168.99.11`.
+- In this case the IP that we are interested in is `192.168.99.100`.
 
 Take note of this IP address and proceed to the next step.
 
