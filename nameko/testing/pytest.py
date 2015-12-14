@@ -61,6 +61,14 @@ def empty_config(request):
 
 
 @pytest.fixture
+def empty_crossbar_config(request):
+    from nameko.constants import WAMP_URI_CONFIG_KEY
+    return {
+        WAMP_URI_CONFIG_KEY: ""
+    }
+
+
+@pytest.fixture
 def mock_container(request, empty_config):
     from mock import Mock
     from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
@@ -183,6 +191,22 @@ def web_config(empty_config):
     sock.close()
 
     cfg = empty_config
+    cfg[WEB_SERVER_CONFIG_KEY] = str(port)
+    return cfg
+
+
+@pytest.fixture()
+def wamp_config(empty_crossbar_config):
+    import socket
+    from nameko.constants import WEB_SERVER_CONFIG_KEY
+
+    # find a port that's likely to be free
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(('127.0.0.1', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    cfg = empty_crossbar_config
     cfg[WEB_SERVER_CONFIG_KEY] = str(port)
     return cfg
 
