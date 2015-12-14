@@ -13,3 +13,4 @@ RUN pip install --upgrade cffi
 # docker run -p 8080 crossbar
 ADD ./config.json /.crossbar/config.json
 ENTRYPOINT ["crossbar", "start", "--config", "/.crossbar/config.json"]
+# ENTRYPOINT ["crossbar", "start", "--cbdir", "/hello/.crossbar"]
