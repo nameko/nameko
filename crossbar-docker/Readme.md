@@ -31,7 +31,7 @@
 
 ## 2 - Building and Running Docker the container that will host crossbar
 
-- Open a new termianl windo and navigate to the same directory as this readme file. 
+- Open a new terminal window and navigate to the same directory as this readme file. 
 - from here, make the BASH files executable using `chmod u+x *.sh` and then:
 	- To build and run the docker image execute `./first_setup_and_run.sh`
 	- and to jut run it do `./start_post_setup.sh`
