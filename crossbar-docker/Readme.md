@@ -61,8 +61,11 @@ Take note of this IP address and proceed to the next step.
 
 ## 4 - Testing the URI from your browser
 
-Open you favourite browser and go to the relevant IP with `:8080` added at the end to point at the correct port, e.g. [http://192.168.99.100:8080/](http://192.168.99.100:8080/).
+- Open an **incognito window** on you favourite browser and 
+	- this will prevent false positives as incognito windows do not use caching.
+- go to the relevant IP with `:8080` added at the end to point at the correct port, e.g. [http://192.168.99.100:8080/](http://192.168.99.100:8080/).
+
 
 If all is working well, you should see something similar to the screenshot below:
-![](https://s3-eu-west-1.amazonaws.com/uploads-eu.hipchat.com/30565/816445/B6b6ARQcs76qygc/Screen%20Shot%202015-12-14%20at%2015.27.35.png)
+![](https://s3-eu-west-1.amazonaws.com/uploads-eu.hipchat.com/30565/816445/RBHeWUbYxEs8YGR/Screen%20Shot%202015-12-14%20at%2016.08.16.png)
 
