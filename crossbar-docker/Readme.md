@@ -66,6 +66,11 @@ Take note of this IP address and proceed to the next step.
 - go to the relevant IP with `:8080` added at the end to point at the correct port, e.g. [http://192.168.99.100:8080/](http://192.168.99.100:8080/).
 
 
-If all is working well, you should see something similar to the screenshot below:
+If all is working well, you should see something similar to the screenshot below.
+
+- This may seem contradictory as it displays a 404 error page but [the documentation](http://crossbar.io/docs/The-Command-Line/) says this means that all is working well.
+
+>Open http://localhost:8080 in your browser. You should see a 404 page rendered by Crossbar.io. Which means: it works! 
+
 ![](https://s3-eu-west-1.amazonaws.com/uploads-eu.hipchat.com/30565/816445/RBHeWUbYxEs8YGR/Screen%20Shot%202015-12-14%20at%2016.08.16.png)
 
