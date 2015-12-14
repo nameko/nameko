@@ -176,7 +176,7 @@ class ABNF(object):
                 + " data=" + str(self.data)
 
     @staticmethod
-    def create_frame(data, opcode, fin=1):
+    def _create_frame(data, opcode, fin=1):
         """
         create frame to send text, binary and other data.
 
@@ -188,11 +188,86 @@ class ABNF(object):
 
         fin: fin flag. if set to 0, create continue fragmentation.
         """
+
+        # should be more like....
+        # https://github.com/crossbario/autobahn-python/blob/a771b54bc93f4d0cc273162dc737f2c528a92fdd/autobahn/websocket/protocol.py#L1749
+        raise
+
         if opcode == ABNF.OPCODE_TEXT and isinstance(data, six.text_type):
             data = data.encode("utf-8")
-        # mask must be set if send data from client
+        # mask must be set if send data from client 
 
         return ABNF(fin, 0, 0, 0, opcode, 1, data)
+
+    @staticmethod
+    def create_frame(data,
+                  opcode,
+                  payload=b'',
+                  fin=True,
+                  rsv=0,
+                  mask=None,
+                  payload_len=None,
+                  chopsize=None,
+                  sync=False):
+        """
+        Send out frame. Normally only used internally via sendMessage(),
+        sendPing(), sendPong() and sendClose().
+        This method deliberately allows to send invalid frames (that is frames
+        invalid per-se, or frames invalid because of protocol state). Other
+        than in fuzzing servers, calling methods will ensure that no invalid
+        frames are sent.
+        In addition, this method supports explicit specification of payload
+        length. When payload_len is given, it will always write that many
+        octets to the stream. It'll wrap within payload, resending parts of
+        that when more octets were requested The use case is again for fuzzing
+        server which want to sent increasing amounts of payload data to peers
+        without having to construct potentially large messages themselves.
+        """
+        print('create frame')
+        if payload_len is not None:
+            if len(payload) < 1:
+                raise Exception("cannot construct repeated payload with length %d from payload of length %d" % (payload_len, len(payload)))
+            l = payload_len
+            pl = b''.join([payload for _ in range(payload_len / len(payload))]) + payload[:payload_len % len(payload)]
+        else:
+            l = len(payload)
+            pl = payload
+
+        # first byte
+        #
+        b0 = 0
+        if fin:
+            b0 |= (1 << 7)
+        b0 |= (rsv % 8) << 4
+        b0 |= opcode % 128
+
+        # second byte, payload len bytes and mask
+        #
+        b1 = 0
+        mv = b''
+        plm = pl
+
+        el = b''
+        if l <= 125:
+            b1 |= l
+        elif l <= 0xFFFF:
+            b1 |= 126
+            el = struct.pack("!H", l)
+        elif l <= 0x7FFFFFFFFFFFFFFF:
+            b1 |= 127
+            el = struct.pack("!Q", l)
+        else:
+            raise Exception("invalid payload length")
+
+        if six.PY3:
+            raw = b''.join([b0.to_bytes(1, 'big'), b1.to_bytes(1, 'big'), el, mv, plm])
+        else:
+            raw = b''.join([chr(b0), chr(b1), el, mv, plm])
+
+        #return raw
+        print(raw)
+        return ABNF(fin, 0, 0, 0, opcode, 1, raw)
+
 
     def format(self):
         """
@@ -927,7 +1002,8 @@ class WampWebSocket(object):
 
         opcode: operation code to send. Please see OPCODE_XXX.
         """
-        frame = ABNF.create_frame(payload, opcode)
+        print('send message to broker')
+        frame = ABNF.create_frame(payload, opcode)  
         return self.send_frame(frame)
 
     def send_frame(self, frame):
@@ -1224,17 +1300,3 @@ class WampWebSocket(object):
             if c == six.b("\n"):
                 break
         return six.b("").join(line)
-
-
-
-
-if __name__ == "__main__":
-    enableTrace(True)
-    ws = create_connection("ws://echo.websocket.org/")
-    print("Sending 'Hello, World'...")
-    ws.send("Hello, World")
-    print("Sent")
-    print("Receiving...")
-    result = ws.recv()
-    print("Received '%s'" % result)
-    ws.close()

@@ -20,7 +20,7 @@ def websocket():
 def message(websocket):
     ws = websocket
     ws.send("hello world")
-    print('send message')
+    print('sent test message')
 
 
 class ExampleService(object):

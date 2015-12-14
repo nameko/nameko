@@ -20,6 +20,7 @@ class WampWebSocketServer(SharedExtension, ProviderCollector):
         assert conn.connected
 
         self.conn = conn
+        print('setup WampWebSocketServer complete')
 
     def stop(self):
         print('stop WampWebSocketServer')
@@ -36,6 +37,10 @@ class WampRpc(Entrypoint):
 
     def setup(self):
         print('setup WampRpc')
+
+        # how to register this with Crossbar instead???
+        # https://github.com/crossbario/autobahn-python/blob/8f0c54eccaed2a4008a41d6bcd5573a674c22b6c/autobahn/wamp/uri.py#L228
+
         self.server.register_provider(self)
 
     def stop(self):
