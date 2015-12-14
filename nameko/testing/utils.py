@@ -3,7 +3,7 @@ Common testing utilities.
 """
 from contextlib import contextmanager
 from functools import partial
-from six.moves.urllib.parse import urlparse  # pylint: disable=E0611
+from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
 import eventlet
 from mock import Mock
