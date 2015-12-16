@@ -10,12 +10,8 @@ GitHub
 
 To raise a bug or issue against the project, visit the `GitHub <https://github.com/onefinestay/nameko>`_ page.
 
-IRC
----
+Mailing list
+------------
 
-For a quick chat or question someone is usually available on Freenode in the `#nameko <irc://chat.freenode.net/nameko>`_ room.
-
-Email
------
-
-You can email more in-depth questions to `nameko-devs@onefinestay.com <mailto:nameko-devs@onefinestay.com>`_.
+For help, comments or questions, please use the `mailing list
+<https://groups.google.com/forum/#!forum/nameko-dev>`_ on google groups.
