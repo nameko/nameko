@@ -62,8 +62,8 @@ Getting Started
 Support
 -------
 
-* Join the mailing list
-* Find us on IRC
+For help, comments or questions, please use the `mailing list
+<https://groups.google.com/forum/#!forum/nameko-dev>`_ on google groups.
 
 
 Contribute
