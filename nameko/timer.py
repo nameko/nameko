@@ -11,12 +11,13 @@ _log = getLogger(__name__)
 
 
 class Timer(Entrypoint):
-    def __init__(self, interval):
+    def __init__(self, interval, eager=False):
         """
-        Timer entrypoint implementation. Fires every :attr:`self.interval`
+        Timer entrypoint implementation. Fires every :attr:`interval`
         seconds.
 
-        The implementation sleeps first, i.e. does not fire at time 0.
+        The implementation sleeps first,i.e. does not fire at time 0.
+        If you want to fire at time 0 (fire first) set :attr:`eager`=True
 
         Example::
 
@@ -31,6 +32,7 @@ class Timer(Entrypoint):
 
         """
         self.interval = interval
+        self.eager = eager
         self.should_stop = Event()
         self.gt = None
 
@@ -50,7 +52,7 @@ class Timer(Entrypoint):
     def _run(self):
         """ Runs the interval loop. """
 
-        sleep_time = self.interval
+        sleep_time = 0 if self.eager else self.interval
 
         while True:
             # sleep for `sleep_time`, unless `should_stop` fires, in which

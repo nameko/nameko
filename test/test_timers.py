@@ -8,16 +8,17 @@ from nameko.timer import Timer
 from nameko.testing.utils import wait_for_call
 
 
-def test_provider():
+def test_provider(interval=0.1, eager=False):
     container = Mock(spec=ServiceContainer)
     container.service_name = "service"
     container.spawn_managed_thread = eventlet.spawn
 
-    timer = Timer(interval=0.1).bind(container, "method")
+    timer = Timer(interval, eager).bind(container, "method")
     timer.setup()
     timer.start()
 
-    assert timer.interval == 0.1
+    assert timer.interval == interval
+    assert timer.eager == eager
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         with Timeout(1):
@@ -27,6 +28,10 @@ def test_provider():
     # a single worker
     spawn_worker.assert_called_once_with(timer, (), {})
     assert timer.gt.dead
+
+
+def test_provider_param_eager():
+    test_provider(interval=5, eager=True)
 
 
 def test_stop_timer_immediatly():
