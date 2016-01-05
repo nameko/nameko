@@ -11,16 +11,17 @@ def spawn_managed_thread(fn, identifier=None):
     return eventlet.spawn(fn)
 
 
-def test_provider():
+def test_provider(interval=0.1, eager=False):
     container = create_autospec(ServiceContainer)
     container.service_name = "service"
     container.spawn_managed_thread = spawn_managed_thread
 
-    timer = Timer(interval=0.1).bind(container, "method")
+    timer = Timer(interval, eager).bind(container, "method")
     timer.setup()
     timer.start()
 
-    assert timer.interval == 0.1
+    assert timer.interval == interval
+    assert timer.eager == eager
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
         with Timeout(1):
@@ -32,7 +33,11 @@ def test_provider():
     assert timer.gt.dead
 
 
-def test_stop_timer_immediately():
+def test_provider_param_eager():
+    test_provider(interval=5, eager=True)
+
+
+def test_stop_timer_immediatly():
     container = create_autospec(ServiceContainer)
     container.service_name = "service"
     container.config = {}
