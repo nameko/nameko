@@ -1,5 +1,5 @@
 import eventlet
-from eventlet import Timeout
+
 from mock import create_autospec
 
 from nameko.containers import ServiceContainer
@@ -24,12 +24,13 @@ def test_provider(interval=0.1, eager=False):
     assert timer.eager == eager
 
     with wait_for_call(1, container.spawn_worker) as spawn_worker:
-        with Timeout(1):
-            timer.stop()
+        timer.handle_result(None, None, None)
+        timer.stop()
 
     # the timer should have stopped and should only have spawned
     # a single worker
-    spawn_worker.assert_called_once_with(timer, (), {})
+    spawn_worker.assert_called_once_with(
+        timer, (), {}, handle_result=timer.handle_result)
     assert timer.gt.dead
 
 
