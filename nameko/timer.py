@@ -14,12 +14,12 @@ _log = getLogger(__name__)
 class Timer(Entrypoint):
     def __init__(self, interval, eager=False):
         """
-        Timer entrypoint. Fires every `interval` seconds or as soon as the previous
-        worker completes if that took longer.
+        Timer entrypoint. Fires every `interval` seconds or as soon as
+        the previous worker completes if that took longer.
 
-        The default behaviour is to wait `interval` seconds before firing for the
-        first time. If you want the entrypoint to fire as soon as the service starts,
-        pass `eager=True`.
+        The default behaviour is to wait `interval` seconds
+        before firing for the first time. If you want the entrypoint
+        to fire as soon as the service starts, pass `eager=True`.
 
         Example::
 
@@ -36,7 +36,7 @@ class Timer(Entrypoint):
         self.interval = interval
         self.eager = eager
         self.should_stop = False
-        self.event = Event()
+        self.worker_complete = Event()
         self.gt = None
 
     def start(self):
@@ -65,8 +65,8 @@ class Timer(Entrypoint):
 
             self.handle_timer_tick()
 
-            self.event.wait()
-            self.event.reset()
+            self.worker_complete.wait()
+            self.worker_complete.reset()
 
             elapsed_time = (time.time() - start)
 
@@ -90,7 +90,7 @@ class Timer(Entrypoint):
             self, args, kwargs, handle_result=self.handle_result)
 
     def handle_result(self, worker_ctx, result, exc_info):
-        self.event.send(result, exc_info)
+        self.worker_complete.send()
         return result, exc_info
 
 
