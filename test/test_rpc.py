@@ -3,7 +3,7 @@ import warnings
 
 import eventlet
 from eventlet.event import Event
-from mock import patch, Mock, call
+from mock import patch, Mock, call, create_autospec
 import pytest
 
 from nameko.containers import (
@@ -126,9 +126,10 @@ def get_rpc_exchange():
 
 @pytest.yield_fixture
 def queue_consumer():
-    replacement = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
-        yield mock_ext.return_value
+    replacement = create_autospec(QueueConsumer)
+    with patch.object(QueueConsumer, 'bind') as mock_ext:
+        mock_ext.return_value = replacement
+        yield replacement
 
 
 def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
