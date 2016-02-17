@@ -22,7 +22,7 @@ setup(
     url='http://github.com/onefinestay/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        "eventlet>=0.15.0",
+        "eventlet>=0.16.1",
         "kombu>=3.0.1",
         "mock>=1.0.1",
         "path.py>=6.2",
