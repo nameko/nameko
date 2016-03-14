@@ -29,14 +29,14 @@ Example::
 
 """
 from __future__ import absolute_import
+
+import socket
 from logging import getLogger
-import uuid
 
 from kombu import Queue
 
-from nameko.standalone.events import get_event_exchange, event_dispatcher
-from nameko.messaging import Publisher, Consumer
-
+from nameko.messaging import Consumer, Publisher
+from nameko.standalone.events import event_dispatcher, get_event_exchange
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
@@ -45,9 +45,8 @@ BROADCAST = "broadcast"
 _log = getLogger(__name__)
 
 
-class EventHandlerConfigurationError(Exception):
-    """ Raised when an event handler is misconfigured.
-    """
+def gethostname():
+    return socket.gethostname()
 
 
 class EventDispatcher(Publisher):
@@ -101,8 +100,8 @@ class EventDispatcher(Publisher):
 class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=None, requeue_on_error=False,
-                 sensitive_variables=()):
+                 reliable_delivery=True, requeue_on_error=False,
+                 sensitive_variables=(), differentiator=gethostname):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``source_service``.
@@ -138,7 +137,8 @@ class EventHandler(Consumer):
                 - ``events.BROADCAST``:
                     Events will be received by every handler. Events are
                     broadcast to every service instance, not just every service
-                    type - use wisely! ::
+                    type. Instances are differentiated using
+                    :func:`differentiator`. ::
                                     [queue]- (service X(inst. 1) handler-meth)
                                   /
                         exchange o - [queue]- (service X(inst. 2) handler-meth)
@@ -150,35 +150,25 @@ class EventHandler(Consumer):
                 error occurs while handling it. Defaults to False.
             reliable_delivery : bool
                 If true, events will be held in the queue until there is a
-                handler to consume them. Defaults to True unless the
-                ``handler_type`` is ``BROADCAST``.
+                handler to consume them. Defaults to True.
             sensitive_variables : string or tuple of strings
                 Mark an argument or part of an argument as sensitive. Saved
                 on the entrypoint instance as
                 ``entrypoint.sensitive_variables`` for later inspection by
                 other extensions, for example a logging system.
                 :seealso: :func:`nameko.utils.get_redacted_args`
-
-        :Raises:
-            :exc:`EventHandlerConfigurationError` if the ``handler_type``
-            is set to ``BROADCAST`` and ``reliable_delivery`` is set to
-            ``True``.
+            differentiator : callable
+                Used when ``handler_type`` is ``BROADCAST`` to generate an
+                identifier for each service instance. Defaults to
+                :func:`gethostname`. Note that this will not be unique
+                for multiple service instances on the same machine.
         """
-        if reliable_delivery and handler_type is BROADCAST:
-            raise EventHandlerConfigurationError(
-                "Broadcast event handlers cannot be configured with reliable "
-                "delivery.")
-
-        if handler_type is BROADCAST:
-            reliable_delivery = False
-        elif reliable_delivery is None:
-            reliable_delivery = True
-
         self.source_service = source_service
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
         self.sensitive_variables = sensitive_variables
+        self.differentiator = differentiator
 
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)
@@ -197,11 +187,12 @@ class EventHandler(Consumer):
             queue_name = "evt-{}-{}".format(self.source_service,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
+            differentiator = self.differentiator()
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.source_service,
                                                       self.event_type,
                                                       service_name,
                                                       self.method_name,
-                                                      uuid.uuid4().hex)
+                                                      differentiator)
 
         exchange = get_event_exchange(self.source_service)
 

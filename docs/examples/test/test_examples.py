@@ -5,7 +5,7 @@ import os
 from mock import call, patch
 
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
+from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.services import entrypoint_waiter
 
 
@@ -120,7 +120,10 @@ class TestEvents(object):
                 code = compile(f.read(), filepath, 'exec')
                 exec(code, globals(), ns)
 
-    def test_event_broadcast(self, container_factory, rabbit_config):
+    @patch('nameko.events.socket')
+    def test_event_broadcast(self, mock_socket, container_factory, rabbit_config):
+
+        mock_socket.gethostname.side_effect = ["foo", "bar"]
 
         from examples.event_broadcast import ListenerService
 

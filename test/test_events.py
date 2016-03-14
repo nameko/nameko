@@ -1,17 +1,18 @@
-import pytest
-import eventlet
+import socket
+import uuid
 from collections import defaultdict
 
+import eventlet
+import pytest
 from mock import Mock, patch
 
 from nameko.containers import WorkerContext
 from nameko.events import (
-    EventDispatcher, EventHandlerConfigurationError, event_handler, SINGLETON,
-    BROADCAST, SERVICE_POOL, EventHandler)
+    BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
+    event_handler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.testing.utils import DummyProvider
-
 
 EVENTS_TIMEOUT = 5
 
@@ -21,6 +22,13 @@ def queue_consumer():
     replacement = Mock(spec=QueueConsumer)
     with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
         yield mock_ext.return_value
+
+
+@pytest.yield_fixture
+def distinct_hostnames():
+    with patch('nameko.events.socket') as patched:
+        patched.gethostname.side_effect = lambda: uuid.uuid4().hex
+        yield patched
 
 
 def test_event_dispatcher(mock_container):
@@ -68,53 +76,59 @@ def test_event_handler(queue_consumer, mock_container):
     queue_consumer.register_provider.assert_called_once_with(event_handler)
 
     # test service pool handler
-    event_handler = EventHandler("srcservice", "eventtype").bind(container,
-                                                                 "foobar")
+    event_handler = EventHandler(
+        "srcservice", "eventtype"
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
-    assert (event_handler.queue.name ==
-            "evt-srcservice-eventtype--destservice.foobar")
+    assert event_handler.queue.name == (
+        "evt-srcservice-eventtype--destservice.foobar")
 
     # test broadcast handler
-    event_handler = EventHandler("srcservice", "eventtype",
-                                 handler_type=BROADCAST).bind(container,
-                                                              "foobar")
+    event_handler = EventHandler(
+        "srcservice", "eventtype", handler_type=BROADCAST
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
-    assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
+    hostname = socket.gethostname()
+    assert event_handler.queue.name == (
+        "evt-srcservice-eventtype--destservice.foobar-{}".format(hostname))
+
+    # test broadcast handler with differentiator
+    event_handler = EventHandler(
+        "srcservice", "eventtype", handler_type=BROADCAST,
+        differentiator=lambda: "testbox"
+    ).bind(
+        container, "foobar"
+    )
+    event_handler.setup()
+
+    assert event_handler.queue.name == (
+        "evt-srcservice-eventtype--destservice.foobar-testbox")
 
     # test singleton handler
-    event_handler = EventHandler("srcservice", "eventtype",
-                                 handler_type=SINGLETON).bind(container,
-                                                              "foobar")
+    event_handler = EventHandler(
+        "srcservice", "eventtype", handler_type=SINGLETON
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
     assert event_handler.queue.name == "evt-srcservice-eventtype"
 
     # test reliable delivery
-    event_handler = EventHandler("srcservice", "eventtype").bind(container,
-                                                                 "foobar")
+    event_handler = EventHandler(
+        "srcservice", "eventtype"
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
     assert event_handler.queue.auto_delete is False
-
-
-def test_event_hander_reliable_delivery_defaults():
-    handler = EventHandler("srcservice", "eventtype")
-    assert handler.handler_type is SERVICE_POOL
-    assert handler.reliable_delivery is True
-
-    handler = EventHandler("srcservice", "eventtype", handler_type=BROADCAST)
-    assert handler.handler_type is BROADCAST
-    assert handler.reliable_delivery is False
-
-    handler = EventHandler("srcservice", "eventtype", handler_type=SINGLETON)
-    assert handler.handler_type is SINGLETON
-    assert handler.reliable_delivery is True
-
-    with pytest.raises(EventHandlerConfigurationError):
-        EventHandler("srcservice", "eventtype",
-                     reliable_delivery=True, handler_type=BROADCAST)
 
 
 # =============================================================================
@@ -367,6 +381,7 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
     assert services[lucky_service][0].events == ["msg"]
 
 
+@pytest.mark.usefixtures('distinct_hostnames')
 def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
     vhost = rabbit_config['vhost']
     start_containers(BroadcastHandler, ("foo", "foo", "bar"))
