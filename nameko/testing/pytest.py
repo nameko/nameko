@@ -88,7 +88,7 @@ def rabbit_config(request, rabbit_manager):
     import random
     import string
     from kombu import pools
-    from six.moves.urllib.parse import urlparse  # pylint: disable=E0611
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     from nameko.testing.utils import get_rabbit_connections
 
     amqp_uri = request.config.getoption('AMQP_URI')
