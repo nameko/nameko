@@ -4,14 +4,13 @@ import pytest
 
 from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
-from nameko.rpc import rpc, RpcProxy
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
 from nameko.web.handlers import http
 from nameko.web.server import parse_address
 from nameko.web.websocket import rpc as wsrpc
-
 
 pytest_plugins = "pytester"
 
@@ -79,7 +78,7 @@ def test_rabbit_config_leftover_connections(testdir):
     result = testdir.runpytest()
     assert result.ret == 1
     result.stdout.fnmatch_lines(
-        ["*RuntimeError: 1 rabbit connection(s) left open.*"]
+        ["*RuntimeError: 1 rabbit connection(s) left open*"]
     )
 
 

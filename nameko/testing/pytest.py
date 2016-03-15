@@ -125,8 +125,9 @@ def rabbit_config(request, rabbit_manager):
         ]
         if open_connections:
             count = len(open_connections)
+            names = ", ".join(conn['name'] for conn in open_connections)
             raise RuntimeError(
-                "{} rabbit connection(s) left open.".format(count))
+                "{} rabbit connection(s) left open: {}".format(count, names))
     finally:
         if use_random_vost:
             rabbit_manager.delete_vhost(vhost)
