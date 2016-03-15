@@ -108,6 +108,27 @@ The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_.
     Date: Fri, 13 Feb 2015 14:58:48 GMT
 
 
+You can control formatting of errors returned from your service by overriding :meth:`~nameko.web.HttpRequestHandler.response_from_exception`:
+
+.. literalinclude:: examples/http_exceptions.py
+
+.. code-block:: shell
+
+    $ nameko run http_exceptions
+    starting services: http_service
+
+.. code-block:: shell
+
+    $ curl -i http://localhost:8000/custom_exception
+    HTTP/1.1 400 BAD REQUEST
+    Content-Type: application/json
+    Content-Length: 72
+    Date: Thu, 06 Aug 2015 09:53:56 GMT
+
+    {"message": "Argument `foo` is required.", "error": "INVALID_ARGUMENTS"}
+
+
+
 Timer
 -----
 

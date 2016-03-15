@@ -6,6 +6,7 @@ to the built-in namespace, providing ``n.rpc`` and ``n.dispatch_event``.
 import code
 import os
 import sys
+import yaml
 from types import ModuleType
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
@@ -23,11 +24,11 @@ class ShellRunner(object):
         self.local = local
 
     def bpython(self):
-        import bpython
+        import bpython  # pylint: disable=E0401
         bpython.embed(banner=self.banner, locals_=self.local)
 
     def ipython(self):
-        from IPython import embed
+        from IPython import embed  # pylint: disable=E0401
         embed(banner1=self.banner, user_ns=self.local)
 
     def plain(self):
@@ -59,6 +60,9 @@ def init_parser(parser):
     parser.add_argument(
         '--interface', choices=SHELLS,
         help='Specify an interactive interpreter interface.')
+    parser.add_argument(
+        '--config', default='',
+        help='The YAML configuration file')
     return parser
 
 
@@ -67,7 +71,7 @@ def make_nameko_helper(config):
     standalone functionality for interactive shell usage.
     """
     module = ModuleType('nameko')
-    module.__doc__ = """Nameko shell helper for making rpc calls and dispaching
+    module.__doc__ = """Nameko shell helper for making rpc calls and dispatching
 events.
 
 Usage:
@@ -90,7 +94,12 @@ def main(args):
         sys.platform,
         args.broker.encode('utf-8'),
     )
-    config = {AMQP_URI_CONFIG_KEY: args.broker}
+
+    if args.config:
+        with open(args.config) as fle:
+            config = yaml.load(fle)
+    else:
+        config = {AMQP_URI_CONFIG_KEY: args.broker}
 
     ctx = {}
     ctx['n'] = make_nameko_helper(config)

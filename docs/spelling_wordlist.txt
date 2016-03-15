@@ -38,6 +38,7 @@ entrypoints
 eventlet
 extensibility
 freenode
+google
 greenthread
 greenthreads
 homebrew

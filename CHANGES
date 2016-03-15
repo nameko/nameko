@@ -6,6 +6,15 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.2.1
+-------------
+
+Released PENDING
+
+* Add support for loading configuration file in ``nameko shell`` via ```--config`` option
+* Changed :class:`~nameko.web.handlers.HttpRequestHandler` to allow override how web exceptions are handled
+
+
 Version 2.2.0
 -------------
 
