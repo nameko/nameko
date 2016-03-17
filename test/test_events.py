@@ -1,4 +1,3 @@
-import socket
 from collections import defaultdict
 
 import eventlet
