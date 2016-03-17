@@ -184,17 +184,10 @@ class EventHandler(Consumer):
                 # any unconsumed messages will be lost
                 return uuid.uuid4().hex
 
+        The default behaviour is therefore incompatible with reliable delivery.
+
         An alternative `broadcast_identifier` that would survive service
         restarts is ::
-
-            @property
-            def broadcast_identifier(self):
-                # use the machine hostname as the identifier.
-                # this assumes that only one instance of a service runs on
-                # any given machine
-                return socket.gethostname()
-
-        An alternative that would survive service restarts is ::
 
             @property
             def broadcast_identifier(self):
@@ -213,6 +206,12 @@ class EventHandler(Consumer):
         Broadcast queues are exclusive to ensure that `broadcast_identifier`
         values are unique.
         """
+        if self.reliable_delivery:
+            _log.warn(
+                "You are using the default broadcast identifier "
+                "which is not compatible with reliable delivery. See "
+                ":meth:`nameko.events.EventHandler.broadcast_identifier` "
+                "for details.")
         return uuid.uuid4().hex
 
     def setup(self):

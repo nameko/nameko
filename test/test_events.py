@@ -23,6 +23,13 @@ def queue_consumer():
         yield mock_ext.return_value
 
 
+@pytest.yield_fixture
+def logger():
+    with patch('nameko.events._log', autospec=True) as patched:
+        yield patched
+    patched.reset_mock()
+
+
 def test_event_dispatcher(mock_container):
 
     container = mock_container
@@ -81,7 +88,7 @@ def test_event_handler(queue_consumer, mock_container):
 
     # test broadcast handler with default identifier
     with patch('nameko.events.uuid') as mock_uuid:
-        mock_uuid.uuid4().hex = "uuid4"
+        mock_uuid.uuid4().hex = "uuid-value"
         event_handler = EventHandler(
             "srcservice", "eventtype", handler_type=BROADCAST
         ).bind(
@@ -90,7 +97,7 @@ def test_event_handler(queue_consumer, mock_container):
         event_handler.setup()
 
     assert event_handler.queue.name == (
-        "evt-srcservice-eventtype--destservice.foobar-{}".format("uuid4"))
+        "evt-srcservice-eventtype--destservice.foobar-{}".format("uuid-value"))
     assert event_handler.queue.exclusive is True
 
     # test broadcast handler with custom identifier
@@ -105,7 +112,7 @@ def test_event_handler(queue_consumer, mock_container):
     event_handler.setup()
 
     assert event_handler.queue.name == (
-        "evt-srcservice-eventtype--destservice.foobar-testbox")
+        "evt-srcservice-eventtype--destservice.foobar-{}".format("testbox"))
     assert event_handler.queue.exclusive is True
 
     # test singleton handler
@@ -128,6 +135,45 @@ def test_event_handler(queue_consumer, mock_container):
     event_handler.setup()
 
     assert event_handler.queue.auto_delete is False
+
+
+class TestReliableDeliveryWarning():
+
+    def test_warning_with_default_broadcast_identity(
+        self, queue_consumer, mock_container, logger
+    ):
+
+        container = mock_container
+        container.service_name = "destservice"
+
+        # test broadcast handler with reliable delivery
+        event_handler = EventHandler(
+            "srcservice", "eventtype",
+            handler_type=BROADCAST, reliable_delivery=True
+        ).bind(
+            container, "foobar"
+        )
+        event_handler.setup()
+        assert logger.warn.called
+
+    def test_no_warning_with_custom_identity(
+        self, queue_consumer, mock_container, logger
+    ):
+        container = mock_container
+        container.service_name = "destservice"
+
+        # test broadcast handler with reliable delivery and custom identifier
+        class BroadcastEventHandler(EventHandler):
+            broadcast_identifier = "testbox"
+
+        event_handler = BroadcastEventHandler(
+            "srcservice", "eventtype",
+            handler_type=BROADCAST, reliable_delivery=False
+        ).bind(
+            container, "foobar"
+        )
+        event_handler.setup()
+        assert not logger.warn.called
 
 
 # =============================================================================
