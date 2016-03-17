@@ -1,5 +1,3 @@
-import uuid
-
 import eventlet
 import pytest
 
@@ -33,9 +31,7 @@ class Service(object):
 
     @rpc
     @event_handler(
-        "srcservice", "testevent",
-        handler_type=BROADCAST, differentiator=lambda: uuid.uuid4().hex
-    )
+        "srcservice", "testevent", handler_type=BROADCAST)
     def handle(self, msg):
         received.append(msg)
 

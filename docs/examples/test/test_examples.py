@@ -120,10 +120,7 @@ class TestEvents(object):
                 code = compile(f.read(), filepath, 'exec')
                 exec(code, globals(), ns)
 
-    @patch('nameko.events.socket')
-    def test_event_broadcast(self, mock_socket, container_factory, rabbit_config):
-
-        mock_socket.gethostname.side_effect = ["foo", "bar"]
+    def test_event_broadcast(self, container_factory, rabbit_config):
 
         from examples.event_broadcast import ListenerService
 

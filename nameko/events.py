@@ -30,7 +30,7 @@ Example::
 """
 from __future__ import absolute_import
 
-import socket
+import uuid
 from logging import getLogger
 
 from kombu import Queue
@@ -43,10 +43,6 @@ SINGLETON = "singleton"
 BROADCAST = "broadcast"
 
 _log = getLogger(__name__)
-
-
-def gethostname():
-    return socket.gethostname()
 
 
 class EventDispatcher(Publisher):
@@ -101,7 +97,7 @@ class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
                  reliable_delivery=True, requeue_on_error=False,
-                 sensitive_variables=(), differentiator=gethostname):
+                 sensitive_variables=()):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``source_service``.
@@ -138,7 +134,7 @@ class EventHandler(Consumer):
                     Events will be received by every handler. Events are
                     broadcast to every service instance, not just every service
                     type. Instances are differentiated using
-                    :func:`differentiator`. ::
+                    :attr:`EventHandler.broadcast_identifier`. ::
                                     [queue]- (service X(inst. 1) handler-meth)
                                   /
                         exchange o - [queue]- (service X(inst. 2) handler-meth)
@@ -157,24 +153,72 @@ class EventHandler(Consumer):
                 ``entrypoint.sensitive_variables`` for later inspection by
                 other extensions, for example a logging system.
                 :seealso: :func:`nameko.utils.get_redacted_args`
-            differentiator : callable
-                Used when ``handler_type`` is ``BROADCAST`` to generate an
-                identifier for each service instance. Defaults to
-                :func:`gethostname`. Note that this will not be unique
-                for multiple service instances on the same machine.
         """
         self.source_service = source_service
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
         self.sensitive_variables = sensitive_variables
-        self.differentiator = differentiator
 
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)
 
+    @property
+    def broadcast_identifier(self):
+        """ A unique string to identify a service instance for `BROADCAST`
+        type handlers.
+
+        The `broadcast_identifier` is appended to the queue name when the
+        `BROADCAST` handler type is used. It must uniquely identify service
+        instances that receive broadcasts.
+
+        The default `broadcast_identifier` is a uuid that is set when the
+        service starts. It will change when the service restarts, meaning
+        that any unconsumed messages that were broadcast to the 'old' service
+        instance will not be received by the 'new' one. ::
+
+            @property
+            def broadcast_identifier(self):
+                # use a uuid as the identifier.
+                # the identifier will change when the service restarts and
+                # any unconsumed messages will be lost
+                return uuid.uuid4().hex
+
+        An alternative `broadcast_identifier` that would survive service
+        restarts is ::
+
+            @property
+            def broadcast_identifier(self):
+                # use the machine hostname as the identifier.
+                # this assumes that only one instance of a service runs on
+                # any given machine
+                return socket.gethostname()
+
+        An alternative that would survive service restarts is ::
+
+            @property
+            def broadcast_identifier(self):
+                # use the machine hostname as the identifier.
+                # this assumes that only one instance of a service runs on
+                # any given machine
+                return socket.gethostname()
+
+        If neither of these approaches are appropriate, you could read the
+        value out of a configuration file ::
+
+            @property
+            def broadcast_identifier(self):
+                return self.config['SERVICE_IDENTIFIER']  # or similar
+
+        Broadcast queues are exclusive to ensure that `broadcast_identifier`
+        values are unique.
+        """
+        return uuid.uuid4().hex
+
     def setup(self):
         _log.debug('starting %s', self)
+
+        exclusive = False
 
         # handler_type determines queue name
         service_name = self.container.service_name
@@ -187,20 +231,24 @@ class EventHandler(Consumer):
             queue_name = "evt-{}-{}".format(self.source_service,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
-            differentiator = self.differentiator()
+            broadcast_identifier = self.broadcast_identifier
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.source_service,
                                                       self.event_type,
                                                       service_name,
                                                       self.method_name,
-                                                      differentiator)
+                                                      broadcast_identifier)
 
         exchange = get_event_exchange(self.source_service)
 
         # auto-delete queues if events are not reliably delivered
         auto_delete = not self.reliable_delivery
+
+        # broadcast queues are exclusive
+        exclusive = self.handler_type is BROADCAST
+
         self.queue = Queue(
             queue_name, exchange=exchange, routing_key=self.event_type,
-            durable=True, auto_delete=auto_delete)
+            durable=True, auto_delete=auto_delete, exclusive=exclusive)
 
         super(EventHandler, self).setup()
 

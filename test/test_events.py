@@ -1,5 +1,4 @@
 import socket
-import uuid
 from collections import defaultdict
 
 import eventlet
@@ -22,13 +21,6 @@ def queue_consumer():
     replacement = Mock(spec=QueueConsumer)
     with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
         yield mock_ext.return_value
-
-
-@pytest.yield_fixture
-def distinct_hostnames():
-    with patch('nameko.events.socket') as patched:
-        patched.gethostname.side_effect = lambda: uuid.uuid4().hex
-        yield patched
 
 
 def test_event_dispatcher(mock_container):
@@ -85,23 +77,28 @@ def test_event_handler(queue_consumer, mock_container):
 
     assert event_handler.queue.name == (
         "evt-srcservice-eventtype--destservice.foobar")
+    assert event_handler.queue.exclusive is False
 
-    # test broadcast handler
-    event_handler = EventHandler(
-        "srcservice", "eventtype", handler_type=BROADCAST
-    ).bind(
-        container, "foobar"
-    )
-    event_handler.setup()
+    # test broadcast handler with default identifier
+    with patch('nameko.events.uuid') as mock_uuid:
+        mock_uuid.uuid4().hex = "uuid4"
+        event_handler = EventHandler(
+            "srcservice", "eventtype", handler_type=BROADCAST
+        ).bind(
+            container, "foobar"
+        )
+        event_handler.setup()
 
-    hostname = socket.gethostname()
     assert event_handler.queue.name == (
-        "evt-srcservice-eventtype--destservice.foobar-{}".format(hostname))
+        "evt-srcservice-eventtype--destservice.foobar-{}".format("uuid4"))
+    assert event_handler.queue.exclusive is True
 
-    # test broadcast handler with differentiator
-    event_handler = EventHandler(
-        "srcservice", "eventtype", handler_type=BROADCAST,
-        differentiator=lambda: "testbox"
+    # test broadcast handler with custom identifier
+    class BroadcastEventHandler(EventHandler):
+        broadcast_identifier = "testbox"
+
+    event_handler = BroadcastEventHandler(
+        "srcservice", "eventtype", handler_type=BROADCAST
     ).bind(
         container, "foobar"
     )
@@ -109,6 +106,7 @@ def test_event_handler(queue_consumer, mock_container):
 
     assert event_handler.queue.name == (
         "evt-srcservice-eventtype--destservice.foobar-testbox")
+    assert event_handler.queue.exclusive is True
 
     # test singleton handler
     event_handler = EventHandler(
@@ -119,6 +117,7 @@ def test_event_handler(queue_consumer, mock_container):
     event_handler.setup()
 
     assert event_handler.queue.name == "evt-srcservice-eventtype"
+    assert event_handler.queue.exclusive is False
 
     # test reliable delivery
     event_handler = EventHandler(
@@ -381,7 +380,6 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
     assert services[lucky_service][0].events == ["msg"]
 
 
-@pytest.mark.usefixtures('distinct_hostnames')
 def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
     vhost = rabbit_config['vhost']
     start_containers(BroadcastHandler, ("foo", "foo", "bar"))
