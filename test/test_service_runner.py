@@ -31,7 +31,9 @@ class Service(object):
 
     @rpc
     @event_handler(
-        "srcservice", "testevent", handler_type=BROADCAST)
+        "srcservice", "testevent",
+        handler_type=BROADCAST, reliable_delivery=False
+    )
     def handle(self, msg):
         received.append(msg)
 

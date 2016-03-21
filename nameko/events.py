@@ -45,6 +45,11 @@ BROADCAST = "broadcast"
 _log = getLogger(__name__)
 
 
+class EventHandlerConfigurationError(Exception):
+    """ Raised when an event handler is misconfigured.
+    """
+
+
 class EventDispatcher(Publisher):
     """ Provides an event dispatcher method via dependency injection.
 
@@ -206,20 +211,26 @@ class EventHandler(Consumer):
         Broadcast queues are exclusive to ensure that `broadcast_identifier`
         values are unique.
         """
-        if self.reliable_delivery:
-            _log.warn(
-                "You are using the default broadcast identifier "
-                "which is not compatible with reliable delivery. See "
-                ":meth:`nameko.events.EventHandler.broadcast_identifier` "
-                "for details.")
         return uuid.uuid4().hex
 
     def setup(self):
         _log.debug('starting %s', self)
 
-        exclusive = False
+        cls = type(self)
 
-        # handler_type determines queue name
+        if (
+            self.reliable_delivery and
+            self.handler_type is BROADCAST and
+            cls.broadcast_identifier is EventHandler.broadcast_identifier
+        ):
+            raise EventHandlerConfigurationError(
+                "You are using the default broadcast identifier "
+                "which is not compatible with reliable delivery. See "
+                ":meth:`nameko.events.EventHandler.broadcast_identifier` "
+                "for details.")
+
+        # handler_type determines queue name and exclusive flag
+        exclusive = False
         service_name = self.container.service_name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.source_service,

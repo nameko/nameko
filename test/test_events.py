@@ -7,7 +7,7 @@ from mock import Mock, patch
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
-    event_handler)
+    EventHandlerConfigurationError, event_handler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.testing.utils import DummyProvider
@@ -89,7 +89,8 @@ def test_event_handler(queue_consumer, mock_container):
     with patch('nameko.events.uuid') as mock_uuid:
         mock_uuid.uuid4().hex = "uuid-value"
         event_handler = EventHandler(
-            "srcservice", "eventtype", handler_type=BROADCAST
+            "srcservice", "eventtype",
+            handler_type=BROADCAST, reliable_delivery=False
         ).bind(
             container, "foobar"
         )
@@ -136,10 +137,10 @@ def test_event_handler(queue_consumer, mock_container):
     assert event_handler.queue.auto_delete is False
 
 
-class TestReliableDeliveryWarning():
+class TestReliableDeliveryEventHandlerConfigurationError():
 
-    def test_warning_with_default_broadcast_identity(
-        self, queue_consumer, mock_container, logger
+    def test_raises_with_default_broadcast_identity(
+        self, queue_consumer, mock_container
     ):
 
         container = mock_container
@@ -152,11 +153,11 @@ class TestReliableDeliveryWarning():
         ).bind(
             container, "foobar"
         )
-        event_handler.setup()
-        assert logger.warn.called
+        with pytest.raises(EventHandlerConfigurationError):
+            event_handler.setup()
 
-    def test_no_warning_with_custom_identity(
-        self, queue_consumer, mock_container, logger
+    def test_no_raise_with_custom_identity(
+        self, queue_consumer, mock_container
     ):
         container = mock_container
         container.service_name = "destservice"
@@ -167,12 +168,12 @@ class TestReliableDeliveryWarning():
 
         event_handler = BroadcastEventHandler(
             "srcservice", "eventtype",
-            handler_type=BROADCAST, reliable_delivery=False
+            handler_type=BROADCAST, reliable_delivery=True
         ).bind(
             container, "foobar"
         )
         event_handler.setup()
-        assert not logger.warn.called
+        assert event_handler.reliable_delivery is True
 
 
 # =============================================================================
@@ -248,7 +249,10 @@ class SingletonHandler(HandlerService):
 
 class BroadcastHandler(HandlerService):
 
-    @event_handler('srcservice', 'eventtype', handler_type=BROADCAST)
+    @event_handler(
+        'srcservice', 'eventtype',
+        handler_type=BROADCAST, reliable_delivery=False
+    )
     def handle(self, evt):
         super(BroadcastHandler, self).handle(evt)
 
