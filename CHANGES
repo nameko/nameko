@@ -11,14 +11,14 @@ Version 2.3.0
 
 Released PENDING
 
-* Add support for loading configuration file in ``nameko shell`` via ```--
- config`` option
+* Add support for loading configuration file in ``nameko shell`` via ``--
+  config`` option
 * Changed :class:`~nameko.web.handlers.HttpRequestHandler` to allow override
- how web exceptions are handled
+  how web exceptions are handled
 * Enabled reliable delivery on broadcast events when combined with a custom
- :py:attr:`~nameko.events.EventHandler.broadcast_identity`. Reliable delivery
- now defaults to enabled for all handler types. It must be explicitly turned
- off with broadcast mode unless override the default `broadcast_identity`.
+  :py:attr:`~nameko.events.EventHandler.broadcast_identity`. Reliable delivery
+  now defaults to enabled for all handler types. It must be explicitly turned
+  off with broadcast mode unless override the default `broadcast_identity`.
 
 
 Version 2.2.0
