@@ -244,11 +244,13 @@ class EventHandler(Consumer):
 
         exchange = get_event_exchange(self.source_service)
 
-        # auto-delete queues if events are not reliably delivered
+        # queues are auto-deleted unless reliable delivery is requested
         auto_delete = not self.reliable_delivery
 
-        # broadcast queues are exclusive
-        exclusive = self.handler_type is BROADCAST
+        # queues are exclusive in broadcast mode unless reliable delivery
+        # is requested
+        exclusive = (
+            self.handler_type is BROADCAST and not self.reliable_delivery)
 
         self.queue = Queue(
             queue_name, exchange=exchange, routing_key=self.event_type,

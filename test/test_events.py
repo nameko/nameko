@@ -106,7 +106,7 @@ def test_event_handler(queue_consumer, mock_container):
 
     assert event_handler.queue.name == (
         "evt-srcservice-eventtype--destservice.foobar-{}".format("testbox"))
-    assert event_handler.queue.exclusive is True
+    assert event_handler.queue.exclusive is False
 
     # test singleton handler
     event_handler = EventHandler(
