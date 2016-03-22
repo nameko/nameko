@@ -3,7 +3,6 @@ Common testing utilities.
 """
 from contextlib import contextmanager
 from functools import partial
-from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
 import eventlet
 from mock import Mock
@@ -133,29 +132,6 @@ def worker_context_factory(*keys):
             )
 
     return CustomWorkerContext
-
-
-def get_rabbit_config(amqp_uri):
-    conf = {'AMQP_URI': amqp_uri}
-
-    uri = urlparse(amqp_uri)
-    conf['vhost'] = uri.path[1:]
-    conf['username'] = uri.username
-
-    return conf
-
-
-def reset_rabbit_vhost(vhost, username, rabbit_manager):
-
-    try:
-        rabbit_manager.delete_vhost(vhost)
-    except HTTPError as exc:
-        if exc.response.status_code == 404:
-            pass  # vhost does not exist
-        else:
-            raise
-    rabbit_manager.create_vhost(vhost)
-    rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
 
 def get_rabbit_connections(vhost, rabbit_manager):

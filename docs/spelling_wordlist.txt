@@ -1,12 +1,12 @@
 ack
 ack'd
 acks
-ascii
 aggregator
 aggregators
 amqp
 arg
 args
+ascii
 async
 auth
 backend
@@ -128,6 +128,7 @@ unregister
 unregistered
 unregisters
 utils
+vhost
 visualize
 visualized
 visualizing

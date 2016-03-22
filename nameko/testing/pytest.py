@@ -1,11 +1,12 @@
 from __future__ import absolute_import
 
+import pytest
+
+
 # all imports are inline to make sure they happen after eventlet.monkey_patch
 # which is called in pytest_load_initial_conftests
 # (calling monkey_patch at import time breaks the pytest capturemanager - see
 #  https://github.com/eventlet/eventlet/pull/239)
-
-import pytest
 
 
 def pytest_addoption(parser):
@@ -23,7 +24,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--amqp-uri", action="store", dest='AMQP_URI',
-        default='amqp://guest:guest@localhost:5672/nameko_test',
+        default='amqp://guest:guest@localhost:5672/:random:',
         help=("The AMQP-URI to connect to rabbit with."))
 
     parser.addoption(
@@ -53,7 +54,7 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def empty_config(request):
+def empty_config():
     from nameko.constants import AMQP_URI_CONFIG_KEY
     return {
         AMQP_URI_CONFIG_KEY: ""
@@ -84,30 +85,52 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
+    import random
+    import string
     from kombu import pools
-    from nameko.testing.utils import (
-        reset_rabbit_vhost, reset_rabbit_connections,
-        get_rabbit_connections, get_rabbit_config)
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+    from nameko.testing.utils import get_rabbit_connections
 
     amqp_uri = request.config.getoption('AMQP_URI')
 
-    conf = get_rabbit_config(amqp_uri)
+    uri = urlparse(amqp_uri)
+    username = uri.username
+    vhost = uri.path[1:]
 
-    reset_rabbit_connections(conf['vhost'], rabbit_manager)
-    reset_rabbit_vhost(conf['vhost'], conf['username'], rabbit_manager)
+    use_random_vost = (vhost == ":random:")
+
+    if use_random_vost:
+        vhost = "test_{}".format(
+            "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+        )
+        amqp_uri = "{}://{}/{}".format(uri.scheme, uri.netloc, vhost)
+        rabbit_manager.create_vhost(vhost)
+        rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+
+    conf = {
+        'AMQP_URI': amqp_uri,
+        'username': username,
+        'vhost': vhost
+    }
 
     yield conf
 
     pools.reset()  # close connections in pools
 
     # raise a runtime error if the test leaves any connections lying around
-    connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
-    open_connections = [
-        conn for conn in connections if conn['state'] != "closed"
-    ]
-    if open_connections:
-        count = len(open_connections)
-        raise RuntimeError("{} rabbit connection(s) left open.".format(count))
+    try:
+        connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
+        open_connections = [
+            conn for conn in connections if conn['state'] != "closed"
+        ]
+        if open_connections:
+            count = len(open_connections)
+            names = ", ".join(conn['name'] for conn in open_connections)
+            raise RuntimeError(
+                "{} rabbit connection(s) left open: {}".format(count, names))
+    finally:
+        if use_random_vost:
+            rabbit_manager.delete_vhost(vhost)
 
 
 @pytest.fixture

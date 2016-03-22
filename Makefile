@@ -1,6 +1,6 @@
 .PHONY: test docs
 
-test: flake8 pylint test_codebase test_examples
+test: flake8 pylint test_lib test_examples
 
 flake8:
 	flake8 nameko test
@@ -8,7 +8,7 @@ flake8:
 pylint:
 	pylint --rcfile=pylintrc nameko -E
 
-test_codebase:
+test_lib:
 	py.test test --cov=$(CURDIR)/nameko --cov-config=$(CURDIR)/.coveragerc
 
 test_examples:
