@@ -211,23 +211,17 @@ class EventHandler(Consumer):
         Broadcast queues are exclusive to ensure that `broadcast_identifier`
         values are unique.
         """
-        return uuid.uuid4().hex
-
-    def setup(self):
-        _log.debug('starting %s', self)
-
-        cls = type(self)
-
-        if (
-            self.reliable_delivery and
-            self.handler_type is BROADCAST and
-            cls.broadcast_identifier is EventHandler.broadcast_identifier
-        ):
+        if self.reliable_delivery and self.handler_type is BROADCAST:
             raise EventHandlerConfigurationError(
                 "You are using the default broadcast identifier "
                 "which is not compatible with reliable delivery. See "
                 ":meth:`nameko.events.EventHandler.broadcast_identifier` "
                 "for details.")
+
+        return uuid.uuid4().hex
+
+    def setup(self):
+        _log.debug('starting %s', self)
 
         # handler_type determines queue name and exclusive flag
         exclusive = False

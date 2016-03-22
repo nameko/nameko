@@ -147,14 +147,13 @@ class TestReliableDeliveryEventHandlerConfigurationError():
         container.service_name = "destservice"
 
         # test broadcast handler with reliable delivery
-        event_handler = EventHandler(
-            "srcservice", "eventtype",
-            handler_type=BROADCAST, reliable_delivery=True
-        ).bind(
-            container, "foobar"
-        )
         with pytest.raises(EventHandlerConfigurationError):
-            event_handler.setup()
+            EventHandler(
+                "srcservice", "eventtype",
+                handler_type=BROADCAST, reliable_delivery=True
+            ).bind(
+                container, "foobar"
+            )
 
     def test_no_raise_with_custom_identity(
         self, queue_consumer, mock_container
@@ -172,7 +171,6 @@ class TestReliableDeliveryEventHandlerConfigurationError():
         ).bind(
             container, "foobar"
         )
-        event_handler.setup()
         assert event_handler.reliable_delivery is True
 
 
