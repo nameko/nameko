@@ -22,13 +22,6 @@ def queue_consumer():
         yield mock_ext.return_value
 
 
-@pytest.yield_fixture
-def logger():
-    with patch('nameko.events._log', autospec=True) as patched:
-        yield patched
-    patched.reset_mock()
-
-
 def test_event_dispatcher(mock_container):
 
     container = mock_container
