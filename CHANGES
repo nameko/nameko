@@ -20,6 +20,7 @@ Released PENDING
   now defaults to enabled for all handler types. It must be explicitly turned
   off with broadcast mode unless override the default `broadcast_identity`.
 * Update bundled pytest fixtures to use a random vhost in RabbitMQ by default
+* Now requires eventlet>=0.16.1 because older versions were removed from PyPI
 
 Version 2.2.0
 -------------
