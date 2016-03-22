@@ -11,6 +11,7 @@ Version 2.2.1
 
 Released PENDING
 
+* Update bundled pytest fixtures to use a random vhost in RabbitMQ by default
 * Add support for loading configuration file in ``nameko shell`` via ```--config`` option
 * Changed :class:`~nameko.web.handlers.HttpRequestHandler` to allow override how web exceptions are handled
 

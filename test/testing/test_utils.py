@@ -9,8 +9,7 @@ from nameko.rpc import rpc, Rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
     AnyInstanceOf, get_extension, get_container, wait_for_call,
-    reset_rabbit_vhost, get_rabbit_connections, wait_for_worker_idle,
-    reset_rabbit_connections)
+    get_rabbit_connections, wait_for_worker_idle, reset_rabbit_connections)
 
 
 def test_any_instance_of():
@@ -96,51 +95,6 @@ def test_get_container(runner_factory, rabbit_config):
     assert get_container(runner, ServiceX).service_cls is ServiceX
     assert get_container(runner, ServiceY).service_cls is ServiceY
     assert get_container(runner, object) is None
-
-
-def test_reset_rabbit_vhost(rabbit_config, rabbit_manager):
-
-    vhost = rabbit_config['vhost']
-    username = rabbit_config['username']
-
-    def get_active_vhosts():
-        return [vhost_data['name'] for
-                vhost_data in rabbit_manager.get_all_vhosts()]
-
-    reset_rabbit_vhost(vhost, username, rabbit_manager)
-    assert vhost in get_active_vhosts()
-
-    rabbit_manager.delete_vhost(vhost)
-    assert vhost not in get_active_vhosts()
-
-    reset_rabbit_vhost(vhost, username, rabbit_manager)
-    assert vhost in get_active_vhosts()
-
-
-def test_reset_rabbit_vhost_errors():
-
-    rabbit_manager = Mock()
-
-    # 500 error
-    response_500 = Response()
-    response_500.status_code = 50
-    error_500 = HTTPError(response=response_500)
-    rabbit_manager.delete_vhost.side_effect = error_500
-
-    with pytest.raises(HTTPError):
-        reset_rabbit_vhost("vhost", "username", rabbit_manager)
-
-    # 404 error
-    response_404 = Response()
-    response_404.status_code = 404
-    error_404 = HTTPError(response=response_404)
-    rabbit_manager.delete_vhost.side_effect = error_404
-
-    # does not raise
-    reset_rabbit_vhost("vhost", "username", rabbit_manager)
-    assert rabbit_manager.create_vhost.call_args == call("vhost")
-    assert rabbit_manager.set_vhost_permissions.call_args == call(
-        "vhost", "username", '.*', '.*', '.*')
 
 
 def test_get_rabbit_connections():
