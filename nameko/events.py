@@ -34,7 +34,6 @@ import uuid
 from logging import getLogger
 
 from kombu import Queue
-
 from nameko.messaging import Consumer, Publisher
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 
@@ -244,13 +243,17 @@ class EventHandler(Consumer):
 
         exchange = get_event_exchange(self.source_service)
 
-        # queues are auto-deleted unless reliable delivery is requested
-        auto_delete = not self.reliable_delivery
+        # queues for handlers without reliable delivery should be marked as
+        # auto-delete so they're removed when the consumer disconnects
+        auto_delete = self.reliable_delivery is False
 
-        # queues are exclusive in broadcast mode unless reliable delivery
-        # is requested
-        exclusive = (
-            self.handler_type is BROADCAST and not self.reliable_delivery)
+        # queues for broadcast handlers are exclusive (meaning that only one
+        # consumer may be connected) except when reliable delivery is enabled,
+        # because exclusive queues are always removed when the consumer
+        # disconnects, regardless of the value of auto_delete
+        exclusive = self.handler_type is BROADCAST
+        if self.reliable_delivery:
+            exclusive = False
 
         self.queue = Queue(
             queue_name, exchange=exchange, routing_key=self.event_type,
