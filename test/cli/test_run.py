@@ -5,6 +5,7 @@ import socket
 from os.path import join, dirname, abspath
 import eventlet
 from mock import patch
+from textwrap import dedent
 import pytest
 
 from nameko.cli.main import setup_parser
@@ -64,6 +65,58 @@ def test_main_with_config(rabbit_config):
             AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
             SERIALIZER_CONFIG_KEY: 'json'
         }
+
+
+def test_main_with_logging_config(rabbit_config, tmpdir):
+
+    config = """
+        AMQP_URI: {amqp_uri}
+        LOGGING:
+            version: 1
+            disable_existing_loggers: false
+            formatters:
+                simple:
+                    format: "%(name)s - %(levelname)s - %(message)s"
+            handlers:
+                capture:
+                    class: logging.FileHandler
+                    level: INFO
+                    formatter: simple
+                    filename: {capture_file}
+            root:
+                level: INFO
+                handlers: [capture]
+    """
+
+    capture_file = tmpdir.join('capture.log')
+
+    config_file = tmpdir.join('config.yaml')
+    config_file.write(
+        dedent(config.format(
+            capture_file=capture_file.strpath,
+            amqp_uri=rabbit_config['AMQP_URI']
+        ))
+    )
+
+    parser = setup_parser()
+    args = parser.parse_args([
+        'run',
+        '--config',
+        config_file.strpath,
+        'test.sample',
+    ])
+
+    gt = eventlet.spawn(main, args)
+    eventlet.sleep(1)
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        proxy.service.ping()
+
+    pid = os.getpid()
+    os.kill(pid, signal.SIGTERM)
+    gt.wait()
+
+    assert "test.sample - INFO - ping!" in capture_file.read()
 
 
 def test_import_ok():
