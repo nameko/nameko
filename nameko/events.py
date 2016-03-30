@@ -137,8 +137,8 @@ class EventHandler(Consumer):
                 - ``events.BROADCAST``:
                     Events will be received by every handler. Events are
                     broadcast to every service instance, not just every service
-                    type. Instances are differentiated using the value returned
-                    by :meth:`EventHandler.get_broadcast_identifier`. ::
+                    type. Instances are differentiated using
+                    :attr:`EventHandler.broadcast_identifier`. ::
                                     [queue]- (service X(inst. 1) handler-meth)
                                   /
                         exchange o - [queue]- (service X(inst. 2) handler-meth)
@@ -167,20 +167,22 @@ class EventHandler(Consumer):
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)
 
-    def get_broadcast_identifier(self):
+    @property
+    def broadcast_identifier(self):
         """ A unique string to identify a service instance for `BROADCAST`
         type handlers.
 
-        The broadcast identifier is appended to the queue name when the
+        The `broadcast_identifier` is appended to the queue name when the
         `BROADCAST` handler type is used. It must uniquely identify service
         instances that receive broadcasts.
 
-        The default broadcast identifier is a uuid that is set when the
+        The default `broadcast_identifier` is a uuid that is set when the
         service starts. It will change when the service restarts, meaning
         that any unconsumed messages that were broadcast to the 'old' service
         instance will not be received by the 'new' one. ::
 
-            def get_broadcast_identifier(self):
+            @property
+            def broadcast_identifier(self):
                 # use a uuid as the identifier.
                 # the identifier will change when the service restarts and
                 # any unconsumed messages will be lost
@@ -188,9 +190,11 @@ class EventHandler(Consumer):
 
         The default behaviour is therefore incompatible with reliable delivery.
 
-        An alternative implementation that would survive service restarts is ::
+        An alternative `broadcast_identifier` that would survive service
+        restarts is ::
 
-            def get_broadcast_identifier(self):
+            @property
+            def broadcast_identifier(self):
                 # use the machine hostname as the identifier.
                 # this assumes that only one instance of a service runs on
                 # any given machine
@@ -199,18 +203,18 @@ class EventHandler(Consumer):
         If neither of these approaches are appropriate, you could read the
         value out of a configuration file ::
 
-            def get_broadcast_identifier(self):
+            @property
+            def broadcast_identifier(self):
                 return self.config['SERVICE_IDENTIFIER']  # or similar
 
+        Broadcast queues are exclusive to ensure that `broadcast_identifier`
+        values are unique.
         """
-        if self.handler_type is not BROADCAST:
-            return None
-
-        if self.reliable_delivery:
+        if self.reliable_delivery and self.handler_type is BROADCAST:
             raise EventHandlerConfigurationError(
                 "You are using the default broadcast identifier "
                 "which is not compatible with reliable delivery. See "
-                ":meth:`nameko.events.EventHandler.get_broadcast_identifier` "
+                ":meth:`nameko.events.EventHandler.broadcast_identifier` "
                 "for details.")
 
         return uuid.uuid4().hex
@@ -230,7 +234,7 @@ class EventHandler(Consumer):
             queue_name = "evt-{}-{}".format(self.source_service,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
-            broadcast_identifier = self.get_broadcast_identifier()
+            broadcast_identifier = self.broadcast_identifier
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.source_service,
                                                       self.event_type,
                                                       service_name,
