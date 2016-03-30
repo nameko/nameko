@@ -209,8 +209,15 @@ class EventHandler(Consumer):
 
         Broadcast queues are exclusive to ensure that `broadcast_identifier`
         values are unique.
+
+        Because this method is a descriptor, it will be called during
+        container creation, regardless of the configured `handler_type`.
+        See :class:`nameko.extensions.Extension` for more details.
         """
-        if self.reliable_delivery and self.handler_type is BROADCAST:
+        if self.handler_type is not BROADCAST:
+            return None
+
+        if self.reliable_delivery:
             raise EventHandlerConfigurationError(
                 "You are using the default broadcast identifier "
                 "which is not compatible with reliable delivery. See "
