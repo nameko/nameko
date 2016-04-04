@@ -18,7 +18,7 @@ Released PENDING
 * Enabled reliable delivery on broadcast events when combined with a custom
   :py:attr:`~nameko.events.EventHandler.broadcast_identity`. Reliable delivery
   now defaults to enabled for all handler types. It must be explicitly turned
-  off with broadcast mode unless override the default `broadcast_identity`.
+  off with broadcast mode unless you override the default `broadcast_identity`.
 * Update bundled pytest fixtures to use a random vhost in RabbitMQ by default
 * Now requires eventlet>=0.16.1 because older versions were removed from PyPI
 
