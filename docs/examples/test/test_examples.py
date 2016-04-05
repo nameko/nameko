@@ -5,7 +5,7 @@ import os
 from mock import call, patch
 
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
+from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.services import entrypoint_waiter
 
 
