@@ -9,7 +9,7 @@ increment the minor version number only.
 Version 2.3.0
 -------------
 
-Released PENDING
+Released 2016-02-17
 
 * Add support for loading configuration file in ``nameko shell`` via
   ``--config`` option
