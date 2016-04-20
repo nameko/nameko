@@ -36,6 +36,14 @@ def test_bad_user(uris):
 
 
 def test_bad_vhost(uris):
+    """On a clean build this test fails with the following error:
+
+    amqp.exceptions.NotAllowed: Connection.open: (530) NOT_ALLOWED -
+    access to vhost 'unknown' refused for user 'guest'
+
+    We suspect that amqp library was raising IOError, and that logic
+    has been fixed now.
+    """
     amqp_uri = uris['bad_vhost']
     with pytest.raises(IOError) as exc_info:
         verify_amqp_uri(amqp_uri)
