@@ -3,6 +3,7 @@ import socket
 import pytest
 from urllib3.util import parse_url, Url
 
+from amqp.exceptions import NotAllowed
 from nameko.amqp import verify_amqp_uri
 
 
@@ -45,7 +46,7 @@ def test_bad_vhost(uris):
     has been fixed now.
     """
     amqp_uri = uris['bad_vhost']
-    with pytest.raises(IOError) as exc_info:
+    with pytest.raises(NotAllowed) as exc_info:
         verify_amqp_uri(amqp_uri)
     message = str(exc_info.value)
     assert 'Error connecting to broker' in message
