@@ -354,6 +354,8 @@ class MethodProxy(HeaderEncoder):
         reply = self._call(*args, **kwargs)
         return reply
 
+    call_async = async
+
     def _call(self, *args, **kwargs):
         _log.debug('invoking %s', self)
 
