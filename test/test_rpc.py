@@ -91,9 +91,9 @@ class ExampleService(object):
 
     @rpc
     def call_async(self):
-        res1 = self.example_rpc.task_a.async()
-        res2 = self.example_rpc.task_b.async()
-        res3 = self.example_rpc.echo.async()
+        res1 = self.example_rpc.task_a.call_async()
+        res2 = self.example_rpc.task_b.call_async()
+        res3 = self.example_rpc.echo.call_async()
         return [res2.result(), res1.result(), res3.result()]
 
     @rpc
