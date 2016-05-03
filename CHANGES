@@ -10,7 +10,7 @@ Version 2.3.1
 
 Released PENDING
 
-* Deprecate ``MethodProxy.async`` in favor of ``MethodProxy.call_async`` in preparation for async becoming a keyword
+* Deprecate ``MethodProxy.async`` in favour of ``MethodProxy.call_async`` in preparation for async becoming a keyword
 
 Version 2.3.0
 -------------
