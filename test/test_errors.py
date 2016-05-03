@@ -84,7 +84,7 @@ def test_handle_result_error(container_factory, rabbit_config):
         # use a standalone rpc proxy to call exampleservice.task()
         with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
-            proxy.task.async()
+            proxy.task.call_async()
 
         with eventlet.Timeout(1):
             with pytest.raises(Exception) as exc_info:
@@ -108,7 +108,7 @@ def test_dependency_call_lifecycle_errors(
         # use a standalone rpc proxy to call exampleservice.task()
         with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
-            proxy.task.async()
+            proxy.task.call_async()
 
         # verify that the error bubbles up to container.wait()
         with eventlet.Timeout(1):
@@ -134,7 +134,7 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
             # in the remote container (so never receives a response).
-            proxy.task.async()
+            proxy.task.call_async()
 
         # verify that the error bubbles up to runner.wait()
         with pytest.raises(Exception) as exc_info:
@@ -162,7 +162,7 @@ def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
             with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
                 # proxy.task() will hang forever because it generates an error
                 # in the remote container (so never receives a response).
-                proxy.task.async()
+                proxy.task.call_async()
 
             # verify that the error bubbles up to runner.wait()
             with pytest.raises(Exception) as exc_info:

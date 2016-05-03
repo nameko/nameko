@@ -1,4 +1,5 @@
 import uuid
+import warnings
 
 import eventlet
 from eventlet.event import Event
@@ -91,10 +92,14 @@ class ExampleService(object):
 
     @rpc
     def call_async(self):
-        res1 = self.example_rpc.task_a.async()
-        res2 = self.example_rpc.task_b.async()
-        res3 = self.example_rpc.echo.async()
+        res1 = self.example_rpc.task_a.call_async()
+        res2 = self.example_rpc.task_b.call_async()
+        res3 = self.example_rpc.echo.call_async()
         return [res2.result(), res1.result(), res3.result()]
+
+    @rpc
+    def deprecated_async(self):
+        return self.example_rpc.echo.async().result()
 
     @rpc
     def call_unknown(self):
@@ -428,6 +433,20 @@ def test_async_rpc(container_factory, rabbit_config):
 
     with entrypoint_hook(container, 'call_async') as call_async:
         assert call_async() == ["result_b", "result_a", [[], {}]]
+
+
+def test_async_rpc_deprecation_warning(container_factory, rabbit_config):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with entrypoint_hook(container, 'deprecated_async') as call_async:
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter('always')
+            assert call_async() == [[], {}]
+            assert len(ws) == 1
+            assert issubclass(ws[-1].category, DeprecationWarning)
+            assert "deprecated" in str(ws[-1].message)
 
 
 def test_rpc_incorrect_signature(container_factory, rabbit_config):

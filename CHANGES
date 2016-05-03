@@ -5,6 +5,12 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.3.1
+-------------
+
+Released PENDING
+
+* Deprecate ``MethodProxy.async`` in favour of ``MethodProxy.call_async`` in preparation for async becoming a keyword
 
 Version 2.3.0
 -------------
