@@ -56,7 +56,7 @@ Features
 Getting Started
 ---------------
 
-* Check out the `documentation <http://nameko.readthedocs.org>`_.
+* Check out the `documentation <http://nameko.readthedocs.io>`_.
 
 
 Support
