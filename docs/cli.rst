@@ -24,17 +24,23 @@ and providing a simple YAML configuration file:
 .. code-block:: yaml
 
     # foobar.yaml
-
     AMQP_URI: 'amqp://guest:guest@localhost'
-
     WEB_SERVER_ADDRESS: '0.0.0.0:8000'
-
     rpc_exchange: 'nameko-rpc'
-
     max_workers: 10
-
     parent_calls_tracked: 10
 
+    LOGGING:
+        version: 1
+        handlers:
+            console:
+                class: logging.StreamHandler
+        root:
+            level: DEBUG
+            handlers: [console]
+
+
+The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should conform to the schema for that call.
 
 
 Interacting with running services

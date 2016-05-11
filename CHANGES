@@ -11,6 +11,7 @@ Version 2.3.1
 Released PENDING
 
 * Deprecate ``MethodProxy.async`` in favour of ``MethodProxy.call_async`` in preparation for async becoming a keyword
+* Add support for loading logging configuration from ``config.yaml``
 
 Version 2.3.0
 -------------
