@@ -32,20 +32,11 @@ and providing a simple YAML configuration file:
 
     LOGGING:
         version: 1
-        disable_existing_loggers: false
-        formatters:
-            simple:
-                format: "%(levelname)s:%(name)s - %(message)s"
         handlers:
             console:
                 class: logging.StreamHandler
-                formatter: simple
-        loggers:
-            nameko:
-                level: DEBUG
-                handlers: [console]
         root:
-            level: INFO
+            level: DEBUG
             handlers: [console]
 
 
