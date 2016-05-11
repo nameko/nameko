@@ -1,11 +1,11 @@
 import eventlet
 import pytest
 
-from nameko.events import event_handler, BROADCAST
-from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.events import BROADCAST, event_handler
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
+from nameko.standalone.events import event_dispatcher
+from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.utils import assert_stops_raising, get_container
 
 
@@ -30,7 +30,10 @@ class Service(object):
     name = "service"
 
     @rpc
-    @event_handler("srcservice", "testevent", handler_type=BROADCAST)
+    @event_handler(
+        "srcservice", "testevent",
+        handler_type=BROADCAST, reliable_delivery=False
+    )
     def handle(self, msg):
         received.append(msg)
 

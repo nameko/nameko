@@ -4,7 +4,7 @@ Similar and Related Projects
 Celery
 ------
 
-`Celery <http://celery.readthedocs.org/>`_ is a distributed task queue. It lets you define "tasks" as Python functions and execute them on a set of remote workers, not unlike Nameko RPC.
+`Celery <http://celery.readthedocs.io/>`_ is a distributed task queue. It lets you define "tasks" as Python functions and execute them on a set of remote workers, not unlike Nameko RPC.
 
 Celery is usually used as an add-on to existing applications, to defer processing or otherwise outsource some work to a remote machine. You could also achieve this with Nameko, but Celery includes many more primitives for the distribution of tasks and the collection of results.
 
@@ -18,6 +18,6 @@ ESBs are often used as middleware between legacy services. You can write new Pyt
 Kombu
 -----
 
-`Kombu <http://kombu.readthedocs.org/>`_ is a Python messaging library, used by both Celery and Nameko. It exposes a high-level interface for AMQP and includes support for "virtual" transports, so can be run with non-AMQP transports such as Redis, ZeroMQ and MongoDB.
+`Kombu <http://kombu.readthedocs.io/>`_ is a Python messaging library, used by both Celery and Nameko. It exposes a high-level interface for AMQP and includes support for "virtual" transports, so can be run with non-AMQP transports such as Redis, ZeroMQ and MongoDB.
 
 Nameko's AMQP features are built using Kombu but don't include support for the "virtual" transports.

@@ -21,6 +21,11 @@ class Extension(object):
     well as at instantiation time, so avoid side-effects in this method.
     Use :meth:`setup` instead.
 
+    Furthermore, :meth:`bind` and :func:`iter_extensions` use introspection
+    to find any subextensions that an extension may declare. Any descriptors
+    on the extension should expect to be called during introspection, which
+    happens between `ServiceContainer.__init__` and `ServiceContainer.setup`.
+
     :attr:`Extension.container` gives access to the
     :class:`~nameko.containers.ServiceContainer` instance to
     which the Extension is bound, otherwise `None`.

@@ -192,11 +192,11 @@ def test_async_rpc(container_factory, rabbit_config):
     container.start()
 
     with ServiceRpcProxy('foobar', rabbit_config) as foo:
-        rep1 = foo.spam.async(ham=1)
-        rep2 = foo.spam.async(ham=2)
-        rep3 = foo.spam.async(ham=3)
-        rep4 = foo.spam.async(ham=4)
-        rep5 = foo.spam.async(ham=5)
+        rep1 = foo.spam.call_async(ham=1)
+        rep2 = foo.spam.call_async(ham=2)
+        rep3 = foo.spam.call_async(ham=3)
+        rep4 = foo.spam.call_async(ham=4)
+        rep5 = foo.spam.call_async(ham=5)
         assert rep2.result() == 2
         assert rep3.result() == 3
         assert rep1.result() == 1
@@ -209,10 +209,10 @@ def test_multiple_proxies(container_factory, rabbit_config):
     container.start()
 
     with ServiceRpcProxy('foobar', rabbit_config) as proxy1:
-        res1 = proxy1.spam.async(ham=1)
+        res1 = proxy1.spam.call_async(ham=1)
 
         with ServiceRpcProxy('foobar', rabbit_config) as proxy2:
-            res2 = proxy2.spam.async(ham=2)
+            res2 = proxy2.spam.call_async(ham=2)
 
             assert res1.result() == 1
             assert res2.result() == 2
@@ -223,7 +223,7 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
     container.start()
 
     with ServiceRpcProxy('foobar', rabbit_config) as proxy:
-        res = proxy.spam.async(ham=1)
+        res = proxy.spam.call_async(ham=1)
         res.result()
         res.result()
 
@@ -269,7 +269,7 @@ def test_disconnect_with_pending_reply(
 
         with patch.object(ExampleService, 'callback', disconnect_once):
 
-            async = proxy.method.async('hello')
+            async = proxy.method.call_async('hello')
 
             # if disconnecting while waiting for a reply, call fails
             with pytest.raises(RpcConnectionError):
@@ -324,11 +324,11 @@ def test_async_timeout(
     container.start()
 
     with ServiceRpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
-        result = proxy.sleep.async(seconds=1)
+        result = proxy.sleep.call_async(seconds=1)
         with pytest.raises(RpcTimeout):
             result.result()
 
-        result = proxy.sleep.async(seconds=.2)
+        result = proxy.sleep.call_async(seconds=.2)
         eventlet.sleep(.2)
         result.result()
 
@@ -411,7 +411,7 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
             fake_replies
         ):
             count = 10
-            replies = [proxy.spam.async('hello') for _ in range(count)]
+            replies = [proxy.spam.call_async('hello') for _ in range(count)]
             assert [reply.result() for reply in replies] == ['hello'] * count
 
     consumer_tags = set()
