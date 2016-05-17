@@ -1,16 +1,15 @@
 # start a runner with a service that errors. does it hang? or stop?
 # how do we get an individual servicecontainer to blow up?
 import eventlet
-from mock import patch
 import pytest
+from mock import patch
 
-
-from nameko.exceptions import RemoteError
 from nameko.events import EventDispatcher
-from nameko.rpc import rpc, RpcProxy, RpcConsumer
+from nameko.exceptions import RemoteError
+from nameko.rpc import RpcConsumer, RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.utils import get_extension, get_container
 from nameko.testing.services import entrypoint_hook
+from nameko.testing.utils import get_container, get_extension
 
 
 class ExampleError(Exception):

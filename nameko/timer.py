@@ -1,6 +1,7 @@
 from __future__ import absolute_import
-from logging import getLogger
+
 import time
+from logging import getLogger
 
 from eventlet import Timeout
 from eventlet.event import Event
@@ -36,7 +37,7 @@ class Timer(Entrypoint):
 
     def start(self):
         _log.debug('starting %s', self)
-        self.gt = self.container.spawn_managed_thread(self._run)
+        self.gt = self.container.spawn_managed_thread(self._run, self)
 
     def stop(self):
         _log.debug('stopping %s', self)
