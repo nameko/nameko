@@ -443,7 +443,7 @@ class ServiceContainer(object):
 
         if num_workers:
             _log.warning('killing %s active workers(s)', num_workers)
-            for worker_ctx, gt in list(self._worker_threads.items()):
+            for worker_ctx, gt in self._worker_threads.copy().items():
                 _log.warning('killing active worker for %s', worker_ctx)
                 gt.kill()
 
@@ -456,7 +456,7 @@ class ServiceContainer(object):
 
         if num_threads:
             _log.warning('killing %s managed thread(s)', num_threads)
-            for gt, extension in self._managed_threads.items():
+            for gt, extension in self._managed_threads.copy().items():
                 _log.warning('killing managed thread for %s', extension)
                 gt.kill()
 
