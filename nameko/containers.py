@@ -352,6 +352,7 @@ class ServiceContainer(object):
             self._run_worker, worker_ctx, handle_result
         )
         self._worker_threads[worker_ctx] = gt
+        self.worker_created(worker_ctx)
         gt.link(self._handle_worker_thread_exited, worker_ctx)
         return worker_ctx
 
@@ -381,6 +382,20 @@ class ServiceContainer(object):
         self._managed_threads[gt] = extension
         gt.link(self._handle_managed_thread_exited, extension)
         return gt
+
+    def worker_created(self, worker_ctx):
+        """ Called after a worker is created.
+
+        This is a hook for `ServiceContainer` subclasses to track worker
+        creation.
+        """
+
+    def worker_destroyed(self, worker_ctx):
+        """ Called after a worker is destroyed.
+
+        This is a hook for `ServiceContainer` subclasses to track worker
+        completion.
+        """
 
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
@@ -461,6 +476,7 @@ class ServiceContainer(object):
                 gt.kill()
 
     def _handle_worker_thread_exited(self, gt, worker_ctx):
+        self.worker_destroyed(worker_ctx)
         self._worker_threads.pop(worker_ctx, None)
         self._handle_thread_exited(gt)
 
