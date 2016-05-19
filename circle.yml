@@ -12,7 +12,7 @@ dependencies:
   pre:
     - pip install -U pip setuptools tox
     - pip install -e ".[dev]"
-    - pyenv local 2.7.10 3.3.6 3.4.4
+    - pyenv local 2.7.9 3.3.3 3.4.3
 
 test:
     override:
