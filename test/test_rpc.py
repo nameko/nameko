@@ -16,8 +16,7 @@ from nameko.messaging import QueueConsumer
 from nameko.rpc import ReplyListener, Rpc, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, restrict_entrypoints
-from nameko.testing.utils import (
-    get_extension, wait_for_call, wait_for_worker_idle)
+from nameko.testing.utils import get_extension, wait_for_call
 
 
 class ExampleError(Exception):
