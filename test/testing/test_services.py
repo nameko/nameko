@@ -1,15 +1,14 @@
-from mock import Mock
 import pytest
-
-from nameko.extensions import DependencyProvider
+from mock import Mock, call
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
+from nameko.extensions import DependencyProvider
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    entrypoint_hook, worker_factory, replace_dependencies, once,
-    restrict_entrypoints, entrypoint_waiter, EntrypointWaiter)
+    EntrypointWaiterTimeout, entrypoint_hook, entrypoint_waiter, once,
+    replace_dependencies, restrict_entrypoints, worker_factory)
 from nameko.testing.utils import get_container
 
 
@@ -356,11 +355,11 @@ def test_entrypoint_waiter_timeout(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    with pytest.raises(EntrypointWaiter.Timeout) as exc_info:
+    with pytest.raises(EntrypointWaiterTimeout) as exc_info:
         with entrypoint_waiter(container, 'handle', timeout=0.01):
             pass
     assert str(exc_info.value) == (
-        "Entrypoint service.handle failed to complete within 0.01 seconds")
+        "EntrypointWaiterTimeout on service.handle after 0.01 seconds")
 
 
 def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
@@ -372,11 +371,46 @@ def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
     assert 'has no entrypoint' in str(exc)
 
 
-def test_entrypoint_waiter_duplicates(container_factory, rabbit_config):
-    container = container_factory(Service, rabbit_config)
+def test_entrypoint_waiter_nested(container_factory, rabbit_config):
 
-    with pytest.raises(RuntimeError) as exc:
-        with entrypoint_waiter(container, "working"):
-            with entrypoint_waiter(container, "working"):
-                pass
-    assert 'already registered' in str(exc)
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype1')
+        def handle_event1(self, msg):
+            handle_event(1)
+
+        @event_handler('srcservice', 'eventtype2')
+        def handle_event2(self, msg):
+            handle_event(2)
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle_event1'):
+        with entrypoint_waiter(container, 'handle_event2'):
+            dispatch('srcservice', 'eventtype1', "")
+            dispatch('srcservice', 'eventtype2', "")
+
+    assert handle_event.call_args_list == [call(1), call(2)]
+
+
+def test_entrypoint_duplicate(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            handle_event(msg)
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle_event'):
+        with entrypoint_waiter(container, 'handle_event'):
+            dispatch('srcservice', 'eventtype', "msg")
+
+    assert handle_event.call_args_list == [call("msg")]
