@@ -52,9 +52,10 @@ def entrypoint_hook(container, method_name, context_data=None):
             result.send(res, exc_info)
             return res, exc_info
 
-        container.spawn_worker(entrypoint, args, kwargs,
-                               context_data=context_data,
-                               handle_result=handle_result)
+        with entrypoint_waiter(container, method_name):
+            container.spawn_worker(entrypoint, args, kwargs,
+                                   context_data=context_data,
+                                   handle_result=handle_result)
 
         # If the container errors (e.g. due to a bad entrypoint), handle_result
         # is never called and we hang. To mitigate, we spawn a greenlet waiting
