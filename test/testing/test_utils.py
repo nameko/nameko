@@ -7,6 +7,7 @@ from mock import Mock, call, patch
 from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import Rpc, rpc
 from nameko.testing.rabbit import Client
+from nameko.testing.services import dummy
 from nameko.testing.utils import (
     AnyInstanceOf, get_container, get_extension, get_rabbit_connections,
     patch_wait, reset_rabbit_connections, wait_for_call, wait_for_worker_idle)
@@ -179,6 +180,10 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
     container.start()
 
     max_workers = DEFAULT_MAX_WORKERS
+
+    # verify deprecation warning
+    with pytest.warns(DeprecationWarning):
+        wait_for_worker_idle(container)
 
     # verify nothing running
     assert container._worker_pool.free() == max_workers
