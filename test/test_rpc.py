@@ -267,7 +267,6 @@ def test_expected_exceptions_integration(container_factory, rabbit_config):
         with pytest.raises(AttributeError):
             very_broken()
 
-    # wait_for_worker_idle(container)  # wait for worker lifecycle to complete
     assert worker_logger.expected == {'broken': ExampleError}
     assert worker_logger.unexpected == {'very_broken': AttributeError}
 
