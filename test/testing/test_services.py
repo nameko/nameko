@@ -1,5 +1,6 @@
 import pytest
 from mock import Mock, call
+from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.extensions import DependencyProvider
@@ -349,6 +350,32 @@ def test_entrypoint_waiter(container_factory, rabbit_config):
     dispatch = event_dispatcher(rabbit_config)
     with entrypoint_waiter(container, 'handle'):
         dispatch('srcservice', 'eventtype', "")
+
+
+@pytest.mark.usefixtures('predictable_call_ids')
+def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    track_callback = Mock()
+
+    def cb(worker_ctx):
+        track_callback(worker_ctx)
+        if track_callback.call_count == 2:
+            return True
+        return False
+
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle', callback=cb):
+        dispatch('srcservice', 'eventtype', "")
+        dispatch('srcservice', 'eventtype', "")
+
+    assert track_callback.call_count == 2
+    for index, (args, _) in enumerate(track_callback.call_args_list):
+        (worker_ctx, ) = args
+        assert isinstance(worker_ctx, WorkerContext)
+        assert worker_ctx.call_id == "service.handle.{}".format(index)
 
 
 def test_entrypoint_waiter_timeout(container_factory, rabbit_config):
