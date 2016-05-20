@@ -3,10 +3,10 @@ Common testing utilities.
 """
 from contextlib import contextmanager
 from functools import partial
+from threading import Semaphore
 
 import eventlet
-from mock import Mock
-
+from mock import Mock, patch
 from nameko.containers import WorkerContextBase
 from nameko.extensions import Entrypoint
 from nameko.testing.rabbit import HTTPError
@@ -53,6 +53,30 @@ def wait_for_call(timeout, mock_method):
         while not mock_method.called:
             eventlet.sleep()
     yield mock_method
+
+
+@contextmanager
+def patch_wait(obj, target, callback=None):
+
+    sem = Semaphore(0)
+    unpatched = getattr(obj, target)
+
+    def maybe_release(args, kwargs):
+        should_release = True
+        if callable(callback):
+            should_release = callback(*args, **kwargs)
+
+        if should_release:
+            sem.release()
+
+    def wraps(*args, **kwargs):
+        res = unpatched(*args, **kwargs)
+        maybe_release(args, kwargs)
+        return res
+
+    with patch.object(obj, target, wraps=wraps):
+        yield
+        sem.acquire()
 
 
 def wait_for_worker_idle(container, timeout=10):
