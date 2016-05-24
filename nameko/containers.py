@@ -350,9 +350,10 @@ class ServiceContainer(object):
         gt = self._worker_pool.spawn(
             self._run_worker, worker_ctx, handle_result
         )
+        gt.link(self._handle_worker_thread_exited, worker_ctx)
+
         self._worker_threads[worker_ctx] = gt
         self.worker_created(worker_ctx)
-        gt.link(self._handle_worker_thread_exited, worker_ctx)
         return worker_ctx
 
     def spawn_managed_thread(self, fn, extension=None, protected=None):
