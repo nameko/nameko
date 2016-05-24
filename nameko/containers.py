@@ -432,9 +432,6 @@ class ServiceContainer(object):
                 _log.debug('handling result for %s', worker_ctx)
 
                 with _log_time('handled result for %s', worker_ctx):
-                    # TODO: retry handle_result once, catch any exception
-                    # and only raise if a subsequent call to handle_result
-                    # that receieves the exception also fails
                     result, exc_info = handle_result(
                         worker_ctx, result, exc_info)
 
