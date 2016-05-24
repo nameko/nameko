@@ -19,7 +19,7 @@ from nameko.constants import (
     NAMEKO_CONTEXT_KEYS, PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ConfigurationError, ContainerBeingKilled
 from nameko.extensions import (
-    ENTRYPOINT_EXTENSIONS_ATTR, Extension, is_dependency, iter_extensions)
+    ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions)
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import SpawningSet
 
