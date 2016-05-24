@@ -362,6 +362,37 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
         assert proxy.foobar.spam(ham=1) == 1
 
 
+def test_cluster_proxy_dict_access(
+    container_factory, rabbit_manager, rabbit_config
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        assert proxy['foobar'].spam(ham=3) == 3
+
+
+@pytest.mark.parametrize('name', [
+    object(),
+    None,
+    [],
+    {},
+    (),
+    0,
+    3.1415
+])
+def test_cluster_proxy_dict_access_type_error(
+    container_factory, rabbit_manager, rabbit_config, name
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        with pytest.raises(TypeError) as err:
+            assert proxy[name].spam(ham=3)
+        assert err.value.args == ('{} is not a string.'.format(repr(name)), )
+
+
 def test_recover_from_keyboardinterrupt(
     container_factory, rabbit_manager, rabbit_config
 ):
