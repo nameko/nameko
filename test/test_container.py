@@ -13,7 +13,7 @@ from mock import ANY, Mock, call, patch
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.containers import ServiceContainer, get_service_name
 from nameko.exceptions import ConfigurationError
-from nameko.extensions import DependencyProvider, Entrypoint, Extension
+from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.services import dummy, entrypoint_hook
 from nameko.testing.utils import get_extension
 
@@ -274,7 +274,7 @@ def test_kill_container_with_managed_threads(container):
         while True:
             sleep()
 
-    container.spawn_managed_thread(sleep_forever, Extension())
+    container.spawn_managed_thread(sleep_forever)
 
     assert len(container._managed_threads) == 1
     (worker_gt,) = container._managed_threads.keys()
@@ -337,7 +337,7 @@ def test_spawned_thread_kills_container(container):
         raise Exception('foobar')
 
     container.start()
-    container.spawn_managed_thread(raise_error, Extension())
+    container.spawn_managed_thread(raise_error)
 
     with pytest.raises(Exception) as exc_info:
         container.wait()
@@ -360,8 +360,8 @@ def test_spawned_thread_causes_container_to_kill_other_thread(container):
 
     container.start()
 
-    container.spawn_managed_thread(wait_forever, Extension())
-    container.spawn_managed_thread(raise_error, Extension())
+    container.spawn_managed_thread(wait_forever)
+    container.spawn_managed_thread(raise_error)
 
     with Timeout(1):
         killed_by_error_raised.wait()
@@ -392,8 +392,8 @@ def test_container_only_killed_once(container):
             # to be killed. Two threads raising an exception will cause
             # the container's handle_thread_exit() method to kill the
             # container twice.
-            container.spawn_managed_thread(raise_error, Extension())
-            container.spawn_managed_thread(raise_error, Extension())
+            container.spawn_managed_thread(raise_error)
+            container.spawn_managed_thread(raise_error)
 
             # container should die with an exception
             with pytest.raises(Broken):
