@@ -7,7 +7,6 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
-from six import string_types
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import AMQP_URI_CONFIG_KEY
@@ -319,9 +318,7 @@ class ClusterProxy(object):
 
     def __getitem__(self, name):
         """Enable dict-like access on the proxy. """
-        if not isinstance(name, string_types):
-            raise TypeError('{} is not a string.'.format(repr(name)))
-        return self.__getattr__(name)
+        return getattr(self, name)
 
 
 class ClusterRpcProxy(StandaloneProxyBase):
