@@ -6,7 +6,6 @@ import uuid
 import warnings
 from abc import ABCMeta, abstractproperty
 from logging import getLogger
-from weakref import WeakKeyDictionary
 
 import eventlet
 import six
@@ -170,8 +169,8 @@ class ServiceContainer(object):
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
 
-        self._worker_threads = WeakKeyDictionary()
-        self._managed_threads = WeakKeyDictionary()
+        self._worker_threads = {}
+        self._managed_threads = {}
         self._being_killed = False
         self._died = Event()
 
@@ -458,7 +457,7 @@ class ServiceContainer(object):
 
         if num_workers:
             _log.warning('killing %s active workers(s)', num_workers)
-            for worker_ctx, gt in self._worker_threads.copy().items():
+            for worker_ctx, gt in self._worker_threads.items():
                 _log.warning('killing active worker for %s', worker_ctx)
                 gt.kill()
 
@@ -471,7 +470,7 @@ class ServiceContainer(object):
 
         if num_threads:
             _log.warning('killing %s managed thread(s)', num_threads)
-            for gt, extension in self._managed_threads.copy().items():
+            for gt, extension in self._managed_threads.items():
                 _log.warning('killing managed thread for %s', extension)
                 gt.kill()
 
