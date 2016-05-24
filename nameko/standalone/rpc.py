@@ -318,7 +318,7 @@ class ClusterProxy(object):
         return self._proxies[name]
 
     def __getitem__(self, name):
-        """Enable dict-like access to the proxy. """
+        """Enable dict-like access on the proxy. """
         if not isinstance(name, string_types):
             raise TypeError('{} is not a string.'.format(repr(name)))
         return self.__getattr__(name)
