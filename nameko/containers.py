@@ -409,10 +409,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
-            # when we have better parallelization than ``spawningset``,
-            # do this injection inline
-            self.dependencies.all.inject(worker_ctx)
-            self.dependencies.all.worker_setup(worker_ctx)
+            self._worker_setup(worker_ctx)
 
             result = exc_info = None
             method_name = worker_ctx.entrypoint.method_name
@@ -437,16 +434,27 @@ class ServiceContainer(object):
 
             with _log_time('tore down worker %s', worker_ctx):
 
-                _log.debug('signalling result for %s', worker_ctx)
-                self.dependencies.all.worker_result(
-                    worker_ctx, result, exc_info)
+                self._worker_result(worker_ctx, result, exc_info)
 
                 # we don't need this any more, and breaking the cycle means
                 # this can be reclaimed immediately, rather than waiting for a
                 # gc sweep
                 del exc_info
 
-                self.dependencies.all.worker_teardown(worker_ctx)
+                self._worker_teardown(worker_ctx)
+
+    def _worker_setup(self, worker_ctx):
+        # TODO: when we have better parallelization than ``spawningset``,
+        # do this injection inline
+        self.dependencies.all.inject(worker_ctx)
+        self.dependencies.all.worker_setup(worker_ctx)
+
+    def _worker_result(self, worker_ctx, result, exc_info):
+        _log.debug('signalling result for %s', worker_ctx)
+        self.dependencies.all.worker_result(worker_ctx, result, exc_info)
+
+    def _worker_teardown(self, worker_ctx):
+        self.dependencies.all.worker_teardown(worker_ctx)
 
     def _kill_worker_threads(self):
         """ Kill any currently executing worker threads.
