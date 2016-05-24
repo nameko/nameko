@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import sys
+import warnings
 
 import eventlet
 import greenlet
@@ -117,6 +118,11 @@ def container():
 def logger():
     with patch('nameko.containers._log', autospec=True) as patched:
         yield patched
+
+
+@pytest.fixture(autouse=True)
+def always_warn():
+    warnings.simplefilter('always')
 
 
 def test_collects_extensions(container):
@@ -413,16 +419,15 @@ def test_container_stop_kills_remaining_managed_threads(container, logger):
 
     container.start()
 
-    extension = Extension()
-    container.spawn_managed_thread(sleep_forever, extension)
-    container.spawn_managed_thread(sleep_forever, extension)
+    container.spawn_managed_thread(sleep_forever)
+    container.spawn_managed_thread(sleep_forever)
 
     container.stop()
 
     assert logger.warning.call_args_list == [
         call("killing %s managed thread(s)", 2),
-        call("killing managed thread for %s", extension),
-        call("killing managed thread for %s", extension),
+        call("killing managed thread `%s`", "sleep_forever"),
+        call("killing managed thread `%s`", "sleep_forever"),
     ]
 
     assert logger.debug.call_args_list == [
@@ -443,16 +448,15 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
 
     container.start()
 
-    extension = Extension()
-    container.spawn_managed_thread(sleep_forever, extension)
-    container.spawn_managed_thread(sleep_forever, extension)
+    container.spawn_managed_thread(sleep_forever)
+    container.spawn_managed_thread(sleep_forever)
 
     container.kill()
 
     assert logger.warning.call_args_list == [
         call("killing %s managed thread(s)", 2),
-        call("killing managed thread for %s", extension),
-        call("killing managed thread for %s", extension),
+        call("killing managed thread `%s`", "sleep_forever"),
+        call("killing managed thread `%s`", "sleep_forever"),
     ]
 
     assert logger.info.call_args_list == [
@@ -549,7 +553,6 @@ def test_get_service_name():
 
 
 @pytest.mark.parametrize("args,kwargs", [
-    ((), {}),
     ((True,), {}),
     ((), {'protected': True})
 ])
@@ -565,21 +568,21 @@ def test_spawn_managed_thread_backwards_compat_warning(
     container.kill()
 
 
-def test_logging_managed_threads_for_unknown_extensions(container, logger):
+def test_logging_managed_threads(container, logger):
 
     def wait():
         Event().wait()
 
-    container.spawn_managed_thread(wait)
-    container.spawn_managed_thread(wait, protected=True)
+    container.spawn_managed_thread(wait)  # anonymous
+    container.spawn_managed_thread(wait, identifier='named')
 
     container.stop()
 
-    assert logger.warning.call_args_list == [
-        call("killing %s managed thread(s)", 2),
-        call("killing managed thread for %s", "<unknown-extension>"),
-        call("killing managed thread for %s", "<unknown-extension>"),
-    ]
+    # order is not guaranteed when killing threads
+    call_args_list = logger.warning.call_args_list
+    assert call("killing %s managed thread(s)", 2) in call_args_list
+    assert call("killing managed thread `%s`", "wait") in call_args_list
+    assert call("killing managed thread `%s`", "named") in call_args_list
 
 
 def test_worker_created_destroyed_hooks():

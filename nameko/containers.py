@@ -356,8 +356,10 @@ class ServiceContainer(object):
         self.worker_created(worker_ctx)
         return worker_ctx
 
-    def spawn_managed_thread(self, fn, extension=None, protected=None):
-        """ Spawn a managed thread to run ``fn`` on behalf of `extension`.
+    def spawn_managed_thread(self, fn, protected=None, identifier=None):
+        """ Spawn a managed thread to run ``fn`` on behalf of an extension.
+        The passed `identifier` will be included in logs related to this
+        thread, and otherwise defaults to `fn.__name__`.
 
         Any uncaught errors inside ``fn`` cause the container to be killed.
 
@@ -367,20 +369,20 @@ class ServiceContainer(object):
 
         Extensions should delegate all thread spawning to the container.
         """
-        if not isinstance(extension, Extension):
+        if protected is not None:
             warnings.warn(
                 "The signature of `spawn_managed_thread` has changed. "
                 "The `protected` kwarg is now deprecated, and extensions "
-                "should pass themselves as the second argument for better "
+                "can pass an idenifier as a keyword argument for better "
                 "logging. See :meth:`nameko.containers.ServiceContainer."
                 "spawn_managed_thread`.", DeprecationWarning
             )
-        if extension is None:
-            extension = "<unknown-extension>"
+        if identifier is None:
+            identifier = fn.__name__
 
         gt = eventlet.spawn(fn)
-        self._managed_threads[gt] = extension
-        gt.link(self._handle_managed_thread_exited, extension)
+        self._managed_threads[gt] = identifier
+        gt.link(self._handle_managed_thread_exited, identifier)
         return gt
 
     def worker_created(self, worker_ctx):
@@ -471,8 +473,8 @@ class ServiceContainer(object):
 
         if num_threads:
             _log.warning('killing %s managed thread(s)', num_threads)
-            for gt, extension in self._managed_threads.items():
-                _log.warning('killing managed thread for %s', extension)
+            for gt, identifier in self._managed_threads.items():
+                _log.warning('killing managed thread `%s`', identifier)
                 gt.kill()
 
     def _handle_worker_thread_exited(self, gt, worker_ctx):
