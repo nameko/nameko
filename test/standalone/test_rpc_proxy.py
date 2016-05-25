@@ -362,6 +362,16 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
         assert proxy.foobar.spam(ham=1) == 1
 
 
+def test_cluster_proxy_dict_access(
+    container_factory, rabbit_manager, rabbit_config
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        assert proxy['foobar'].spam(ham=3) == 3
+
+
 def test_recover_from_keyboardinterrupt(
     container_factory, rabbit_manager, rabbit_config
 ):

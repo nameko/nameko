@@ -295,6 +295,14 @@ class ClusterProxy(object):
     You may also supply ``context_data``, a dictionary of data to be
     serialised into the AMQP message headers, and specify custom worker
     context class to serialise them.
+
+    When the name of the service is not legal in Python, you can also
+    use a dict-like syntax::
+
+        with ClusterRpcProxy(config) as proxy:
+            proxy['service-name'].method()
+            proxy['other-service'].method()
+
     """
     def __init__(self, worker_ctx, reply_listener):
         self._worker_ctx = worker_ctx
@@ -307,6 +315,10 @@ class ClusterProxy(object):
             self._proxies[name] = ServiceProxy(
                 self._worker_ctx, name, self._reply_listener)
         return self._proxies[name]
+
+    def __getitem__(self, name):
+        """Enable dict-like access on the proxy. """
+        return getattr(self, name)
 
 
 class ClusterRpcProxy(StandaloneProxyBase):
