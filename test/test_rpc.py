@@ -2,25 +2,21 @@ import uuid
 import warnings
 
 import eventlet
-from eventlet.event import Event
-from mock import patch, Mock, call
 import pytest
-
+from eventlet.event import Event
+from mock import Mock, call, patch
 from nameko.containers import (
-    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
-from nameko.extensions import DependencyProvider
+    NAMEKO_CONTEXT_KEYS, ServiceContainer, WorkerContextBase)
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
-    MalformedRequest)
+    IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
+    UnknownService)
+from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
-from nameko.rpc import (
-    rpc, RpcProxy, RpcConsumer, Rpc, ReplyListener,
-)
+from nameko.rpc import ReplyListener, Rpc, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, restrict_entrypoints
-from nameko.testing.utils import (
-    get_extension, wait_for_call, wait_for_worker_idle)
+from nameko.testing.utils import get_extension, wait_for_call
 
 
 class ExampleError(Exception):
@@ -270,7 +266,6 @@ def test_expected_exceptions_integration(container_factory, rabbit_config):
         with pytest.raises(AttributeError):
             very_broken()
 
-    wait_for_worker_idle(container)  # wait for worker lifecycle to complete
     assert worker_logger.expected == {'broken': ExampleError}
     assert worker_logger.unexpected == {'very_broken': AttributeError}
 

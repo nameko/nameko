@@ -1,15 +1,16 @@
-import eventlet
-from eventlet.event import Event
-from mock import Mock, patch, call
-import pytest
-from requests import Response, HTTPError
+from threading import Thread
 
+import eventlet
+import pytest
+from eventlet.event import Event
+from mock import Mock, call, patch
 from nameko.constants import DEFAULT_MAX_WORKERS
-from nameko.rpc import rpc, Rpc
+from nameko.rpc import Rpc, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
-    AnyInstanceOf, get_extension, get_container, wait_for_call,
-    get_rabbit_connections, wait_for_worker_idle, reset_rabbit_connections)
+    AnyInstanceOf, get_container, get_extension, get_rabbit_connections,
+    patch_wait, reset_rabbit_connections, wait_for_call, wait_for_worker_idle)
+from requests import HTTPError, Response
 
 
 def test_any_instance_of():
@@ -179,6 +180,10 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
 
     max_workers = DEFAULT_MAX_WORKERS
 
+    # verify deprecation warning
+    with pytest.warns(DeprecationWarning):
+        wait_for_worker_idle(container)
+
     # verify nothing running
     assert container._worker_pool.free() == max_workers
     with eventlet.Timeout(1):
@@ -213,3 +218,124 @@ def test_rabbit_connection_refused_error():
 
     message = str(exc_info.value)
     assert 'Connection error' in message
+
+
+class TestPatchWait(object):
+
+    def test_direct(self):
+
+        class Echo(object):
+
+            def upper(self, arg):
+                return arg.upper()
+
+        echo = Echo()
+        arg = "hello"
+
+        with patch_wait(echo, 'upper'):
+            res = echo.upper(arg)
+            assert res == "HELLO"
+
+    def test_indirect(self):
+
+        class Echo(object):
+
+            def proxy(self, arg):
+                return self.upper(arg)
+
+            def upper(self, arg):
+                return arg.upper()
+
+        echo = Echo()
+        arg = "hello"
+
+        with patch_wait(echo, 'upper'):
+            assert echo.proxy(arg) == "HELLO"
+
+    def test_callback(self):
+
+        class Echo(object):
+
+            def upper(self, arg):
+                return arg.upper()
+
+        echo = Echo()
+        arg = "hello"
+
+        callback = Mock()
+        callback.return_value = True
+
+        with patch_wait(echo, 'upper', callback):
+            res = echo.upper(arg)
+            assert res == "HELLO"
+
+        assert callback.called
+        assert callback.call_args_list == [call(arg)]
+
+    def test_callback_multiple_calls(self):
+
+        class Echo(object):
+
+            count = 0
+
+            def upper(self, arg):
+                self.count += 1
+                return "{}-{}".format(arg.upper(), self.count)
+
+        echo = Echo()
+        arg = "hello"
+
+        callback = Mock()
+        callback.side_effect = [False, True]
+
+        with patch_wait(echo, 'upper', callback):
+            res = echo.upper(arg)
+            assert res == "HELLO-1"
+            res = echo.upper(arg)
+            assert res == "HELLO-2"
+
+        assert callback.called
+        assert callback.call_args_list == [call(arg), call(arg)]
+
+    def test_with_new_thread(self):
+
+        class Echo(object):
+
+            def proxy(self, arg):
+                Thread(target=self.upper, args=(arg,)).start()
+
+            def upper(self, arg):
+                return arg.upper()
+
+        echo = Echo()
+        arg = "hello"
+
+        callback = Mock()
+        callback.return_value = True
+
+        with patch_wait(echo, 'upper', callback):
+            res = echo.proxy(arg)
+            assert res is None
+
+        assert callback.called
+        assert callback.call_args_list == [call(arg)]
+
+    def test_target_as_mock(self):
+
+        class Klass(object):
+
+            def __init__(self):
+                self.attr = "value"
+
+            def method(self):
+                return self.attr.upper()
+
+        instance = Klass()
+
+        with patch.object(instance, 'attr') as patched_attr:
+
+            with patch_wait(patched_attr, 'upper'):
+                instance.method()
+
+            assert patched_attr.upper.called
+            assert instance.attr.upper.called

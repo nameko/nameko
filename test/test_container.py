@@ -3,16 +3,17 @@
 import sys
 
 import eventlet
-from eventlet import spawn, sleep, Timeout
-from eventlet.event import Event
 import greenlet
-from mock import patch, call, ANY, Mock
 import pytest
+from eventlet import Timeout, sleep, spawn
+from eventlet.event import Event
+from mock import ANY, Mock, call, patch
 
-from nameko.containers import ServiceContainer, get_service_name
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
+from nameko.containers import ServiceContainer, get_service_name
 from nameko.exceptions import ConfigurationError
-from nameko.extensions import DependencyProvider, Entrypoint
+from nameko.extensions import DependencyProvider, Entrypoint, Extension
+from nameko.testing.services import dummy, entrypoint_hook
 from nameko.testing.utils import get_extension
 
 
@@ -259,7 +260,7 @@ def test_kill_already_stopped(container, logger):
     assert logger.debug.call_args == call("already stopped %s", container)
 
 
-def test_kill_container_with_active_threads(container):
+def test_kill_container_with_managed_threads(container):
     """ Start a thread that's not managed by dependencies. Ensure it is killed
     when the container is.
     """
@@ -267,32 +268,10 @@ def test_kill_container_with_active_threads(container):
         while True:
             sleep()
 
-    container.spawn_managed_thread(sleep_forever)
+    container.spawn_managed_thread(sleep_forever, Extension())
 
-    assert len(container._active_threads) == 1
-    (worker_gt,) = container._active_threads
-
-    container.kill()
-
-    with Timeout(1):
-        container._died.wait()
-
-        with pytest.raises(greenlet.GreenletExit):
-            worker_gt.wait()
-
-
-def test_kill_container_with_protected_threads(container):
-    """ Start a protected thread that's not managed by dependencies. Ensure it
-    is killed when the container is.
-    """
-    def sleep_forever():
-        while True:
-            sleep()
-
-    container.spawn_managed_thread(sleep_forever, protected=True)
-
-    assert len(container._protected_threads) == 1
-    (worker_gt,) = container._protected_threads
+    assert len(container._managed_threads) == 1
+    (worker_gt,) = container._managed_threads.keys()
 
     container.kill()
 
@@ -325,10 +304,11 @@ def test_kill_container_with_active_workers(container_factory):
 
     with patch('nameko.containers._log') as logger:
         container.kill()
-    calls = logger.warning.call_args_list
-    assert call(
-        'killing active thread for %s', dep
-    ) in calls
+
+    assert logger.warning.call_args_list == [
+        call('killing %s active workers(s)', 1),
+        call('killing active worker for %s', ANY)
+    ]
 
 
 def test_handle_killed_worker(container, logger):
@@ -336,8 +316,8 @@ def test_handle_killed_worker(container, logger):
     dep = get_extension(container, Entrypoint)
     container.spawn_worker(dep, ['sleep'], {})
 
-    assert len(container._active_threads) == 1
-    (worker_gt,) = container._active_threads
+    assert len(container._worker_threads) == 1
+    (worker_gt,) = container._worker_threads.values()
 
     worker_gt.kill()
     assert logger.debug.call_args == call(
@@ -351,7 +331,7 @@ def test_spawned_thread_kills_container(container):
         raise Exception('foobar')
 
     container.start()
-    container.spawn_managed_thread(raise_error)
+    container.spawn_managed_thread(raise_error, Extension())
 
     with pytest.raises(Exception) as exc_info:
         container.wait()
@@ -374,8 +354,8 @@ def test_spawned_thread_causes_container_to_kill_other_thread(container):
 
     container.start()
 
-    container.spawn_managed_thread(wait_forever)
-    container.spawn_managed_thread(raise_error)
+    container.spawn_managed_thread(wait_forever, Extension())
+    container.spawn_managed_thread(raise_error, Extension())
 
     with Timeout(1):
         killed_by_error_raised.wait()
@@ -392,7 +372,8 @@ def test_container_only_killed_once(container):
         raise exc
 
     with patch.object(
-            container, '_kill_active_threads', autospec=True) as kill_threads:
+        container, '_kill_managed_threads', autospec=True
+    ) as kill_managed_threads:
 
         with patch.object(container, 'kill', wraps=container.kill) as kill:
             # insert an eventlet yield into the kill process, otherwise
@@ -405,8 +386,8 @@ def test_container_only_killed_once(container):
             # to be killed. Two threads raising an exception will cause
             # the container's handle_thread_exit() method to kill the
             # container twice.
-            container.spawn_managed_thread(raise_error)
-            container.spawn_managed_thread(raise_error)
+            container.spawn_managed_thread(raise_error, Extension())
+            container.spawn_managed_thread(raise_error, Extension())
 
             # container should die with an exception
             with pytest.raises(Broken):
@@ -419,7 +400,7 @@ def test_container_only_killed_once(container):
             ]
 
             # only the first kill results in any cleanup
-            assert kill_threads.call_count == 1
+            assert kill_managed_threads.call_count == 1
 
 
 def test_container_stop_kills_remaining_managed_threads(container, logger):
@@ -432,14 +413,16 @@ def test_container_stop_kills_remaining_managed_threads(container, logger):
 
     container.start()
 
-    container.spawn_managed_thread(sleep_forever)
-    container.spawn_managed_thread(sleep_forever, protected=True)
+    extension = Extension()
+    container.spawn_managed_thread(sleep_forever, extension)
+    container.spawn_managed_thread(sleep_forever, extension)
 
     container.stop()
 
     assert logger.warning.call_args_list == [
-        call("killing %s active thread(s)", 1),
-        call("killing %s protected thread(s)", 1),
+        call("killing %s managed thread(s)", 2),
+        call("killing managed thread for %s", extension),
+        call("killing managed thread for %s", extension),
     ]
 
     assert logger.debug.call_args_list == [
@@ -460,14 +443,16 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
 
     container.start()
 
-    container.spawn_managed_thread(sleep_forever)
-    container.spawn_managed_thread(sleep_forever, protected=True)
+    extension = Extension()
+    container.spawn_managed_thread(sleep_forever, extension)
+    container.spawn_managed_thread(sleep_forever, extension)
 
     container.kill()
 
     assert logger.warning.call_args_list == [
-        call("killing %s active thread(s)", 1),
-        call("killing %s protected thread(s)", 1),
+        call("killing %s managed thread(s)", 2),
+        call("killing managed thread for %s", extension),
+        call("killing managed thread for %s", extension),
     ]
 
     assert logger.info.call_args_list == [
@@ -509,10 +494,11 @@ def test_stop_during_kill(container, logger):
     a container while it is being killed.
     """
     with patch.object(
-            container, '_kill_active_threads', autospec=True) as kill_threads:
+        container, '_kill_managed_threads', autospec=True
+    ) as kill_managed_threads:
 
         # force eventlet yield during kill() so stop() will be scheduled
-        kill_threads.side_effect = eventlet.sleep
+        kill_managed_threads.side_effect = eventlet.sleep
 
         # manufacture an exc_info to kill with
         try:
@@ -560,3 +546,70 @@ def test_get_service_name():
         'Service class must define a `name` attribute '
         '(test.test_container.AnonymousService)'
     )
+
+
+@pytest.mark.parametrize("args,kwargs", [
+    ((), {}),
+    ((True,), {}),
+    ((), {'protected': True})
+])
+def test_spawn_managed_thread_backwards_compat_warning(
+    container, args, kwargs
+):
+
+    def wait():
+        Event().wait()
+
+    with pytest.warns(DeprecationWarning):
+        container.spawn_managed_thread(wait, *args, **kwargs)
+    container.kill()
+
+
+def test_logging_managed_threads_for_unknown_extensions(container, logger):
+
+    def wait():
+        Event().wait()
+
+    container.spawn_managed_thread(wait)
+    container.spawn_managed_thread(wait, protected=True)
+
+    container.stop()
+
+    assert logger.warning.call_args_list == [
+        call("killing %s managed thread(s)", 2),
+        call("killing managed thread for %s", "<unknown-extension>"),
+        call("killing managed thread for %s", "<unknown-extension>"),
+    ]
+
+
+def test_worker_created_destroyed_hooks():
+
+    worker_created = Mock()
+    worker_destroyed = Mock()
+
+    class Service(object):
+        name = "service"
+
+        @dummy
+        def method(self, *args, **kwargs):
+            pass
+
+    class TrackingServiceContainer(ServiceContainer):
+
+        def worker_created(self, worker_ctx):
+            worker_created(worker_ctx)
+
+        def worker_destroyed(self, worker_ctx):
+            worker_destroyed(worker_ctx)
+
+    container = TrackingServiceContainer(Service, config={})
+    container.start()
+
+    with entrypoint_hook(container, "method") as hook:
+        hook("arg", kwarg="kwarg")
+
+    (worker_ctx,), _ = worker_created.call_args
+
+    assert worker_created.call_args_list == worker_destroyed.call_args_list
+    assert worker_ctx.args == ("arg",)
+    assert worker_ctx.kwargs == {"kwarg": "kwarg"}

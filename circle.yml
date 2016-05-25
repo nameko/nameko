@@ -1,0 +1,19 @@
+machine:
+  python:
+    version: 3.4.3
+  services:
+    - rabbitmq-server
+  environment:
+    IMAGE_TAG: ${CIRCLE_SHA1}
+  pre:
+    - sudo rabbitmq-plugins enable rabbitmq_management
+
+dependencies:
+  pre:
+    - pip install -U pip setuptools tox
+    - pip install -e ".[dev]"
+    - pyenv local 2.7.9 3.3.3 3.4.3
+
+test:
+    override:
+      - tox

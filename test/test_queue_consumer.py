@@ -6,11 +6,11 @@ import pytest
 from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.exceptions import TimeoutError
-from mock import ANY, call, Mock, patch
+from mock import ANY, Mock, call, patch
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.messaging import QueueConsumer
-from nameko.rpc import rpc, RpcConsumer
+from nameko.rpc import RpcConsumer, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections)
@@ -40,7 +40,7 @@ class MessageHandler(object):
         return self.handle_message_called.wait()
 
 
-def spawn_thread(method, protected):
+def spawn_thread(method, extension):
     return eventlet.spawn(method)
 
 
@@ -64,7 +64,7 @@ def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
     queue_consumer.start()
 
     # making sure the QueueConsumer uses the container to spawn threads
-    container.spawn_managed_thread.assert_called_once_with(ANY, protected=True)
+    container.spawn_managed_thread.assert_called_once_with(ANY, queue_consumer)
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub',

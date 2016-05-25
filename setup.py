@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-from codecs import open
 import os
-from setuptools import setup, find_packages
+from codecs import open
 
+from setuptools import find_packages, setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -33,15 +33,13 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.0",
+            "coverage==4.0.3",
             "flake8==2.1.0",
             "mccabe==0.3",
             "pep8==1.6.1",
             "pyflakes==0.8.1",
             "pylint==1.5.1",
-            "pytest==2.7.2",
-            "pytest-cov==2.1.0",
-            "pytest-timeout==0.4",
+            "pytest==2.9.1",
             "urllib3==1.10.2",
             "websocket-client==0.23.0",
         ],

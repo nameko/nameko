@@ -1,12 +1,13 @@
 """
 Common testing utilities.
 """
+import warnings
 from contextlib import contextmanager
 from functools import partial
+from threading import Semaphore
 
 import eventlet
-from mock import Mock
-
+from mock import Mock, patch
 from nameko.containers import WorkerContextBase
 from nameko.extensions import Entrypoint
 from nameko.testing.rabbit import HTTPError
@@ -55,12 +56,40 @@ def wait_for_call(timeout, mock_method):
     yield mock_method
 
 
+@contextmanager
+def patch_wait(obj, target, callback=None):
+
+    sem = Semaphore(0)
+    unpatched = getattr(obj, target)
+
+    def maybe_release(args, kwargs):
+        should_release = True
+        if callable(callback):
+            should_release = callback(*args, **kwargs)
+
+        if should_release:
+            sem.release()
+
+    def wraps(*args, **kwargs):
+        res = unpatched(*args, **kwargs)
+        maybe_release(args, kwargs)
+        return res
+
+    with patch.object(obj, target, wraps=wraps):
+        yield
+        sem.acquire()
+
+
 def wait_for_worker_idle(container, timeout=10):
     """ Blocks until ``container`` has no running workers.
 
     Raises an :class:`eventlet.Timeout` if the method was not called
     within ``timeout`` seconds.
     """
+    warnings.warn(
+        "`wait_for_worker_idle` is deprecated. Use the `entrypoint_waiter` "
+        "to wait for specific entrypoints instead.", DeprecationWarning
+    )
     with eventlet.Timeout(timeout):
         container._worker_pool.waitall()
 
