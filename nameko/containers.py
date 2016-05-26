@@ -359,7 +359,7 @@ class ServiceContainer(object):
     def spawn_managed_thread(self, fn, protected=None, identifier=None):
         """ Spawn a managed thread to run ``fn`` on behalf of an extension.
         The passed `identifier` will be included in logs related to this
-        thread, and otherwise defaults to `fn.__name__`.
+        thread, and otherwise defaults to `fn.__name__`, if it is set.
 
         Any uncaught errors inside ``fn`` cause the container to be killed.
 
@@ -378,7 +378,7 @@ class ServiceContainer(object):
                 "spawn_managed_thread`.", DeprecationWarning
             )
         if identifier is None:
-            identifier = fn.__name__
+            identifier = getattr(fn, '__name__', "<unknown>")
 
         gt = eventlet.spawn(fn)
         self._managed_threads[gt] = identifier

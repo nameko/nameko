@@ -2,6 +2,7 @@
 
 import sys
 import warnings
+from functools import partial
 
 import eventlet
 import greenlet
@@ -574,14 +575,16 @@ def test_logging_managed_threads(container, logger):
         Event().wait()
 
     container.spawn_managed_thread(wait)  # anonymous
+    container.spawn_managed_thread(partial(wait))  # __name__less
     container.spawn_managed_thread(wait, identifier='named')
 
     container.stop()
 
     # order is not guaranteed when killing threads
     call_args_list = logger.warning.call_args_list
-    assert call("killing %s managed thread(s)", 2) in call_args_list
+    assert call("killing %s managed thread(s)", 3) in call_args_list
     assert call("killing managed thread `%s`", "wait") in call_args_list
+    assert call("killing managed thread `%s`", "<unknown>") in call_args_list
     assert call("killing managed thread `%s`", "named") in call_args_list
 
 
