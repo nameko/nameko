@@ -1,7 +1,6 @@
 # coding: utf-8
 
 import sys
-import warnings
 from functools import partial
 
 import eventlet
