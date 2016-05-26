@@ -7,7 +7,7 @@ from nameko.testing.utils import wait_for_call
 from nameko.timer import Timer
 
 
-def spawn_managed_thread(fn, extension):
+def spawn_managed_thread(fn, identifier):
     return eventlet.spawn(fn)
 
 

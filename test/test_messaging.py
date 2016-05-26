@@ -360,10 +360,10 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     content_type = 'application/data'
     container.accept = [content_type]
 
-    def spawn_thread(method, extension):
+    def spawn_managed_thread(method, identifier):
         return eventlet.spawn(method)
 
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
 
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 
