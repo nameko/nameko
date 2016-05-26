@@ -121,11 +121,6 @@ def logger():
         yield patched
 
 
-@pytest.fixture(autouse=True)
-def always_warn():
-    warnings.simplefilter('always')
-
-
 def test_collects_extensions(container):
     assert len(container.extensions) == 4
     assert container.extensions == (
