@@ -8,24 +8,11 @@ flake8:
 pylint:
 	pylint --rcfile=pylintrc nameko -E
 
-coverage_combine:
-	coverage combine
+test_lib:
+	py.test test --cov=$(CURDIR)/nameko --cov-config=$(CURDIR)/.coveragerc
 
-coverage_report: coverage_combine
-	coverage report
-
-coverage_erase:
-	coverage erase
-
-coverage_lib:
-	coverage run --source $(CURDIR)/nameko -m pytest test
-
-test_lib: coverage_erase coverage_lib coverage_report
-
-coverage_examples:
-	coverage run --source docs/examples -m pytest docs/examples/test
-
-test_examples: coverage_erase coverage_examples coverage_report
+test_examples:
+	py.test docs/examples/test --cov=docs/examples
 	py.test docs/examples/testing
 
 test_docs: docs spelling #linkcheck

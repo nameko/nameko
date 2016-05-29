@@ -33,13 +33,15 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.0.3",
+            "coverage==4.0",
             "flake8==2.1.0",
             "mccabe==0.3",
             "pep8==1.6.1",
             "pyflakes==0.8.1",
             "pylint==1.5.1",
             "pytest==2.7.3",
+            "pytest-cov==2.1.0",
+            "pytest-timeout==0.4",
             "urllib3==1.10.2",
             "websocket-client==0.23.0",
         ],
