@@ -184,7 +184,6 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
     # `testdir` plugin is not compatible with eventlet on python3 --
     # see https://github.com/mattbennett/eventlet-pytest-bug
     with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter('always')
         wait_for_worker_idle(container)
         assert len(ws) == 1
         assert issubclass(ws[-1].category, DeprecationWarning)

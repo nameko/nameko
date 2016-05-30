@@ -436,8 +436,11 @@ def test_async_rpc_deprecation_warning(container_factory, rabbit_config):
     container.start()
 
     with entrypoint_hook(container, 'deprecated_async') as call_async:
+
+        # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
+        # `testdir` plugin is not compatible with eventlet on python3 --
+        # see https://github.com/mattbennett/eventlet-pytest-bug
         with warnings.catch_warnings(record=True) as ws:
-            warnings.simplefilter('always')
             assert call_async() == [[], {}]
             assert len(ws) == 1
             assert issubclass(ws[-1].category, DeprecationWarning)
