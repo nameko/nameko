@@ -95,7 +95,7 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
         worker_ctx, = args
         if worker_ctx.entrypoint.method_name == method_name:
             if callable(callback):
-                return callback(worker_ctx)
+                return callback(args, kwargs, res, exc_info)
             return True
         return False
 
