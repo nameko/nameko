@@ -2,18 +2,17 @@
 Utilities for testing nameko services.
 """
 
+import inspect
 from collections import OrderedDict
 from contextlib import contextmanager
-import inspect
 
 import eventlet
+from call_waiting import wait_for_call
 from eventlet import event
-from eventlet.semaphore import Semaphore
 from mock import MagicMock
-
-from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.exceptions import ExtensionNotFound
-from nameko.testing.utils import get_extension, wait_for_worker_idle
+from nameko.extensions import DependencyProvider, Entrypoint
+from nameko.testing.utils import get_extension
 
 
 @contextmanager
@@ -76,65 +75,38 @@ def entrypoint_hook(container, method_name, context_data=None):
     yield hook
 
 
-class EntrypointWaiter(DependencyProvider):
-    """Helper for `entrypoint_waiter`
-
-    DependencyProvider to be manually (and temporarily) added to an existing
-    container. Takes an entrypoint name, and exposes a `wait` method, which
-    will return once the entrypoint has fired.
-    """
-
-    class Timeout(Exception):
-        pass
-
-    def __init__(self, entrypoint):
-        self.attr_name = '_entrypoint_waiter_{}'.format(entrypoint)
-        self.entrypoint = entrypoint
-        self.done = Semaphore(value=0)
-
-    def worker_teardown(self, worker_ctx):
-        entrypoint = worker_ctx.entrypoint
-        if entrypoint.method_name == self.entrypoint:
-            self.done.release()
-
-    def wait(self):
-        self.done.acquire()
+class EntrypointWaiterTimeout(Exception):
+    pass
 
 
 @contextmanager
-def entrypoint_waiter(container, entrypoint, timeout=30):
-    """Helper to wait for entrypoints to fire (and complete)
-
+def entrypoint_waiter(container, method_name, timeout=30, callback=None):
+    """ Helper to wait for entrypoints to fire (and complete)
     Usage::
-
         container = ServiceContainer(ExampleService, config)
         with entrypoint_waiter(container, 'example_handler'):
             ...  # e.g. rpc call that will result in handler being called
     """
-
-    waiter = EntrypointWaiter(entrypoint)
-    if not get_extension(container, Entrypoint, method_name=entrypoint):
+    if not get_extension(container, Entrypoint, method_name=method_name):
         raise RuntimeError("{} has no entrypoint `{}`".format(
-            container.service_name, entrypoint))
-    if get_extension(container, EntrypointWaiter, entrypoint=entrypoint):
-        raise RuntimeError("Waiter already registered for {}".format(
-            entrypoint))
+            container.service_name, method_name))
 
-    # can't mess with dependencies while container is running
-    wait_for_worker_idle(container)
-    container.dependencies.add(waiter)
+    def cb(args, kwargs, res, exc_info):
+        worker_ctx, = args
+        if worker_ctx.entrypoint.method_name == method_name:
+            if callable(callback):
+                return callback(worker_ctx)
+            return True
+        return False
 
-    try:
-        yield
-        exc = waiter.Timeout(
-            "Entrypoint {}.{} failed to complete within {} seconds".format(
-                container.service_name, entrypoint, timeout)
-        )
-        with eventlet.Timeout(timeout, exception=exc):
-            waiter.wait()
-    finally:
-        wait_for_worker_idle(container)
-        container.dependencies.remove(waiter)
+    exc = EntrypointWaiterTimeout(
+        "EntrypointWaiterTimeout on {}.{} after {} seconds".format(
+            container.service_name, method_name, timeout)
+    )
+
+    with eventlet.Timeout(timeout, exception=exc):
+        with wait_for_call(container, 'worker_destroyed', callback=cb):
+            yield
 
 
 def worker_factory(service_cls, **dependencies):
