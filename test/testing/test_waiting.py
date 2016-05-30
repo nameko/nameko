@@ -5,8 +5,9 @@ import time
 from threading import Thread
 
 import pytest
-from call_waiting import WaitResult, wait_for_call
 from mock import ANY, Mock, call, patch
+
+from nameko.testing.waiting import WaitResult, wait_for_call
 
 
 @pytest.yield_fixture
