@@ -7,12 +7,12 @@ from collections import OrderedDict
 from contextlib import contextmanager
 
 import eventlet
-from call_waiting import wait_for_call
 from eventlet import event
 from mock import MagicMock
 from nameko.exceptions import ExtensionNotFound
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
+from nameko.testing.waiting import wait_for_call
 
 
 @contextmanager
