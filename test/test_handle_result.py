@@ -1,15 +1,13 @@
 import json
 import sys
 
-from mock import ANY
 import pytest
-
-from nameko.extensions import DependencyProvider
+from mock import ANY
 from nameko.exceptions import RemoteError
+from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.utils import wait_for_worker_idle
-
+from nameko.testing.services import entrypoint_waiter
 
 worker_result_called = []
 
@@ -59,22 +57,29 @@ class ExampleService(object):
         return object()
 
 
-def test_handle_result(container_factory, rabbit_manager, rabbit_config):
+@pytest.yield_fixture
+def rpc_proxy(rabbit_config):
+    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
+        yield proxy
+
+
+def test_handle_result(
+    container_factory, rabbit_manager, rabbit_config, rpc_proxy
+):
     """ Verify that `handle_result` can modify the return values of the worker,
     such that other dependencies see the updated values.
     """
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
+    assert rpc_proxy.echo("hello") == "hello"
 
-        assert proxy.echo("hello") == "hello"
-
+    # use entrypoint_waiter because the rpc proxy returns before
+    # worker_result is called
+    with entrypoint_waiter(container, "unserializable"):
         with pytest.raises(RemoteError) as exc:
-            proxy.unserializable()
+            rpc_proxy.unserializable()
         assert "is not JSON serializable" in str(exc.value)
-
-    wait_for_worker_idle(container)
 
     # verify ResultCollector sees values returned from `handle_result`
     assert worker_result_called == [
