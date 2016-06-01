@@ -600,7 +600,8 @@ def test_entrypoint_waiter_nested(container_factory, rabbit_config):
             dispatch('srcservice', 'eventtype1', "")
             dispatch('srcservice', 'eventtype2', "")
 
-    assert handle_event.call_args_list == [call(1), call(2)]
+    assert call(1) in handle_event.call_args_list
+    assert call(2) in handle_event.call_args_list
 
 
 def test_entrypoint_waiter_duplicate(container_factory, rabbit_config):
