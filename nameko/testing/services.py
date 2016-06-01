@@ -85,11 +85,80 @@ class EntrypointWaiterTimeout(Exception):
 
 @contextmanager
 def entrypoint_waiter(container, method_name, timeout=30, callback=None):
-    """ Helper to wait for entrypoints to fire (and complete)
-    Usage::
-        container = ServiceContainer(ExampleService, config)
-        with entrypoint_waiter(container, 'example_handler'):
-            ...  # e.g. rpc call that will result in handler being called
+    """ Context manager that waits until an entrypoint has fired (and
+    completed).
+
+    It yields a :class:`nameko.testing.waiting.WaitResult` object that can be
+    used to get the result returned (exception raised) by the entrypoint
+    after the waiter has exited.
+
+    :Parameters:
+        container : ServiceContainer
+            The container hosting the service owning the entrypoint
+        method_name : str
+            The name of the entrypoint decorated method on the service class
+        timeout : int
+            Maximum seconds to wait
+        callback : callable
+            Function to conditionally control whether the entrypoint_waiter
+            should exit for a particular invocation
+
+    Optionally allows a `callback` to be provided which is invoked whenever
+    the entrypoint fires. If provided, the callback must return `True`
+    for the `entrypoint_waiter` to exit. The signature for the callback
+    function is::
+
+        def callback(worker_ctx, result, exc_info):
+            pass
+
+    Where there parameters are as follows:
+
+        worker_ctx (WorkerContext): WorkerContext of the entrypoint call.
+
+        result (object): The result, if any, that the entrypoint returned.
+
+        exc_info (tuple): Tuple as returned by `sys.exc_info` if the
+            entrypoint raised an exception, otherwise `None`.
+
+
+    The `timeout` argument specifies the maximum number of seconds the
+    `entrypoint_waiter` should wait before exiting. It can be disabled by
+    passing `None`.
+
+    **Usage**
+
+    ::
+        class Service(object):
+            name = "service"
+
+            @event_handler('srcservice', 'eventtype')
+            def handle_event(self, msg):
+                return msg
+
+        container = ServiceContainer(Service, config)
+        container.start()
+
+        # basic
+        with entrypoint_waiter(container, 'handle_event'):
+            ...  # action that dispatches event
+
+        # giving access to the result
+        with entrypoint_waiter(container, 'handle_event') as result:
+            ...  # action that dispatches event
+        res = result.get()
+
+        # with custom timeout
+        with entrypoint_waiter(container, 'handle_event', timeout=5):
+            ...  # action that dispatches event
+
+        # with callback that waits until entrypoint stops raising
+        def callback(worker_ctx, result, exc_info):
+            if exc_info is None:
+                return True
+
+        with entrypoint_waiter(container, 'handle_event', callback=callback):
+            ...  # action that dispatches event
+
     """
     if not get_extension(container, Entrypoint, method_name=method_name):
         raise RuntimeError("{} has no entrypoint `{}`".format(
