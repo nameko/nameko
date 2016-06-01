@@ -179,7 +179,7 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
             waiter_result.send(result, exc_info)
         return complete
 
-    def on_worker_destroyed(worker_ctx):
+    def on_worker_teardown(worker_ctx):
         if worker_ctx.entrypoint.method_name == method_name:
             return True
         return False
@@ -191,8 +191,8 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 
     with eventlet.Timeout(timeout, exception=exc):
         with wait_for_call(
-            container, 'worker_destroyed',
-            lambda args, kwargs, res, exc: on_worker_destroyed(*args)
+            container, '_worker_teardown',
+            lambda args, kwargs, res, exc: on_worker_teardown(*args)
         ):
             with wait_for_call(
                 container, '_worker_result',
