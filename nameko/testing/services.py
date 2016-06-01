@@ -9,10 +9,11 @@ from contextlib import contextmanager
 import eventlet
 from eventlet import event
 from mock import MagicMock
+
 from nameko.exceptions import ExtensionNotFound
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
-from nameko.testing.waiting import wait_for_call
+from nameko.testing.waiting import WaitResult, wait_for_call
 
 
 @contextmanager
@@ -47,33 +48,33 @@ def entrypoint_hook(container, method_name, context_data=None):
                 method_name, container))
 
     def hook(*args, **kwargs):
-        result = event.Event()
+        hook_result = event.Event()
 
-        def handle_result(worker_ctx, res=None, exc_info=None):
-            result.send(res, exc_info)
-            return res, exc_info
-
-        with entrypoint_waiter(container, method_name):
-            container.spawn_worker(
-                entrypoint, args, kwargs,
-                context_data=context_data,
-                handle_result=handle_result
-            )
-
-        # If the container errors (e.g. due to a bad entrypoint), handle_result
-        # is never called and we hang. To mitigate, we spawn a greenlet waiting
-        # for the container, and if that throws we send the exception back
-        # as our result
-        def catch_container_errors(gt):
+        def wait_for_entrypoint():
+            with entrypoint_waiter(container, method_name) as waiter_result:
+                container.spawn_worker(
+                    entrypoint, args, kwargs,
+                    context_data=context_data
+                )
             try:
-                gt.wait()
+                hook_result.send(waiter_result.get())
             except Exception as exc:
-                result.send_exception(exc)
+                hook_result.send_exception(exc)
 
-        gt = eventlet.spawn(container.wait)
-        gt.link(catch_container_errors)
+        def wait_for_container():
+            try:
+                container.wait()
+            except Exception as exc:
+                if not hook_result.ready():
+                    hook_result.send_exception(exc)
 
-        return result.wait()
+        # If the container errors (e.g. due to a bad entrypoint), the
+        # entrypoint_waiter never completes. To mitigate, we exit the hook
+        # on the first greenthread to complete.
+        eventlet.spawn_n(wait_for_entrypoint)
+        eventlet.spawn_n(wait_for_container)
+
+        return hook_result.wait()
 
     yield hook
 
@@ -94,11 +95,23 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
         raise RuntimeError("{} has no entrypoint `{}`".format(
             container.service_name, method_name))
 
-    def cb(args, kwargs, res, exc_info):
-        worker_ctx, = args
+    waiter_callback = callback
+    waiter_result = WaitResult()
+
+    def on_worker_result(worker_ctx, result, exc_info):
+        complete = False
         if worker_ctx.entrypoint.method_name == method_name:
-            if callable(callback):
-                return callback(args, kwargs, res, exc_info)
+            if not callable(waiter_callback):
+                complete = True
+            else:
+                complete = waiter_callback(worker_ctx, result, exc_info)
+
+        if complete:
+            waiter_result.send(result, exc_info)
+        return complete
+
+    def on_worker_destroyed(worker_ctx):
+        if worker_ctx.entrypoint.method_name == method_name:
             return True
         return False
 
@@ -108,8 +121,15 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
     )
 
     with eventlet.Timeout(timeout, exception=exc):
-        with wait_for_call(container, 'worker_destroyed', callback=cb):
-            yield
+        with wait_for_call(
+            container, 'worker_destroyed',
+            lambda args, kwargs, res, exc: on_worker_destroyed(*args)
+        ):
+            with wait_for_call(
+                container, '_worker_result',
+                lambda args, kwargs, res, exc: on_worker_result(*args)
+            ):
+                yield waiter_result
 
 
 def worker_factory(service_cls, **dependencies):

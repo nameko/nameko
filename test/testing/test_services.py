@@ -1,6 +1,10 @@
+import itertools
+import time
+
+import eventlet
 import pytest
 from mock import Mock, call
-from nameko.containers import WorkerContext
+
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.extensions import DependencyProvider
@@ -29,6 +33,23 @@ handle_event = Mock()
 def reset_mock():
     yield
     handle_event.reset_mock()
+
+
+@pytest.yield_fixture
+def spawn_thread():
+
+    threads = []
+
+    def spawn(fn, *args):
+        threads.append(eventlet.spawn(fn, *args))
+
+    yield spawn
+
+    for gt in threads:
+        try:
+            gt.kill()
+        except:
+            pass
 
 
 class Service(object):
@@ -352,31 +373,189 @@ def test_entrypoint_waiter(container_factory, rabbit_config):
         dispatch('srcservice', 'eventtype', "")
 
 
-@pytest.mark.usefixtures('predictable_call_ids')
-def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
+def test_entrypoint_waiter_result(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            return msg.upper()
 
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    track_callback = Mock()
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle_event') as result:
+        dispatch('srcservice', 'eventtype', "msg")
 
-    def cb(args, kwargs, res, exc_info):
-        worker_ctx, = args
-        track_callback(worker_ctx)
-        if track_callback.call_count == 2:
+    res = result.get()
+    assert res == "MSG"
+
+
+def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            return msg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    results = []
+
+    def cb(worker_ctx, res, exc_info):
+        results.append((res, exc_info))
+        if len(results) == 2:
             return True
         return False
 
     dispatch = event_dispatcher(rabbit_config)
-    with entrypoint_waiter(container, 'handle', callback=cb):
-        dispatch('srcservice', 'eventtype', "")
-        dispatch('srcservice', 'eventtype', "")
+    with entrypoint_waiter(container, 'handle_event', callback=cb):
+        dispatch('srcservice', 'eventtype', "msg1")
+        dispatch('srcservice', 'eventtype', "msg2")
 
-    assert track_callback.call_count == 2
-    for index, (args, _) in enumerate(track_callback.call_args_list):
-        (worker_ctx, ) = args
-        assert isinstance(worker_ctx, WorkerContext)
-        assert worker_ctx.call_id == "service.handle.{}".format(index)
+    assert results == [("msg1", None), ("msg2", None)]
+
+
+def test_entrypoint_waiter_wait_for_specific_result(
+    container_factory, rabbit_config, spawn_thread
+):
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            return msg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    target = 5
+
+    def cb(worker_ctx, res, exc_info):
+        if res == target:
+            return True
+
+    def increment_forever():
+        dispatch = event_dispatcher(rabbit_config)
+        for count in itertools.count():
+            dispatch('srcservice', 'eventtype', count)
+            time.sleep()  # force yield
+
+    with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
+        spawn_thread(increment_forever)
+
+    assert result.get() == target
+
+
+def test_entrypoint_waiter_wait_until_called_with_argument(
+    container_factory, rabbit_config, spawn_thread
+):
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            return msg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    target = 5
+
+    def cb(worker_ctx, res, exc_info):
+        if worker_ctx.args == (target,):
+            return True
+
+    def increment_forever():
+        dispatch = event_dispatcher(rabbit_config)
+        for count in itertools.count():
+            dispatch('srcservice', 'eventtype', count)
+            time.sleep()  # force yield
+
+    with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
+        spawn_thread(increment_forever)
+
+    assert result.get() == target
+
+
+def test_entrypoint_waiter_wait_until_raises(
+    container_factory, rabbit_config, spawn_thread
+):
+    threshold = 5
+
+    class TooMuch(Exception):
+        pass
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            if msg > threshold:
+                raise TooMuch(msg)
+            return msg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    def cb(worker_ctx, res, exc_info):
+        if exc_info is not None:
+            return True
+
+    def increment_forever():
+        dispatch = event_dispatcher(rabbit_config)
+        for count in itertools.count():
+            dispatch('srcservice', 'eventtype', count)
+            time.sleep()  # force yield
+
+    with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
+        spawn_thread(increment_forever)
+
+    with pytest.raises(TooMuch):
+        result.get()
+
+
+def test_entrypoint_waiter_wait_until_stops_raising(
+    container_factory, rabbit_config, spawn_thread
+):
+    threshold = 5
+
+    class NotEnough(Exception):
+        pass
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            if msg < threshold:
+                raise NotEnough(msg)
+            return msg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    def cb(worker_ctx, res, exc_info):
+        if exc_info is None:
+            return True
+
+    def increment_forever():
+        dispatch = event_dispatcher(rabbit_config)
+        for count in itertools.count():
+            dispatch('srcservice', 'eventtype', count)
+            time.sleep()  # force yield
+
+    with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
+        spawn_thread(increment_forever)
+
+    assert result.get() == threshold
 
 
 def test_entrypoint_waiter_timeout(container_factory, rabbit_config):
@@ -424,7 +603,7 @@ def test_entrypoint_waiter_nested(container_factory, rabbit_config):
     assert handle_event.call_args_list == [call(1), call(2)]
 
 
-def test_entrypoint_duplicate(container_factory, rabbit_config):
+def test_entrypoint_waiter_duplicate(container_factory, rabbit_config):
 
     class Service(object):
         name = "service"
