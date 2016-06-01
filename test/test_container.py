@@ -10,11 +10,11 @@ import pytest
 from eventlet import Timeout, sleep, spawn
 from eventlet.event import Event
 from mock import ANY, Mock, call, patch
+
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.containers import ServiceContainer, get_service_name
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import DependencyProvider, Entrypoint
-from nameko.testing.services import dummy, entrypoint_hook
 from nameko.testing.utils import get_extension
 
 
@@ -586,36 +586,3 @@ def test_logging_managed_threads(container, logger):
     assert call("killing managed thread `%s`", "wait") in call_args_list
     assert call("killing managed thread `%s`", "<unknown>") in call_args_list
     assert call("killing managed thread `%s`", "named") in call_args_list
-
-
-def test_worker_created_destroyed_hooks():
-
-    worker_created = Mock()
-    worker_destroyed = Mock()
-
-    class Service(object):
-        name = "service"
-
-        @dummy
-        def method(self, *args, **kwargs):
-            pass
-
-    class TrackingServiceContainer(ServiceContainer):
-
-        def worker_created(self, worker_ctx):
-            worker_created(worker_ctx)
-
-        def worker_destroyed(self, worker_ctx):
-            worker_destroyed(worker_ctx)
-
-    container = TrackingServiceContainer(Service, config={})
-    container.start()
-
-    with entrypoint_hook(container, "method") as hook:
-        hook("arg", kwarg="kwarg")
-
-    (worker_ctx,), _ = worker_created.call_args
-
-    assert worker_created.call_args_list == worker_destroyed.call_args_list
-    assert worker_ctx.args == ("arg",)
-    assert worker_ctx.kwargs == {"kwarg": "kwarg"}
