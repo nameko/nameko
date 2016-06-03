@@ -360,7 +360,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     content_type = 'application/data'
     container.accept = [content_type]
 
-    def spawn_managed_thread(method, identifier):
+    def spawn_managed_thread(method):
         return eventlet.spawn(method)
 
     container.spawn_managed_thread = spawn_managed_thread
