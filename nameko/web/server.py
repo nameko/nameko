@@ -71,7 +71,7 @@ class WebServer(ProviderCollector, SharedExtension):
             sock, addr = self._sock.accept()
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(
-                partial(self._serv.process_request, (sock, addr)), self
+                partial(self._serv.process_request, (sock, addr))
             )
 
     def start(self):
@@ -84,7 +84,7 @@ class WebServer(ProviderCollector, SharedExtension):
                                      self._wsgi_app,
                                      protocol=HttpOnlyProtocol,
                                      debug=False)
-            self._gt = self.container.spawn_managed_thread(self.run, self)
+            self._gt = self.container.spawn_managed_thread(self.run)
 
     def stop(self):
         self._is_accepting = False
