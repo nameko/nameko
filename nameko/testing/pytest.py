@@ -88,6 +88,7 @@ def rabbit_config(request, rabbit_manager):
     import random
     import string
     from kombu import pools
+    from retry import retry
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     from nameko.testing.utils import get_rabbit_connections
 
@@ -118,7 +119,9 @@ def rabbit_config(request, rabbit_manager):
     pools.reset()  # close connections in pools
 
     # raise a runtime error if the test leaves any connections lying around
-    try:
+    # allow a couple of retries because the rabbit api is eventually consistent
+    @retry(tries=3)
+    def check_connections():
         connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
         open_connections = [
             conn for conn in connections if conn['state'] != "closed"
@@ -128,6 +131,8 @@ def rabbit_config(request, rabbit_manager):
             names = ", ".join(conn['name'] for conn in open_connections)
             raise RuntimeError(
                 "{} rabbit connection(s) left open: {}".format(count, names))
+    try:
+        check_connections()
     finally:
         if use_random_vost:
             rabbit_manager.delete_vhost(vhost)

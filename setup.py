@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-from codecs import open
 import os
-from setuptools import setup, find_packages
+from codecs import open
 
+from setuptools import find_packages, setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -28,6 +28,7 @@ setup(
         "path.py>=6.2",
         "pyyaml>=3.10",
         "requests>=1.2.0",
+        "retry>=0.1.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
     ],
