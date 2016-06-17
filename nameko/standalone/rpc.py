@@ -78,11 +78,13 @@ class PollingQueueConsumer(object):
         if self.consumer is not None:
             try:
                 self.consumer.cancel()
-            except socket.error:  # pragma: no cover
+            except (socket.error, IOError):  # pragma: no cover
                 # On some systems (e.g. os x) we need to explicitly cancel the
                 # consumer here. However, e.g. on ubuntu 14.04, the
                 # disconnection has already closed the socket. We try to
                 # cancel, and ignore any socket errors.
+                # If the socket has been closed, an IOError is raised, ignore
+                # it and assume the consumer is already cancelled.
                 pass
 
         channel = self.connection.channel()
