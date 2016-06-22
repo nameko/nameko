@@ -70,9 +70,6 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    amqp_uri = None
-    serializer = None
-
     def __init__(self, exchange=None, queue=None):
         """ Provides an AMQP message publisher method via dependency injection.
 
@@ -110,11 +107,13 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def use_confirms(self):
         return True
 
-    def setup(self):
-
-        self.serializer = self.container.config.get(
+    @property
+    def serializer(self):
+        return self.container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
+
+    def setup(self):
 
         exchange = self.exchange
         queue = self.queue
