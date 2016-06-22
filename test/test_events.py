@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import eventlet
 import pytest
-from mock import Mock, patch
+from mock import ANY, Mock, patch
 
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -22,7 +22,7 @@ def queue_consumer():
         yield mock_ext.return_value
 
 
-def test_event_dispatcher(mock_container):
+def test_event_dispatcher(mock_container, mock_producer):
 
     container = mock_container
     container.service_name = "srcservice"
@@ -35,17 +35,15 @@ def test_event_dispatcher(mock_container):
     event_dispatcher.setup()
 
     service.dispatch = event_dispatcher.get_dependency(worker_ctx)
+    service.dispatch('eventtype', 'msg')
 
-    from mock import ANY
-    with patch('nameko.standalone.events.producers') as mock_producers:
-        with mock_producers[ANY].acquire() as mock_producer:
+    headers = event_dispatcher.get_message_headers(worker_ctx)
 
-            service.dispatch('eventtype', 'msg')
-            headers = event_dispatcher.get_message_headers(worker_ctx)
     mock_producer.publish.assert_called_once_with(
         'msg', exchange=ANY, headers=headers,
         serializer=container.serializer,
         routing_key='eventtype', retry=True, retry_policy={'max_retries': 5})
+
     _, call_kwargs = mock_producer.publish.call_args
     exchange = call_kwargs['exchange']
     assert exchange.name == 'srcservice.events'

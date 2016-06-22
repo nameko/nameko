@@ -6,18 +6,17 @@ import warnings
 from functools import partial
 from logging import getLogger
 
-from eventlet.event import Event
-from eventlet.queue import Empty
-from kombu import Connection, Exchange, Queue
-from kombu.pools import producers
 import kombu.serialization
+from eventlet.event import Event
+from kombu import Exchange, Queue
 
+from nameko.amqp import UndeliverableMessage, get_producer
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, RPC_EXCHANGE_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
+    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import (
-    ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
-    RpcConnectionError, serialize, UnknownService, UnserializableValueError)
+    ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
+    UnknownService, UnserializableValueError, deserialize, serialize)
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
@@ -190,6 +189,14 @@ class Responder(object):
         self.config = config
         self.message = message
 
+    @property
+    def amqp_uri(self):
+        return self.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def use_confirms(self):
+        return True
+
     def send_response(self, result, exc_info, **kwargs):
 
         error = None
@@ -212,14 +219,12 @@ class Responder(object):
             error = serialize(UnserializableValueError(result))
             result = None
 
-        conn = Connection(self.config[AMQP_URI_CONFIG_KEY])
-
         exchange = get_rpc_exchange(self.config)
 
         retry = kwargs.pop('retry', True)
         retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
 
-        with producers[conn].acquire(block=True) as producer:
+        with get_producer(self.amqp_uri, self.use_confirms) as producer:
 
             routing_key = self.message.properties['reply_to']
             correlation_id = self.message.properties.get('correlation_id')
@@ -366,13 +371,9 @@ class MethodProxy(HeaderEncoder):
 
         worker_ctx = self.worker_ctx
         container = worker_ctx.container
+        amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
 
         msg = {'args': args, 'kwargs': kwargs}
-
-        conn = Connection(
-            container.config[AMQP_URI_CONFIG_KEY],
-            transport_options={'confirm_publish': True},
-        )
 
         serializer = container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
@@ -385,7 +386,7 @@ class MethodProxy(HeaderEncoder):
         # asynchronously and conditionally, so we can't wait() on the channel
         # for it (will wait forever on successful delivery).
         #
-        # Instead, we use (the rabbitmq extension) confirm_publish
+        # Instead, we force the use of (the rabbitmq extension) confirm_publish
         # (https://www.rabbitmq.com/confirms.html), which _always_ sends a
         # reply down the channel. Moreover, in the case where no queues are
         # bound to the exchange (service unknown), the basic.return is sent
@@ -396,8 +397,7 @@ class MethodProxy(HeaderEncoder):
 
         exchange = get_rpc_exchange(container.config)
 
-        with producers[conn].acquire(block=True) as producer:
-
+        def publish(producer):
             headers = self.get_message_headers(worker_ctx)
             correlation_id = str(uuid.uuid4())
 
@@ -417,18 +417,14 @@ class MethodProxy(HeaderEncoder):
                 retry=True,
                 retry_policy=DEFAULT_RETRY_POLICY
             )
+            return reply_event
 
-            # This used to do .empty() to check if the queue is empty
-            # but we actually need to clear out the queue here as
-            # otherwise future code that reuses the same producer will
-            # incorrectly see a failure which actually was an earlier
-            # one.
-            try:
-                producer.channel.returned_messages.get_nowait()
-            except Empty:
-                pass
-            else:
-                raise UnknownService(self.service_name)
+        # TODO: maybe_declare the exchange?
+        try:
+            with get_producer(amqp_uri, confirms=True) as producer:
+                reply_event = publish(producer)
+        except UndeliverableMessage:
+            raise UnknownService(self.service_name)
 
         return RpcReply(reply_event)
 

@@ -85,13 +85,6 @@ def assert_stops_raising(fn, exception_type=Exception, timeout=10,
             eventlet.sleep(interval)
 
 
-@contextmanager
-def as_context_manager(obj):
-    """ Return a context manager that provides ``obj`` on enter.
-    """
-    yield obj
-
-
 class AnyInstanceOf(object):
 
     def __init__(self, cls):

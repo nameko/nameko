@@ -2,26 +2,26 @@
 Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
-from itertools import count
-from functools import partial
-from logging import getLogger
+
 import socket
+from functools import partial
+from itertools import count
+from logging import getLogger
 
 import eventlet
-from eventlet.event import Event
-from kombu.common import maybe_declare
-from kombu.pools import producers, connections
-from kombu import Connection
-from kombu.mixins import ConsumerMixin
 import six
+from eventlet.event import Event
+from kombu import Connection
+from kombu.common import maybe_declare
+from kombu.mixins import ConsumerMixin
 
-from nameko.amqp import verify_amqp_uri
+from nameko.amqp import get_connection, get_producer, verify_amqp_uri
 from nameko.constants import (
-    DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
+    SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
-    DependencyProvider, Entrypoint, SharedExtension, ProviderCollector)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 
 _log = getLogger(__name__)
 
@@ -102,19 +102,15 @@ class Publisher(DependencyProvider, HeaderEncoder):
         self.exchange = exchange
         self.queue = queue
 
-    # TODO: should be a module level function
-    def get_connection(self):
-        conn = Connection(self.amqp_uri)
-        return connections[conn].acquire(block=True)
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
 
-    # TODO: should be a module level function
-    def get_producer(self):
-        conn = Connection(self.amqp_uri)
-        return producers[conn].acquire(block=True)
+    @property
+    def use_confirms(self):
+        return True
 
     def setup(self):
-
-        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
 
         self.serializer = self.container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
@@ -125,7 +121,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         verify_amqp_uri(self.amqp_uri)
 
-        with self.get_connection() as conn:
+        with get_connection(self.amqp_uri) as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
             elif exchange is not None:
@@ -143,7 +139,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
             retry = kwargs.pop('retry', True)
             retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
 
-            with self.get_producer() as producer:
+            with get_producer(self.amqp_uri, self.use_confirms) as producer:
                 headers = self.get_message_headers(worker_ctx)
                 producer.publish(
                     msg, exchange=exchange, headers=headers,

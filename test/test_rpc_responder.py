@@ -1,20 +1,11 @@
-from mock import ANY, Mock, patch
 import pytest
+from mock import ANY, Mock
 
 from nameko.constants import AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 from nameko.rpc import Responder
 
-
 # python version compat
 EXCEPTION_MODULE = Exception.__module__
-
-
-@pytest.yield_fixture
-def mock_publish():
-    path = 'nameko.rpc.producers'
-    with patch(path) as patched:
-        publish = patched[ANY].acquire().__enter__().publish
-        yield publish
 
 
 @pytest.yield_fixture
@@ -24,7 +15,7 @@ def unserializable():
     yield unserializable_inner
 
 
-def test_responder(mock_publish):
+def test_responder(mock_producer):
 
     message = Mock()
     message.properties = {'reply_to': ''}
@@ -41,11 +32,11 @@ def test_responder(mock_publish):
         'result': True,
         'error': None
     }
-    (msg,), _ = mock_publish.call_args
+    (msg,), _ = mock_producer.publish.call_args
     assert msg == expected_msg
 
 
-def test_responder_worker_exc(mock_publish):
+def test_responder_worker_exc(mock_producer):
 
     message = Mock()
     message.properties = {'reply_to': ''}
@@ -69,7 +60,7 @@ def test_responder_worker_exc(mock_publish):
             'exc_args': ['error']
         }
     }
-    (msg,), _ = mock_publish.call_args
+    (msg,), _ = mock_producer.publish.call_args
     assert msg == expected_msg
 
 
@@ -77,7 +68,7 @@ def test_responder_worker_exc(mock_publish):
     ('json', "is not JSON serializable"),
     ('pickle', "Can't pickle")])
 def test_responder_unserializable_result(
-        mock_publish, unserializable,
+        mock_producer, unserializable,
         serializer, exception_info_string):
 
     message = Mock()
@@ -109,11 +100,11 @@ def test_responder_unserializable_result(
             'exc_args': [],
         }
     }
-    (msg,), _ = mock_publish.call_args
+    (msg,), _ = mock_producer.publish.call_args
     assert msg == expected_msg
 
 
-def test_responder_cannot_unicode_exc(mock_publish):
+def test_responder_cannot_unicode_exc(mock_producer):
 
     message = Mock()
     message.properties = {'reply_to': ''}
@@ -132,7 +123,7 @@ def test_responder_cannot_unicode_exc(mock_publish):
     responder.send_response(True, (Exception, worker_exc, "tb"))
 
 
-def test_responder_cannot_repr_exc(mock_publish):
+def test_responder_cannot_repr_exc(mock_producer):
 
     message = Mock()
     message.properties = {'reply_to': ''}
