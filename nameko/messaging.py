@@ -154,7 +154,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     prefetch_count = None
 
     def __init__(self):
-        self._connection = None
 
         self._consumers = {}
 
@@ -320,13 +319,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     @property
     def connection(self):
         """ Kombu requirement """
-        if self.amqp_uri is None:
-            return   # don't cache a connection during introspection
-
-        if self._connection is None:
-            self._connection = Connection(self.amqp_uri)
-
-        return self._connection
+        return Connection(self.amqp_uri)
 
     def get_consumers(self, Consumer, channel):
         """ Kombu callback to set up consumers.
