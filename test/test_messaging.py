@@ -1,15 +1,26 @@
+import json
+import socket
+import subprocess
+import uuid
+
 import eventlet
 import pytest
+import requests
 from kombu import Exchange, Queue
-from mock import Mock, patch
+from kombu.connection import Connection
+from mock import Mock, call, patch
+from six.moves.urllib.parse import urlparse
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.containers import (
     NAMEKO_CONTEXT_KEYS, WorkerContext, WorkerContextBase)
 from nameko.exceptions import ContainerBeingKilled
-from nameko.messaging import Consumer, HeaderDecoder, HeaderEncoder, Publisher
+from nameko.messaging import (
+    Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume)
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
     ANY_PARTIAL, DummyProvider, wait_for_call, worker_context_factory)
+from nameko.testing.waiting import wait_for_call as patch_wait
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -374,3 +385,318 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
         consumer.stop()
 
     consumer.queue_consumer.kill()
+
+
+class TestPublisherConfirms(object):
+    """ Note that publisher confirms do not protect at all against
+    sockets that remain open but do not deliver messages.
+    We need heartbeats for that.
+    """
+
+    @pytest.fixture
+    def tracker(self):
+        return Mock()
+
+    @pytest.yield_fixture
+    def toxiproxy_server(self):
+        # start a toxiproxy server
+        server = subprocess.Popen(['toxiproxy-server'], stdout=subprocess.PIPE)
+        yield
+        server.terminate()
+
+    @pytest.fixture
+    def toxiproxy(self, toxiproxy_server, rabbit_config):
+        """ Insert a toxiproxy in front of RabbitMQ
+
+        https://github.com/douglas/toxiproxy-python is not released yet, so
+        we use requests.
+        """
+
+        # extract rabbit connection details
+        amqp_uri = rabbit_config['AMQP_URI']
+        uri = urlparse(amqp_uri)
+        rabbit_port = uri.port
+
+        # find a free port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind((uri.hostname, 0))
+        proxy_port = sock.getsockname()[1]
+        sock.close()
+
+        # create proxy
+        proxy_name = "nameko_test_rabbitmq_{}".format(uuid.uuid4().hex)
+
+        listen = "{}:{}".format(uri.hostname, proxy_port)
+        upstream = "{}:{}".format(uri.hostname, rabbit_port)
+        requests.post('http://localhost:8474/proxies', data=json.dumps({
+            'name': proxy_name,
+            'listen': listen,
+            'upstream': upstream
+        }))
+
+        # create proxied uri for publisher
+        proxy_uri = amqp_uri.replace(str(rabbit_port), str(proxy_port))
+
+        toxic_name = '{}_timeout'.format(proxy_name)
+
+        class Controller(object):
+
+            def __init__(self, proxy_uri):
+                self.uri = proxy_uri
+
+            def enable(self):
+                requests.post(
+                    'http://localhost:8474/proxies/{}'.format(proxy_name),
+                    data=json.dumps({
+                        'enabled': True
+                    })
+                )
+
+            def disable(self):
+                requests.post(
+                    'http://localhost:8474/proxies/{}'.format(proxy_name),
+                    data=json.dumps({
+                        'enabled': False
+                    })
+                )
+
+            def timeout(self, timeout=500):
+                requests.post(
+                    'http://localhost:8474/proxies/{}/toxics'.format(proxy_name),
+                    data=json.dumps({
+                        'name': toxic_name,
+                        'type': 'timeout',
+                        'stream': 'upstream',
+                        'attributes': {
+                            'timeout': timeout
+                        }
+                    })
+                )
+
+            def reset_timeout(self):
+                requests.delete(
+                    'http://localhost:8474/proxies/{}/toxics/{}'.format(
+                        proxy_name, toxic_name
+                    )
+                )
+
+        return Controller(proxy_uri)
+
+    @pytest.yield_fixture
+    def publisher_container(
+        self, request, container_factory, tracker, rabbit_config, toxiproxy
+    ):
+        retry = False
+        if "enable_retry" in request.keywords:
+            retry = True
+
+        class Service(object):
+            name = "publish"
+
+            publish = Publisher()
+
+            @dummy
+            def send(self, payload):
+                tracker("send", payload)
+                self.publish(payload, routing_key="test_queue", retry=retry)
+
+        config = rabbit_config.copy()
+        config['AMQP_URI'] = toxiproxy.uri
+
+        container = container_factory(Service, config)
+        container.start()
+        yield container
+        container.stop()
+
+    @pytest.yield_fixture
+    def consumer_container(
+        self, container_factory, tracker, rabbit_config
+    ):
+        class Service(object):
+            name = "consume"
+
+            @consume(Queue("test_queue"))
+            def recv(self, payload):
+                tracker("recv", payload)
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+        yield container
+        container.stop()
+
+    def test_normal(self, publisher_container, consumer_container, tracker):
+
+        # call 1 succeeds
+        payload1 = "payload1"
+        with entrypoint_waiter(consumer_container, 'recv'):
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload1)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+        ]
+
+        # call 2 succeeds
+        payload2 = "payload2"
+        with entrypoint_waiter(consumer_container, 'recv'):
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload2)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+            call("send", payload2),
+            call("recv", payload2),
+        ]
+
+    def test_down(
+        self, publisher_container, consumer_container, tracker, toxiproxy
+    ):
+        toxiproxy.disable()
+
+        payload1 = "payload1"
+        with pytest.raises(socket.error) as exc_info:
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload1)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+        ]
+
+    def test_timeout(
+        self, publisher_container, consumer_container, tracker, toxiproxy
+    ):
+        toxiproxy.timeout(500)
+
+        payload1 = "payload1"
+        with pytest.raises(IOError) as exc_info:  # socket closed
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload1)
+        assert "Socket closed" in str(exc_info.value)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+        ]
+
+    def test_reuse_when_down(
+        self, publisher_container, consumer_container, tracker, toxiproxy
+    ):
+
+        # call 1 succeeds
+        payload1 = "payload1"
+        with entrypoint_waiter(consumer_container, 'recv'):
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload1)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+        ]
+
+        toxiproxy.disable()
+
+        # call 2 fails
+        payload2 = "payload2"
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload2)
+        assert (
+            # not entirely sure why these are both possible
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+            call("send", payload2),
+        ]
+
+    def test_reuse_when_recovered(
+        self, publisher_container, consumer_container, tracker, toxiproxy
+    ):
+        # call 1 succeeds
+        payload1 = "payload1"
+        with entrypoint_waiter(consumer_container, 'recv'):
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload1)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+        ]
+
+        toxiproxy.disable()
+
+        # call 2 fails
+        payload2 = "payload2"
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload2)
+        assert (
+            # not entirely sure why these are both possible
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+            call("send", payload2),
+        ]
+
+        toxiproxy.enable()
+
+        # call 3 succeeds
+        payload3 = "payload3"
+        with entrypoint_waiter(consumer_container, 'recv'):
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload3)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+            call("send", payload2),
+            call("send", payload3),
+            call("recv", payload3),
+        ]
+
+    @pytest.mark.enable_retry
+    def test_with_retry_policy(
+        self, publisher_container, consumer_container, tracker, toxiproxy
+    ):
+        # call 1 succeeds
+        payload1 = "payload1"
+        with entrypoint_waiter(consumer_container, 'recv'):
+            with entrypoint_hook(publisher_container, 'send') as send:
+                send(payload1)
+
+        assert tracker.call_args_list == [
+            call("send", payload1),
+            call("recv", payload1),
+        ]
+
+        toxiproxy.disable()
+
+        def enable_after_retry(args, kwargs, res, exc_info):
+            toxiproxy.enable()
+            return True
+
+        # call 2 succeeds (after reconnecting via retry policy)
+        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+
+            payload2 = "payload2"
+            with entrypoint_waiter(consumer_container, 'recv'):
+                with entrypoint_hook(publisher_container, 'send') as send:
+                    send(payload2)
+
+            assert tracker.call_args_list == [
+                call("send", payload1),
+                call("recv", payload1),
+                call("send", payload2),
+                call("recv", payload2),
+            ]
