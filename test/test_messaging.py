@@ -1,15 +1,10 @@
-import json
 import socket
-import subprocess
-import uuid
 
 import eventlet
 import pytest
-import requests
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
-from six.moves.urllib.parse import urlparse
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.containers import (
@@ -396,105 +391,6 @@ class TestPublisherConfirms(object):
     @pytest.fixture
     def tracker(self):
         return Mock()
-
-    @pytest.fixture
-    def toxiproxy_host(self):
-        return "127.0.0.1"
-
-    @pytest.fixture
-    def toxiproxy_port(self):
-        return 8474
-
-    @pytest.yield_fixture
-    def toxiproxy_server(self, toxiproxy_host, toxiproxy_port):
-        # start a toxiproxy server
-        host = toxiproxy_host
-        port = toxiproxy_port
-        server = subprocess.Popen(
-            ['toxiproxy-server', '-port', port, '-host', host],
-            stdout=subprocess.PIPE
-        )
-        yield "{}:{}".format(host, port)
-        server.terminate()
-
-    @pytest.fixture
-    def toxiproxy(self, toxiproxy_server, rabbit_config):
-        """ Insert a toxiproxy in front of RabbitMQ
-
-        https://github.com/douglas/toxiproxy-python is not released yet, so
-        we use requests to control the server.
-        """
-
-        # extract rabbit connection details
-        amqp_uri = rabbit_config['AMQP_URI']
-        uri = urlparse(amqp_uri)
-        rabbit_port = uri.port
-
-        # find a free port
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind((uri.hostname, 0))
-        proxy_port = sock.getsockname()[1]
-        sock.close()
-
-        # create proxy
-        proxy_name = "nameko_test_rabbitmq_{}".format(uuid.uuid4().hex)
-
-        listen = "{}:{}".format(uri.hostname, proxy_port)
-        upstream = "{}:{}".format(uri.hostname, rabbit_port)
-        requests.post(
-            'http://{}/proxies'.format(toxiproxy_server),
-            data=json.dumps({
-                'name': proxy_name,
-                'listen': listen,
-                'upstream': upstream
-            })
-        )
-
-        # create proxied uri for publisher
-        proxy_uri = amqp_uri.replace(str(rabbit_port), str(proxy_port))
-
-        toxic_name = '{}_timeout'.format(proxy_name)
-
-        class Controller(object):
-
-            def __init__(self, proxy_uri):
-                self.uri = proxy_uri
-
-            def enable(self):
-                resource = 'http://{}/proxies'.format(toxiproxy_server)
-                data = {
-                    'enabled': True
-                }
-                requests.post(resource, json.dumps(data))
-
-            def disable(self):
-                resource = 'http://{}/proxies'.format(toxiproxy_server)
-                data = {
-                    'enabled': False
-                }
-                requests.post(resource, json.dumps(data))
-
-            def timeout(self, timeout=500):
-                resource = 'http://{}/proxies/{}/toxics'.format(
-                    toxiproxy_server, proxy_name
-                )
-                data = {
-                    'name': toxic_name,
-                    'type': 'timeout',
-                    'stream': 'upstream',
-                    'attributes': {
-                        'timeout': timeout
-                    }
-                }
-                requests.post(resource, json.dumps(data))
-
-            def reset_timeout(self):
-                resource = 'http://{}/proxies/{}/toxics/{}'.format(
-                    toxiproxy_server, proxy_name, toxic_name
-                )
-                requests.delete(resource)
-
-        return Controller(proxy_uri)
 
     @pytest.yield_fixture
     def publisher_container(
