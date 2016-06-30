@@ -397,11 +397,24 @@ class TestPublisherConfirms(object):
     def tracker(self):
         return Mock()
 
+    @pytest.fixture
+    def toxiproxy_host(self):
+        return "127.0.0.1"
+
+    @pytest.fixture
+    def toxiproxy_port(self):
+        return 8474
+
     @pytest.yield_fixture
-    def toxiproxy_server(self):
+    def toxiproxy_server(self, toxiproxy_host, toxiproxy_port):
         # start a toxiproxy server
-        server = subprocess.Popen(['toxiproxy-server'], stdout=subprocess.PIPE)
-        yield
+        host = toxiproxy_host
+        port = toxiproxy_port
+        server = subprocess.Popen(
+            ['toxiproxy-server', '-port', port, '-host', host],
+            stdout=subprocess.PIPE
+        )
+        yield "{}:{}".format(host, port)
         server.terminate()
 
     @pytest.fixture
@@ -409,7 +422,7 @@ class TestPublisherConfirms(object):
         """ Insert a toxiproxy in front of RabbitMQ
 
         https://github.com/douglas/toxiproxy-python is not released yet, so
-        we use requests.
+        we use requests to control the server.
         """
 
         # extract rabbit connection details
@@ -428,11 +441,14 @@ class TestPublisherConfirms(object):
 
         listen = "{}:{}".format(uri.hostname, proxy_port)
         upstream = "{}:{}".format(uri.hostname, rabbit_port)
-        requests.post('http://localhost:8474/proxies', data=json.dumps({
-            'name': proxy_name,
-            'listen': listen,
-            'upstream': upstream
-        }))
+        requests.post(
+            'http://{}/proxies'.format(toxiproxy_server),
+            data=json.dumps({
+                'name': proxy_name,
+                'listen': listen,
+                'upstream': upstream
+            })
+        )
 
         # create proxied uri for publisher
         proxy_uri = amqp_uri.replace(str(rabbit_port), str(proxy_port))
@@ -445,40 +461,38 @@ class TestPublisherConfirms(object):
                 self.uri = proxy_uri
 
             def enable(self):
-                requests.post(
-                    'http://localhost:8474/proxies/{}'.format(proxy_name),
-                    data=json.dumps({
-                        'enabled': True
-                    })
-                )
+                resource = 'http://{}/proxies'.format(toxiproxy_server)
+                data = {
+                    'enabled': True
+                }
+                requests.post(resource, json.dumps(data))
 
             def disable(self):
-                requests.post(
-                    'http://localhost:8474/proxies/{}'.format(proxy_name),
-                    data=json.dumps({
-                        'enabled': False
-                    })
-                )
+                resource = 'http://{}/proxies'.format(toxiproxy_server)
+                data = {
+                    'enabled': False
+                }
+                requests.post(resource, json.dumps(data))
 
             def timeout(self, timeout=500):
-                requests.post(
-                    'http://localhost:8474/proxies/{}/toxics'.format(proxy_name),
-                    data=json.dumps({
-                        'name': toxic_name,
-                        'type': 'timeout',
-                        'stream': 'upstream',
-                        'attributes': {
-                            'timeout': timeout
-                        }
-                    })
+                resource = 'http://{}/proxies/{}/toxics'.format(
+                    toxiproxy_server, proxy_name
                 )
+                data = {
+                    'name': toxic_name,
+                    'type': 'timeout',
+                    'stream': 'upstream',
+                    'attributes': {
+                        'timeout': timeout
+                    }
+                }
+                requests.post(resource, json.dumps(data))
 
             def reset_timeout(self):
-                requests.delete(
-                    'http://localhost:8474/proxies/{}/toxics/{}'.format(
-                        proxy_name, toxic_name
-                    )
+                resource = 'http://{}/proxies/{}/toxics/{}'.format(
+                    toxiproxy_server, proxy_name, toxic_name
                 )
+                requests.delete(resource)
 
         return Controller(proxy_uri)
 
