@@ -9,14 +9,12 @@ from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
 from nameko.amqp import verify_amqp_uri
-from nameko.constants import AMQP_URI_CONFIG_KEY
-from nameko.containers import WorkerContext
-from nameko.extensions import Entrypoint
-from nameko.exceptions import RpcConnectionError, RpcTimeout
-from nameko.rpc import ServiceProxy, ReplyListener
 from nameko.constants import (
-    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY)
+from nameko.containers import WorkerContext
+from nameko.exceptions import RpcConnectionError, RpcTimeout
+from nameko.extensions import Entrypoint
+from nameko.rpc import ReplyListener, ServiceProxy
 
 _logger = logging.getLogger(__name__)
 
@@ -146,7 +144,7 @@ class PollingQueueConsumer(object):
             # to be deleted
             self._setup_consumer()
 
-        except ConnectionError as exc:
+        except (IOError, ConnectionError) as exc:
             for event in self.provider._reply_events.values():
                 rpc_connection_error = RpcConnectionError(
                     'Disconnected while waiting for reply: %s', exc)

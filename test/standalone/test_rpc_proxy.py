@@ -1,15 +1,15 @@
-import eventlet
-from kombu.message import Message
-import pytest
 import socket
 
+import eventlet
+import pytest
+from kombu.message import Message
+
 from nameko.containers import WorkerContext
+from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.exceptions import RemoteError, RpcTimeout
-from nameko.rpc import rpc, Responder
-from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
+from nameko.rpc import Responder, rpc
+from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
-from nameko.exceptions import RpcConnectionError
 
 # uses autospec on method; needs newer mock for py3
 try:
@@ -430,3 +430,91 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
     for _, message in fake_replies.messages:
         consumer_tags.add(message.delivery_info['consumer_tag'])
     assert len(consumer_tags) == 1
+
+
+class TestStandaloneProxyDisconnections(object):
+    """ These tests are slower than they need to be because it's not possible
+    to disable the retry policy in the MethodProxy.
+    """
+
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                return arg
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+
+    @pytest.yield_fixture
+    def service_rpc(self, toxiproxy, rabbit_config):
+
+        config = rabbit_config
+        config['AMQP_URI'] = toxiproxy.uri
+
+        with ServiceRpcProxy("service", config) as proxy:
+            yield proxy
+
+    def test_normal(self, service_rpc):
+        assert service_rpc.echo(1) == 1
+        assert service_rpc.echo(2) == 2
+
+    def test_down(self, service_rpc, toxiproxy):
+        toxiproxy.disable()
+
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(1)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+    def test_timeout(self, service_rpc, toxiproxy):
+        toxiproxy.timeout()
+
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(1)
+        assert "Socket closed" in str(exc_info.value)
+
+    def test_recover_from_down(self, service_rpc, toxiproxy):
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        # publisher cannot connect, raises
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(2)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        toxiproxy.enable()
+
+        # consumer discovers its socket was closed
+        # TODO: can we not reestablish the connection earlier?
+        with pytest.raises(RpcConnectionError) as exc_info:
+            service_rpc.echo(3)
+        assert "Disconnected while waiting for reply" in str(exc_info.value)
+
+        assert service_rpc.echo(4) == 4
+
+    def test_recover_from_timeout(self, service_rpc, toxiproxy):
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.timeout()
+
+        # publisher cannot connect, raises
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(2)
+        assert "Socket closed" in str(exc_info.value)
+
+        toxiproxy.reset_timeout()
+
+        # consumer discovers its socket was closed
+        # TODO: can we not reestablish the connection earlier?
+        with pytest.raises(RpcConnectionError) as exc_info:
+            service_rpc.echo(3)
+        assert "Disconnected while waiting for reply" in str(exc_info.value)
+
+        assert service_rpc.echo(4) == 4
