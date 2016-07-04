@@ -384,17 +384,22 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
 
 class TestPublisherConfirms(object):
     """ Note that publisher confirms do not protect at all against
-    sockets that remain open but do not deliver messages.
-    We need heartbeats for that.
+    sockets that remain open but do not deliver messages
+    (i.e. `toxiproxy.timeout(0)`). We need heartbeats to protect against that.
     """
 
     @pytest.fixture
     def tracker(self):
         return Mock()
 
+    @pytest.yield_fixture(autouse=True)
+    def toxic_publisher(self, toxiproxy):
+        with patch.object(Publisher, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
     @pytest.yield_fixture
     def publisher_container(
-        self, request, container_factory, tracker, rabbit_config, toxiproxy
+        self, request, container_factory, tracker, rabbit_config
     ):
         retry = False
         if "enable_retry" in request.keywords:
@@ -410,10 +415,7 @@ class TestPublisherConfirms(object):
                 tracker("send", payload)
                 self.publish(payload, routing_key="test_queue", retry=retry)
 
-        config = rabbit_config.copy()
-        config['AMQP_URI'] = toxiproxy.uri
-
-        container = container_factory(Service, config)
+        container = container_factory(Service, rabbit_config)
         container.start()
         yield container
 
@@ -513,7 +515,8 @@ class TestPublisherConfirms(object):
             with entrypoint_hook(publisher_container, 'send') as send:
                 send(payload2)
         assert (
-            # not entirely sure why these are both possible
+            # expect the write to fail with a BrokenPipe; sometimes
+            # it succeeds and we fail on the subsequent confirmation read
             "Broken pipe" in str(exc_info.value) or
             "Socket closed" in str(exc_info.value)
         )
@@ -546,7 +549,8 @@ class TestPublisherConfirms(object):
             with entrypoint_hook(publisher_container, 'send') as send:
                 send(payload2)
         assert (
-            # not entirely sure why these are both possible
+            # expect the write to fail with a BrokenPipe; sometimes
+            # it succeeds and we fail on the subsequent confirmation read
             "Broken pipe" in str(exc_info.value) or
             "Socket closed" in str(exc_info.value)
         )
