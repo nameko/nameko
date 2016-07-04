@@ -26,17 +26,17 @@ def mock_connection():
         yield patched[ANY].acquire().__enter__()
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def toxiproxy_host():
     return "127.0.0.1"
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def toxiproxy_port(toxiproxy_host):
     return 8474
 
 
-@pytest.yield_fixture
+@pytest.yield_fixture(scope='session')
 def toxiproxy_server(toxiproxy_host, toxiproxy_port):
     # start a toxiproxy server
     host = toxiproxy_host
@@ -50,7 +50,7 @@ def toxiproxy_server(toxiproxy_host, toxiproxy_port):
     server.terminate()
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def toxiproxy(toxiproxy_server, rabbit_config):
     """ Insert a toxiproxy in front of RabbitMQ
 
@@ -131,4 +131,12 @@ def toxiproxy(toxiproxy_server, rabbit_config):
             )
             requests.delete(resource)
 
-    return Controller(proxy_uri)
+        def reset(self):
+            # ensure the proxy passes traffic healthily again, so test cleanup
+            # doesn't get stuck trying to reconnect
+            self.enable()
+            self.reset_timeout()
+
+    controller = Controller(proxy_uri)
+    yield controller
+    controller.reset()

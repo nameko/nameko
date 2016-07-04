@@ -416,7 +416,6 @@ class TestPublisherConfirms(object):
         container = container_factory(Service, config)
         container.start()
         yield container
-        container.stop()
 
     @pytest.yield_fixture
     def consumer_container(
@@ -434,7 +433,6 @@ class TestPublisherConfirms(object):
         container = container_factory(Service, config)
         container.start()
         yield container
-        container.stop()
 
     def test_normal(self, publisher_container, consumer_container, tracker):
 
