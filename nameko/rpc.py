@@ -197,6 +197,20 @@ class Responder(object):
     def use_confirms(self):
         return True
 
+    @property
+    def serializer(self):
+        return self.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+
+    @property
+    def retry(self):
+        return True
+
+    @property
+    def retry_policy(self):
+        return DEFAULT_RETRY_POLICY
+
     def send_response(self, result, exc_info, **kwargs):
 
         error = None
@@ -208,11 +222,8 @@ class Responder(object):
         # unrecoverable errors (and the message will be requeued for another
         # victim)
 
-        serializer = self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
         try:
-            kombu.serialization.dumps(result, serializer)
+            kombu.serialization.dumps(result, self.serializer)
         except Exception:
             exc_info = sys.exc_info()
             # `error` below is guaranteed to serialize to json
@@ -221,8 +232,8 @@ class Responder(object):
 
         exchange = get_rpc_exchange(self.config)
 
-        retry = kwargs.pop('retry', True)
-        retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+        retry = kwargs.pop('retry', self.retry)
+        retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
         with get_producer(self.amqp_uri, self.use_confirms) as producer:
 
@@ -235,7 +246,7 @@ class Responder(object):
             producer.publish(
                 msg, retry=retry, retry_policy=retry_policy,
                 exchange=exchange, routing_key=routing_key,
-                serializer=serializer,
+                serializer=self.serializer,
                 correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
@@ -356,6 +367,33 @@ class MethodProxy(HeaderEncoder):
         reply = self._call(*args, **kwargs)
         return reply.result()
 
+    @property
+    def container(self):
+        # TODO: seems wrong
+        return self.worker_ctx.container
+
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def use_confirms(self):
+        return True
+
+    @property
+    def serializer(self):
+        return self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+
+    @property
+    def retry(self):
+        return True
+
+    @property
+    def retry_policy(self):
+        return DEFAULT_RETRY_POLICY
+
     def call_async(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
         return reply
@@ -371,12 +409,8 @@ class MethodProxy(HeaderEncoder):
 
         worker_ctx = self.worker_ctx
         container = worker_ctx.container
-        amqp_uri = container.config[AMQP_URI_CONFIG_KEY]
 
         msg = {'args': args, 'kwargs': kwargs}
-
-        serializer = container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
 
         # We use the `mandatory` flag in `producer.publish` below to catch rpc
         # calls to non-existent services, which would otherwise wait forever
@@ -386,12 +420,16 @@ class MethodProxy(HeaderEncoder):
         # asynchronously and conditionally, so we can't wait() on the channel
         # for it (will wait forever on successful delivery).
         #
-        # Instead, we force the use of (the rabbitmq extension) confirm_publish
+        # Instead, we make use of (the rabbitmq extension) confirm_publish
         # (https://www.rabbitmq.com/confirms.html), which _always_ sends a
         # reply down the channel. Moreover, in the case where no queues are
         # bound to the exchange (service unknown), the basic.return is sent
         # first, so by the time kombu returns (after waiting for the confim)
         # we can reliably check for returned messages.
+
+        # Note that overriding :attr:`self.use_confirms` will disable this
+        # functionality and therefore :class:`UnknownService` will never
+        # be raised (and the caller will hang).
 
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
@@ -410,18 +448,18 @@ class MethodProxy(HeaderEncoder):
                 exchange=exchange,
                 routing_key=routing_key,
                 mandatory=True,
-                serializer=serializer,
+                serializer=self.serializer,
                 reply_to=reply_to_routing_key,
                 headers=headers,
                 correlation_id=correlation_id,
-                retry=True,
-                retry_policy=DEFAULT_RETRY_POLICY
+                retry=self.retry,
+                retry_policy=self.retry_policy
             )
             return reply_event
 
         # TODO: maybe_declare the exchange?
         try:
-            with get_producer(amqp_uri, confirms=True) as producer:
+            with get_producer(self.amqp_uri, self.use_confirms) as producer:
                 reply_event = publish(producer)
         except UndeliverableMessage:
             raise UnknownService(self.service_name)

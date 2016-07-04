@@ -113,6 +113,14 @@ class Publisher(DependencyProvider, HeaderEncoder):
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
 
+    @property
+    def retry(self):
+        return True
+
+    @property
+    def retry_policy(self):
+        return DEFAULT_RETRY_POLICY
+
     def setup(self):
 
         exchange = self.exchange
@@ -135,8 +143,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
             if exchange is None and queue is not None:
                 exchange = queue.exchange
 
-            retry = kwargs.pop('retry', True)
-            retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+            retry = kwargs.pop('retry', self.retry)
+            retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
             with get_producer(self.amqp_uri, self.use_confirms) as producer:
                 headers = self.get_message_headers(worker_ctx)
