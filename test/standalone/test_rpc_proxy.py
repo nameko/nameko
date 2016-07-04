@@ -7,7 +7,7 @@ from kombu.message import Message
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.rpc import Responder, rpc
+from nameko.rpc import MethodProxy, Responder, rpc
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 
@@ -433,9 +433,6 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
 
 
 class TestStandaloneProxyDisconnections(object):
-    """ These tests are slower than they need to be because it's not possible
-    to disable the retry policy in the MethodProxy.
-    """
 
     @pytest.fixture(autouse=True)
     def container(self, container_factory, rabbit_config):
@@ -451,6 +448,13 @@ class TestStandaloneProxyDisconnections(object):
 
         container = container_factory(Service, config)
         container.start()
+
+    @pytest.yield_fixture(autouse=True)
+    def disable_retry(self):
+        # we don't want to wait for multiple retry attempts before
+        # connection failures bubble out
+        with patch.object(MethodProxy, 'retry', new=False):
+            yield
 
     @pytest.yield_fixture
     def service_rpc(self, toxiproxy, rabbit_config):
@@ -487,7 +491,7 @@ class TestStandaloneProxyDisconnections(object):
         # publisher cannot connect, raises
         with pytest.raises(IOError) as exc_info:
             service_rpc.echo(2)
-        assert "ECONNREFUSED" in str(exc_info.value)
+        assert "Socket closed" in str(exc_info.value)
 
         toxiproxy.enable()
 
