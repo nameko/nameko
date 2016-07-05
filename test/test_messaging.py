@@ -1,4 +1,5 @@
 import socket
+from distutils import spawn
 
 import eventlet
 import pytest
@@ -382,7 +383,11 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     consumer.queue_consumer.kill()
 
 
-class TestPublisherConfirms(object):
+@pytest.mark.skipif(
+    spawn.find_executable('toxiproxy-server') is None,
+    reason="toxiproxy not installed"
+)
+class TestPublisherDisconnections(object):
     """ Note that publisher confirms do not protect at all against
     sockets that remain open but do not deliver messages
     (i.e. `toxiproxy.timeout(0)`). We need heartbeats to protect against that.
@@ -492,6 +497,7 @@ class TestPublisherConfirms(object):
             call("send", payload1),
         ]
 
+    # skip-if no confirms
     def test_reuse_when_down(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):
@@ -527,6 +533,7 @@ class TestPublisherConfirms(object):
             call("send", payload2),
         ]
 
+    # skip-if no confirms
     def test_reuse_when_recovered(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):
