@@ -388,9 +388,15 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     reason="toxiproxy not installed"
 )
 class TestPublisherDisconnections(object):
-    """ Note that publisher confirms do not protect at all against
-    sockets that remain open but do not deliver messages
-    (i.e. `toxiproxy.timeout(0)`). We need heartbeats to protect against that.
+    """ Test and demonstrate behaviour under poor network conditions.
+
+    Publisher confirms must be enabled for some of these tests to pass. Without
+    confirms, previously used but now dead connections will accept writes
+    without raising. These tests are skipped in this scenario.
+
+    Note that publisher confirms do not protect against sockets that remain
+    open but do not deliver messages (i.e. `toxiproxy.timeout(0)`).
+    This can only be mitigated with AMQP heartbeats (not yet supported)
     """
 
     @pytest.fixture
