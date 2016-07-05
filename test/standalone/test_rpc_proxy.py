@@ -1,4 +1,5 @@
 import socket
+from distutils import spawn
 
 import eventlet
 import pytest
@@ -432,6 +433,10 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
     assert len(consumer_tags) == 1
 
 
+@pytest.mark.skipif(
+    spawn.find_executable('toxiproxy-server') is None,
+    reason="toxiproxy not installed"
+)
 class TestStandaloneProxyDisconnections(object):
 
     @pytest.fixture(autouse=True)
@@ -455,6 +460,11 @@ class TestStandaloneProxyDisconnections(object):
         # connection failures bubble out
         with patch.object(MethodProxy, 'retry', new=False):
             yield
+
+    @pytest.yield_fixture(autouse=True, params=[True, False])
+    def use_confirms(self, request):
+        with patch.object(MethodProxy, 'use_confirms', new=request.param):
+            yield request.param
 
     @pytest.yield_fixture
     def service_rpc(self, toxiproxy, rabbit_config):
@@ -483,7 +493,12 @@ class TestStandaloneProxyDisconnections(object):
             service_rpc.echo(1)
         assert "Socket closed" in str(exc_info.value)
 
-    def test_recover_from_down(self, service_rpc, toxiproxy):
+    def test_recover_from_down(self, service_rpc, toxiproxy, use_confirms):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
         assert service_rpc.echo(1) == 1
 
         toxiproxy.disable()
@@ -503,7 +518,12 @@ class TestStandaloneProxyDisconnections(object):
 
         assert service_rpc.echo(4) == 4
 
-    def test_recover_from_timeout(self, service_rpc, toxiproxy):
+    def test_recover_from_timeout(self, service_rpc, toxiproxy, use_confirms):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
         assert service_rpc.echo(1) == 1
 
         toxiproxy.timeout()
