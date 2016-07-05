@@ -1,26 +1,31 @@
+import socket
 import uuid
 import warnings
+from distutils import spawn
 
 import eventlet
-from eventlet.event import Event
-from mock import patch, Mock, call
 import pytest
+from eventlet.event import Event
+from kombu.connection import Connection
+from mock import Mock, call, patch
 
 from nameko.containers import (
-    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
-from nameko.extensions import DependencyProvider
+    NAMEKO_CONTEXT_KEYS, ServiceContainer, WorkerContextBase)
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
-    MalformedRequest)
+    IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
+    UnknownService)
+from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    rpc, RpcProxy, RpcConsumer, Rpc, ReplyListener,
-)
+    MethodProxy, ReplyListener, Responder, Rpc, RpcConnectionError,
+    RpcConsumer, RpcProxy, rpc)
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import entrypoint_hook, restrict_entrypoints
+from nameko.testing.services import (
+    dummy, entrypoint_hook, restrict_entrypoints)
 from nameko.testing.utils import (
     get_extension, wait_for_call, wait_for_worker_idle)
+from nameko.testing.waiting import wait_for_call as patch_wait
 
 
 class ExampleError(Exception):
@@ -689,3 +694,282 @@ def test_rpc_consumer_cannot_exit_with_providers(
 
     # kill off task_a's misbehaving rpc provider
     container.kill()
+
+
+@pytest.mark.skipif(
+    spawn.find_executable('toxiproxy-server') is None,
+    reason="toxiproxy not installed"
+)
+class TestProxyDisconnections(object):
+    """ Test and demonstrate behaviour under poor network conditions.
+
+    Publisher confirms must be enabled for some of these tests to pass. Without
+    confirms, previously used but now dead connections will accept writes
+    without raising. These tests are skipped in this scenario.
+
+    Note that publisher confirms do not protect against sockets that remain
+    open but do not deliver messages (i.e. `toxiproxy.timeout(0)`).
+    This can only be mitigated with AMQP heartbeats (not yet supported)
+    """
+
+    @pytest.fixture(autouse=True)
+    def server_container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "server"
+
+            @rpc
+            def echo(self, arg):
+                return arg
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+
+    @pytest.fixture(autouse=True)
+    def client_container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "client"
+
+            server_rpc = RpcProxy("server")
+
+            @dummy
+            def echo(self, arg):
+                return self.server_rpc.echo(arg)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+        return container
+
+    @pytest.yield_fixture(autouse=True)
+    def retry(self, request):
+        retry = False
+        if "enable_retry" in request.keywords:
+            retry = True
+
+        with patch.object(MethodProxy, 'retry', new=retry):
+            yield
+
+    @pytest.yield_fixture(autouse=True, params=[True, False])
+    def use_confirms(self, request):
+        with patch.object(MethodProxy, 'use_confirms', new=request.param):
+            yield request.param
+
+    @pytest.yield_fixture(autouse=True)
+    def toxic_rpc_proxy(self, toxiproxy):
+        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    def test_normal(self, client_container):
+
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+            assert echo(2) == 2
+
+    def test_down(self, client_container, toxiproxy):
+        toxiproxy.disable()
+
+        with pytest.raises(socket.error) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(1)
+            assert "Socket closed" in str(exc_info.value)
+
+    def test_timeout(self, client_container, toxiproxy):
+        toxiproxy.timeout()
+
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(1)
+            assert "Socket closed" in str(exc_info.value)
+
+    def test_reuse_when_down(
+        self, client_container, toxiproxy, use_confirms
+    ):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(2)
+        assert "Socket closed" in str(exc_info.value)
+
+    def test_reuse_when_recovered(
+        self, client_container, toxiproxy, use_confirms
+    ):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(2)
+        assert "Socket closed" in str(exc_info.value)
+
+        toxiproxy.enable()
+
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(3) == 3
+
+    @pytest.mark.enable_retry
+    def test_with_retry_policy(
+        self, client_container, toxiproxy, use_confirms
+    ):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+
+        toxiproxy.disable()
+
+        def enable_after_retry(args, kwargs, res, exc_info):
+            toxiproxy.enable()
+            return True
+
+        # call 2 succeeds (after reconnecting via retry policy)
+        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+            with entrypoint_hook(client_container, 'echo') as echo:
+                assert echo(2) == 2
+
+
+@pytest.mark.skipif(
+    spawn.find_executable('toxiproxy-server') is None,
+    reason="toxiproxy not installed"
+)
+class TestResponderDisconnections(object):
+    """ Test and demonstrate behaviour under poor network conditions.
+
+    Publisher confirms must be enabled for some of these tests to pass. Without
+    confirms, previously used but now dead connections will accept writes
+    without raising. These tests are skipped in this scenario.
+
+    Note that publisher confirms do not protect against sockets that remain
+    open but do not deliver messages (i.e. `toxiproxy.timeout(0)`).
+    This can only be mitigated with AMQP heartbeats (not yet supported)
+    """
+
+    @pytest.yield_fixture(autouse=True)
+    def toxic_responder(self, toxiproxy):
+        with patch.object(Responder, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    @pytest.yield_fixture(autouse=True, params=[True, False])
+    def use_confirms(self, request):
+        with patch.object(Responder, 'use_confirms', new=request.param):
+            yield request.param
+
+    @pytest.yield_fixture(autouse=True)
+    def retry(self, request):
+        retry = False
+        if "enable_retry" in request.keywords:
+            retry = True
+
+        with patch.object(MethodProxy, 'retry', new=retry):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                return arg
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+        return container
+
+    @pytest.yield_fixture
+    def service_rpc(self, rabbit_config):
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
+            yield proxy
+
+    def test_normal(self, service_rpc):
+        assert service_rpc.echo(1) == 1
+        assert service_rpc.echo(2) == 2
+
+    def test_down(self, service_rpc, toxiproxy):
+        toxiproxy.disable()
+
+        # TODO
+        # spawn a thread to call the RPC proxy (will wait forever)
+        # use new entrypoint waiter to catch the responder socket error
+
+    def test_timeout(self, service_rpc, toxiproxy):
+        toxiproxy.timeout()
+
+        # TODO
+        # spawn a thread to call the RPC proxy (will wait forever)
+        # use new entrypoint waiter to catch the responder socket timeout
+
+    def test_reuse_when_down(self, service_rpc, toxiproxy, use_confirms):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        # TODO
+        # spawn a thread to call the RPC proxy (will wait forever)
+        # use new entrypoint waiter to catch the responder socket error
+
+    def test_reuse_when_recovered(self, service_rpc, toxiproxy, use_confirms):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        # TODO
+        # spawn a thread to call the RPC proxy (will wait forever)
+        # use new entrypoint waiter to catch the responder socket error
+
+        toxiproxy.enable()
+
+        assert service_rpc.echo(3) == 3
+
+    @pytest.mark.enable_retry
+    def test_with_retry_policy(self, service_rpc, toxiproxy, use_confirms):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        def enable_after_retry(args, kwargs, res, exc_info):
+            toxiproxy.enable()
+            return True
+
+        # call 2 succeeds (after reconnecting via retry policy)
+        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+            assert service_rpc.echo(2) == 2
