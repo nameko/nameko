@@ -536,8 +536,8 @@ class TestPublisherDisconnections(object):
             with entrypoint_hook(publisher_container, 'send') as send:
                 send(payload2)
         assert (
-            # expect the write to fail with a BrokenPipe; sometimes
-            # it succeeds and we fail on the subsequent confirmation read
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
             "Broken pipe" in str(exc_info.value) or
             "Socket closed" in str(exc_info.value)
         )
@@ -576,8 +576,8 @@ class TestPublisherDisconnections(object):
             with entrypoint_hook(publisher_container, 'send') as send:
                 send(payload2)
         assert (
-            # expect the write to fail with a BrokenPipe; sometimes
-            # it succeeds and we fail on the subsequent confirmation read
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
             "Broken pipe" in str(exc_info.value) or
             "Socket closed" in str(exc_info.value)
         )

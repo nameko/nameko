@@ -506,7 +506,12 @@ class TestStandaloneProxyDisconnections(object):
         # publisher cannot connect, raises
         with pytest.raises(IOError) as exc_info:
             service_rpc.echo(2)
-        assert "Socket closed" in str(exc_info.value)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
 
         toxiproxy.enable()
 
@@ -531,7 +536,12 @@ class TestStandaloneProxyDisconnections(object):
         # publisher cannot connect, raises
         with pytest.raises(IOError) as exc_info:
             service_rpc.echo(2)
-        assert "Socket closed" in str(exc_info.value)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
 
         toxiproxy.reset_timeout()
 
