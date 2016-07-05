@@ -402,6 +402,11 @@ class TestPublisherDisconnections(object):
         with patch.object(Publisher, 'amqp_uri', new=toxiproxy.uri):
             yield
 
+    @pytest.yield_fixture(autouse=True, params=[True, False])
+    def use_confirms(self, request):
+        with patch.object(Publisher, 'use_confirms', new=request.param):
+            yield request.param
+
     @pytest.yield_fixture
     def publisher_container(
         self, request, container_factory, tracker, rabbit_config
@@ -497,10 +502,14 @@ class TestPublisherDisconnections(object):
             call("send", payload1),
         ]
 
-    # skip-if no confirms
     def test_reuse_when_down(
-        self, publisher_container, consumer_container, tracker, toxiproxy
+        self, publisher_container, consumer_container, tracker, toxiproxy,
+        use_confirms
     ):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
 
         # call 1 succeeds
         payload1 = "payload1"
@@ -533,10 +542,15 @@ class TestPublisherDisconnections(object):
             call("send", payload2),
         ]
 
-    # skip-if no confirms
     def test_reuse_when_recovered(
-        self, publisher_container, consumer_container, tracker, toxiproxy
+        self, publisher_container, consumer_container, tracker, toxiproxy,
+        use_confirms
     ):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
         # call 1 succeeds
         payload1 = "payload1"
         with entrypoint_waiter(consumer_container, 'recv'):
@@ -586,8 +600,14 @@ class TestPublisherDisconnections(object):
 
     @pytest.mark.enable_retry
     def test_with_retry_policy(
-        self, publisher_container, consumer_container, tracker, toxiproxy
+        self, publisher_container, consumer_container, tracker, toxiproxy,
+        use_confirms
     ):
+        if not use_confirms:
+            pytest.skip(
+                "unconfirmed messages will be lost after disconnection"
+            )
+
         # call 1 succeeds
         payload1 = "payload1"
         with entrypoint_waiter(consumer_container, 'recv'):
