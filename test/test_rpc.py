@@ -18,8 +18,7 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    MethodProxy, ReplyListener, Responder, Rpc, RpcConnectionError,
-    RpcConsumer, RpcProxy, rpc)
+    MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc)
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
     dummy, entrypoint_hook, restrict_entrypoints)
