@@ -6,11 +6,11 @@ import pytest
 from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.exceptions import TimeoutError
-from mock import ANY, call, Mock, patch
+from mock import ANY, Mock, call, patch
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.messaging import QueueConsumer
-from nameko.rpc import rpc, RpcConsumer
+from nameko.rpc import RpcConsumer, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections)
@@ -40,7 +40,7 @@ class MessageHandler(object):
         return self.handle_message_called.wait()
 
 
-def spawn_thread(method, protected):
+def spawn_managed_thread(method):
     return eventlet.spawn(method)
 
 
@@ -50,7 +50,7 @@ def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 3
-    container.spawn_managed_thread.side_effect = spawn_thread
+    container.spawn_managed_thread.side_effect = spawn_managed_thread
     content_type = 'application/data'
     container.accept = [content_type]
 
@@ -64,7 +64,7 @@ def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
     queue_consumer.start()
 
     # making sure the QueueConsumer uses the container to spawn threads
-    container.spawn_managed_thread.assert_called_once_with(ANY, protected=True)
+    container.spawn_managed_thread.assert_called_once_with(ANY)
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub',
@@ -102,7 +102,7 @@ def test_reentrant_start_stops(mock_container):
     container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
 
     queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup()
@@ -124,7 +124,7 @@ def test_stop_while_starting(rabbit_config, mock_container):
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 3
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
 
     class BrokenConnConsumer(QueueConsumer):
         def consume(self, *args, **kwargs):
@@ -170,7 +170,7 @@ def test_error_stops_consumer_thread(mock_container):
     container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
 
     queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup()
@@ -195,7 +195,7 @@ def test_on_consume_error_kills_consumer(mock_container):
     container.shared_extensions = {}
     container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 1
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
 
     queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup()
@@ -217,7 +217,7 @@ def test_reconnect_on_socket_error(rabbit_config, mock_container):
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
 
     connection_revived = Mock()
 
@@ -247,7 +247,7 @@ def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
     content_type = 'application/data'
     container.accept = [content_type]
 
@@ -325,7 +325,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config,
     container.shared_extensions = {}
     container.config = rabbit_config
     container.max_workers = 1
-    container.spawn_managed_thread = spawn_thread
+    container.spawn_managed_thread = spawn_managed_thread
 
     queue_consumer = QueueConsumer().bind(container)
     queue_consumer.setup()

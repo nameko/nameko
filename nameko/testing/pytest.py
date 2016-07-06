@@ -53,6 +53,12 @@ def pytest_configure(config):
         logging.basicConfig(level=log_level, stream=sys.stderr)
 
 
+@pytest.fixture(autouse=True)
+def always_warn_for_deprecation():
+    import warnings
+    warnings.simplefilter('always', DeprecationWarning)
+
+
 @pytest.fixture
 def empty_config():
     from nameko.constants import AMQP_URI_CONFIG_KEY

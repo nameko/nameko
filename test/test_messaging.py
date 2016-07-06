@@ -1,17 +1,16 @@
 import eventlet
 import pytest
-
 from kombu import Exchange, Queue
-from mock import patch, Mock
+from mock import Mock, patch
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.exceptions import ContainerBeingKilled
-from nameko.messaging import Publisher, Consumer, HeaderEncoder, HeaderDecoder
 from nameko.containers import (
-    WorkerContext, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
+    NAMEKO_CONTEXT_KEYS, WorkerContext, WorkerContextBase)
+from nameko.exceptions import ContainerBeingKilled
+from nameko.messaging import Consumer, HeaderDecoder, HeaderEncoder, Publisher
 from nameko.testing.utils import (
-    wait_for_call, as_context_manager, ANY_PARTIAL, worker_context_factory,
-    DummyProvider)
+    ANY_PARTIAL, DummyProvider, as_context_manager, wait_for_call,
+    worker_context_factory)
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -280,7 +279,6 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     container = mock_container
     container.service_name = "service"
     container.config = rabbit_config
-    container.spawn_managed_thread = eventlet.spawn
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
@@ -362,9 +360,10 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     content_type = 'application/data'
     container.accept = [content_type]
 
-    def spawn_thread(method, protected):
+    def spawn_managed_thread(method):
         return eventlet.spawn(method)
-    container.spawn_managed_thread = spawn_thread
+
+    container.spawn_managed_thread = spawn_managed_thread
 
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 

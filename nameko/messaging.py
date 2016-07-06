@@ -2,26 +2,27 @@
 Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
-from itertools import count
-from functools import partial
-from logging import getLogger
+
 import socket
+from functools import partial
+from itertools import count
+from logging import getLogger
 
 import eventlet
-from eventlet.event import Event
-from kombu.common import maybe_declare
-from kombu.pools import producers, connections
-from kombu import Connection
-from kombu.mixins import ConsumerMixin
 import six
+from eventlet.event import Event
+from kombu import Connection
+from kombu.common import maybe_declare
+from kombu.mixins import ConsumerMixin
+from kombu.pools import connections, producers
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import (
-    DEFAULT_RETRY_POLICY, AMQP_URI_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
+    SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
-    DependencyProvider, Entrypoint, SharedExtension, ProviderCollector)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 
 _log = getLogger(__name__)
 
@@ -195,8 +196,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self.container.spawn_managed_thread(self.run,
-                                                           protected=True)
+            self._gt = self.container.spawn_managed_thread(self.run)
             self._gt.link(self._handle_thread_exited)
         try:
             _log.debug('waiting for consumer ready %s', self)

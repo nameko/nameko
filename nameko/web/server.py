@@ -1,12 +1,12 @@
-from collections import namedtuple
-from functools import partial
 import re
 import socket
+from collections import namedtuple
+from functools import partial
 
 import eventlet
 from eventlet import wsgi
 from eventlet.support import get_errno
-from eventlet.wsgi import HttpProtocol, BaseHTTPServer, BROKEN_SOCK
+from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
@@ -14,7 +14,6 @@ from werkzeug.wrappers import Request
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
-
 
 BindAddress = namedtuple("BindAddress", ['address', 'port'])
 
@@ -72,8 +71,7 @@ class WebServer(ProviderCollector, SharedExtension):
             sock, addr = self._sock.accept()
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(
-                partial(self._serv.process_request, (sock, addr)),
-                protected=True
+                partial(self._serv.process_request, (sock, addr))
             )
 
     def start(self):
@@ -86,8 +84,7 @@ class WebServer(ProviderCollector, SharedExtension):
                                      self._wsgi_app,
                                      protocol=HttpOnlyProtocol,
                                      debug=False)
-            self._gt = self.container.spawn_managed_thread(
-                self.run, protected=True)
+            self._gt = self.container.spawn_managed_thread(self.run)
 
     def stop(self):
         self._is_accepting = False
