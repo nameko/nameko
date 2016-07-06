@@ -248,7 +248,6 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     container = mock_container
     container.service_name = "service"
     container.config = rabbit_config
-    container.spawn_managed_thread = eventlet.spawn
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
@@ -330,9 +329,10 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     content_type = 'application/data'
     container.accept = [content_type]
 
-    def spawn_thread(method, protected):
+    def spawn_managed_thread(method):
         return eventlet.spawn(method)
-    container.spawn_managed_thread = spawn_thread
+
+    container.spawn_managed_thread = spawn_managed_thread
 
     worker_ctx = CustomWorkerContext(container, None, DummyProvider())
 

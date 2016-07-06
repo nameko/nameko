@@ -1,6 +1,7 @@
 from __future__ import absolute_import
-from logging import getLogger
+
 import time
+from logging import getLogger
 
 from eventlet import Timeout
 from eventlet.event import Event

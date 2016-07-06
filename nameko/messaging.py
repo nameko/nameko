@@ -197,8 +197,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._starting = True
 
             _log.debug('starting %s', self)
-            self._gt = self.container.spawn_managed_thread(self.run,
-                                                           protected=True)
+            self._gt = self.container.spawn_managed_thread(self.run)
             self._gt.link(self._handle_thread_exited)
         try:
             _log.debug('waiting for consumer ready %s', self)

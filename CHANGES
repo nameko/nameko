@@ -21,6 +21,8 @@ Released 2016-05-11
 
 * Deprecate ``MethodProxy.async`` in favour of ``MethodProxy.call_async`` in preparation for async becoming a keyword
 * Add support for loading logging configuration from ``config.yaml``
+* Refactor `ServiceContainer` internals for better separation between "managed"
+and "worker" threads. Improved logging when threads are killed.
 
 Version 2.3.0
 -------------
