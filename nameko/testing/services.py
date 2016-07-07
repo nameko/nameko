@@ -69,8 +69,9 @@ def entrypoint_hook(container, method_name, context_data=None):
                     hook_result.send_exception(exc)
 
         # If the container errors (e.g. due to a bad entrypoint), the
-        # entrypoint_waiter never completes. To mitigate, we exit the hook
-        # on the first greenthread to complete.
+        # entrypoint_waiter never completes. To mitigate, we also wait on
+        # the container, and if that throws we send the exception back
+        # as our result.
         eventlet.spawn_n(wait_for_entrypoint)
         eventlet.spawn_n(wait_for_container)
 
