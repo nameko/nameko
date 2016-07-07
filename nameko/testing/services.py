@@ -112,7 +112,7 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 
         worker_ctx (WorkerContext): WorkerContext of the entrypoint call.
 
-        result (object): The result, if any, that the entrypoint returned.
+        result (object): The return value of the entrypoint.
 
         exc_info (tuple): Tuple as returned by `sys.exc_info` if the
             entrypoint raised an exception, otherwise `None`.
