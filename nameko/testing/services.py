@@ -86,8 +86,8 @@ class EntrypointWaiterTimeout(Exception):
 
 @contextmanager
 def entrypoint_waiter(container, method_name, timeout=30, callback=None):
-    """ Context manager that waits until an entrypoint has fired (and
-    completed).
+    """ Context manager that waits until an entrypoint has fired, and
+    the generated worker has exited and been torn down.
 
     It yields a :class:`nameko.testing.waiting.WaitResult` object that can be
     used to get the result returned (exception raised) by the entrypoint
