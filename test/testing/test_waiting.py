@@ -205,10 +205,27 @@ class TestPatchWait(object):
         arg = "hello"
 
         with wait_for_call(echo, 'upper') as result:
-            assert result.get() is None  # not ready
+            with pytest.raises(result.NotReady):
+                result.get()
             res = echo.upper(arg)
 
         assert result.get() == res
+
+    def test_result_is_none(self):
+
+        class Echo(object):
+
+            def nothing(self):
+                return None
+
+        echo = Echo()
+
+        with wait_for_call(echo, 'nothing') as result:
+            res = echo.nothing()
+
+        assert res is None
+        assert result.get() is None
+        assert result.has_result is True
 
     def test_wrapped_method_raises(self):
 
