@@ -80,10 +80,6 @@ def entrypoint_hook(container, method_name, context_data=None):
     yield hook
 
 
-class EntrypointWaiterTimeout(Exception):
-    pass
-
-
 @contextmanager
 def entrypoint_waiter(container, method_name, timeout=30, callback=None):
     """ Context manager that waits until an entrypoint has fired, and
@@ -185,8 +181,8 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
             return True
         return False
 
-    exc = EntrypointWaiterTimeout(
-        "EntrypointWaiterTimeout on {}.{} after {} seconds".format(
+    exc = entrypoint_waiter.Timeout(
+        "Timeout on {}.{} after {} seconds".format(
             container.service_name, method_name, timeout)
     )
 
@@ -200,6 +196,9 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
                 lambda args, kwargs, res, exc: on_worker_result(*args)
             ):
                 yield waiter_result
+
+
+entrypoint_waiter.Timeout = type("Timeout", (Exception,), {})
 
 
 def worker_factory(service_cls, **dependencies):
