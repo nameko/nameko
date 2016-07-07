@@ -1,5 +1,3 @@
-""" https://github.com/mattbennett/call-waiting
-"""
 import sys
 from contextlib import contextmanager
 from threading import Semaphore

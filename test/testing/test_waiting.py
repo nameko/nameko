@@ -1,5 +1,3 @@
-""" https://github.com/mattbennett/call-waiting
-"""
 import sys
 import time
 from threading import Thread
