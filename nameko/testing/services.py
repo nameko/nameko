@@ -100,6 +100,10 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
             Function to conditionally control whether the entrypoint_waiter
             should exit for a particular invocation
 
+    The `timeout` argument specifies the maximum number of seconds the
+    `entrypoint_waiter` should wait before exiting. It can be disabled by
+    passing `None`. The default is 30 seconds.
+
     Optionally allows a `callback` to be provided which is invoked whenever
     the entrypoint fires. If provided, the callback must return `True`
     for the `entrypoint_waiter` to exit. The signature for the callback
@@ -116,11 +120,6 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 
         exc_info (tuple): Tuple as returned by `sys.exc_info` if the
             entrypoint raised an exception, otherwise `None`.
-
-
-    The `timeout` argument specifies the maximum number of seconds the
-    `entrypoint_waiter` should wait before exiting. It can be disabled by
-    passing `None`.
 
     **Usage**
 
