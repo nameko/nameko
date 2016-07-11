@@ -134,8 +134,8 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if exc_info is not None:
-                return False
+            if exc_info is None:
+                return True
 
         with wait_for_call(counter, 'count', callback=cb) as result:
             Thread(target=count_forever).start()
