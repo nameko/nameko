@@ -54,6 +54,10 @@ def spawn_thread():
     threads = []
 
     def spawn(fn, *args):
+        """ Spawn a new thread to execute `fn(*args)`.
+
+        The thread will be killed at test teardown if it's still running.
+        """
         threads.append(eventlet.spawn(fn, *args))
 
     yield spawn
