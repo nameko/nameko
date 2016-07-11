@@ -44,30 +44,30 @@ class TestPatchWaitUseCases(object):
 
     def test_wait_until_called_with_argument(self, forever):
 
-        class CounterWithSkipTo(object):
+        class CounterWithSet(object):
             value = 0
 
             def count(self):
                 self.value += 1
                 return self.value
 
-            def skip_to(self, skip_to):
-                self.value = skip_to
+            def set(self, value):
+                self.value = value
                 return self.value
 
-        counter = CounterWithSkipTo()
+        counter = CounterWithSet()
 
-        def increment_forever():
+        def increment_forever_via_set():
             while forever:
-                counter.skip_to(counter.value + 1)
+                counter.set(counter.value + 1)
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
             if args == (10,):
                 return True
 
-        with wait_for_call(counter, 'skip_to', callback=cb) as result:
-            Thread(target=increment_forever).start()
+        with wait_for_call(counter, 'set', callback=cb) as result:
+            Thread(target=increment_forever_via_set).start()
 
         assert result.get() == 10
 
