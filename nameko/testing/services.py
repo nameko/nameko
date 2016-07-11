@@ -160,8 +160,15 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
         raise RuntimeError("{} has no entrypoint `{}`".format(
             container.service_name, method_name))
 
+    class Result(WaitResult):
+        worker_ctx = None
+
+        def send(self, worker_ctx, result, exc_info):
+            self.worker_ctx = worker_ctx
+            super(Result, self).send(result, exc_info)
+
     waiter_callback = callback
-    waiter_result = WaitResult()
+    waiter_result = Result()
 
     def on_worker_result(worker_ctx, result, exc_info):
         complete = False
@@ -172,11 +179,11 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
                 complete = waiter_callback(worker_ctx, result, exc_info)
 
         if complete:
-            waiter_result.send(result, exc_info)
+            waiter_result.send(worker_ctx, result, exc_info)
         return complete
 
     def on_worker_teardown(worker_ctx):
-        if worker_ctx.entrypoint.method_name == method_name:
+        if waiter_result.worker_ctx is worker_ctx:
             return True
         return False
 
