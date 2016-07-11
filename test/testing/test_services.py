@@ -428,7 +428,6 @@ def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
         results.append((res, exc_info))
         if len(results) == 2:
             return True
-        return False
 
     dispatch = event_dispatcher(rabbit_config)
     with entrypoint_waiter(container, 'handle_event', callback=cb):
