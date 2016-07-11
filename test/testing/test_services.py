@@ -29,6 +29,19 @@ class LanguageReporter(DependencyProvider):
 handle_event = Mock()
 
 
+@pytest.fixture
+def counter():
+
+    class Counter(object):
+        value = 0
+
+        def count(self):
+            self.value += 1
+            return self.value
+
+    return Counter()
+
+
 @pytest.yield_fixture(autouse=True)
 def reset_mock():
     yield
@@ -622,3 +635,52 @@ def test_entrypoint_waiter_duplicate(container_factory, rabbit_config):
             dispatch('srcservice', 'eventtype', "msg")
 
     assert handle_event.call_args_list == [call("msg")]
+
+
+def test_entrypoint_waiter_result_teardown_race(
+    container_factory, rabbit_config, counter
+):
+    tracker = Mock()
+
+    class TrackingDependency(DependencyProvider):
+
+        def worker_result(self, worker_ctx, res, exc_info):
+            tracker.worker_result()
+
+        def worker_teardown(self, worker_ctx):
+            tracker.worker_teardown()
+
+    class Service(object):
+        name = "service"
+
+        tracker = TrackingDependency()
+
+        @event_handler('srcservice', 'eventtype')
+        def handle(self, msg):
+            tracker.handle(msg)
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    def wait_for_two_calls(worker_ctx, res, exc_info):
+        if counter.count() > 1:
+            return True
+
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle', callback=wait_for_two_calls):
+
+        # dispatch the first message
+        dispatch('srcservice', 'eventtype', "msg")
+
+        # wait until teardown has fired at least once
+        while tracker.worker_teardown.call_count == 0:
+            time.sleep(.1)
+
+        # dispatch the second event
+        dispatch('srcservice', 'eventtype', "msg")
+
+    # we should wait for the second teardown to complete before exiting
+    # the entrypoint waiter
+    assert tracker.worker_teardown.call_count == 2
+    assert tracker.worker_result.call_count == 2
+    assert tracker.handle.call_count == 2
