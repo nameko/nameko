@@ -34,8 +34,7 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if res == 10:
-                return True
+            return res == 10
 
         with wait_for_call(counter, 'count', callback=cb) as result:
             Thread(target=count_forever).start()
@@ -63,8 +62,7 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if args == (10,):
-                return True
+            return args == (10,)
 
         with wait_for_call(counter, 'set', callback=cb) as result:
             Thread(target=increment_forever_via_set).start()
@@ -96,8 +94,7 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if exc_info is not None:
-                return True
+            return exc_info is not None
 
         with wait_for_call(counter, 'count', callback=cb) as result:
             Thread(target=count_forever).start()
@@ -134,8 +131,7 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if exc_info is None:
-                return True
+            return exc_info is None
 
         with wait_for_call(counter, 'count', callback=cb) as result:
             Thread(target=count_forever).start()

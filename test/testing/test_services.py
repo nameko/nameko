@@ -426,8 +426,7 @@ def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
 
     def cb(worker_ctx, res, exc_info):
         results.append((res, exc_info))
-        if len(results) == 2:
-            return True
+        return len(results) == 2
 
     dispatch = event_dispatcher(rabbit_config)
     with entrypoint_waiter(container, 'handle_event', callback=cb):
@@ -454,8 +453,7 @@ def test_entrypoint_waiter_wait_for_specific_result(
     target = 5
 
     def cb(worker_ctx, res, exc_info):
-        if res == target:
-            return True
+        return res == target
 
     def increment_forever():
         dispatch = event_dispatcher(rabbit_config)
@@ -486,8 +484,7 @@ def test_entrypoint_waiter_wait_until_called_with_argument(
     target = 5
 
     def cb(worker_ctx, res, exc_info):
-        if worker_ctx.args == (target,):
-            return True
+        return worker_ctx.args == (target,)
 
     def increment_forever():
         dispatch = event_dispatcher(rabbit_config)
@@ -522,8 +519,7 @@ def test_entrypoint_waiter_wait_until_raises(
     container.start()
 
     def cb(worker_ctx, res, exc_info):
-        if exc_info is not None:
-            return True
+        return exc_info is not None
 
     def increment_forever():
         dispatch = event_dispatcher(rabbit_config)
@@ -559,8 +555,7 @@ def test_entrypoint_waiter_wait_until_stops_raising(
     container.start()
 
     def cb(worker_ctx, res, exc_info):
-        if exc_info is None:
-            return True
+        return exc_info is None
 
     def increment_forever():
         dispatch = event_dispatcher(rabbit_config)
@@ -666,8 +661,7 @@ def test_entrypoint_waiter_result_teardown_race(
     container.start()
 
     def wait_for_two_calls(worker_ctx, res, exc_info):
-        if counter.count() > 1:
-            return True
+        return counter.count() > 1
 
     dispatch = event_dispatcher(rabbit_config)
     with entrypoint_waiter(container, 'handle', callback=wait_for_two_calls):
