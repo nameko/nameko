@@ -10,7 +10,7 @@ class WaitResult(object):
     sentinel = object()
 
     res = sentinel
-    exc_info = sentinel
+    exc_info = None
 
     class NotReady(Exception):
         pass
@@ -19,7 +19,7 @@ class WaitResult(object):
     def has_result(self):
         return (
             self.res is not self.sentinel or
-            self.exc_info is not self.sentinel
+            self.exc_info is not None
         )
 
     def send(self, res, exc_info):
