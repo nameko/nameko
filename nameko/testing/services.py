@@ -204,7 +204,10 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
                 yield waiter_result
 
 
-entrypoint_waiter.Timeout = type("Timeout", (Exception,), {})
+class EntrypointWaiterTimeout(Exception):
+    pass
+
+entrypoint_waiter.Timeout = EntrypointWaiterTimeout
 
 
 def worker_factory(service_cls, **dependencies):
