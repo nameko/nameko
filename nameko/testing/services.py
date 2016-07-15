@@ -218,12 +218,76 @@ def worker_factory(service_cls, **dependencies):
 
 
 class MockDependencyProvider(DependencyProvider):
-    def __init__(self, attr_name):
+    def __init__(self, attr_name, dependency=None):
         self.attr_name = attr_name
-        self.dependency = MagicMock()
+        self.dependency = MagicMock() if dependency is None else dependency
 
     def get_dependency(self, worker_ctx):
         return self.dependency
+
+
+def customise_dependencies(container, **dependencies):
+    """ Replace the dependency providers on ``container`` with custom objects
+    if they are specified in ``dependencies`` kwargs.
+
+    Replacements are made on the container instance and have no effect on the
+    service class. New container instances are therefore unaffected by
+    replacements on previous instances.
+
+    **Usage**
+
+    ::
+        from mock import MagicMock
+        from nameko.rpc import RpcProxy, rpc
+        from nameko.standalone.rpc import ServiceRpcProxy
+
+        class ConversionService(object):
+            name = "conversions"
+
+            maths_rpc = RpcProxy("maths")
+
+            @rpc
+            def inches_to_cm(self, inches):
+                return self.maths_rpc.multiply(inches, 2.54)
+
+            @rpc
+            def cm_to_inches(self, cms):
+                return self.maths_rpc.divide(cms, 2.54)
+
+
+        container = ServiceContainer(ConversionService, config)
+        my_dependency = MagicMock()
+        customise_dependencies(container, maths_rpc=my_dependency)
+
+        container.start()
+
+        with ServiceRpcProxy('conversionservice', config) as proxy:
+            proxy.cm_to_inches(100)
+
+        # assert that the dependency was called as expected
+        my_dependency.divide.assert_called_once_with(100, 2.54)
+
+    """
+    if container.started:
+        raise RuntimeError('You must replace dependencies before the '
+                           'container is started.')
+
+    dependency_names = {dep.attr_name for dep in container.dependencies}
+
+    missing = set(dependencies) - dependency_names
+    if missing:
+        raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
+            missing, container))
+
+    existing_providers = {dep.attr_name: dep for dep in container.dependencies
+                          if dep.attr_name in dependencies}
+
+    for name, replacement in dependencies.items():
+        existing_provider = existing_providers[name]
+        replacement_provider = MockDependencyProvider(
+            name, dependency=replacement)
+        container.dependencies.remove(existing_provider)
+        container.dependencies.add(replacement_provider)
 
 
 def replace_dependencies(container, *dependencies):
@@ -272,31 +336,13 @@ def replace_dependencies(container, *dependencies):
         maths_rpc.divide.assert_called_once_with(100, 2.54)
 
     """
-    if container.started:
-        raise RuntimeError('You must replace dependencies before the '
-                           'container is started.')
 
-    dependency_names = {dep.attr_name for dep in container.dependencies}
-
-    missing = set(dependencies) - dependency_names
-    if missing:
-        raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
-            missing, container))
-
-    replacements = OrderedDict()
-
-    named_dependencies = {dep.attr_name: dep for dep in container.dependencies
-                          if dep.attr_name in dependencies}
-    for name in dependencies:
-        dependency = named_dependencies[name]
-        replacement = MockDependencyProvider(name)
-        replacements[dependency] = replacement
-        container.dependencies.remove(dependency)
-        container.dependencies.add(replacement)
+    replacements = OrderedDict((dep, MagicMock()) for dep in dependencies)
+    customise_dependencies(container, **replacements)
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
-    res = (replacement.dependency for replacement in replacements.values())
+    res = (replacement for replacement in replacements.values())
     if len(dependencies) == 1:
         return next(res)
     return res

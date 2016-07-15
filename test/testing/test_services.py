@@ -9,7 +9,8 @@ from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
     entrypoint_hook, worker_factory, replace_dependencies, once,
-    restrict_entrypoints, entrypoint_waiter, EntrypointWaiter)
+    restrict_entrypoints, entrypoint_waiter, EntrypointWaiter,
+    customise_dependencies)
 from nameko.testing.utils import get_container
 
 
@@ -195,6 +196,89 @@ def test_worker_factory():
     # non-applicable dependency
     with pytest.raises(ExtensionNotFound):
         worker_factory(Service, nonexist=object())
+
+
+def test_customise_dependencies(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
+        baz_proxy = RpcProxy("baz_service")
+
+        @rpc
+        def method(self, arg):
+            self.foo_proxy.remote_method(arg)
+
+        @rpc
+        def foo(self):
+            return "bar"
+
+    class FakeDependency(object):
+        def __init__(self):
+            self.processed = []
+
+        def remote_method(self, arg):
+            self.processed.append(arg)
+
+    container = container_factory(Service, rabbit_config)
+
+    # customise a single dependency
+    fake_foo_proxy = FakeDependency()
+    customise_dependencies(container, foo_proxy=fake_foo_proxy)
+    assert 2 == len([dependency for dependency in container.extensions
+                     if isinstance(dependency, RpcProxy)])
+
+    # customise multiple dependencies
+    customise_dependencies(container, bar_proxy=Mock(), baz_proxy=Mock())
+
+    # verify that container.extensions doesn't include an RpcProxy anymore
+    assert all([not isinstance(dependency, RpcProxy)
+                for dependency in container.extensions])
+
+    container.start()
+
+    # verify that the fake dependency collected calls
+    msg = "msg"
+    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
+        service_proxy.method(msg)
+
+    fake_foo_proxy.processed = [msg]
+
+
+def test_customise_non_dependency(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+        proxy = RpcProxy("foo_service")
+
+        @rpc
+        def method(self):
+            pass
+
+    container = container_factory(Service, rabbit_config)
+
+    # error if dependency doesn't exit
+    with pytest.raises(ExtensionNotFound):
+        customise_dependencies(container, nonexist=Mock())
+
+    # error if dependency is not an dependency
+    with pytest.raises(ExtensionNotFound):
+        customise_dependencies(container, method=Mock())
+
+
+def test_customise_dependencies_container_already_started(container_factory,
+                                                          rabbit_config):
+
+    class Service(object):
+        name = "service"
+        proxy = RpcProxy("foo_service")
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with pytest.raises(RuntimeError):
+        customise_dependencies(container, proxy=Mock())
 
 
 def test_replace_dependencies(container_factory, rabbit_config):
