@@ -65,7 +65,7 @@ def spawn_thread():
     for gt in threads:
         try:
             gt.kill()
-        except:
+        except Exception:
             pass
 
 
