@@ -1,10 +1,11 @@
-import sys
 import inspect
 import re
+import sys
+from pydoc import locate
 
 import eventlet
-from eventlet.queue import LightQueue
 import six
+from eventlet.queue import LightQueue
 
 REDACTED = "********"
 
@@ -188,3 +189,17 @@ class SpawningSet(set):
     @property
     def all(self):
         return SpawningProxy(self)
+
+
+
+def import_class(class_path):
+    if class_path is None:
+        return
+
+    cls = locate(class_path)
+    if cls is None:
+        raise ImportError(
+            "Class `{}` could not be imported".format(class_path)
+        )
+
+    return cls

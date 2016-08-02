@@ -21,7 +21,7 @@ from nameko.exceptions import ConfigurationError, ContainerBeingKilled
 from nameko.extensions import (
     ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions)
 from nameko.log_helpers import make_timing_logger
-from nameko.utils import SpawningSet
+from nameko.utils import SpawningSet, import_class
 
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
@@ -134,8 +134,17 @@ class ServiceContainer(object):
         self.service_cls = service_cls
         self.config = config
 
-        if worker_ctx_cls is None:
-            worker_ctx_cls = WorkerContext
+        if worker_ctx_cls is not None:
+            warnings.warn(
+                "The constructor of `ServiceContainer` has changed. "
+                "The `worker_ctx_cls` kwarg is now deprecated. You can "
+                "use a custom class by setting the `WORKER_CTX_CLASS` config "
+                "option to dotted a class path", DeprecationWarning
+            )
+        else:
+            class_path = self.config.get('WORKER_CTX_CLS')
+            worker_ctx_cls = import_class(class_path) or WorkerContext
+
         self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
