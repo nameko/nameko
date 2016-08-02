@@ -45,6 +45,16 @@ def get_service_name(service_cls):
     return service_name
 
 
+def get_container_cls(config):
+    class_path = config.get('SERVICE_CONTAINER_CLS')
+    return import_class(class_path) or ServiceContainer
+
+
+def get_worker_ctx_cls(config):
+    class_path = config.get('WORKER_CTX_CLS')
+    return import_class(class_path) or WorkerContext
+
+
 def new_call_id():
     return str(uuid.uuid4())
 
@@ -142,8 +152,7 @@ class ServiceContainer(object):
                 "option to dotted a class path", DeprecationWarning
             )
         else:
-            class_path = self.config.get('WORKER_CTX_CLS')
-            worker_ctx_cls = import_class(class_path) or WorkerContext
+            worker_ctx_cls = get_worker_ctx_cls(config)
 
         self.worker_ctx_cls = worker_ctx_cls
 

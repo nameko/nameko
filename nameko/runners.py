@@ -4,8 +4,8 @@ import warnings
 from contextlib import contextmanager
 from logging import getLogger
 
-from nameko.containers import ServiceContainer, get_service_name
-from nameko.utils import SpawningProxy, import_class
+from nameko.containers import get_container_cls, get_service_name
+from nameko.utils import SpawningProxy
 
 _log = getLogger(__name__)
 
@@ -40,8 +40,7 @@ class ServiceRunner(object):
                 "config option to dotted a class path", DeprecationWarning
             )
         else:
-            class_path = self.config.get('SERVICE_CONTAINER_CLS')
-            container_cls = import_class(class_path) or ServiceContainer
+            container_cls = get_container_cls(config)
 
         self.container_cls = container_cls
 
