@@ -191,15 +191,18 @@ class SpawningSet(set):
         return SpawningProxy(self)
 
 
+def import_from_path(path):
+    """ Import and return the object at `path` if it exists.
 
-def import_class(class_path):
-    if class_path is None:
+    Raises an :exc:`ImportError` if the object is not found.
+    """
+    if path is None:
         return
 
-    cls = locate(class_path)
-    if cls is None:
+    obj = locate(path)
+    if obj is None:
         raise ImportError(
-            "Class `{}` could not be imported".format(class_path)
+            "`{}` could not be imported".format(path)
         )
 
-    return cls
+    return obj

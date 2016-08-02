@@ -21,7 +21,7 @@ from nameko.exceptions import ConfigurationError, ContainerBeingKilled
 from nameko.extensions import (
     ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions)
 from nameko.log_helpers import make_timing_logger
-from nameko.utils import SpawningSet, import_class
+from nameko.utils import SpawningSet, import_from_path
 
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
@@ -47,12 +47,12 @@ def get_service_name(service_cls):
 
 def get_container_cls(config):
     class_path = config.get('SERVICE_CONTAINER_CLS')
-    return import_class(class_path) or ServiceContainer
+    return import_from_path(class_path) or ServiceContainer
 
 
 def get_worker_ctx_cls(config):
     class_path = config.get('WORKER_CTX_CLS')
-    return import_class(class_path) or WorkerContext
+    return import_from_path(class_path) or WorkerContext
 
 
 def new_call_id():
