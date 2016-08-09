@@ -88,8 +88,8 @@ def rabbit_config(request, rabbit_manager):
     import random
     import string
     from kombu import pools
-    from retry import retry
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+    from nameko.retry import retry
     from nameko.testing.utils import get_rabbit_connections
 
     amqp_uri = request.config.getoption('AMQP_URI')
@@ -120,7 +120,7 @@ def rabbit_config(request, rabbit_manager):
 
     # raise a runtime error if the test leaves any connections lying around
     # allow a couple of retries because the rabbit api is eventually consistent
-    @retry(tries=3)
+    @retry
     def check_connections():
         connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
         open_connections = [
