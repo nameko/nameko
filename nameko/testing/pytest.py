@@ -122,18 +122,20 @@ def rabbit_config(request, rabbit_manager):
     def retry(fn):
         """ Barebones retry decorator
         """
-        max_retries = 3
-        delay = 1
-        exceptions = RuntimeError
+        def wrapper():
+            max_retries = 3
+            delay = 1
+            exceptions = RuntimeError
 
-        counter = itertools.count()
-        while True:
-            try:
-                return fn()
-            except exceptions:
-                if next(counter) == max_retries:
-                    raise
-                time.sleep(delay)
+            counter = itertools.count()
+            while True:
+                try:
+                    return fn()
+                except exceptions:
+                    if next(counter) == max_retries:
+                        raise
+                    time.sleep(delay)
+        return wrapper
 
     @retry
     def check_connections():
