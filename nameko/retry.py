@@ -50,4 +50,4 @@ def retry(
                     raise
                 sleep(retry_delay.next())
 
-    return wrapper(wrapped)
+    return wrapper(wrapped)  # pylint: disable=E1120
