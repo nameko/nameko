@@ -85,11 +85,12 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
+    import itertools
     import random
     import string
+    import time
     from kombu import pools
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
-    from nameko.retry import retry
     from nameko.testing.utils import get_rabbit_connections
 
     amqp_uri = request.config.getoption('AMQP_URI')
@@ -118,10 +119,28 @@ def rabbit_config(request, rabbit_manager):
 
     pools.reset()  # close connections in pools
 
-    # raise a runtime error if the test leaves any connections lying around
-    # allow a couple of retries because the rabbit api is eventually consistent
+    def retry(fn):
+        """ Barebones retry decorator
+        """
+        max_retries = 3
+        delay = 1
+        exceptions = RuntimeError
+
+        counter = itertools.count()
+        while True:
+            try:
+                return fn()
+            except exceptions:
+                if next(counter) == max_retries:
+                    raise
+                time.sleep(delay)
+
     @retry
     def check_connections():
+        """ Raise a runtime error if the test leaves any connections open.
+
+        Allow a few retries because the rabbit api is eventually consistent.
+        """
         connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
         open_connections = [
             conn for conn in connections if conn['state'] != "closed"
