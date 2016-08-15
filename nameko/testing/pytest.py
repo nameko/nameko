@@ -91,8 +91,10 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
+    import itertools
     import random
     import string
+    import time
     from kombu import pools
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     from nameko.testing.utils import get_rabbit_connections
@@ -123,8 +125,30 @@ def rabbit_config(request, rabbit_manager):
 
     pools.reset()  # close connections in pools
 
-    # raise a runtime error if the test leaves any connections lying around
-    try:
+    def retry(fn):
+        """ Barebones retry decorator
+        """
+        def wrapper():
+            max_retries = 3
+            delay = 1
+            exceptions = RuntimeError
+
+            counter = itertools.count()
+            while True:
+                try:
+                    return fn()
+                except exceptions:
+                    if next(counter) == max_retries:
+                        raise
+                    time.sleep(delay)
+        return wrapper
+
+    @retry
+    def check_connections():
+        """ Raise a runtime error if the test leaves any connections open.
+
+        Allow a few retries because the rabbit api is eventually consistent.
+        """
         connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
         open_connections = [
             conn for conn in connections if conn['state'] != "closed"
@@ -134,6 +158,8 @@ def rabbit_config(request, rabbit_manager):
             names = ", ".join(conn['name'] for conn in open_connections)
             raise RuntimeError(
                 "{} rabbit connection(s) left open: {}".format(count, names))
+    try:
+        check_connections()
     finally:
         if use_random_vost:
             rabbit_manager.delete_vhost(vhost)
