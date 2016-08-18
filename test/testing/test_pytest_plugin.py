@@ -138,27 +138,19 @@ def test_container_factory(testdir, rabbit_config, rabbit_manager):
 
 def test_container_factory_with_custom_container_cls(testdir):
 
-    testdir.makeconftest(
-        """
-        import sys
-        from types import ModuleType
+    testdir.makepyfile(container_module="""
+        from nameko.containers import ServiceContainer
 
-        import pytest
-
-        @pytest.yield_fixture
-        def fake_module():
-            module = ModuleType("fake_module")
-            sys.modules[module.__name__] = module
-            yield module
-            del sys.modules[module.__name__]
-        """
-    )
+        class ServiceContainerX(ServiceContainer):
+            pass
+    """)
 
     testdir.makepyfile(
         """
-        from nameko.containers import ServiceContainer
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcProxy
+
+        from container_module import ServiceContainerX
 
         class ServiceX(object):
             name = "x"
@@ -168,15 +160,10 @@ def test_container_factory_with_custom_container_cls(testdir):
                 return "OK"
 
         def test_container_factory(
-            container_factory, rabbit_config, fake_module
+            container_factory, rabbit_config
         ):
-            class ServiceContainerX(ServiceContainer):
-                pass
-
-            fake_module.ServiceContainerX = ServiceContainerX
-
             rabbit_config['SERVICE_CONTAINER_CLS'] = (
-                "fake_module.ServiceContainerX"
+                "container_module.ServiceContainerX"
             )
 
             container = container_factory(ServiceX, rabbit_config)
