@@ -20,7 +20,7 @@ class ServiceRunner(object):
 
         runner = ServiceRunner(config)
         runner.add_service(Foobar)
-        runner.add_service(Spam, CustomWorkerContext)
+        runner.add_service(Spam)
 
         add_sig_term_handler(runner.kill)
 
@@ -37,7 +37,8 @@ class ServiceRunner(object):
                 "The constructor of `ServiceRunner` has changed. "
                 "The `container_cls` kwarg is now deprecated. You can "
                 "use a custom class by setting the `SERVICE_CONTAINER_CLS` "
-                "config option to dotted a class path", DeprecationWarning
+                "config option to dotted a class path. This warning will be "
+                "removed in version 2.6.0.", DeprecationWarning
             )
         else:
             container_cls = get_container_cls(config)
@@ -60,9 +61,9 @@ class ServiceRunner(object):
         if worker_ctx_cls is not None:
             warnings.warn(
                 "The signature of `add_service` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. You can "
-                "use a custom class by setting the `WORKER_CTX_CLASS` config "
-                "option to dotted a class path", DeprecationWarning
+                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
+                "version 2.4.0 for more details. THis wanring will be removed "
+                "in version 2.6.0.", DeprecationWarning
             )
 
         service_name = get_service_name(cls)
@@ -170,9 +171,11 @@ def run_services(config, *services, **kwargs):
             warnings.warn(
                 "The signature of `run_services` has changed. "
                 "The `worker_ctx_cls` and `container_cls` kwargs are now "
-                "deprecated. You can use custom classes by setting the "
-                "`SERVICE_CONTAINER_CLS` and `WORKER_CTX_CLASS` config "
-                "options to dotted class paths", DeprecationWarning
+                "deprecated. You can use a custom `ServiceContainer` class by "
+                "setting the `SERVICE_CONTAINER_CLS` config option to a "
+                "dotted class path. See CHANGES, version 2.4.0 for more "
+                "details. This warning will be removed in version 2.6.0.",
+                DeprecationWarning
             )
 
     container_cls = kwargs.pop('container_cls', None)

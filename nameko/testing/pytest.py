@@ -162,9 +162,8 @@ def container_factory(ensure_cleanup_order):
         if worker_ctx_cls is not None:
             warnings.warn(
                 "The constructor of `container_factory` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. You can "
-                "use a custom class by setting the `WORKER_CTX_CLASS` config "
-                "option to dotted a class path", DeprecationWarning
+                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
+                "Version 2.4.0 for more details.", DeprecationWarning
             )
 
         container = container_cls(service_cls, config, worker_ctx_cls)

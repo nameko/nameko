@@ -50,11 +50,6 @@ def get_container_cls(config):
     return import_from_path(class_path) or ServiceContainer
 
 
-def get_worker_ctx_cls(config):
-    class_path = config.get('WORKER_CTX_CLS')
-    return import_from_path(class_path) or WorkerContext
-
-
 def new_call_id():
     return str(uuid.uuid4())
 
@@ -128,12 +123,12 @@ class ServiceContainer(object):
         if worker_ctx_cls is not None:
             warnings.warn(
                 "The constructor of `ServiceContainer` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. You can "
-                "use a custom class by setting the `WORKER_CTX_CLASS` config "
-                "option to dotted a class path", DeprecationWarning
+                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
+                "version 2.4.0 for more details. This warning will be removed "
+                "in version 2.6.0", DeprecationWarning
             )
         else:
-            worker_ctx_cls = get_worker_ctx_cls(config)
+            worker_ctx_cls = WorkerContext
 
         self.worker_ctx_cls = worker_ctx_cls
 
@@ -373,7 +368,8 @@ class ServiceContainer(object):
                 "The `protected` kwarg is now deprecated, and extensions "
                 "can pass an idenifier as a keyword argument for better "
                 "logging. See :meth:`nameko.containers.ServiceContainer."
-                "spawn_managed_thread`.", DeprecationWarning
+                "spawn_managed_thread`. This warning will be removed in "
+                "version 2.6.0.", DeprecationWarning
             )
         if identifier is None:
             identifier = getattr(fn, '__name__', "<unknown>")

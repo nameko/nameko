@@ -5,7 +5,7 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
-Version 2.3.2
+Version 2.4.0
 -------------
 
 Released PENDING
@@ -13,6 +13,17 @@ Released PENDING
 * Add dictionary access to ``standalone.rpc.ClusterProxy`` to allow the proxy
   to call services whose name is not a legal identifier in python
   (e.g. name has a ``-`` in it).
+* Add the ability to specify a custom `ServiceContainer` class via config key.
+  Deprecate the keyword arguments to `ServiceRunner` and `run_services` for
+  the same purose.
+* Deprecate the keyword arguments to `run_services`, `ServiceContainer` and
+  `ServiceRunner.add_service` for specifying a custom `WorkerContext` class.
+  Custom `WorkerContext` classes can now only be specified with a custom
+  `ServiceContainer` class that defines the `worker_ctx_cls` attribute.
+* Remove the `context_keys` attribute of the `WorkerContext`, which was
+  previously used to "whitelist" worker context data passed from call to call.
+  It was a feature that leaked from a specific implementation into the main framework, and not useful enough in its own right to continue to be
+  supported.
 
 Version 2.3.1
 -------------

@@ -616,18 +616,6 @@ class TestContainerCustomWorkerCtxCls(object):
         fake_module.WorkerContextX = WorkerContextX
         return WorkerContextX
 
-    def test_config_key(
-        self, service_cls, worker_ctx_cls
-    ):
-        config = {
-            'WORKER_CTX_CLS': "fake_module.WorkerContextX"
-        }
-        container = ServiceContainer(service_cls, config)
-
-        entrypoint = list(container.entrypoints)[0]
-        worker_ctx = container.spawn_worker(entrypoint, (), {})
-        assert isinstance(worker_ctx, worker_ctx_cls)
-
     def test_kwarg_deprecation_warning(
         self, warnings, service_cls, worker_ctx_cls
     ):
