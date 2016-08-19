@@ -15,7 +15,7 @@ Released PENDING
   (e.g. name has a ``-`` in it).
 * Add the ability to specify a custom `ServiceContainer` class via config key.
   Deprecate the keyword arguments to `ServiceRunner` and `run_services` for
-  the same purose.
+  the same purpose.
 * Deprecate the keyword arguments to `run_services`, `ServiceContainer` and
   `ServiceRunner.add_service` for specifying a custom `WorkerContext` class.
   Custom `WorkerContext` classes can now only be specified with a custom
