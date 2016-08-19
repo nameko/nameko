@@ -4,7 +4,7 @@ import inspect
 import sys
 import uuid
 import warnings
-from abc import ABCMeta, abstractproperty
+from collections import deque
 from logging import getLogger
 
 import eventlet
@@ -16,7 +16,7 @@ from greenlet import GreenletExit  # pylint: disable=E0611
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, DEFAULT_SERIALIZER, MAX_WORKERS_CONFIG_KEY,
-    NAMEKO_CONTEXT_KEYS, PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+    PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ConfigurationError, ContainerBeingKilled
 from nameko.extensions import (
     ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions)
@@ -59,18 +59,17 @@ def new_call_id():
     return str(uuid.uuid4())
 
 
-class WorkerContextBase(object):
-    """ Abstract base class for a WorkerContext
-    """
-    __metaclass__ = ABCMeta
+class WorkerContext(object):
 
-    def __init__(self, container, service, entrypoint, args=None, kwargs=None,
-                 data=None):
+    _call_id = None
+    _call_id_stack = None
+    _parent_call_id_stack = None
+
+    def __init__(
+        self, container, service, entrypoint, args=None, kwargs=None, data=None
+    ):
         self.container = container
-        self.config = container.config  # TODO: remove?
-
-        self.parent_calls_tracked = self.config.get(
-            PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED)
+        self.config = self.container.config
 
         self.service = service
         self.entrypoint = entrypoint
@@ -78,44 +77,37 @@ class WorkerContextBase(object):
 
         self.args = args if args is not None else ()
         self.kwargs = kwargs if kwargs is not None else {}
-
         self.data = data if data is not None else {}
 
-        self.parent_call_stack, self.unique_id = self._init_call_id()
-        self.call_id = '{}.{}.{}'.format(
-            self.service_name, self.entrypoint.method_name, self.unique_id
+        self._parent_call_id_stack = self.data.pop(
+            CALL_ID_STACK_CONTEXT_KEY, []
         )
-        n = -self.parent_calls_tracked
-        self.call_id_stack = self.parent_call_stack[n:]
-        self.call_id_stack.append(self.call_id)
-        try:
-            self.immediate_parent_call_id = self.parent_call_stack[-1]
-        except IndexError:
-            self.immediate_parent_call_id = None
 
-    @abstractproperty
-    def context_keys(self):
-        """ Return a tuple of keys describing data kept on this WorkerContext.
-        """
+    @property
+    def call_id_stack(self):
+        if self._call_id_stack is None:
+            parent_calls_tracked = self.container.config.get(
+                PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED
+            )
+            stack_length = parent_calls_tracked + 1
+
+            self._call_id_stack = deque(maxlen=stack_length)
+            self._call_id_stack.extend(self._parent_call_id_stack)
+            self._call_id_stack.append(self.call_id)
+        return list(self._call_id_stack)
+
+    @property
+    def call_id(self):
+        if self._call_id is None:
+            self._call_id = '{}.{}.{}'.format(
+                self.service_name, self.entrypoint.method_name, new_call_id()
+            )
+        return self._call_id
 
     @property
     def context_data(self):
-        """
-        Contextual data to pass with each call originating from the active
-        worker.
-
-        Comprises items from ``self.data`` where the key is included in
-        ``context_keys``, as well as the call stack.
-        """
-        key_data = {k: v for k, v in six.iteritems(self.data)
-                    if k in self.context_keys}
-        key_data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
-        return key_data
-
-    @classmethod
-    def get_context_data(cls, incoming):
-        data = {k: v for k, v in six.iteritems(incoming)
-                if k in cls.context_keys}
+        data = self.data.copy()
+        data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
         return data
 
     def __repr__(self):
@@ -125,16 +117,8 @@ class WorkerContextBase(object):
         return '<{} [{}.{}] at 0x{:x}>'.format(
             cls_name, service_name, method_name, id(self))
 
-    def _init_call_id(self):
-        parent_call_stack = self.data.pop(CALL_ID_STACK_CONTEXT_KEY, [])
-        unique_id = new_call_id()
-        return parent_call_stack, unique_id
 
-
-class WorkerContext(WorkerContextBase):
-    """ Default WorkerContext implementation
-    """
-    context_keys = NAMEKO_CONTEXT_KEYS
+WorkerContextBase = WorkerContext  # backwards compat
 
 
 class ServiceContainer(object):
@@ -405,8 +389,6 @@ class ServiceContainer(object):
     def _run_worker(self, worker_ctx, handle_result):
         _log.debug('setting up %s', worker_ctx)
 
-        if not worker_ctx.parent_call_stack:
-            _log.debug('starting call chain')
         _log.debug('call stack for %s: %s',
                    worker_ctx, '->'.join(worker_ctx.call_id_stack))
 

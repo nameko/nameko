@@ -4,13 +4,11 @@ from kombu import Exchange, Queue
 from mock import Mock, patch
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.containers import (
-    NAMEKO_CONTEXT_KEYS, WorkerContext, WorkerContextBase)
+from nameko.containers import WorkerContext, WorkerContextBase
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import Consumer, HeaderDecoder, HeaderEncoder, Publisher
 from nameko.testing.utils import (
-    ANY_PARTIAL, DummyProvider, as_context_manager, wait_for_call,
-    worker_context_factory)
+    ANY_PARTIAL, DummyProvider, as_context_manager, wait_for_call)
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -19,7 +17,7 @@ CONSUME_TIMEOUT = 1
 
 
 class CustomWorkerContext(WorkerContextBase):
-    context_keys = NAMEKO_CONTEXT_KEYS + ('customheader',)
+    pass
 
 
 @pytest.yield_fixture
@@ -234,13 +232,14 @@ def test_header_encoder(empty_config):
     encoder = HeaderEncoder()
     with patch.object(encoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx_cls = worker_context_factory('foo', 'bar', 'xxx')
-        worker_ctx = worker_ctx_cls(data=context_data)
-        worker_ctx.call_id_stack = ['x']
+        worker_ctx = Mock(context_data=context_data)
 
         res = encoder.get_message_headers(worker_ctx)
-        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR',
-                       'testprefix.call_id_stack': ['x']}
+        assert res == {
+            'testprefix.foo': 'FOO',
+            'testprefix.bar': 'BAR',
+            'testprefix.baz': 'BAZ',
+        }
 
 
 def test_header_decoder():
@@ -249,21 +248,22 @@ def test_header_decoder():
         'testprefix.foo': 'FOO',
         'testprefix.bar': 'BAR',
         'testprefix.baz': 'BAZ',
-        'bogusprefix.foo': 'XXX',
+        'differentprefix.foo': 'XXX',
         'testprefix.call_id_stack': ['a', 'b', 'c'],
     }
 
     decoder = HeaderDecoder()
     with patch.object(decoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx_cls = worker_context_factory("foo", "bar", "call_id_stack")
         message = Mock(headers=headers)
 
-        res = decoder.unpack_message_headers(worker_ctx_cls, message)
+        res = decoder.unpack_message_headers(None, message)
         assert res == {
             'foo': 'FOO',
             'bar': 'BAR',
+            'baz': 'BAZ',
             'call_id_stack': ['a', 'b', 'c'],
+            'differentprefix.foo': 'XXX'
         }
 
 

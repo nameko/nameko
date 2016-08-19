@@ -1,14 +1,13 @@
-from mock import Mock, call
 import pytest
+from mock import Mock, call
 
-from nameko.containers import WorkerContext
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
-from nameko.events import event_handler, EventDispatcher
-from nameko.rpc import rpc, RpcProxy
-from nameko.testing.services import entrypoint_waiter
+from nameko.containers import WorkerContext
+from nameko.events import EventDispatcher, event_handler
+from nameko.rpc import RpcProxy, rpc
+from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
-    get_container, worker_context_factory, DummyProvider)
-from nameko.testing.services import entrypoint_hook
+    DummyProvider, get_container, worker_context_factory)
 
 
 def get_logging_worker_context(stack_request):
@@ -36,7 +35,6 @@ def test_worker_context_gets_stack(container_factory):
     context = context_cls(container, service, DummyProvider("bar"))
     assert context.call_id == 'baz.bar.0'
     assert context.call_id_stack == ['baz.bar.0']
-    assert context.parent_call_stack == []
 
     # Build stack
     context = context_cls(container, service, DummyProvider("foo"),
