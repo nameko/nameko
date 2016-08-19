@@ -6,8 +6,7 @@ from nameko.containers import WorkerContext
 from nameko.events import EventDispatcher, event_handler
 from nameko.rpc import RpcProxy, rpc
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
-from nameko.testing.utils import (
-    DummyProvider, get_container, worker_context_factory)
+from nameko.testing.utils import DummyProvider, get_container
 
 
 def get_logging_worker_context(stack_request):
@@ -24,7 +23,6 @@ def get_logging_worker_context(stack_request):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_worker_context_gets_stack(container_factory):
-    context_cls = worker_context_factory()
 
     class FooService(object):
         name = 'baz'
@@ -32,27 +30,30 @@ def test_worker_context_gets_stack(container_factory):
     container = container_factory(FooService, {})
     service = FooService()
 
-    context = context_cls(container, service, DummyProvider("bar"))
+    context = WorkerContext(container, service, DummyProvider("bar"))
     assert context.call_id == 'baz.bar.0'
     assert context.call_id_stack == ['baz.bar.0']
 
     # Build stack
-    context = context_cls(container, service, DummyProvider("foo"),
-                          data={'call_id_stack': context.call_id_stack})
+    context = WorkerContext(
+        container, service, DummyProvider("foo"),
+        data={'call_id_stack': context.call_id_stack}
+    )
     assert context.call_id == 'baz.foo.1'
     assert context.call_id_stack == ['baz.bar.0', 'baz.foo.1']
 
     # Long stack
     many_ids = [str(i) for i in range(10)]
-    context = context_cls(container, service, DummyProvider("long"),
-                          data={'call_id_stack': many_ids})
+    context = WorkerContext(
+        container, service, DummyProvider("long"),
+        data={'call_id_stack': many_ids}
+    )
     expected = many_ids + ['baz.long.2']
     assert context.call_id_stack == expected
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_short_call_stack(container_factory):
-    context_cls = worker_context_factory()
 
     class FooService(object):
         name = 'baz'
@@ -62,8 +63,10 @@ def test_short_call_stack(container_factory):
 
     # Trim stack
     many_ids = [str(i) for i in range(100)]
-    context = context_cls(container, service, DummyProvider("long"),
-                          data={'call_id_stack': many_ids})
+    context = WorkerContext(
+        container, service, DummyProvider("long"),
+        data={'call_id_stack': many_ids}
+    )
     assert context.call_id_stack == ['99', 'baz.long.0']
 
 

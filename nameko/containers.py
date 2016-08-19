@@ -118,9 +118,6 @@ class WorkerContext(object):
             cls_name, service_name, method_name, id(self))
 
 
-WorkerContextBase = WorkerContext  # backwards compat
-
-
 class ServiceContainer(object):
 
     def __init__(self, service_cls, config, worker_ctx_cls=None):

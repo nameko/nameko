@@ -6,7 +6,7 @@ import pytest
 from eventlet.event import Event
 from mock import Mock, call, patch
 
-from nameko.containers import ServiceContainer, WorkerContextBase
+from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
@@ -57,10 +57,6 @@ class WorkerErrorLogger(DependencyProvider):
             self.expected[worker_ctx.entrypoint.method_name] = type(exc)
         else:
             self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
-
-
-class CustomWorkerContext(WorkerContextBase):
-    pass
 
 
 class ExampleService(object):
