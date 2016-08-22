@@ -178,3 +178,36 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
         call(['event_raiser.say_hello.0']),
         call(['event_raiser.say_hello.0']),
     ])
+
+
+class TestImmediateParentCallId(object):
+
+    def test_with_parent(self, mock_container):
+
+        mock_container.service_name = "foo"
+
+        service = Mock()
+        entrypoint = DummyProvider("bar")
+        context_data = {
+            'call_id_stack': ['parent.method.1']
+        }
+
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data=context_data
+        )
+
+        assert worker_ctx.immediate_parent_call_id == "parent.method.1"
+
+    def test_without_parent(self, mock_container):
+
+        mock_container.service_name = "foo"
+
+        service = Mock()
+        entrypoint = DummyProvider("bar")
+        context_data = {}
+
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data=context_data
+        )
+
+        assert worker_ctx.immediate_parent_call_id is None
