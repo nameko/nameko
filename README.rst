@@ -24,7 +24,7 @@ A nameko service is just a class:
 
         @rpc
         def hello(self, name):
-            return "Hello, {}!".format(name)
+            return u"Hello, {}!".format(name)
 
 
 You can run it in a shell:
