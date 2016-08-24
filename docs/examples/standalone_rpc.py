@@ -5,4 +5,4 @@ config = {
 }
 
 with ClusterRpcProxy(config) as cluster_rpc:
-    cluster_rpc.service_x.remote_method(u"hellø")  # "hellø-x-y"
+    cluster_rpc.service_x.remote_method("hellø")  # "hellø-x-y"
