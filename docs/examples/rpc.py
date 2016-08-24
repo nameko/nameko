@@ -5,7 +5,7 @@ class ServiceY(object):
 
     @rpc
     def append_identifier(self, value):
-        return u"{}-y".format(value)
+        return "{}-y".format(value)
 
 
 class ServiceX(object):
@@ -15,5 +15,5 @@ class ServiceX(object):
 
     @rpc
     def remote_method(self, value):
-        res = u"{}-x".format(value)
+        res = "{}-x".format(value)
         return self.y.append_identifier(res)

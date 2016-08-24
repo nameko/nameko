@@ -5,4 +5,4 @@ class GreetingService(object):
 
     @rpc
     def hello(self, name):
-        return u"Hello, {}!".format(name)
+        return "Hello, {}!".format(name)

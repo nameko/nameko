@@ -35,7 +35,7 @@ class Travis(object):
         status = self.webservice.repo_status(owner, repo)
         outcome = "passing" if status['last_build_result'] else "failing"
 
-        return u"Project {repo} {outcome} since {timestamp}.".format(
+        return "Project {repo} {outcome} since {timestamp}.".format(
             repo=status['slug'],
             outcome=outcome,
             timestamp=status['last_build_finished_at']

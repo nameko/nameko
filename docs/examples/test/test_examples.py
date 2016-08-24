@@ -1,4 +1,3 @@
-# coding: utf-8
 """ Tests for the files and snippets in nameko/docs/examples
 """
 import os
@@ -23,9 +22,9 @@ class TestHttp(object):
         assert res.status_code == 200
         assert res.text == '{"value": 42}'
 
-        res = web_session.post("/post", data=u"你好".encode('utf-8'))
+        res = web_session.post("/post", data="Hello")
         assert res.status_code == 200
-        assert res.text == u'received: 你好'
+        assert res.text == 'received: Hello'
 
     def test_advanced(self, container_factory, web_config, web_session):
 
@@ -138,12 +137,12 @@ class TestEvents(object):
             waiter_2 = entrypoint_waiter(container_2, 'ping')
 
             with waiter_1, waiter_2:
-                dispatch("monitor", "ping", u"payløad")
+                dispatch("monitor", "ping", "payload")
             assert ping.call_count == 2
 
         # test without the patch to catch any errors in the handler method
         with entrypoint_waiter(container_1, 'ping'):
-            dispatch("monitor", "ping", u"payløad")
+            dispatch("monitor", "ping", "payload")
 
 
 class TestAnatomy(object):
@@ -169,7 +168,7 @@ class TestHelloWorld(object):
         container.start()
 
         with ServiceRpcProxy('greeting_service', rabbit_config) as greet_rpc:
-            assert greet_rpc.hello(u"Møtt") == u"Hello, Møtt!"
+            assert greet_rpc.hello("Matt") == "Hello, Matt!"
 
 
 class TestRpc(object):
@@ -184,7 +183,7 @@ class TestRpc(object):
         container_y.start()
 
         with ServiceRpcProxy('service_x', rabbit_config) as service_x_rpc:
-            assert service_x_rpc.remote_method(u"føø") == u"føø-x-y"
+            assert service_x_rpc.remote_method("foo") == "foo-x-y"
 
     def test_standalone_rpc(self, container_factory, rabbit_config):
 
@@ -280,4 +279,4 @@ class TestWebsocketRpc(object):
         container.start()
 
         ws = websocket()
-        assert ws.rpc('echo', value=u"hellø") == u'hellø'
+        assert ws.rpc('echo', value="hello") == 'hello'
