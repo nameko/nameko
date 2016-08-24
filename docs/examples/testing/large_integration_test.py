@@ -64,7 +64,7 @@ class ShoppingBasket(DependencyProvider):
         return Basket(self.baskets[user_id])
 
 
-class AcmeShopService(object):
+class AcmeShopService:
     name = "acmeshopservice"
 
     user_basket = ShoppingBasket()
@@ -139,7 +139,7 @@ class Warehouse(DependencyProvider):
         return self.database
 
 
-class StockService(object):
+class StockService:
     name = "stockservice"
 
     warehouse = Warehouse()
@@ -205,7 +205,7 @@ class AddressBook(DependencyProvider):
         return get_user_details
 
 
-class InvoiceService(object):
+class InvoiceService:
     name = "invoiceservice"
 
     get_user_details = AddressBook()
@@ -228,7 +228,7 @@ class InvoiceService(object):
         return invoice
 
 
-class PaymentService(object):
+class PaymentService:
     name = "paymentservice"
 
     @rpc

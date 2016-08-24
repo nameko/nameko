@@ -22,7 +22,7 @@ class Result(Base):
     value = Column(String(64))
 
 
-class Service(object):
+class Service:
     """ Service under test
     """
     name = "service"

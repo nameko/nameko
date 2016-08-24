@@ -1,6 +1,6 @@
 from nameko.rpc import rpc, RpcProxy
 
-class ServiceY(object):
+class ServiceY:
     name = "service_y"
 
     @rpc
@@ -8,7 +8,7 @@ class ServiceY(object):
         return "{}-y".format(value)
 
 
-class ServiceX(object):
+class ServiceX:
     name = "service_x"
 
     y = RpcProxy("service_y")

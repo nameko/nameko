@@ -19,7 +19,7 @@ A nameko service is just a class:
 
     from nameko.rpc import rpc
 
-    class GreetingService(object):
+    class GreetingService:
         name = "greeting_service"
 
         @rpc
@@ -41,7 +41,7 @@ And play with it from another:
 
     $ nameko shell
     >>> n.rpc.greeting_service.hello(name="Matt")
-    u'Hello, Matt!'
+    'Hello, Matt!'
 
 
 Features
