@@ -19,7 +19,8 @@ from nameko.amqp import (
     UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
-    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY,
+    SSL_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
@@ -151,7 +152,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
         exchange = self.exchange
         queue = self.queue
 
-        verify_amqp_uri(self.amqp_uri)
+        ssl = self.container.config.get(SSL_CONFIG_KEY)
+        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
         with get_connection(self.amqp_uri) as conn:
             if queue is not None:
@@ -238,7 +240,8 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self):
-        verify_amqp_uri(self.amqp_uri)
+        ssl = self.container.config.get(SSL_CONFIG_KEY)
+        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
     def start(self):
         if not self._starting:
@@ -382,7 +385,8 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         heartbeat = self.container.config.get(
             HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
         )
-        return Connection(self.amqp_uri, heartbeat=heartbeat)
+        ssl = self.container.config.get(SSL_CONFIG_KEY)
+        return Connection(self.amqp_uri, heartbeat=heartbeat, ssl=ssl)
 
     def get_consumers(self, consumer_cls, channel):
         """ Kombu callback to set up consumers.
