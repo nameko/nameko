@@ -27,6 +27,6 @@ See :ref:`getting in touch <getting_in_touch>` for more guidance on contributing
 Running the tests
 --------------------
 
-To run the tests for the library, you must have :ref: `rabbitmq installed <installation>` and running locally. Once rabitmq is running, use the Makefile to run the tests::
+There is a Makefile with convenience commands for running the tests. To run them locally you must have RabbitMQ :ref:`installed <installation>` and running, then call::
 
     $ make test
