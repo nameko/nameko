@@ -23,3 +23,10 @@ Pull requests are automatically built with `Travis-CI <https://travis-ci.org/one
     * Documentation builds successfully (including spell-check)
 
 See :ref:`getting in touch <getting_in_touch>` for more guidance on contributing.
+
+Running the tests
+--------------------
+
+To run the tests for the library, you must have :ref: `rabbitmq installed <installation>` and running locally. Once rabitmq is running, use the Makefile to run the tests::
+
+    $ make test
