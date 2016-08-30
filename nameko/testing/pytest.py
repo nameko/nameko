@@ -176,12 +176,23 @@ def ensure_cleanup_order(request):
 
 @pytest.yield_fixture
 def container_factory(ensure_cleanup_order):
-    from nameko.containers import ServiceContainer
+    from nameko.containers import get_container_cls
+    import warnings
 
     all_containers = []
 
     def make_container(service_cls, config, worker_ctx_cls=None):
-        container = ServiceContainer(service_cls, config, worker_ctx_cls)
+
+        container_cls = get_container_cls(config)
+
+        if worker_ctx_cls is not None:
+            warnings.warn(
+                "The constructor of `container_factory` has changed. "
+                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
+                "Version 2.4.0 for more details.", DeprecationWarning
+            )
+
+        container = container_cls(service_cls, config, worker_ctx_cls)
         all_containers.append(container)
         return container
 
