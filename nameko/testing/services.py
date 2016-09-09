@@ -253,13 +253,13 @@ def replace_dependencies(container, *dependencies, **dependency_map):
     """ Replace the dependency providers on ``container`` with
     instances of :class:`MockDependencyProvider`.
 
-    Any dependencies named in the `dependencies` args will be replaced with a
-    :class:`MockDependencyProvider` that provides a ``MagicMock()`` dependency.
+    Dependencies named in *dependencies will be replaced with a
+    :class:MockDependencyProvider, which injects a MagicMock instead of the
+    dependency.
 
-    The dependency provided by the ``MockDependencyProvider`` can be customised
-    by using the `dependency_map` kwargs. Each kwarg name is the dependency
-    name, and the value specifies the custom dependency that should be
-    provided.
+    Alternatively, you may use keyword arguments to name a dependency and
+    provide the replacement value that the MockDependencyProvider should
+    inject.
 
     Return the :attr:`MockDependencyProvider.dependency` for every dependency
     specified in the (*dependencies) args so that calls to the replaced
@@ -273,7 +273,7 @@ def replace_dependencies(container, *dependencies, **dependency_map):
     service class. New container instances are therefore unaffected by
     replacements on previous instances.
 
-    **Args Usage**
+    **Usage**
 
     ::
 
@@ -295,29 +295,32 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container = ServiceContainer(ConversionService, config)
         mock_maths_rpc = replace_dependencies(container, "maths_rpc")
+        mock_maths_rpc.divide.return_value = 39.37
 
         container.start()
 
-        with ServiceRpcProxy('conversionservice', config) as proxy:
+        with ServiceRpcProxy('conversions', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the dependency was called as expected
         mock_maths_rpc.divide.assert_called_once_with(100, 2.54)
 
-    **Kwargs Usage**
+
+    Providing a specific replacement by keyword:
 
     ::
 
-        mock_maths_rpc = MagicMock()
-        replace_dependencies(container, maths_rpc=mock_maths_rpc)
+        class StubMaths(object):
+
+            def divide(self, val1, val2):
+                return val1 / val2
+
+        replace_dependencies(container, maths_rpc=StubMaths())
 
         container.start()
 
-        with ServiceRpcProxy('conversionservice', config) as proxy:
-            proxy.cm_to_inches(100)
-
-        # assert that the dependency was called as expected
-        mock_maths_rpc.divide.assert_called_once_with(100, 2.54)
+        with ServiceRpcProxy('conversions', config) as proxy:
+            assert proxy.cm_to_inches(127) == 50.0
 
     """
     if set(dependencies).intersection(dependency_map):
