@@ -1,13 +1,15 @@
 # coding: utf-8
 
+import pytest
 from eventlet import GreenPool, sleep
 from eventlet.event import Event
-import pytest
 
+import nameko.rpc
 from nameko.containers import ServiceContainer
-from nameko.rpc import rpc, Rpc
-from nameko.utils import fail_fast_imap, get_redacted_args, REDACTED
+from nameko.rpc import Rpc, rpc
 from nameko.testing.services import get_extension
+from nameko.utils import (
+    REDACTED, fail_fast_imap, get_redacted_args, import_from_path)
 
 
 def test_fail_fast_imap():
@@ -156,3 +158,25 @@ class TestGetRedactedArgs(object):
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
+
+
+class TestImportFromPath(object):
+
+    def test_path_is_none(self):
+        assert import_from_path(None) is None
+
+    def test_import_error(self):
+        with pytest.raises(ImportError) as exc_info:
+            import_from_path("foo.bar.Baz")
+        assert (
+            "`foo.bar.Baz` could not be imported" in str(exc_info.value)
+        )
+
+    def test_import_class(self):
+        assert import_from_path("nameko.rpc.Rpc") is Rpc
+
+    def test_import_module(self):
+        assert import_from_path("nameko.rpc") is nameko.rpc
+
+    def test_import_function(self):
+        assert import_from_path("nameko.rpc.rpc") is rpc
