@@ -1,10 +1,11 @@
-import sys
 import inspect
 import re
+import sys
+from pydoc import locate
 
 import eventlet
-from eventlet.queue import LightQueue
 import six
+from eventlet.queue import LightQueue
 
 REDACTED = "********"
 
@@ -188,3 +189,20 @@ class SpawningSet(set):
     @property
     def all(self):
         return SpawningProxy(self)
+
+
+def import_from_path(path):
+    """ Import and return the object at `path` if it exists.
+
+    Raises an :exc:`ImportError` if the object is not found.
+    """
+    if path is None:
+        return
+
+    obj = locate(path)
+    if obj is None:
+        raise ImportError(
+            "`{}` could not be imported".format(path)
+        )
+
+    return obj

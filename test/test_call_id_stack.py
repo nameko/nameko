@@ -1,14 +1,12 @@
-from mock import Mock, call
 import pytest
+from mock import Mock, call
 
-from nameko.containers import WorkerContext
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
-from nameko.events import event_handler, EventDispatcher
-from nameko.rpc import rpc, RpcProxy
-from nameko.testing.services import entrypoint_waiter
-from nameko.testing.utils import (
-    get_container, worker_context_factory, DummyProvider)
-from nameko.testing.services import entrypoint_hook
+from nameko.containers import WorkerContext
+from nameko.events import EventDispatcher, event_handler
+from nameko.rpc import RpcProxy, rpc
+from nameko.testing.services import entrypoint_hook, entrypoint_waiter
+from nameko.testing.utils import DummyProvider, get_container
 
 
 def get_logging_worker_context(stack_request):
@@ -25,7 +23,6 @@ def get_logging_worker_context(stack_request):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_worker_context_gets_stack(container_factory):
-    context_cls = worker_context_factory()
 
     class FooService(object):
         name = 'baz'
@@ -33,28 +30,30 @@ def test_worker_context_gets_stack(container_factory):
     container = container_factory(FooService, {})
     service = FooService()
 
-    context = context_cls(container, service, DummyProvider("bar"))
+    context = WorkerContext(container, service, DummyProvider("bar"))
     assert context.call_id == 'baz.bar.0'
     assert context.call_id_stack == ['baz.bar.0']
-    assert context.parent_call_stack == []
 
     # Build stack
-    context = context_cls(container, service, DummyProvider("foo"),
-                          data={'call_id_stack': context.call_id_stack})
+    context = WorkerContext(
+        container, service, DummyProvider("foo"),
+        data={'call_id_stack': context.call_id_stack}
+    )
     assert context.call_id == 'baz.foo.1'
     assert context.call_id_stack == ['baz.bar.0', 'baz.foo.1']
 
     # Long stack
     many_ids = [str(i) for i in range(10)]
-    context = context_cls(container, service, DummyProvider("long"),
-                          data={'call_id_stack': many_ids})
+    context = WorkerContext(
+        container, service, DummyProvider("long"),
+        data={'call_id_stack': many_ids}
+    )
     expected = many_ids + ['baz.long.2']
     assert context.call_id_stack == expected
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_short_call_stack(container_factory):
-    context_cls = worker_context_factory()
 
     class FooService(object):
         name = 'baz'
@@ -64,8 +63,10 @@ def test_short_call_stack(container_factory):
 
     # Trim stack
     many_ids = [str(i) for i in range(100)]
-    context = context_cls(container, service, DummyProvider("long"),
-                          data={'call_id_stack': many_ids})
+    context = WorkerContext(
+        container, service, DummyProvider("long"),
+        data={'call_id_stack': many_ids}
+    )
     assert context.call_id_stack == ['99', 'baz.long.0']
 
 
@@ -177,3 +178,36 @@ def test_call_id_over_events(rabbit_config, predictable_call_ids,
         call(['event_raiser.say_hello.0']),
         call(['event_raiser.say_hello.0']),
     ])
+
+
+class TestImmediateParentCallId(object):
+
+    def test_with_parent(self, mock_container):
+
+        mock_container.service_name = "foo"
+
+        service = Mock()
+        entrypoint = DummyProvider("bar")
+        context_data = {
+            'call_id_stack': ['parent.method.1']
+        }
+
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data=context_data
+        )
+
+        assert worker_ctx.immediate_parent_call_id == "parent.method.1"
+
+    def test_without_parent(self, mock_container):
+
+        mock_container.service_name = "foo"
+
+        service = Mock()
+        entrypoint = DummyProvider("bar")
+        context_data = {}
+
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data=context_data
+        )
+
+        assert worker_ctx.immediate_parent_call_id is None

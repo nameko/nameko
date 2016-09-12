@@ -2,25 +2,24 @@ import uuid
 import warnings
 
 import eventlet
-from eventlet.event import Event
-from mock import patch, Mock, call, create_autospec
 import pytest
+from eventlet.event import Event
+from mock import Mock, call, create_autospec, patch
 
-from nameko.containers import (
-    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
-from nameko.extensions import DependencyProvider
+from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
-    MalformedRequest)
-from nameko.messaging import QueueConsumer
-from nameko.rpc import (
-    rpc, RpcProxy, RpcConsumer, Rpc, ReplyListener,
+    IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
+    UnknownService,
 )
+from nameko.extensions import DependencyProvider
+from nameko.messaging import QueueConsumer
+from nameko.rpc import ReplyListener, Rpc, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, restrict_entrypoints
 from nameko.testing.utils import (
-    get_extension, wait_for_call, wait_for_worker_idle)
+    get_extension, wait_for_call, wait_for_worker_idle,
+)
 
 
 class ExampleError(Exception):
@@ -60,10 +59,6 @@ class WorkerErrorLogger(DependencyProvider):
             self.expected[worker_ctx.entrypoint.method_name] = type(exc)
         else:
             self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
-
-
-class CustomWorkerContext(WorkerContextBase):
-    context_keys = NAMEKO_CONTEXT_KEYS + ('custom_header',)
 
 
 class ExampleService(object):
@@ -349,7 +344,7 @@ def test_rpc_headers(container_factory, rabbit_config):
 
     context_data = {
         'language': 'en',
-        'bogus_header': '123456789'
+        'otherheader': 'othervalue'
     }
 
     headers = {}
@@ -371,49 +366,11 @@ def test_rpc_headers(container_factory, rabbit_config):
     ) as proxy:
         proxy.say_hello()
 
-    # bogus_header dropped
+    # headers as per context data, plus call stack
     assert headers == {
         'nameko.language': 'en',
+        'nameko.otherheader': 'othervalue',
         'nameko.call_id_stack': ['standalone_rpc_proxy.call.0'],
-    }
-
-
-@pytest.mark.usefixtures("predictable_call_ids")
-def test_rpc_custom_headers(container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
-
-    context_data = {
-        'language': 'en',
-        'bogus_header': '123456789',
-        'custom_header': 'specialvalue',
-    }
-
-    headers = {}
-    rpc_consumer = get_extension(container, RpcConsumer)
-    handle_message = rpc_consumer.handle_message
-
-    with patch.object(
-            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
-        def side_effect(body, message):
-            headers.update(message.headers)  # extract message headers
-            return handle_message(body, message)
-
-        patched_handler.side_effect = side_effect
-        container.start()
-
-    # use a standalone rpc proxy to call exampleservice.say_hello(),
-    # with a worker context that enables "custom_header"
-    with ServiceRpcProxy(
-        "exampleservice", rabbit_config, context_data,
-        worker_ctx_cls=CustomWorkerContext
-    ) as proxy:
-        proxy.say_hello()
-
-    # bogus_header dropped, custom_header present
-    assert headers == {
-        'nameko.language': 'en',
-        'nameko.custom_header': 'specialvalue',
-        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0']
     }
 
 

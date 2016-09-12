@@ -2,7 +2,7 @@
 
 from nameko.web.websocket import rpc, WebSocketHubProvider
 
-class WebsocketRpc(object):
+class WebsocketRpc:
     name = "websocket_rpc_service"
 
     websocket_hub = WebSocketHubProvider()

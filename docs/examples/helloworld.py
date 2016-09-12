@@ -1,6 +1,6 @@
 from nameko.rpc import rpc
 
-class GreetingService(object):
+class GreetingService:
     name = "greeting_service"
 
     @rpc
