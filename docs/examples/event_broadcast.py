@@ -1,6 +1,6 @@
 from nameko.events import BROADCAST, event_handler
 
-class ListenerService(object):
+class ListenerService:
     name = "listener"
 
     @event_handler(

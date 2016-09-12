@@ -1,7 +1,7 @@
 from nameko.events import EventDispatcher, event_handler
 from nameko.rpc import rpc
 
-class ServiceA(object):
+class ServiceA:
     """ Event dispatching service. """
     name = "service_a"
 
@@ -12,7 +12,7 @@ class ServiceA(object):
         self.dispatch("event_type", payload)
 
 
-class ServiceB(object):
+class ServiceB:
     """ Event listening service. """
     name = "service_b"
 
