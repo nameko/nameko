@@ -254,11 +254,11 @@ def replace_dependencies(container, *dependencies, **dependency_map):
     instances of :class:`MockDependencyProvider`.
 
     Dependencies named in *dependencies will be replaced with a
-    :class:MockDependencyProvider, which injects a MagicMock instead of the
+    :class:`MockDependencyProvider`, which injects a MagicMock instead of the
     dependency.
 
     Alternatively, you may use keyword arguments to name a dependency and
-    provide the replacement value that the MockDependencyProvider should
+    provide the replacement value that the `MockDependencyProvider` should
     inject.
 
     Return the :attr:`MockDependencyProvider.dependency` for every dependency
