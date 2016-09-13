@@ -5,6 +5,14 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.4.1
+-------------
+
+Released 2016-0915
+
+* Add ``get_wsgi_app`` and ``get_wsgi_server`` to ``web.server.WebServer``
+to allow easy usage of WSGI middleware and modications of the WSGI server.
+
 Version 2.4.0
 -------------
 
