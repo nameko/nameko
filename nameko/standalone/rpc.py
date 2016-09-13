@@ -16,6 +16,7 @@ from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.rpc import ServiceProxy, ReplyListener
 from nameko.constants import (
     SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+from gevent.queue import Queue
 
 
 _logger = logging.getLogger(__name__)
@@ -327,3 +328,49 @@ class ClusterRpcProxy(StandaloneProxyBase):
     def __init__(self, *args, **kwargs):
         super(ClusterRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener)
+
+
+class RPCProxyPool(object):
+    """
+    Connection pool for Nameko RPC cluster.
+
+    Pool size can be customized by passing `pool_size` keyword argument to the constructor.
+    Default size is 4.
+
+    Example usage:
+
+        pool = RPCProxyPool()
+        # ...
+        with pool.next() as rpc:
+            rpc.mailer.send_mail(foo='bar')
+
+    This class is thread-safe and designed to work with GEvent.
+    """
+    class RPCContext(object):
+        def __init__(self, pool, config):
+            self.pool = pool
+            self.proxy = ClusterRpcProxy(config)
+            self.rpc = self.proxy.start()
+
+        def __enter__(self):
+            return self.rpc
+
+        def __exit__(self, *args, **kwargs):
+            self.pool._put_back(self)
+
+    def __init__(self, pool_size=4):
+        self.queue = Queue()
+        for i in xrange(pool_size):
+            ctx = RPCProxyPool.RPCContext(self)
+            self.queue.put(ctx)
+
+    def next(self):
+        """
+        Fetch next connection.
+
+        This method is thread-safe.
+        """
+        return self.queue.get()
+
+    def _put_back(self, ctx):
+        self.queue.put(ctx)
