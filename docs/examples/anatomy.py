@@ -1,6 +1,6 @@
 from nameko.rpc import rpc, RpcProxy
 
-class Service(object):
+class Service:
     name = "service"
 
     # we depend on the RPC interface of "another_service"

@@ -31,7 +31,7 @@ class HttpEntrypoint(HttpRequestHandler):
 http = HttpEntrypoint.decorator
 
 
-class Service(object):
+class Service:
     name = "http_service"
 
     @http('GET', '/custom_exception')

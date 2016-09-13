@@ -6,7 +6,7 @@ from nameko.rpc import rpc
 URL_TEMPLATE = "https://api.travis-ci.org/repos/{}/{}"
 
 
-class ApiWrapper(object):
+class ApiWrapper:
 
     def __init__(self, session):
         self.session = session
@@ -25,7 +25,7 @@ class TravisWebservice(DependencyProvider):
         return ApiWrapper(self.session)
 
 
-class Travis(object):
+class Travis:
     name = "travis_service"
 
     webservice = TravisWebservice()

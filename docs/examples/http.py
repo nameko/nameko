@@ -3,7 +3,7 @@
 import json
 from nameko.web.handlers import http
 
-class HttpService(object):
+class HttpService:
     name = "http_service"
 
     @http('GET', '/get/<int:value>')

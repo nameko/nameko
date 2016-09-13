@@ -64,9 +64,11 @@ class HeaderDecoder(object):
         return key
 
     def unpack_message_headers(self, worker_ctx_cls, message):
-        stripped = {self._strip_header_name(k): v
-                    for k, v in six.iteritems(message.headers)}
-        return worker_ctx_cls.get_context_data(stripped)
+        stripped = {
+            self._strip_header_name(k): v
+            for k, v in six.iteritems(message.headers)
+        }
+        return stripped
 
 
 class Publisher(DependencyProvider, HeaderEncoder):

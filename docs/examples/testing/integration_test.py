@@ -6,7 +6,7 @@ from nameko.testing.utils import get_container
 from nameko.testing.services import entrypoint_hook
 
 
-class ServiceX(object):
+class ServiceX:
     """ Service under test
     """
     name = "service_x"
@@ -19,7 +19,7 @@ class ServiceX(object):
         return self.y.append_identifier(res)
 
 
-class ServiceY(object):
+class ServiceY:
     """ Service under test
     """
     name = "service_y"
