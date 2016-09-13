@@ -364,8 +364,7 @@ class RPCProxyPool(object):
             self.queue.put(ctx)
 
     def next(self):
-        """
-        Fetch next connection.
+        """ Fetch next connection.
 
         This method is thread-safe.
         """
