@@ -69,11 +69,11 @@ def empty_config():
 
 @pytest.fixture
 def mock_container(request, empty_config):
-    from mock import Mock
+    from mock import create_autospec
     from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
     from nameko.containers import ServiceContainer
 
-    container = Mock(spec=ServiceContainer)
+    container = create_autospec(ServiceContainer)
     container.config = empty_config
     container.config[SERIALIZER_CONFIG_KEY] = DEFAULT_SERIALIZER
     container.serializer = container.config[SERIALIZER_CONFIG_KEY]

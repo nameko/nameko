@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import eventlet
 import pytest
-from mock import Mock, patch
+from mock import Mock, create_autospec, patch
 
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -17,9 +17,10 @@ EVENTS_TIMEOUT = 5
 
 @pytest.yield_fixture
 def queue_consumer():
-    replacement = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
-        yield mock_ext.return_value
+    replacement = create_autospec(QueueConsumer)
+    with patch.object(QueueConsumer, 'bind') as mock_ext:
+        mock_ext.return_value = replacement
+        yield replacement
 
 
 def test_event_dispatcher(mock_container):

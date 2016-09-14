@@ -197,7 +197,7 @@ def test_worker_factory():
         worker_factory(Service, nonexist=object())
 
 
-def test_replace_dependencies(container_factory, rabbit_config):
+def test_replace_dependencies_kwargs(container_factory, rabbit_config):
 
     class Service(object):
         name = "service"
@@ -209,9 +209,50 @@ def test_replace_dependencies(container_factory, rabbit_config):
         def method(self, arg):
             self.foo_proxy.remote_method(arg)
 
+    class FakeDependency(object):
+        def __init__(self):
+            self.processed = []
+
+        def remote_method(self, arg):
+            self.processed.append(arg)
+
+    container = container_factory(Service, rabbit_config)
+
+    # customise a single dependency
+    fake_foo_proxy = FakeDependency()
+    replace_dependencies(container, foo_proxy=fake_foo_proxy)
+    assert 2 == len([dependency for dependency in container.extensions
+                     if isinstance(dependency, RpcProxy)])
+
+    # customise multiple dependencies
+    res = replace_dependencies(container, bar_proxy=Mock(), baz_proxy=Mock())
+    assert list(res) == []
+
+    # verify that container.extensions doesn't include an RpcProxy anymore
+    assert all([not isinstance(dependency, RpcProxy)
+                for dependency in container.extensions])
+
+    container.start()
+
+    # verify that the fake dependency collected calls
+    msg = "msg"
+    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
+        service_proxy.method(msg)
+
+    assert fake_foo_proxy.processed == [msg]
+
+
+def test_replace_dependencies_args(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
+        baz_proxy = RpcProxy("baz_service")
+
         @rpc
-        def foo(self):
-            return "bar"
+        def method(self, arg):
+            self.foo_proxy.remote_method(arg)
 
     container = container_factory(Service, rabbit_config)
 
@@ -234,6 +275,67 @@ def test_replace_dependencies(container_factory, rabbit_config):
         service_proxy.method(msg)
 
     foo_proxy.remote_method.assert_called_once_with(msg)
+
+
+def test_replace_dependencies_args_and_kwargs(container_factory,
+                                              rabbit_config):
+    class Service(object):
+        name = "service"
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
+        baz_proxy = RpcProxy("baz_service")
+
+        @rpc
+        def method(self, arg):
+            self.foo_proxy.remote_method(arg)
+            self.bar_proxy.bar()
+            self.baz_proxy.baz()
+
+    class FakeDependency(object):
+        def __init__(self):
+            self.processed = []
+
+        def remote_method(self, arg):
+            self.processed.append(arg)
+
+    container = container_factory(Service, rabbit_config)
+
+    fake_foo_proxy = FakeDependency()
+    mock_bar_proxy, mock_baz_proxy = replace_dependencies(
+        container, 'bar_proxy', 'baz_proxy', foo_proxy=fake_foo_proxy
+    )
+
+    # verify that container.extensions doesn't include an RpcProxy anymore
+    assert all([not isinstance(dependency, RpcProxy)
+                for dependency in container.extensions])
+
+    container.start()
+
+    # verify that the fake dependency collected calls
+    msg = "msg"
+    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
+        service_proxy.method(msg)
+
+    assert fake_foo_proxy.processed == [msg]
+    assert mock_bar_proxy.bar.call_count == 1
+    assert mock_baz_proxy.baz.call_count == 1
+
+
+def test_replace_dependencies_in_both_args_and_kwargs_error(container_factory,
+                                                            rabbit_config):
+    class Service(object):
+        name = "service"
+        foo_proxy = RpcProxy("foo_service")
+        bar_proxy = RpcProxy("bar_service")
+        baz_proxy = RpcProxy("baz_service")
+
+    container = container_factory(Service, rabbit_config)
+
+    with pytest.raises(RuntimeError) as exc:
+        replace_dependencies(
+            container, 'bar_proxy', 'foo_proxy', foo_proxy='foo'
+        )
+    assert "Cannot replace the same dependency" in str(exc)
 
 
 def test_replace_non_dependency(container_factory, rabbit_config):
