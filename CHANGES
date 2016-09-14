@@ -8,7 +8,7 @@ increment the minor version number only.
 Version 2.4.1
 -------------
 
-Released PENDING
+Released 2016-09-14
 
 * Enhanced :class: `~nameko.web.server.WebServer` with ``get_wsgi_app`` and ``get_wsgi_server``
 to allow easy usage of WSGI middleware and modifications of the WSGI server.
