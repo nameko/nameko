@@ -338,7 +338,7 @@ class ClusterRpcProxyPool(object):
 
     *Usage*
 
-        pool = ClusterRpcProxyPool()
+        pool = ClusterRpcProxyPool(config)
         # ...
         with pool.next() as rpc:
             rpc.mailer.send_mail(foo='bar')
@@ -357,10 +357,10 @@ class ClusterRpcProxyPool(object):
         def __exit__(self, *args, **kwargs):
             self.pool._put_back(self)
 
-    def __init__(self, pool_size=4):
+    def __init__(self, config, pool_size=4):
         self.queue = Queue()
         for i in xrange(pool_size):
-            ctx = ClusterRpcProxyPool.RpcContext(self)
+            ctx = ClusterRpcProxyPool.RpcContext(self, config)
             self.queue.put(ctx)
 
     def next(self):
