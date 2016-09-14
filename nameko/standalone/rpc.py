@@ -330,7 +330,7 @@ class ClusterRpcProxy(StandaloneProxyBase):
         self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener)
 
 
-class RPCProxyPool(object):
+class ClusterRpcProxyPool(object):
     """ Connection pool for Nameko RPC cluster.
 
     Pool size can be customized by passing `pool_size` kwarg to constructor.
@@ -338,14 +338,14 @@ class RPCProxyPool(object):
 
     *Usage*
 
-        pool = RPCProxyPool()
+        pool = ClusterRpcProxyPool()
         # ...
         with pool.next() as rpc:
             rpc.mailer.send_mail(foo='bar')
 
     This class is thread-safe and designed to work with GEvent.
     """
-    class RPCContext(object):
+    class RpcContext(object):
         def __init__(self, pool, config):
             self.pool = pool
             self.proxy = ClusterRpcProxy(config)
@@ -360,7 +360,7 @@ class RPCProxyPool(object):
     def __init__(self, pool_size=4):
         self.queue = Queue()
         for i in xrange(pool_size):
-            ctx = RPCProxyPool.RPCContext(self)
+            ctx = ClusterRpcProxyPool.RpcContext(self)
             self.queue.put(ctx)
 
     def next(self):
