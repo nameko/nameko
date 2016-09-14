@@ -24,7 +24,7 @@ setup(
     install_requires=[
         "eventlet>=0.16.1",
         "kombu>=3.0.1",
-        "mock>=1.0.1",
+        "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=3.10",
         "requests>=1.2.0",

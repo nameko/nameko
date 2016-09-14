@@ -4,20 +4,22 @@ import warnings
 import eventlet
 import pytest
 from eventlet.event import Event
-from mock import Mock, call, patch
+from mock import Mock, call, create_autospec, patch
 
 from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    UnknownService)
+    UnknownService,
+)
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import ReplyListener, Rpc, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, restrict_entrypoints
 from nameko.testing.utils import (
-    get_extension, wait_for_call, wait_for_worker_idle)
+    get_extension, wait_for_call, wait_for_worker_idle,
+)
 
 
 class ExampleError(Exception):
@@ -119,9 +121,10 @@ def get_rpc_exchange():
 
 @pytest.yield_fixture
 def queue_consumer():
-    replacement = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
-        yield mock_ext.return_value
+    replacement = create_autospec(QueueConsumer)
+    with patch.object(QueueConsumer, 'bind') as mock_ext:
+        mock_ext.return_value = replacement
+        yield replacement
 
 
 def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
