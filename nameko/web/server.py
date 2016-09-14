@@ -50,13 +50,18 @@ class HttpOnlyProtocol(HttpProtocol):
 
 
 class WebServer(ProviderCollector, SharedExtension):
+    """A SharedExtension that wraps a WSGI interface for processing HTTP
+    requests.
+
+    WebServer can be subclassed to add additional WSGI functionality through
+    overriding the get_wsgi_server and get_wsgi_app methods.
+    """
 
     def __init__(self):
         super(WebServer, self).__init__()
         self._gt = None
         self._sock = None
         self._serv = None
-        self._wsgi_app = None
         self._starting = False
         self._is_accepting = True
 
@@ -77,14 +82,29 @@ class WebServer(ProviderCollector, SharedExtension):
     def start(self):
         if not self._starting:
             self._starting = True
-            self._wsgi_app = WsgiApp(self)
             self._sock = eventlet.listen(self.bind_addr)
-            self._serv = wsgi.Server(self._sock,
-                                     self._sock.getsockname(),
-                                     self._wsgi_app,
-                                     protocol=HttpOnlyProtocol,
-                                     debug=False)
+            self._serv = self.get_wsgi_server(self._sock, self.get_wsgi_app())
             self._gt = self.container.spawn_managed_thread(self.run)
+
+    def get_wsgi_app(self):
+        """Get the WSGI application used to process requests.
+
+        This method can be overriden to apply WSGI middleware or replace
+        the WSGI application all together.
+        """
+        return WsgiApp(self)
+
+    def get_wsgi_server(
+        self, sock, wsgi_app, protocol=HttpOnlyProtocol, debug=False
+    ):
+        """Get the WSGI server used to process requests."""
+        return wsgi.Server(
+            sock,
+            sock.getsockname(),
+            wsgi_app,
+            protocol=protocol,
+            debug=debug
+        )
 
     def stop(self):
         self._is_accepting = False

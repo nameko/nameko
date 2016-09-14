@@ -61,6 +61,7 @@ lifealike
 lifecycle
 localhost
 logstash
+makefile
 maximize
 memcached
 microservice

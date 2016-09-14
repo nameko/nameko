@@ -10,6 +10,8 @@ Version 2.4.1
 
 Released PENDING
 
+* Enhanced :class: `~nameko.web.server.WebServer` with ``get_wsgi_app`` and ``get_wsgi_server``
+to allow easy usage of WSGI middleware and modifications of the WSGI server.
 * Enhanced :func:`~nameko.testing.services.replace_dependencies` to allow
   specific replacement values to be provided with named arguments.
 
