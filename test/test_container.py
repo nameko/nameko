@@ -587,8 +587,6 @@ def test_logging_managed_threads(container, logger):
     assert call("killing managed thread `%s`", "wait") in call_args_list
     assert call("killing managed thread `%s`", "<unknown>") in call_args_list
     assert call("killing managed thread `%s`", "named") in call_args_list
-<<<<<<< HEAD
-=======
 
 
 class TestContainerCustomWorkerCtxCls(object):
@@ -622,4 +620,3 @@ class TestContainerCustomWorkerCtxCls(object):
 
         # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
         assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
->>>>>>> upstream/master
