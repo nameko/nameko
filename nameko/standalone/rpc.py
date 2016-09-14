@@ -2,12 +2,13 @@ from __future__ import absolute_import
 
 import logging
 import socket
+import weakref
 
 from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
-from eventlet.queue import Queue
+from eventlet.queue import Queue, Empty
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import AMQP_URI_CONFIG_KEY
@@ -339,36 +340,71 @@ class ClusterRpcProxyPool(object):
     *Usage*
 
         pool = ClusterRpcProxyPool(config)
+        pool.start()
+
         # ...
+
         with pool.next() as rpc:
             rpc.mailer.send_mail(foo='bar')
+
+        # ...
+
+        pool.stop()
 
     This class is thread-safe and designed to work with GEvent.
     """
     class RpcContext(object):
         def __init__(self, pool, config):
-            self.pool = pool
+            self.pool = weakref.proxy(pool)
             self.proxy = ClusterRpcProxy(config)
             self.rpc = self.proxy.start()
+
+        def stop(self):
+            self.proxy.stop()
+            self.proxy = None
+            self.rpc = None
 
         def __enter__(self):
             return self.rpc
 
         def __exit__(self, *args, **kwargs):
-            self.pool._put_back(self)
+            try:
+                self.pool._put_back(self)
+            except ReferenceError:  # pragma: no cover
+                # We're detached from the parent, so this context
+                # is going to silently die.
+                self.stop()
 
     def __init__(self, config, pool_size=4):
+        self.config = config
+        self.pool_size = pool_size
+
+    def start(self):
+        """ Populate pool with connections.
+        """
         self.queue = Queue()
-        for i in xrange(pool_size):
-            ctx = ClusterRpcProxyPool.RpcContext(self, config)
+        for i in xrange(self.pool_size):
+            ctx = ClusterRpcProxyPool.RpcContext(self, self.config)
             self.queue.put(ctx)
 
-    def next(self):
+    def next(self, timeout=False):
         """ Fetch next connection.
 
         This method is thread-safe.
         """
-        return self.queue.get()
+        return self.queue.get(timeout=False)
 
     def _put_back(self, ctx):
         self.queue.put(ctx)
+
+    def stop(self):
+        """ Stop queue and remove all connections from pool.
+        """
+        while True:
+            try:
+                ctx = self.queue.get_nowait()
+                ctx.stop()
+            except Empty:
+                break
+        self.queue.queue.clear()
+        self.queue = None
