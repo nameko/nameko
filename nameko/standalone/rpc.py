@@ -333,7 +333,7 @@ class ClusterRpcProxy(StandaloneProxyBase):
 class RPCProxyPool(object):
     """ Connection pool for Nameko RPC cluster.
 
-    Pool size can be customized by passing `pool_size` keyword argument to the constructor.
+    Pool size can be customized by passing `pool_size` kwarg to constructor.
     Default size is 4.
 
     *Usage*
