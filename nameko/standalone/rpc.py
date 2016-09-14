@@ -9,6 +9,7 @@ from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 from eventlet.queue import Queue, Empty
+from six.moves import xrange as xrange_six
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import AMQP_URI_CONFIG_KEY
@@ -383,7 +384,7 @@ class ClusterRpcProxyPool(object):
         """ Populate pool with connections.
         """
         self.queue = Queue()
-        for i in xrange(self.pool_size):
+        for i in xrange_six(self.pool_size):
             ctx = ClusterRpcProxyPool.RpcContext(self, self.config)
             self.queue.put(ctx)
 
