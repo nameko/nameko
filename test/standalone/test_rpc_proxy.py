@@ -2,6 +2,7 @@ import socket
 
 import eventlet
 import pytest
+from six.moves import queue as queue_six
 from kombu.message import Message
 
 from nameko.containers import WorkerContext
@@ -370,7 +371,7 @@ def test_cluster_proxy_pool(container_factory, rabbit_manager, rabbit_config):
         with pool.next():
             assert pool.queue.qsize() == 0
 
-            with pytest.raises(eventlet.queue.Empty):
+            with pytest.raises(queue_six.Empty):
                 pool.next(timeout=1)
 
         assert pool.queue.qsize() == 1
