@@ -7,6 +7,7 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
+from eventlet.queue import Queue
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import AMQP_URI_CONFIG_KEY
@@ -16,7 +17,6 @@ from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.rpc import ServiceProxy, ReplyListener
 from nameko.constants import (
     SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-from gevent.queue import Queue
 
 
 _logger = logging.getLogger(__name__)
