@@ -37,7 +37,7 @@ class Timer(Entrypoint):
 
     def start(self):
         _log.debug('starting %s', self)
-        self.gt = self.container.spawn_managed_thread(self._run, self)
+        self.gt = self.container.spawn_managed_thread(self._run)
 
     def stop(self):
         _log.debug('stopping %s', self)

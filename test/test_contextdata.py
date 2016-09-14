@@ -1,13 +1,12 @@
-from mock import Mock
 import pytest
+from mock import Mock
 
-from nameko.containers import ServiceContainer, WorkerContext
 from nameko.constants import (
-    AUTH_TOKEN_CONTEXT_KEY, LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY,
-    USER_AGENT_CONTEXT_KEY,
-)
+    AUTH_TOKEN_CONTEXT_KEY, LANGUAGE_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
+    USER_ID_CONTEXT_KEY)
+from nameko.containers import ServiceContainer, WorkerContext
 from nameko.contextdata import (
-    Language, UserId, UserAgent, AuthToken, ContextDataProvider)
+    AuthToken, ContextDataProvider, Language, UserAgent, UserId)
 from nameko.testing.utils import get_extension
 
 CUSTOM_CONTEXT_KEY = "custom"
@@ -15,10 +14,6 @@ CUSTOM_CONTEXT_KEY = "custom"
 
 class CustomValue(ContextDataProvider):
     context_key = CUSTOM_CONTEXT_KEY
-
-
-class CustomWorkerContext(WorkerContext):
-    context_keys = WorkerContext.context_keys + (CUSTOM_CONTEXT_KEY,)
 
 
 class Service(object):
@@ -36,7 +31,7 @@ class Service(object):
 
 @pytest.fixture
 def container():
-    return ServiceContainer(Service, {}, worker_ctx_cls=CustomWorkerContext)
+    return ServiceContainer(Service, {})
 
 
 def test_get_custom_context_value(container):

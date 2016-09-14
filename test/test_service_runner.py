@@ -1,12 +1,14 @@
 import eventlet
 import pytest
+from mock import ANY, call, patch
 
+from nameko.containers import ServiceContainer, WorkerContext
 from nameko.events import BROADCAST, event_handler
-from nameko.extensions import Extension
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.testing.services import dummy
 from nameko.testing.utils import assert_stops_raising, get_container
 
 
@@ -25,6 +27,12 @@ received = []
 def reset_mock():
     yield
     del received[:]
+
+
+@pytest.yield_fixture
+def warnings():
+    with patch('nameko.runners.warnings') as patched:
+        yield patched
 
 
 class Service(object):
@@ -95,6 +103,93 @@ def test_runner_lifecycle():
     }
 
 
+class TestRunnerCustomServiceContainerCls(object):
+
+    @pytest.fixture
+    def service_cls(self):
+
+        class Service(object):
+            name = "service"
+
+            @dummy
+            def method(self):
+                pass
+
+        return Service
+
+    @pytest.fixture
+    def container_cls(self, fake_module):
+
+        class ServiceContainerX(ServiceContainer):
+            pass
+
+        fake_module.ServiceContainerX = ServiceContainerX
+        return ServiceContainerX
+
+    def test_config_key(self, service_cls, container_cls):
+        config = {
+            'SERVICE_CONTAINER_CLS': "fake_module.ServiceContainerX"
+        }
+        runner = ServiceRunner(config)
+        runner.add_service(service_cls)
+
+        container = get_container(runner, service_cls)
+        assert isinstance(container, container_cls)
+
+    def test_kwarg_deprecation_warning(
+        self, warnings, service_cls, container_cls
+    ):
+        config = {}
+        runner = ServiceRunner(config, container_cls=container_cls)
+        runner.add_service(service_cls)
+
+        container = get_container(runner, service_cls)
+        assert isinstance(container, container_cls)
+
+        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
+        assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
+
+
+class TestRunnerCustomWorkerCtxCls(object):
+
+    @pytest.fixture
+    def service_cls(self):
+
+        class Service(object):
+            name = "service"
+
+            @dummy
+            def method(self):
+                pass
+
+        return Service
+
+    @pytest.fixture
+    def worker_ctx_cls(self, fake_module):
+
+        class WorkerContextX(WorkerContext):
+            pass
+
+        fake_module.WorkerContextX = WorkerContextX
+        return WorkerContextX
+
+    def test_kwarg_deprecation_warning(
+        self, warnings, service_cls, worker_ctx_cls
+    ):
+        config = {}
+        runner = ServiceRunner(config)
+        runner.add_service(service_cls, worker_ctx_cls=worker_ctx_cls)
+
+        container = get_container(runner, service_cls)
+        entrypoint = list(container.entrypoints)[0]
+
+        worker_ctx = container.spawn_worker(entrypoint, (), {})
+        assert isinstance(worker_ctx, worker_ctx_cls)
+
+        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
+        assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
+
+
 def test_contextual_lifecycle():
     events = set()
 
@@ -152,6 +247,42 @@ def test_contextual_lifecycle():
     }
 
 
+class TestContextualRunnerDeprecationWarnings(object):
+
+    def test_container_cls_warning(self, warnings):
+
+        class ServiceContainerX(ServiceContainer):
+            pass
+
+        config = {}
+        with run_services(config, container_cls=ServiceContainerX):
+            pass
+
+        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
+        assert warnings.warn.call_args_list == [
+            # from contextual runner
+            call(ANY, DeprecationWarning),
+            # from underlying ServiceRunner constructor
+            call(ANY, DeprecationWarning),
+        ]
+
+    def test_worker_ctx_cls_warning(self, warnings):
+
+        class WorkerContextX(WorkerContext):
+            pass
+
+        config = {}
+        with run_services(config, worker_ctx_cls=WorkerContext):
+            pass
+
+        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
+        assert warnings.warn.call_args_list == [
+            # from contextual runner
+            # (no calls to ServiceRunner.add_service in this test)
+            call(ANY, DeprecationWarning),
+        ]
+
+
 def test_runner_waits_raises_error():
     class Container(object):
         def __init__(self, service_cls, worker_ctx_cls, config):
@@ -178,8 +309,9 @@ def test_runner_waits_raises_error():
     assert exc_info.value.args == ('error in container',)
 
 
-def test_multiple_runners_coexist(runner_factory, rabbit_config,
-                                  rabbit_manager):
+def test_multiple_runners_coexist(
+    runner_factory, rabbit_config, rabbit_manager
+):
 
     runner1 = runner_factory(rabbit_config, Service)
     runner1.start()
@@ -275,7 +407,7 @@ def test_runner_catches_managed_thread_errors(runner_factory, rabbit_config):
     runner = runner_factory(rabbit_config, Service)
 
     container = get_container(runner, Service)
-    container.spawn_managed_thread(raises, Extension())
+    container.spawn_managed_thread(raises)
 
     with pytest.raises(Broken):
         runner.wait()

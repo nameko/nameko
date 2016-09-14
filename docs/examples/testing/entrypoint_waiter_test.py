@@ -3,7 +3,7 @@ from nameko.standalone.events import event_dispatcher
 from nameko.testing.services import entrypoint_waiter
 
 
-class ServiceB(object):
+class ServiceB:
     """ Event listening service.
     """
     name = "service_b"

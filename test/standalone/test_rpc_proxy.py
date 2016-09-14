@@ -1,15 +1,15 @@
-import eventlet
-from kombu.message import Message
-import pytest
 import socket
 
+import eventlet
+import pytest
+from kombu.message import Message
+
 from nameko.containers import WorkerContext
+from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.exceptions import RemoteError, RpcTimeout
-from nameko.rpc import rpc, Responder
-from nameko.standalone.rpc import ServiceRpcProxy, ClusterRpcProxy
+from nameko.rpc import Responder, rpc
+from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
-from nameko.exceptions import RpcConnectionError
 
 # uses autospec on method; needs newer mock for py3
 try:
@@ -95,24 +95,6 @@ def test_proxy_context_data(container_factory, rabbit_config):
     context_data = {'language': 'fr'}
     with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
         assert foo.get_context_data('language') == 'fr'
-
-
-def test_proxy_worker_context(container_factory, rabbit_config):
-
-    container = container_factory(FooService, rabbit_config,
-                                  CustomWorkerContext)
-    container.start()
-
-    context_data = {'custom_header': 'custom_value'}
-
-    with ServiceRpcProxy(
-        'foobar', rabbit_config, context_data,
-        worker_ctx_cls=CustomWorkerContext
-    ) as foo:
-        assert foo.get_context_data('custom_header') == "custom_value"
-
-    with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
-        assert foo.get_context_data('custom_header') is None
 
 
 def test_proxy_remote_error(container_factory, rabbit_config):
@@ -360,6 +342,16 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         assert proxy.foobar.spam(ham=1) == 1
+
+
+def test_cluster_proxy_dict_access(
+    container_factory, rabbit_manager, rabbit_config
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        assert proxy['foobar'].spam(ham=3) == 3
 
 
 def test_recover_from_keyboardinterrupt(

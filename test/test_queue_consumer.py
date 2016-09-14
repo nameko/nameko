@@ -40,7 +40,7 @@ class MessageHandler(object):
         return self.handle_message_called.wait()
 
 
-def spawn_managed_thread(method, identifier):
+def spawn_managed_thread(method):
     return eventlet.spawn(method)
 
 
@@ -64,7 +64,7 @@ def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
     queue_consumer.start()
 
     # making sure the QueueConsumer uses the container to spawn threads
-    container.spawn_managed_thread.assert_called_once_with(ANY, queue_consumer)
+    container.spawn_managed_thread.assert_called_once_with(ANY)
 
     vhost = rabbit_config['vhost']
     rabbit_manager.publish(vhost, 'spam', '', 'shrub',

@@ -69,11 +69,11 @@ def empty_config():
 
 @pytest.fixture
 def mock_container(request, empty_config):
-    from mock import Mock
+    from mock import create_autospec
     from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
     from nameko.containers import ServiceContainer
 
-    container = Mock(spec=ServiceContainer)
+    container = create_autospec(ServiceContainer)
     container.config = empty_config
     container.config[SERIALIZER_CONFIG_KEY] = DEFAULT_SERIALIZER
     container.serializer = container.config[SERIALIZER_CONFIG_KEY]
@@ -91,8 +91,10 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
+    import itertools
     import random
     import string
+    import time
     from kombu import pools
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     from nameko.testing.utils import get_rabbit_connections
@@ -123,8 +125,30 @@ def rabbit_config(request, rabbit_manager):
 
     pools.reset()  # close connections in pools
 
-    # raise a runtime error if the test leaves any connections lying around
-    try:
+    def retry(fn):
+        """ Barebones retry decorator
+        """
+        def wrapper():
+            max_retries = 3
+            delay = 1
+            exceptions = RuntimeError
+
+            counter = itertools.count()
+            while True:
+                try:
+                    return fn()
+                except exceptions:
+                    if next(counter) == max_retries:
+                        raise
+                    time.sleep(delay)
+        return wrapper
+
+    @retry
+    def check_connections():
+        """ Raise a runtime error if the test leaves any connections open.
+
+        Allow a few retries because the rabbit api is eventually consistent.
+        """
         connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
         open_connections = [
             conn for conn in connections if conn['state'] != "closed"
@@ -134,6 +158,8 @@ def rabbit_config(request, rabbit_manager):
             names = ", ".join(conn['name'] for conn in open_connections)
             raise RuntimeError(
                 "{} rabbit connection(s) left open: {}".format(count, names))
+    try:
+        check_connections()
     finally:
         if use_random_vost:
             rabbit_manager.delete_vhost(vhost)
@@ -150,12 +176,23 @@ def ensure_cleanup_order(request):
 
 @pytest.yield_fixture
 def container_factory(ensure_cleanup_order):
-    from nameko.containers import ServiceContainer
+    from nameko.containers import get_container_cls
+    import warnings
 
     all_containers = []
 
     def make_container(service_cls, config, worker_ctx_cls=None):
-        container = ServiceContainer(service_cls, config, worker_ctx_cls)
+
+        container_cls = get_container_cls(config)
+
+        if worker_ctx_cls is not None:
+            warnings.warn(
+                "The constructor of `container_factory` has changed. "
+                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
+                "Version 2.4.0 for more details.", DeprecationWarning
+            )
+
+        container = container_cls(service_cls, config, worker_ctx_cls)
         all_containers.append(container)
         return container
 

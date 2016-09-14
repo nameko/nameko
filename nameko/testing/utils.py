@@ -6,8 +6,7 @@ from contextlib import contextmanager
 from functools import partial
 
 import eventlet
-from mock import Mock
-from nameko.containers import WorkerContextBase
+
 from nameko.extensions import Entrypoint
 from nameko.testing.rabbit import HTTPError
 
@@ -118,24 +117,6 @@ ANY_PARTIAL = AnyInstanceOf(partial)
 class DummyProvider(Entrypoint):
     def __init__(self, method_name=None):
         self.method_name = method_name
-
-
-def worker_context_factory(*keys):
-    class CustomWorkerContext(WorkerContextBase):
-        context_keys = keys
-
-        def __init__(self, container=None, service=None, entrypoint=None,
-                     **kwargs):
-            container_mock = Mock()
-            container_mock.config = {}
-            super(CustomWorkerContext, self).__init__(
-                container or container_mock,
-                service or Mock(),
-                entrypoint or Mock(),
-                **kwargs
-            )
-
-    return CustomWorkerContext
 
 
 def get_rabbit_connections(vhost, rabbit_manager):

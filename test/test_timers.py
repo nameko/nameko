@@ -1,18 +1,18 @@
 import eventlet
 from eventlet import Timeout
-from mock import Mock
+from mock import create_autospec
 
 from nameko.containers import ServiceContainer
 from nameko.testing.utils import wait_for_call
 from nameko.timer import Timer
 
 
-def spawn_managed_thread(fn, identifier):
+def spawn_managed_thread(fn):
     return eventlet.spawn(fn)
 
 
 def test_provider():
-    container = Mock(spec=ServiceContainer)
+    container = create_autospec(ServiceContainer)
     container.service_name = "service"
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -33,7 +33,7 @@ def test_provider():
 
 
 def test_stop_timer_immediately():
-    container = Mock(spec=ServiceContainer)
+    container = create_autospec(ServiceContainer)
     container.service_name = "service"
     container.config = {}
 
@@ -49,7 +49,7 @@ def test_stop_timer_immediately():
 
 
 def test_kill_stops_timer():
-    container = Mock(spec=ServiceContainer)
+    container = create_autospec(ServiceContainer)
     container.service_name = "service"
     container.spawn_managed_thread = spawn_managed_thread
 

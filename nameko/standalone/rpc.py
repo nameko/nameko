@@ -78,11 +78,13 @@ class PollingQueueConsumer(object):
         if self.consumer is not None:
             try:
                 self.consumer.cancel()
-            except socket.error:  # pragma: no cover
+            except (socket.error, IOError):  # pragma: no cover
                 # On some systems (e.g. os x) we need to explicitly cancel the
                 # consumer here. However, e.g. on ubuntu 14.04, the
                 # disconnection has already closed the socket. We try to
                 # cancel, and ignore any socket errors.
+                # If the socket has been closed, an IOError is raised, ignore
+                # it and assume the consumer is already cancelled.
                 pass
 
         channel = self.connection.channel()
@@ -295,6 +297,14 @@ class ClusterProxy(object):
     You may also supply ``context_data``, a dictionary of data to be
     serialised into the AMQP message headers, and specify custom worker
     context class to serialise them.
+
+    When the name of the service is not legal in Python, you can also
+    use a dict-like syntax::
+
+        with ClusterRpcProxy(config) as proxy:
+            proxy['service-name'].method()
+            proxy['other-service'].method()
+
     """
     def __init__(self, worker_ctx, reply_listener):
         self._worker_ctx = worker_ctx
@@ -307,6 +317,10 @@ class ClusterProxy(object):
             self._proxies[name] = ServiceProxy(
                 self._worker_ctx, name, self._reply_listener)
         return self._proxies[name]
+
+    def __getitem__(self, name):
+        """Enable dict-like access on the proxy. """
+        return getattr(self, name)
 
 
 class ClusterRpcProxy(StandaloneProxyBase):
