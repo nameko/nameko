@@ -218,23 +218,56 @@ def worker_factory(service_cls, **dependencies):
 
 
 class MockDependencyProvider(DependencyProvider):
-    def __init__(self, attr_name):
+    def __init__(self, attr_name, dependency=None):
         self.attr_name = attr_name
-        self.dependency = MagicMock()
+        self.dependency = MagicMock() if dependency is None else dependency
 
     def get_dependency(self, worker_ctx):
         return self.dependency
 
 
-def replace_dependencies(container, *dependencies):
-    """ Replace the dependency providers on ``container`` with
-    :class:`MockDependencyProvider` objects if they are named in
-    ``dependencies``.
+def _replace_dependencies(container, **dependency_map):
+    if container.started:
+        raise RuntimeError('You must replace dependencies before the '
+                           'container is started.')
 
-    Return the :attr:`MockDependencyProvider.dependency` of the replacements,
-    so that calls to the replaced dependencies can be inspected. Return a
-    single object if only one dependency was replaced, and a generator
-    yielding the replacements in the same order as ``names`` otherwise.
+    dependency_names = {dep.attr_name for dep in container.dependencies}
+
+    missing = set(dependency_map) - dependency_names
+    if missing:
+        raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
+            missing, container))
+
+    existing_providers = {dep.attr_name: dep for dep in container.dependencies
+                          if dep.attr_name in dependency_map}
+
+    for name, replacement in dependency_map.items():
+        existing_provider = existing_providers[name]
+        replacement_provider = MockDependencyProvider(
+            name, dependency=replacement)
+        container.dependencies.remove(existing_provider)
+        container.dependencies.add(replacement_provider)
+
+
+def replace_dependencies(container, *dependencies, **dependency_map):
+    """ Replace the dependency providers on ``container`` with
+    instances of :class:`MockDependencyProvider`.
+
+    Dependencies named in *dependencies will be replaced with a
+    :class:`MockDependencyProvider`, which injects a MagicMock instead of the
+    dependency.
+
+    Alternatively, you may use keyword arguments to name a dependency and
+    provide the replacement value that the `MockDependencyProvider` should
+    inject.
+
+    Return the :attr:`MockDependencyProvider.dependency` for every dependency
+    specified in the (*dependencies) args so that calls to the replaced
+    dependencies can be inspected. Return a single object if only one
+    dependency was replaced, and a generator yielding the replacements in the
+    same order as ``dependencies`` otherwise.
+    Note that any replaced dependencies specified via kwargs `**dependency_map`
+    will not be returned.
 
     Replacements are made on the container instance and have no effect on the
     service class. New container instances are therefore unaffected by
@@ -261,43 +294,48 @@ def replace_dependencies(container, *dependencies):
                 return self.maths_rpc.divide(cms, 2.54)
 
         container = ServiceContainer(ConversionService, config)
-        maths_rpc = replace_dependencies(container, "maths_rpc")
+        mock_maths_rpc = replace_dependencies(container, "maths_rpc")
+        mock_maths_rpc.divide.return_value = 39.37
 
         container.start()
 
-        with ServiceRpcProxy('conversionservice', config) as proxy:
+        with ServiceRpcProxy('conversions', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the dependency was called as expected
-        maths_rpc.divide.assert_called_once_with(100, 2.54)
+        mock_maths_rpc.divide.assert_called_once_with(100, 2.54)
+
+
+    Providing a specific replacement by keyword:
+
+    ::
+
+        class StubMaths(object):
+
+            def divide(self, val1, val2):
+                return val1 / val2
+
+        replace_dependencies(container, maths_rpc=StubMaths())
+
+        container.start()
+
+        with ServiceRpcProxy('conversions', config) as proxy:
+            assert proxy.cm_to_inches(127) == 50.0
 
     """
-    if container.started:
-        raise RuntimeError('You must replace dependencies before the '
-                           'container is started.')
+    if set(dependencies).intersection(dependency_map):
+        raise RuntimeError(
+            "Cannot replace the same dependency via both args and kwargs.")
 
-    dependency_names = {dep.attr_name for dep in container.dependencies}
+    arg_replacements = OrderedDict((dep, MagicMock()) for dep in dependencies)
 
-    missing = set(dependencies) - dependency_names
-    if missing:
-        raise ExtensionNotFound("Dependency(s) '{}' not found on {}.".format(
-            missing, container))
-
-    replacements = OrderedDict()
-
-    named_dependencies = {dep.attr_name: dep for dep in container.dependencies
-                          if dep.attr_name in dependencies}
-    for name in dependencies:
-        dependency = named_dependencies[name]
-        replacement = MockDependencyProvider(name)
-        replacements[dependency] = replacement
-        container.dependencies.remove(dependency)
-        container.dependencies.add(replacement)
+    dependency_map.update(arg_replacements)
+    _replace_dependencies(container, **dependency_map)
 
     # if only one name was provided, return any replacement directly
     # otherwise return a generator
-    res = (replacement.dependency for replacement in replacements.values())
-    if len(dependencies) == 1:
+    res = (replacement for replacement in arg_replacements.values())
+    if len(arg_replacements) == 1:
         return next(res)
     return res
 
