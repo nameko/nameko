@@ -1,7 +1,6 @@
 # coding: utf-8
 
 import sys
-import warnings
 from functools import partial
 
 import eventlet
@@ -113,6 +112,12 @@ def container():
 
     CallCollectorMixin.call_counter = 0
     return container
+
+
+@pytest.yield_fixture
+def warnings():
+    with patch('nameko.containers.warnings') as patched:
+        yield patched
 
 
 @pytest.yield_fixture
@@ -553,7 +558,7 @@ def test_get_service_name():
     ((), {'protected': True})
 ])
 def test_spawn_managed_thread_backwards_compat_warning(
-    container, args, kwargs
+    container, warnings, args, kwargs
 ):
 
     def wait():
@@ -562,10 +567,8 @@ def test_spawn_managed_thread_backwards_compat_warning(
     # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
     # `testdir` plugin is not compatible with eventlet on python3 --
     # see https://github.com/mattbennett/eventlet-pytest-bug
-    with warnings.catch_warnings(record=True) as ws:
-        container.spawn_managed_thread(wait, *args, **kwargs)
-        assert len(ws) == 1
-        assert issubclass(ws[-1].category, DeprecationWarning)
+    container.spawn_managed_thread(wait, *args, **kwargs)
+    assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
 
     container.kill()
 
