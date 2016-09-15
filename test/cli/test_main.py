@@ -1,9 +1,11 @@
+import os
 import sys
+import yaml
 
 from mock import patch
 import pytest
 
-from nameko.cli.main import main, setup_parser
+from nameko.cli.main import main, setup_parser, setup_yaml_parser
 from nameko.exceptions import CommandError, ConfigurationError
 
 
@@ -52,3 +54,33 @@ def test_flag_action(param, value):
         args.append(param)
     parsed = parser.parse_args(args)
     assert parsed.rlwrap is value
+
+
+@pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
+    # will use default value
+    ('FOO: ${BAR:foo}', {}, {'FOO': 'foo'}),
+    # will use supplied value
+    ('FOO: ${BAR:foo}', {'BAR': 'bar'}, {'FOO': 'bar'}),
+    # handles multi line
+    (
+        """
+        FOO: ${BAR:foo}
+        BAR: ${FOO:bar}
+        """,
+        {'BAR': 'bar', 'FOO': 'foo'},
+        {'FOO': 'bar', 'BAR': 'foo'}
+    ),
+    # quoted values without explicit resolver
+    ('FOO: "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': '${BAR:foo}'}),
+    # quoted values with explicit resolver
+    ('FOO: !env_var "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': 'bar'})
+
+])
+def test_environment_vars_in_config(yaml_config, env_vars, expected_config):
+    setup_yaml_parser()
+
+    for key, val in env_vars.items():
+        os.environ[key] = val
+
+    results = yaml.load(yaml_config)
+    assert results == expected_config
