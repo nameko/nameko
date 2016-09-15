@@ -6,6 +6,7 @@ import warnings
 from functools import partial
 from logging import getLogger
 
+import eventlet
 import kombu.serialization
 from eventlet.event import Event
 from eventlet.queue import Empty
@@ -17,7 +18,9 @@ from nameko.constants import (
     RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
-    UnknownService, UnserializableValueError, deserialize, serialize)
+    UnknownService, UnserializableValueError, deserialize, serialize,
+    RpcTimeout
+)
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
@@ -275,6 +278,9 @@ class ReplyListener(SharedExtension):
         self._reply_events[correlation_id] = reply_event
         return reply_event
 
+    def pop_reply_event(self, correlation_id):
+        self._replay_events.pop(correlation_id, None)
+
     def on_consume_ready(self):
         # This is called on re-connection, and is the best hook for detecting
         # disconnections. If we have any pending reply events, we were
@@ -290,9 +296,16 @@ class ReplyListener(SharedExtension):
         self.queue_consumer.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
-        client_event = self._reply_events.pop(correlation_id, None)
+        client_event = self.pop_reply_event(correlation_id)
+
         if client_event is not None:
-            client_event.send(body)
+            if client_event.ready():
+                try:
+                    client_event.wait()
+                except RpcTimeout:
+                    _log.debug("Timeout on correlation id: %s", correlation_id)
+            else:
+                client_event.send(body)
         else:
             _log.debug("Unknown correlation id: %s", correlation_id)
 
@@ -301,37 +314,63 @@ class RpcProxy(DependencyProvider):
 
     rpc_reply_listener = ReplyListener()
 
-    def __init__(self, target_service):
+    def __init__(self, target_service, timeout=None):
         self.target_service = target_service
+        self.timeout = timeout
 
     def get_dependency(self, worker_ctx):
-        return ServiceProxy(worker_ctx, self.target_service,
-                            self.rpc_reply_listener)
+        return ServiceProxy(
+            worker_ctx,
+            self.target_service,
+            self.rpc_reply_listener,
+            self.timeout
+        )
 
 
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name, reply_listener):
+    def __init__(self, worker_ctx, service_name, reply_listener, timeout=None):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.reply_listener = reply_listener
+        self.timeout = timeout
 
     def __getattr__(self, name):
         return MethodProxy(
-            self.worker_ctx, self.service_name, name, self.reply_listener)
+            self.worker_ctx,
+            self.service_name,
+            name,
+            self.reply_listener,
+            self.timeout
+        )
 
 
 class RpcReply(object):
     resp_body = None
 
-    def __init__(self, reply_event):
+    def __init__(self, reply_event, timeout=None):
         self.reply_event = reply_event
+        self.timeout = timeout
+
+    def _wait(self):
+        self.resp_body = self.reply_event.wait()
+        _log.debug('RPC reply event complete %s %s', self, self.resp_body)
 
     def result(self):
         _log.debug('Waiting for RPC reply event %s', self)
 
         if self.resp_body is None:
-            self.resp_body = self.reply_event.wait()
-            _log.debug('RPC reply event complete %s %s', self, self.resp_body)
+            try:
+                with eventlet.Timeout(self.timeout) as timeout:
+                    self._wait()
+                    timeout.cancel()
+            except eventlet.Timeout as t:
+                if t is not timeout:
+                    raise
+
+                timeout_error = RpcTimeout(timeout)
+                self.reply_event.send_exception(timeout_error)
+
+                raise timeout_error
 
         error = self.resp_body.get('error')
         if error:
@@ -341,11 +380,14 @@ class RpcReply(object):
 
 class MethodProxy(HeaderEncoder):
 
-    def __init__(self, worker_ctx, service_name, method_name, reply_listener):
+    def __init__(
+        self, worker_ctx, service_name, method_name, reply_listener, timeout
+    ):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
         self.reply_listener = reply_listener
+        self.timeout = timeout
 
     def __call__(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
@@ -363,11 +405,18 @@ class MethodProxy(HeaderEncoder):
         )
         return self.call_async(*args, **kwargs)
 
+    def get_message_headers(self, worker_context, timeout=None):
+        headers = HeaderEncoder.get_message_headers(self, worker_context)
+        if timeout:
+            headers['x-message-ttl'] = timeout * 1000
+        return headers
+
     def _call(self, *args, **kwargs):
         _log.debug('invoking %s', self)
 
         worker_ctx = self.worker_ctx
         container = worker_ctx.container
+        timeout = kwargs.pop('_timeout', None) or self.timeout
 
         msg = {'args': args, 'kwargs': kwargs}
 
@@ -400,7 +449,7 @@ class MethodProxy(HeaderEncoder):
 
         with producers[conn].acquire(block=True) as producer:
 
-            headers = self.get_message_headers(worker_ctx)
+            headers = self.get_message_headers(worker_ctx, timeout=timeout)
             correlation_id = str(uuid.uuid4())
 
             reply_listener = self.reply_listener
@@ -432,7 +481,7 @@ class MethodProxy(HeaderEncoder):
             else:
                 raise UnknownService(self.service_name)
 
-        return RpcReply(reply_event)
+        return RpcReply(reply_event, timeout=timeout)
 
     def __repr__(self):
         service_name = self.service_name

@@ -647,3 +647,46 @@ def test_rpc_consumer_cannot_exit_with_providers(
 
     # kill off task_a's misbehaving rpc provider
     container.kill()
+
+
+def test_rpc_method_times_out(container_factory, rabbit_config):
+    class TimeoutService(object):
+        name = "timeout_service"
+
+        @rpc
+        def one_second(self):
+            eventlet.sleep(1)
+            return True
+
+        @rpc
+        def five_seconds(self):
+            eventlet.sleep(3)
+            return True
+
+    class TimeoutCallerService(object):
+        name = "timeout_caller_service"
+        timeout_rpc = RpcProxy('timeout_service', timeout=2)
+
+        @rpc
+        def default_timeout(self):
+            return self.timeout_rpc.five_seconds()
+
+        @rpc
+        def specified_timeout(self):
+            return self.timeout_rpc.one_second(_timeout=0.5)
+
+    timeout_container = container_factory(TimeoutService, rabbit_config)
+    timeout_container.start()
+
+    container = container_factory(TimeoutCallerService, rabbit_config)
+    container.start()
+
+    with ServiceRpcProxy("timeout_caller_service", rabbit_config) as proxy:
+
+        with pytest.raises(RemoteError) as exc_info:
+            proxy.default_timeout()
+        assert exc_info.value.message == "RpcTimeout 2 seconds"
+
+        with pytest.raises(RemoteError) as exc_info:
+            proxy.specified_timeout()
+        assert exc_info.value.message == "RpcTimeout 0.5 seconds"
