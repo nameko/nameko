@@ -82,7 +82,7 @@ Each worker executes in its own greenthread. The maximum number of concurrent wo
 
 Workers are stateless so are inherently thread safe, but dependencies should ensure they are unique per worker or otherwise safe to be accessed concurrently by multiple workers.
 
-Unfortunately, many C-extensions that are using sockets and that would normally be considered thread-safe may not work with greenthreads. Among them `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_, `MySQLdb <http://mysql-python.sourceforge.net/MySQLdb.html>` and others.
+Note that many C-extensions that are using sockets and that would normally be considered thread-safe may not work with greenthreads. Among them are `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_, `MySQLdb <http://mysql-python.sourceforge.net/MySQLdb.html>` and others.
 
 .. _extensions:
 
