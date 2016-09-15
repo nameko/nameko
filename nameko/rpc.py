@@ -279,7 +279,7 @@ class ReplyListener(SharedExtension):
         return reply_event
 
     def pop_reply_event(self, correlation_id):
-        self._replay_events.pop(correlation_id, None)
+        self._reply_events.pop(correlation_id, None)
 
     def on_consume_ready(self):
         # This is called on re-connection, and is the best hook for detecting
