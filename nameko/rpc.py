@@ -2,21 +2,22 @@ from __future__ import absolute_import, unicode_literals
 
 import sys
 import uuid
+import warnings
 from functools import partial
 from logging import getLogger
 
+import kombu.serialization
 from eventlet.event import Event
 from eventlet.queue import Empty
 from kombu import Connection, Exchange, Queue
 from kombu.pools import producers
-import kombu.serialization
 
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, RPC_EXCHANGE_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
+    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import (
-    ContainerBeingKilled, deserialize, MalformedRequest, MethodNotFound,
-    RpcConnectionError, serialize, UnknownService, UnserializableValueError)
+    ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
+    UnknownService, UnserializableValueError, deserialize, serialize)
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
@@ -350,9 +351,17 @@ class MethodProxy(HeaderEncoder):
         reply = self._call(*args, **kwargs)
         return reply.result()
 
-    def async(self, *args, **kwargs):
+    def call_async(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
         return reply
+
+    def async(self, *args, **kwargs):
+        warnings.warn(
+            "`MethodProxy.async` is deprecated, use `call_async` instead. "
+            "This warning will be removed in version 2.6.0.",
+            DeprecationWarning, 2
+        )
+        return self.call_async(*args, **kwargs)
 
     def _call(self, *args, **kwargs):
         _log.debug('invoking %s', self)

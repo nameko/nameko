@@ -1,12 +1,12 @@
 ack
 ack'd
 acks
-ascii
 aggregator
 aggregators
 amqp
 arg
 args
+ascii
 async
 auth
 backend
@@ -33,16 +33,15 @@ deserialized
 deserializers
 deserializes
 deserializing
-e
 entrypoint
 entrypoints
 eventlet
 extensibility
 freenode
+google
 greenthread
 greenthreads
 homebrew
-i
 init
 initialize
 initialized
@@ -63,6 +62,7 @@ lifealike
 lifecycle
 localhost
 logstash
+makefile
 maximize
 memcached
 microservice
@@ -135,6 +135,7 @@ unregistered
 unregisters
 utils
 urls
+vhost
 visualize
 visualized
 visualizing
@@ -142,4 +143,5 @@ vs
 webapp
 websocket
 websockets
+whitelist
 zato

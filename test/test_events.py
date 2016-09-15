@@ -1,26 +1,26 @@
-import pytest
-import eventlet
 from collections import defaultdict
 
-from mock import Mock, patch
+import eventlet
+import pytest
+from mock import Mock, create_autospec, patch
 
 from nameko.containers import WorkerContext
 from nameko.events import (
-    EventDispatcher, EventHandlerConfigurationError, event_handler, SINGLETON,
-    BROADCAST, SERVICE_POOL, EventHandler)
+    BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
+    EventHandlerConfigurationError, event_handler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.testing.utils import DummyProvider
-
 
 EVENTS_TIMEOUT = 5
 
 
 @pytest.yield_fixture
 def queue_consumer():
-    replacement = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
-        yield mock_ext.return_value
+    replacement = create_autospec(QueueConsumer)
+    with patch.object(QueueConsumer, 'bind') as mock_ext:
+        mock_ext.return_value = replacement
+        yield replacement
 
 
 def test_event_dispatcher(mock_container):
@@ -68,53 +68,104 @@ def test_event_handler(queue_consumer, mock_container):
     queue_consumer.register_provider.assert_called_once_with(event_handler)
 
     # test service pool handler
-    event_handler = EventHandler("srcservice", "eventtype").bind(container,
-                                                                 "foobar")
+    event_handler = EventHandler(
+        "srcservice", "eventtype"
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
-    assert (event_handler.queue.name ==
-            "evt-srcservice-eventtype--destservice.foobar")
+    assert event_handler.queue.name == (
+        "evt-srcservice-eventtype--destservice.foobar")
+    assert event_handler.queue.exclusive is False
 
-    # test broadcast handler
-    event_handler = EventHandler("srcservice", "eventtype",
-                                 handler_type=BROADCAST).bind(container,
-                                                              "foobar")
+    # test broadcast handler with default identifier
+    with patch('nameko.events.uuid') as mock_uuid:
+        mock_uuid.uuid4().hex = "uuid-value"
+        event_handler = EventHandler(
+            "srcservice", "eventtype",
+            handler_type=BROADCAST, reliable_delivery=False
+        ).bind(
+            container, "foobar"
+        )
+        event_handler.setup()
+
+    assert event_handler.queue.name == (
+        "evt-srcservice-eventtype--destservice.foobar-{}".format("uuid-value"))
+    assert event_handler.queue.exclusive is True
+
+    # test broadcast handler with custom identifier
+    class BroadcastEventHandler(EventHandler):
+        broadcast_identifier = "testbox"
+
+    event_handler = BroadcastEventHandler(
+        "srcservice", "eventtype", handler_type=BROADCAST
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
-    assert event_handler.queue.name.startswith("evt-srcservice-eventtype-")
+    assert event_handler.queue.name == (
+        "evt-srcservice-eventtype--destservice.foobar-{}".format("testbox"))
+    assert event_handler.queue.exclusive is False
 
     # test singleton handler
-    event_handler = EventHandler("srcservice", "eventtype",
-                                 handler_type=SINGLETON).bind(container,
-                                                              "foobar")
+    event_handler = EventHandler(
+        "srcservice", "eventtype", handler_type=SINGLETON
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
     assert event_handler.queue.name == "evt-srcservice-eventtype"
+    assert event_handler.queue.exclusive is False
 
     # test reliable delivery
-    event_handler = EventHandler("srcservice", "eventtype").bind(container,
-                                                                 "foobar")
+    event_handler = EventHandler(
+        "srcservice", "eventtype"
+    ).bind(
+        container, "foobar"
+    )
     event_handler.setup()
 
     assert event_handler.queue.auto_delete is False
 
 
-def test_event_hander_reliable_delivery_defaults():
-    handler = EventHandler("srcservice", "eventtype")
-    assert handler.handler_type is SERVICE_POOL
-    assert handler.reliable_delivery is True
+class TestReliableDeliveryEventHandlerConfigurationError():
 
-    handler = EventHandler("srcservice", "eventtype", handler_type=BROADCAST)
-    assert handler.handler_type is BROADCAST
-    assert handler.reliable_delivery is False
+    def test_raises_with_default_broadcast_identity(
+        self, queue_consumer, mock_container
+    ):
 
-    handler = EventHandler("srcservice", "eventtype", handler_type=SINGLETON)
-    assert handler.handler_type is SINGLETON
-    assert handler.reliable_delivery is True
+        container = mock_container
+        container.service_name = "destservice"
 
-    with pytest.raises(EventHandlerConfigurationError):
-        EventHandler("srcservice", "eventtype",
-                     reliable_delivery=True, handler_type=BROADCAST)
+        # test broadcast handler with reliable delivery
+        with pytest.raises(EventHandlerConfigurationError):
+            EventHandler(
+                "srcservice", "eventtype",
+                handler_type=BROADCAST, reliable_delivery=True
+            ).bind(
+                container, "foobar"
+            )
+
+    def test_no_raise_with_custom_identity(
+        self, queue_consumer, mock_container
+    ):
+        container = mock_container
+        container.service_name = "destservice"
+
+        # test broadcast handler with reliable delivery and custom identifier
+        class BroadcastEventHandler(EventHandler):
+            broadcast_identifier = "testbox"
+
+        event_handler = BroadcastEventHandler(
+            "srcservice", "eventtype",
+            handler_type=BROADCAST, reliable_delivery=True
+        ).bind(
+            container, "foobar"
+        )
+        assert event_handler.reliable_delivery is True
 
 
 # =============================================================================
@@ -190,7 +241,10 @@ class SingletonHandler(HandlerService):
 
 class BroadcastHandler(HandlerService):
 
-    @event_handler('srcservice', 'eventtype', handler_type=BROADCAST)
+    @event_handler(
+        'srcservice', 'eventtype',
+        handler_type=BROADCAST, reliable_delivery=False
+    )
     def handle(self, evt):
         super(BroadcastHandler, self).handle(evt)
 

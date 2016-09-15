@@ -5,6 +5,61 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.4.1
+-------------
+
+Released 2016-09-14
+
+* Enhanced :class: `~nameko.web.server.WebServer` with ``get_wsgi_app`` and ``get_wsgi_server``
+to allow easy usage of WSGI middleware and modifications of the WSGI server.
+* Enhanced :func:`~nameko.testing.services.replace_dependencies` to allow
+  specific replacement values to be provided with named arguments.
+
+Version 2.4.0
+-------------
+
+Released 2016-08-30
+
+* Add dictionary access to ``standalone.rpc.ClusterProxy`` to allow the proxy
+  to call services whose name is not a legal identifier in python
+  (e.g. name has a ``-`` in it).
+* Add the ability to specify a custom `ServiceContainer` class via config key.
+  Deprecate the keyword arguments to `ServiceRunner` and `run_services` for
+  the same purpose.
+* Deprecate the keyword arguments to `run_services`, `ServiceContainer` and
+  `ServiceRunner.add_service` for specifying a custom `WorkerContext` class.
+  Custom `WorkerContext` classes can now only be specified with a custom
+  `ServiceContainer` class that defines the `worker_ctx_cls` attribute.
+* Remove the `context_keys` attribute of the `WorkerContext`, which was
+  previously used to "whitelist" worker context data passed from call to call.
+  It was a feature that leaked from a specific implementation into the main framework, and not useful enough in its own right to continue to be
+  supported.
+* Refactor `ServiceContainer` internals for better separation between "managed" and "worker" threads. Improved logging when threads are killed.
+
+Version 2.3.1
+-------------
+
+Released 2016-05-11
+
+* Deprecate ``MethodProxy.async`` in favour of ``MethodProxy.call_async`` in preparation for async becoming a keyword
+* Add support for loading logging configuration from ``config.yaml``
+
+
+Version 2.3.0
+-------------
+
+Released 2016-04-05
+
+* Add support for loading configuration file in ``nameko shell`` via
+  ``--config`` option
+* Changed :class:`~nameko.web.handlers.HttpRequestHandler` to allow override
+  how web exceptions are handled
+* Enabled reliable delivery on broadcast events when combined with a custom
+  :py:attr:`~nameko.events.EventHandler.broadcast_identity`. Reliable delivery
+  now defaults to enabled for all handler types. It must be explicitly turned
+  off with broadcast mode unless you override the default `broadcast_identity`.
+* Update bundled pytest fixtures to use a random vhost in RabbitMQ by default
+* Now requires eventlet>=0.16.1 because older versions were removed from PyPI
 
 Version 2.2.0
 -------------

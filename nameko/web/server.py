@@ -1,12 +1,12 @@
-from collections import namedtuple
-from functools import partial
 import re
 import socket
+from collections import namedtuple
+from functools import partial
 
 import eventlet
 from eventlet import wsgi
 from eventlet.support import get_errno
-from eventlet.wsgi import HttpProtocol, BaseHTTPServer, BROKEN_SOCK
+from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
@@ -14,7 +14,6 @@ from werkzeug.wrappers import Request
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
-
 
 BindAddress = namedtuple("BindAddress", ['address', 'port'])
 
@@ -51,13 +50,18 @@ class HttpOnlyProtocol(HttpProtocol):
 
 
 class WebServer(ProviderCollector, SharedExtension):
+    """A SharedExtension that wraps a WSGI interface for processing HTTP
+    requests.
+
+    WebServer can be subclassed to add additional WSGI functionality through
+    overriding the get_wsgi_server and get_wsgi_app methods.
+    """
 
     def __init__(self):
         super(WebServer, self).__init__()
         self._gt = None
         self._sock = None
         self._serv = None
-        self._wsgi_app = None
         self._starting = False
         self._is_accepting = True
 
@@ -72,22 +76,35 @@ class WebServer(ProviderCollector, SharedExtension):
             sock, addr = self._sock.accept()
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(
-                partial(self._serv.process_request, (sock, addr)),
-                protected=True
+                partial(self._serv.process_request, (sock, addr))
             )
 
     def start(self):
         if not self._starting:
             self._starting = True
-            self._wsgi_app = WsgiApp(self)
             self._sock = eventlet.listen(self.bind_addr)
-            self._serv = wsgi.Server(self._sock,
-                                     self._sock.getsockname(),
-                                     self._wsgi_app,
-                                     protocol=HttpOnlyProtocol,
-                                     debug=False)
-            self._gt = self.container.spawn_managed_thread(
-                self.run, protected=True)
+            self._serv = self.get_wsgi_server(self._sock, self.get_wsgi_app())
+            self._gt = self.container.spawn_managed_thread(self.run)
+
+    def get_wsgi_app(self):
+        """Get the WSGI application used to process requests.
+
+        This method can be overriden to apply WSGI middleware or replace
+        the WSGI application all together.
+        """
+        return WsgiApp(self)
+
+    def get_wsgi_server(
+        self, sock, wsgi_app, protocol=HttpOnlyProtocol, debug=False
+    ):
+        """Get the WSGI server used to process requests."""
+        return wsgi.Server(
+            sock,
+            sock.getsockname(),
+            wsgi_app,
+            protocol=protocol,
+            debug=debug
+        )
 
     def stop(self):
         self._is_accepting = False

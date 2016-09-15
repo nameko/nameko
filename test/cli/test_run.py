@@ -5,6 +5,7 @@ import socket
 from os.path import join, dirname, abspath
 import eventlet
 from mock import patch
+from textwrap import dedent
 import pytest
 
 from nameko.cli.main import setup_parser
@@ -12,11 +13,13 @@ from nameko.cli.run import import_service, setup_backdoor, main, run
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 
 from test.sample import Service
 
 
-RUN_CONFIG_FILE = abspath(join(dirname(__file__), 'run-config.yaml'))
+TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
 
 
 def test_run(rabbit_config):
@@ -48,7 +51,7 @@ def test_main_with_config(rabbit_config):
     args = parser.parse_args([
         'run',
         '--config',
-        RUN_CONFIG_FILE,
+        TEST_CONFIG_FILE,
         'test.sample',
     ])
 
@@ -58,9 +61,62 @@ def test_main_with_config(rabbit_config):
         (_, config) = run.call_args[0]
 
         assert config == {
-            'WEB_SERVER_ADDRESS': '0.0.0.0:8001',
-            'AMQP_URI': 'amqp://foo:bar@example.org'
+            WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+            AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
+            SERIALIZER_CONFIG_KEY: 'json'
         }
+
+
+def test_main_with_logging_config(rabbit_config, tmpdir):
+
+    config = """
+        AMQP_URI: {amqp_uri}
+        LOGGING:
+            version: 1
+            disable_existing_loggers: false
+            formatters:
+                simple:
+                    format: "%(name)s - %(levelname)s - %(message)s"
+            handlers:
+                capture:
+                    class: logging.FileHandler
+                    level: INFO
+                    formatter: simple
+                    filename: {capture_file}
+            root:
+                level: INFO
+                handlers: [capture]
+    """
+
+    capture_file = tmpdir.join('capture.log')
+
+    config_file = tmpdir.join('config.yaml')
+    config_file.write(
+        dedent(config.format(
+            capture_file=capture_file.strpath,
+            amqp_uri=rabbit_config['AMQP_URI']
+        ))
+    )
+
+    parser = setup_parser()
+    args = parser.parse_args([
+        'run',
+        '--config',
+        config_file.strpath,
+        'test.sample',
+    ])
+
+    gt = eventlet.spawn(main, args)
+    eventlet.sleep(1)
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        proxy.service.ping()
+
+    pid = os.getpid()
+    os.kill(pid, signal.SIGTERM)
+    gt.wait()
+
+    assert "test.sample - INFO - ping!" in capture_file.read()
 
 
 def test_import_ok():

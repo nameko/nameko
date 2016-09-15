@@ -21,15 +21,24 @@ env:
   - TOX_ENV=py27-oldest-lib
   - TOX_ENV=py27-pinned-lib
   - TOX_ENV=py27-latest-lib
+  - TOX_ENV=py27-mastereventlet-lib
   - TOX_ENV=py33-oldest-lib
   - TOX_ENV=py33-pinned-lib
   - TOX_ENV=py33-latest-lib
+  - TOX_ENV=py33-mastereventlet-lib
   - TOX_ENV=py34-oldest-lib
   - TOX_ENV=py34-pinned-lib
   - TOX_ENV=py34-latest-lib
-  - TOX_ENV=py27-examples
+  - TOX_ENV=py34-mastereventlet-lib
   - TOX_ENV=py34-examples
   - TOX_ENV=docs
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - env: TOX_ENV=py27-mastereventlet-lib
+    - env: TOX_ENV=py33-mastereventlet-lib
+    - env: TOX_ENV=py34-mastereventlet-lib
 
 script:
   - tox -e $TOX_ENV

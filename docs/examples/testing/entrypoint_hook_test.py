@@ -5,7 +5,7 @@ from nameko.rpc import rpc
 from nameko.testing.services import entrypoint_hook
 
 
-class HelloService(object):
+class HelloService:
     """ Service under test
     """
     name = "hello_service"

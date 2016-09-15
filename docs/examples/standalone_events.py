@@ -5,4 +5,4 @@ config = {
 }
 
 dispatch = event_dispatcher(config)
-dispatch("service_a", "event_type", "payload")
+dispatch("service_a", "event_type", "payløad")

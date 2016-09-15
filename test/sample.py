@@ -1,4 +1,8 @@
+import logging
+
 from nameko.rpc import rpc
+
+log = logging.getLogger('test.sample')
 
 
 class Service(object):
@@ -6,4 +10,4 @@ class Service(object):
 
     @rpc
     def ping(self):
-        pass
+        log.info('ping!')

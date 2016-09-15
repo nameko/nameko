@@ -1,25 +1,25 @@
 import uuid
+import warnings
 
 import eventlet
-from eventlet.event import Event
-from mock import patch, Mock, call
 import pytest
+from eventlet.event import Event
+from mock import Mock, call, create_autospec, patch
 
-from nameko.containers import (
-    ServiceContainer, WorkerContextBase, NAMEKO_CONTEXT_KEYS)
-from nameko.extensions import DependencyProvider
+from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
-    RemoteError, MethodNotFound, UnknownService, IncorrectSignature,
-    MalformedRequest)
-from nameko.messaging import QueueConsumer
-from nameko.rpc import (
-    rpc, RpcProxy, RpcConsumer, Rpc, ReplyListener,
+    IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
+    UnknownService,
 )
+from nameko.extensions import DependencyProvider
+from nameko.messaging import QueueConsumer
+from nameko.rpc import ReplyListener, Rpc, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, restrict_entrypoints
 from nameko.testing.utils import (
-    get_extension, wait_for_call, wait_for_worker_idle)
+    get_extension, wait_for_call, wait_for_worker_idle,
+)
 
 
 class ExampleError(Exception):
@@ -61,10 +61,6 @@ class WorkerErrorLogger(DependencyProvider):
             self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
 
 
-class CustomWorkerContext(WorkerContextBase):
-    context_keys = NAMEKO_CONTEXT_KEYS + ('custom_header',)
-
-
 class ExampleService(object):
     name = 'exampleservice'
 
@@ -91,10 +87,14 @@ class ExampleService(object):
 
     @rpc
     def call_async(self):
-        res1 = self.example_rpc.task_a.async()
-        res2 = self.example_rpc.task_b.async()
-        res3 = self.example_rpc.echo.async()
+        res1 = self.example_rpc.task_a.call_async()
+        res2 = self.example_rpc.task_b.call_async()
+        res3 = self.example_rpc.echo.call_async()
         return [res2.result(), res1.result(), res3.result()]
+
+    @rpc
+    def deprecated_async(self):
+        return self.example_rpc.echo.async().result()
 
     @rpc
     def call_unknown(self):
@@ -121,9 +121,10 @@ def get_rpc_exchange():
 
 @pytest.yield_fixture
 def queue_consumer():
-    replacement = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
-        yield mock_ext.return_value
+    replacement = create_autospec(QueueConsumer)
+    with patch.object(QueueConsumer, 'bind') as mock_ext:
+        mock_ext.return_value = replacement
+        yield replacement
 
 
 def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
@@ -343,7 +344,7 @@ def test_rpc_headers(container_factory, rabbit_config):
 
     context_data = {
         'language': 'en',
-        'bogus_header': '123456789'
+        'otherheader': 'othervalue'
     }
 
     headers = {}
@@ -365,49 +366,11 @@ def test_rpc_headers(container_factory, rabbit_config):
     ) as proxy:
         proxy.say_hello()
 
-    # bogus_header dropped
+    # headers as per context data, plus call stack
     assert headers == {
         'nameko.language': 'en',
+        'nameko.otherheader': 'othervalue',
         'nameko.call_id_stack': ['standalone_rpc_proxy.call.0'],
-    }
-
-
-@pytest.mark.usefixtures("predictable_call_ids")
-def test_rpc_custom_headers(container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
-
-    context_data = {
-        'language': 'en',
-        'bogus_header': '123456789',
-        'custom_header': 'specialvalue',
-    }
-
-    headers = {}
-    rpc_consumer = get_extension(container, RpcConsumer)
-    handle_message = rpc_consumer.handle_message
-
-    with patch.object(
-            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
-        def side_effect(body, message):
-            headers.update(message.headers)  # extract message headers
-            return handle_message(body, message)
-
-        patched_handler.side_effect = side_effect
-        container.start()
-
-    # use a standalone rpc proxy to call exampleservice.say_hello(),
-    # with a worker context that enables "custom_header"
-    with ServiceRpcProxy(
-        "exampleservice", rabbit_config, context_data,
-        worker_ctx_cls=CustomWorkerContext
-    ) as proxy:
-        proxy.say_hello()
-
-    # bogus_header dropped, custom_header present
-    assert headers == {
-        'nameko.language': 'en',
-        'nameko.custom_header': 'specialvalue',
-        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0']
     }
 
 
@@ -428,6 +391,20 @@ def test_async_rpc(container_factory, rabbit_config):
 
     with entrypoint_hook(container, 'call_async') as call_async:
         assert call_async() == ["result_b", "result_a", [[], {}]]
+
+
+def test_async_rpc_deprecation_warning(container_factory, rabbit_config):
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
+
+    with entrypoint_hook(container, 'deprecated_async') as call_async:
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter('always')
+            assert call_async() == [[], {}]
+            assert len(ws) == 1
+            assert issubclass(ws[-1].category, DeprecationWarning)
+            assert "deprecated" in str(ws[-1].message)
 
 
 def test_rpc_incorrect_signature(container_factory, rabbit_config):

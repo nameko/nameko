@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-from codecs import open
 import os
-from setuptools import setup, find_packages
+from codecs import open
 
+from setuptools import find_packages, setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -12,7 +12,7 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='2.2.0',
+    version='2.4.1',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
@@ -22,9 +22,9 @@ setup(
     url='http://github.com/onefinestay/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        "eventlet>=0.15.0",
+        "eventlet>=0.16.1",
         "kombu>=3.0.1",
-        "mock>=1.0.1",
+        "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=3.10",
         "requests>=1.2.0",
@@ -38,8 +38,8 @@ setup(
             "mccabe==0.3",
             "pep8==1.6.1",
             "pyflakes==0.8.1",
-            "pylint==1.0.0",
-            "pytest==2.7.2",
+            "pylint==1.5.1",
+            "pytest==2.7.3",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
             "urllib3==1.10.2",

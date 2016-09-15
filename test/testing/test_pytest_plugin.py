@@ -1,16 +1,16 @@
 import socket
 
+import pytest
+
 from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
-from nameko.rpc import rpc, RpcProxy
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
 from nameko.web.handlers import http
 from nameko.web.server import parse_address
 from nameko.web.websocket import rpc as wsrpc
-
-import pytest
 
 pytest_plugins = "pytester"
 
@@ -22,6 +22,34 @@ def test_empty_config(empty_config):
 def test_rabbit_manager(rabbit_manager):
     assert isinstance(rabbit_manager, rabbit.Client)
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
+
+
+def test_rabbit_config_random_vhost(testdir):
+
+    testdir.makepyfile(
+        """
+        import re
+
+        def test_rabbit_config(rabbit_config):
+            assert re.search("test_[a-z]+$", rabbit_config['AMQP_URI'])
+        """
+    )
+    result = testdir.runpytest()
+    assert result.ret == 0
+
+
+def test_rabbit_config_specific_vhost(testdir):
+
+    testdir.makepyfile(
+        """
+        def test_rabbit_config(rabbit_config):
+            assert "specified_vhost" in rabbit_config['AMQP_URI']
+        """
+    )
+    result = testdir.runpytest(
+        "--amqp-uri", "amqp://guest:guest@localhost:5672/specified_vhost"
+    )
+    assert result.ret == 0
 
 
 def test_rabbit_config_leftover_connections(testdir):
@@ -50,7 +78,7 @@ def test_rabbit_config_leftover_connections(testdir):
     result = testdir.runpytest()
     assert result.ret == 1
     result.stdout.fnmatch_lines(
-        ["*RuntimeError: 1 rabbit connection(s) left open.*"]
+        ["*RuntimeError: 1 rabbit connection(s) left open*"]
     )
 
 
@@ -106,6 +134,100 @@ def test_container_factory(testdir, rabbit_config, rabbit_manager):
 
     vhost = rabbit_config['vhost']
     assert get_rabbit_connections(vhost, rabbit_manager) == []
+
+
+def test_container_factory_with_custom_container_cls(testdir):
+
+    testdir.makepyfile(container_module="""
+        from nameko.containers import ServiceContainer
+
+        class ServiceContainerX(ServiceContainer):
+            pass
+    """)
+
+    testdir.makepyfile(
+        """
+        from nameko.rpc import rpc
+        from nameko.standalone.rpc import ServiceRpcProxy
+
+        from container_module import ServiceContainerX
+
+        class ServiceX(object):
+            name = "x"
+
+            @rpc
+            def method(self):
+                return "OK"
+
+        def test_container_factory(
+            container_factory, rabbit_config
+        ):
+            rabbit_config['SERVICE_CONTAINER_CLS'] = (
+                "container_module.ServiceContainerX"
+            )
+
+            container = container_factory(ServiceX, rabbit_config)
+            container.start()
+
+            assert isinstance(container, ServiceContainerX)
+
+            with ServiceRpcProxy("x", rabbit_config) as proxy:
+                assert proxy.method() == "OK"
+        """
+    )
+    result = testdir.runpytest()
+    assert result.ret == 0
+
+
+def test_container_factory_custom_worker_ctx_deprecation_warning(testdir):
+
+    testdir.makeconftest(
+        """
+        from mock import patch
+        import pytest
+
+        @pytest.yield_fixture
+        def warnings():
+            with patch('nameko.containers.warnings') as patched:
+                yield patched
+        """
+    )
+
+    testdir.makepyfile(
+        """
+        from mock import ANY, call
+
+        from nameko.containers import WorkerContext
+        from nameko.rpc import rpc
+        from nameko.standalone.rpc import ServiceRpcProxy
+
+        class ServiceX(object):
+            name = "x"
+
+            @rpc
+            def method(self):
+                return "OK"
+
+        def test_container_factory(
+            container_factory, rabbit_config, warnings
+        ):
+            class WorkerContextX(WorkerContext):
+                pass
+
+            container = container_factory(
+                ServiceX, rabbit_config, worker_ctx_cls=WorkerContextX
+            )
+            container.start()
+
+            # TODO: replace with pytest.warns when eventlet >= 0.19.0 is
+            # released
+            assert warnings.warn.call_args_list == [
+                call(ANY, DeprecationWarning)
+            ]
+        """
+    )
+    result = testdir.runpytest()
+    assert result.ret == 0
 
 
 def test_runner_factory(testdir, rabbit_config, rabbit_manager):

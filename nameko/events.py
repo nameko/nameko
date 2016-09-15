@@ -29,14 +29,13 @@ Example::
 
 """
 from __future__ import absolute_import
-from logging import getLogger
+
 import uuid
+from logging import getLogger
 
 from kombu import Queue
-
-from nameko.standalone.events import get_event_exchange, event_dispatcher
-from nameko.messaging import Publisher, Consumer
-
+from nameko.messaging import Consumer, Publisher
+from nameko.standalone.events import event_dispatcher, get_event_exchange
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
@@ -101,7 +100,7 @@ class EventDispatcher(Publisher):
 class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=None, requeue_on_error=False,
+                 reliable_delivery=True, requeue_on_error=False,
                  sensitive_variables=()):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
@@ -138,7 +137,8 @@ class EventHandler(Consumer):
                 - ``events.BROADCAST``:
                     Events will be received by every handler. Events are
                     broadcast to every service instance, not just every service
-                    type - use wisely! ::
+                    type. Instances are differentiated using
+                    :attr:`EventHandler.broadcast_identifier`. ::
                                     [queue]- (service X(inst. 1) handler-meth)
                                   /
                         exchange o - [queue]- (service X(inst. 2) handler-meth)
@@ -150,30 +150,14 @@ class EventHandler(Consumer):
                 error occurs while handling it. Defaults to False.
             reliable_delivery : bool
                 If true, events will be held in the queue until there is a
-                handler to consume them. Defaults to True unless the
-                ``handler_type`` is ``BROADCAST``.
+                handler to consume them. Defaults to True.
             sensitive_variables : string or tuple of strings
                 Mark an argument or part of an argument as sensitive. Saved
                 on the entrypoint instance as
                 ``entrypoint.sensitive_variables`` for later inspection by
                 other extensions, for example a logging system.
                 :seealso: :func:`nameko.utils.get_redacted_args`
-
-        :Raises:
-            :exc:`EventHandlerConfigurationError` if the ``handler_type``
-            is set to ``BROADCAST`` and ``reliable_delivery`` is set to
-            ``True``.
         """
-        if reliable_delivery and handler_type is BROADCAST:
-            raise EventHandlerConfigurationError(
-                "Broadcast event handlers cannot be configured with reliable "
-                "delivery.")
-
-        if handler_type is BROADCAST:
-            reliable_delivery = False
-        elif reliable_delivery is None:
-            reliable_delivery = True
-
         self.source_service = source_service
         self.event_type = event_type
         self.handler_type = handler_type
@@ -183,10 +167,70 @@ class EventHandler(Consumer):
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error)
 
+    @property
+    def broadcast_identifier(self):
+        """ A unique string to identify a service instance for `BROADCAST`
+        type handlers.
+
+        The `broadcast_identifier` is appended to the queue name when the
+        `BROADCAST` handler type is used. It must uniquely identify service
+        instances that receive broadcasts.
+
+        The default `broadcast_identifier` is a uuid that is set when the
+        service starts. It will change when the service restarts, meaning
+        that any unconsumed messages that were broadcast to the 'old' service
+        instance will not be received by the 'new' one. ::
+
+            @property
+            def broadcast_identifier(self):
+                # use a uuid as the identifier.
+                # the identifier will change when the service restarts and
+                # any unconsumed messages will be lost
+                return uuid.uuid4().hex
+
+        The default behaviour is therefore incompatible with reliable delivery.
+
+        An alternative `broadcast_identifier` that would survive service
+        restarts is ::
+
+            @property
+            def broadcast_identifier(self):
+                # use the machine hostname as the identifier.
+                # this assumes that only one instance of a service runs on
+                # any given machine
+                return socket.gethostname()
+
+        If neither of these approaches are appropriate, you could read the
+        value out of a configuration file ::
+
+            @property
+            def broadcast_identifier(self):
+                return self.config['SERVICE_IDENTIFIER']  # or similar
+
+        Broadcast queues are exclusive to ensure that `broadcast_identifier`
+        values are unique.
+
+        Because this method is a descriptor, it will be called during
+        container creation, regardless of the configured `handler_type`.
+        See :class:`nameko.extensions.Extension` for more details.
+        """
+        if self.handler_type is not BROADCAST:
+            return None
+
+        if self.reliable_delivery:
+            raise EventHandlerConfigurationError(
+                "You are using the default broadcast identifier "
+                "which is not compatible with reliable delivery. See "
+                ":meth:`nameko.events.EventHandler.broadcast_identifier` "
+                "for details.")
+
+        return uuid.uuid4().hex
+
     def setup(self):
         _log.debug('starting %s', self)
 
-        # handler_type determines queue name
+        # handler_type determines queue name and exclusive flag
+        exclusive = False
         service_name = self.container.service_name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.source_service,
@@ -197,19 +241,30 @@ class EventHandler(Consumer):
             queue_name = "evt-{}-{}".format(self.source_service,
                                             self.event_type)
         elif self.handler_type is BROADCAST:
+            broadcast_identifier = self.broadcast_identifier
             queue_name = "evt-{}-{}--{}.{}-{}".format(self.source_service,
                                                       self.event_type,
                                                       service_name,
                                                       self.method_name,
-                                                      uuid.uuid4().hex)
+                                                      broadcast_identifier)
 
         exchange = get_event_exchange(self.source_service)
 
-        # auto-delete queues if events are not reliably delivered
-        auto_delete = not self.reliable_delivery
+        # queues for handlers without reliable delivery should be marked as
+        # auto-delete so they're removed when the consumer disconnects
+        auto_delete = self.reliable_delivery is False
+
+        # queues for broadcast handlers are exclusive (meaning that only one
+        # consumer may be connected) except when reliable delivery is enabled,
+        # because exclusive queues are always removed when the consumer
+        # disconnects, regardless of the value of auto_delete
+        exclusive = self.handler_type is BROADCAST
+        if self.reliable_delivery:
+            exclusive = False
+
         self.queue = Queue(
             queue_name, exchange=exchange, routing_key=self.event_type,
-            durable=True, auto_delete=auto_delete)
+            durable=True, auto_delete=auto_delete, exclusive=exclusive)
 
         super(EventHandler, self).setup()
 

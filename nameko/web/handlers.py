@@ -14,30 +14,6 @@ from nameko.web.server import WebServer
 _log = getLogger(__name__)
 
 
-def response_from_result(result):
-    if isinstance(result, Response):
-        return result
-
-    headers = None
-    if isinstance(result, tuple):
-        if len(result) == 3:
-            status, headers, payload = result
-        else:
-            status, payload = result
-    else:
-        payload = result
-        status = 200
-
-    if not isinstance(payload, six.string_types):
-        raise TypeError("Payload must be a string. Got `{!r}`".format(payload))
-
-    return Response(
-        payload,
-        status=status,
-        headers=headers,
-    )
-
-
 class HttpRequestHandler(Entrypoint):
     server = WebServer()
 
@@ -74,28 +50,55 @@ class HttpRequestHandler(Entrypoint):
                 handle_result=partial(self.handle_result, event))
             result = event.wait()
 
-            response = response_from_result(result)
+            response = self.response_from_result(result)
 
         except Exception as exc:
-            if (
-                isinstance(exc, self.expected_exceptions) or
-                isinstance(exc, BadRequest)
-            ):
-                status_code = 400
-            else:
-                status_code = 500
-            error_dict = serialize(exc)
-            payload = u'Error: {exc_type}: {value}\n'.format(**error_dict)
-
-            response = Response(
-                payload,
-                status=status_code,
-            )
+            response = self.response_from_exception(exc)
         return response
 
     def handle_result(self, event, worker_ctx, result, exc_info):
         event.send(result, exc_info)
         return result, exc_info
 
+    def response_from_result(self, result):
+        if isinstance(result, Response):
+            return result
+
+        headers = None
+        if isinstance(result, tuple):
+            if len(result) == 3:
+                status, headers, payload = result
+            else:
+                status, payload = result
+        else:
+            payload = result
+            status = 200
+
+        if not isinstance(payload, six.string_types):
+            raise TypeError(
+                "Payload must be a string. Got `{!r}`".format(payload)
+            )
+
+        return Response(
+            payload,
+            status=status,
+            headers=headers,
+        )
+
+    def response_from_exception(self, exc):
+        if (
+            isinstance(exc, self.expected_exceptions) or
+            isinstance(exc, BadRequest)
+        ):
+            status_code = 400
+        else:
+            status_code = 500
+        error_dict = serialize(exc)
+        payload = u'Error: {exc_type}: {value}\n'.format(**error_dict)
+
+        return Response(
+            payload,
+            status=status_code,
+        )
 
 http = HttpRequestHandler.decorator
