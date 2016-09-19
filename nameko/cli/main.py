@@ -1,10 +1,12 @@
 from __future__ import print_function
 
 import argparse
+import os
+import re
+import yaml
 
 from nameko.exceptions import CommandError, ConfigurationError
 from . import backdoor, run, shell
-from nameko.utils import setup_yaml_parser
 
 
 def setup_parser():
@@ -18,6 +20,23 @@ def setup_parser():
         module.init_parser(module_parser)
         module_parser.set_defaults(main=module.main)
     return parser
+
+
+def _replace_env_var(match):
+    env_var, _, default = match.groups()
+    return os.environ.get(env_var, default)
+
+
+def _env_var_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return re.compile(
+        r'\$\{([a-zA-Z][^}:\s]+)(:([^}]+))?\}'
+    ).sub(_replace_env_var, value)
+
+
+def setup_yaml_parser():
+    yaml.add_constructor('!env_var', _env_var_constructor)
+    yaml.add_implicit_resolver('!env_var', re.compile(r'.*\$\{.*\}.*'))
 
 
 def main():

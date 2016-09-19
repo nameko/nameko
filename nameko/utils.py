@@ -1,8 +1,6 @@
 import inspect
-import os
 import re
 import sys
-import yaml
 from pydoc import locate
 
 import eventlet
@@ -208,22 +206,3 @@ def import_from_path(path):
         )
 
     return obj
-
-
-def _replace_env_var(match):
-    env_var, _, default = match.groups()
-    return os.environ.get(env_var, default)
-
-
-def _env_var_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return re.compile(
-        r'\$\{([a-zA-Z][^}:\s]+)(:([^}]+))?\}', re.MULTILINE | re.DOTALL
-    ).sub(_replace_env_var, value)
-
-
-def setup_yaml_parser():
-    yaml.add_constructor('!env_var', _env_var_constructor)
-    yaml.add_implicit_resolver('!env_var', re.compile(
-        r'.*\$\{.*\}.*', re.MULTILINE
-    ))
