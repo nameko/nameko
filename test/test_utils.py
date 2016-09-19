@@ -1,6 +1,8 @@
 # coding: utf-8
 
+import os
 import pytest
+import yaml
 from eventlet import GreenPool, sleep
 from eventlet.event import Event
 
@@ -9,7 +11,9 @@ from nameko.containers import ServiceContainer
 from nameko.rpc import Rpc, rpc
 from nameko.testing.services import get_extension
 from nameko.utils import (
-    REDACTED, fail_fast_imap, get_redacted_args, import_from_path)
+    REDACTED, fail_fast_imap, get_redacted_args, import_from_path,
+    setup_yaml_parser
+)
 
 
 def test_fail_fast_imap():
@@ -180,3 +184,46 @@ class TestImportFromPath(object):
 
     def test_import_function(self):
         assert import_from_path("nameko.rpc.rpc") is rpc
+
+
+class TestConfigEnvironmentVariables(object):
+
+    @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
+        # no default value, no env value
+        ('FOO: ${BAR}', {}, {'FOO': ''}),
+        # use default value if env value not provided
+        ('FOO: ${BAR:foo}', {}, {'FOO': 'foo'}),
+        # use env value
+        ('FOO: ${BAR}', {'BAR': 'bar'}, {'FOO': 'bar'}),
+        # use env value instead of default
+        ('FOO: ${BAR:foo}', {'BAR': 'bar'}, {'FOO': 'bar'}),
+        # handles multi line
+        (
+            """
+            FOO: ${BAR:foo}
+            BAR: ${FOO:bar}
+            """,
+            {'BAR': 'bar', 'FOO': 'foo'},
+            {'FOO': 'bar', 'BAR': 'foo'}
+        ),
+        # quoted values don't work without explicit resolver
+        ('FOO: "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': '${BAR:foo}'}),
+        # quoted values work only with explicit resolver
+        ('FOO: !env_var "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': 'bar'}),
+        # $ sign can be used
+        ('FOO: $bar', {}, {'FOO': '$bar'})
+    ])
+    def test_environment_vars_in_config(
+        self, yaml_config, env_vars, expected_config
+    ):
+        setup_yaml_parser()
+
+        for val in ['FOO', 'BAR']:
+            if os.environ.get(val):
+                del os.environ[val]
+
+        for key, val in env_vars.items():
+            os.environ[key] = val
+
+        results = yaml.load(yaml_config)
+        assert results == expected_config

@@ -43,6 +43,24 @@ and providing a simple YAML configuration file:
 The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should conform to the schema for that call.
 
 
+Environment variable substitution
+---------------------------------
+YAML configuration files have basic support for environment variables.
+You can use bash style syntax: ``${ENV_VAR}`` optionally you can provide default values ``${ENV_VAR:default_value}``
+
+
+.. code-block:: yaml
+
+    # foobar.yaml
+    AMQP_URI: amqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}
+
+Run your service with environment variables set:
+
+.. code-block:: shell
+
+    $ RABBITMQ_USER=user RABBITMQ_PASSWORD=password RABBITMQ_HOST=host nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
+
+
 Interacting with running services
 ---------------------------------
 
