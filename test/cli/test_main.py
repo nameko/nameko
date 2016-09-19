@@ -5,8 +5,9 @@ import yaml
 from mock import patch
 import pytest
 
-from nameko.cli.main import main, setup_parser, setup_yaml_parser
+from nameko.cli.main import main, setup_parser
 from nameko.exceptions import CommandError, ConfigurationError
+from nameko.utils import setup_yaml_parser
 
 
 @pytest.yield_fixture(autouse=True)
@@ -57,9 +58,13 @@ def test_flag_action(param, value):
 
 
 @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
-    # will use default value
+    # no default value, no env value
+    ('FOO: ${BAR}', {}, {'FOO': ''}),
+    # use default value if env value not provided
     ('FOO: ${BAR:foo}', {}, {'FOO': 'foo'}),
-    # will use supplied value
+    # use env value
+    ('FOO: ${BAR}', {'BAR': 'bar'}, {'FOO': 'bar'}),
+    # use env value instead of default
     ('FOO: ${BAR:foo}', {'BAR': 'bar'}, {'FOO': 'bar'}),
     # handles multi line
     (
@@ -70,14 +75,19 @@ def test_flag_action(param, value):
         {'BAR': 'bar', 'FOO': 'foo'},
         {'FOO': 'bar', 'BAR': 'foo'}
     ),
-    # quoted values without explicit resolver
+    # quoted values don't work without explicit resolver
     ('FOO: "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': '${BAR:foo}'}),
-    # quoted values with explicit resolver
-    ('FOO: !env_var "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': 'bar'})
+    # quoted values work only with explicit resolver
+    ('FOO: !env_var "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': 'bar'}),
+
 
 ])
 def test_environment_vars_in_config(yaml_config, env_vars, expected_config):
     setup_yaml_parser()
+
+    for val in ['FOO', 'BAR']:
+        if os.environ.get(val):
+            del os.environ[val]
 
     for key, val in env_vars.items():
         os.environ[key] = val
