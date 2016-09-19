@@ -224,6 +224,6 @@ def _env_var_constructor(loader, node):
 
 def setup_yaml_parser():
     yaml.add_constructor('!env_var', _env_var_constructor)
-    yaml.add_implicit_resolver("!env_var", re.compile(
+    yaml.add_implicit_resolver('!env_var', re.compile(
         r'.*\$\{.*\}.*', re.MULTILINE
     ))
