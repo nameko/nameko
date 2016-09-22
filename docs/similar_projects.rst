@@ -27,4 +27,4 @@ Also, due to the usage of `eventlet <http://eventlet.net/>`_ for green concurren
 Eventlet
 --------
 
-`Eventlet <http://eventlet.net/>`_ is a Python library that provides concurrency via "greenthreads". You can check more details on how it's used by Nameko in :ref:`Concurrency <concurrency>` section.
+`Eventlet <http://eventlet.net/>`_ is a Python library that provides concurrency via "greenthreads". You can check more details on how it's used by Nameko in the :ref:`Concurrency <concurrency>` section.
