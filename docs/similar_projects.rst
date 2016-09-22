@@ -21,3 +21,10 @@ Kombu
 `Kombu <http://kombu.readthedocs.io/>`_ is a Python messaging library, used by both Celery and Nameko. It exposes a high-level interface for AMQP and includes support for "virtual" transports, so can be run with non-AMQP transports such as Redis, ZeroMQ and MongoDB.
 
 Nameko's AMQP features are built using Kombu but don't include support for the "virtual" transports.
+
+Also, due to the usage of `eventlet <http://eventlet.net/>`_ for green concurrency, Nameko can't make use of C-extensions such as `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_ that Kombu uses by default if it's available. If you want to have `librabbitmq <https://pypi.python.org/pypi/librabbitmq>`_ in your environment for other purposes than Nameko, you can force Kombu to use standard Python implementation of AMQP by defining broker urls as ``pyamqp://`` instead of ``amqp://``
+
+Eventlet
+--------
+
+`Eventlet <http://eventlet.net/>`_ is a Python library that provides concurrency via "greenthreads". You can check more details on how it's used by Nameko in the :ref:`Concurrency <concurrency>` section.
