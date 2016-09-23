@@ -20,6 +20,7 @@ from nameko.testing.utils import get_container
 class LanguageReporter(DependencyProvider):
     """ Return the language given in the worker context data
     """
+
     def get_dependency(self, worker_ctx):
         def get_language():
             return worker_ctx.data['language']
@@ -526,7 +527,7 @@ def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
 
     results = []
 
-    def cb(worker_ctx, res, exc_info):
+    def cb(args, kwargs, res, exc_info):
         results.append((res, exc_info))
         return len(results) == 2
 
@@ -536,6 +537,35 @@ def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
         dispatch('srcservice', 'eventtype', "msg2")
 
     assert results == [("msg1", None), ("msg2", None)]
+
+
+@pytest.mark.usefixtures('predictable_call_ids')
+def test_entrypoint_waiter_with_worker_callback(
+    container_factory, rabbit_config
+):
+
+    class Service(object):
+        name = "service"
+
+        @event_handler('srcservice', 'eventtype')
+        def handle_event(self, msg):
+            return msg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    call_ids = []
+
+    def cb(worker_ctx, res, exc_info):
+        call_ids.append(worker_ctx.call_id)
+        return len(call_ids) == 2
+
+    dispatch = event_dispatcher(rabbit_config)
+    with entrypoint_waiter(container, 'handle_event', worker_callback=cb):
+        dispatch('srcservice', 'eventtype', "msg1")
+        dispatch('srcservice', 'eventtype', "msg2")
+
+    assert call_ids == ["service.handle_event.0", "service.handle_event.1"]
 
 
 def test_entrypoint_waiter_wait_for_specific_result(
@@ -554,7 +584,7 @@ def test_entrypoint_waiter_wait_for_specific_result(
 
     target = 5
 
-    def cb(worker_ctx, res, exc_info):
+    def cb(args, kwargs, res, exc_info):
         return res == target
 
     def increment_forever():
@@ -585,8 +615,8 @@ def test_entrypoint_waiter_wait_until_called_with_argument(
 
     target = 5
 
-    def cb(worker_ctx, res, exc_info):
-        return worker_ctx.args == (target,)
+    def cb(args, kwargs, res, exc_info):
+        return args == (target,)
 
     def increment_forever():
         dispatch = event_dispatcher(rabbit_config)
@@ -620,7 +650,7 @@ def test_entrypoint_waiter_wait_until_raises(
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    def cb(worker_ctx, res, exc_info):
+    def cb(args, kwargs, res, exc_info):
         return exc_info is not None
 
     def increment_forever():
@@ -656,7 +686,7 @@ def test_entrypoint_waiter_wait_until_stops_raising(
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    def cb(worker_ctx, res, exc_info):
+    def cb(args, kwargs, res, exc_info):
         return exc_info is None
 
     def increment_forever():
@@ -762,7 +792,7 @@ def test_entrypoint_waiter_result_teardown_race(
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    def wait_for_two_calls(worker_ctx, res, exc_info):
+    def wait_for_two_calls(args, kwargs, res, exc_info):
         return counter.count() > 1
 
     dispatch = event_dispatcher(rabbit_config)
