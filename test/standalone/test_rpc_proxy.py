@@ -25,6 +25,7 @@ class ContextReader(DependencyProvider):
     This is a test facilty! Write specific Dependencies to make use of
     values in ``WorkerContext.data``, don't expose it directly.
     """
+
     def get_dependency(self, worker_ctx):
         def get_context_value(key):
             return worker_ctx.data.get(key)
@@ -96,24 +97,6 @@ def test_proxy_context_data(container_factory, rabbit_config):
     context_data = {'language': 'fr'}
     with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
         assert foo.get_context_data('language') == 'fr'
-
-
-def test_proxy_worker_context(container_factory, rabbit_config):
-
-    container = container_factory(FooService, rabbit_config,
-                                  CustomWorkerContext)
-    container.start()
-
-    context_data = {'custom_header': 'custom_value'}
-
-    with ServiceRpcProxy(
-        'foobar', rabbit_config, context_data,
-        worker_ctx_cls=CustomWorkerContext
-    ) as foo:
-        assert foo.get_context_data('custom_header') == "custom_value"
-
-    with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
-        assert foo.get_context_data('custom_header') is None
 
 
 def test_proxy_remote_error(container_factory, rabbit_config):

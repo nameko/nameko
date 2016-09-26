@@ -1,6 +1,6 @@
 from nameko.timer import timer
 
-class Service(object):
+class Service:
     name ="service"
 
     @timer(interval=1)

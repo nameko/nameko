@@ -57,10 +57,12 @@ javascript
 kombu
 kwarg
 kwargs
+librabbitmq
 lifealike
 lifecycle
 localhost
 logstash
+makefile
 maximize
 memcached
 microservice
@@ -73,6 +75,7 @@ mixin
 monolith
 monolithic
 monospaced
+mysqldb
 nameko
 namespace
 onefinestay
@@ -83,6 +86,7 @@ pre
 programmatically
 pseudocode
 py
+pyamqp
 pyrabbit
 pytest
 rabbitmq
@@ -105,6 +109,7 @@ serialized
 serializers
 serializes
 serializing
+shutdown
 specialization
 specialize
 specialized
@@ -118,6 +123,7 @@ submodules
 subpackages
 teardown
 testability
+timeouts
 traceback
 tracebacks
 tuple
@@ -128,11 +134,14 @@ unregister
 unregistered
 unregisters
 utils
+urls
 vhost
 visualize
 visualized
 visualizing
+vs
 webapp
 websocket
 websockets
+whitelist
 zato

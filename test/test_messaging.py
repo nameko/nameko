@@ -8,24 +8,18 @@ from kombu.connection import Connection
 from mock import Mock, call, patch
 
 from nameko.constants import DEFAULT_RETRY_POLICY
-from nameko.containers import (
-    NAMEKO_CONTEXT_KEYS, WorkerContext, WorkerContextBase)
+from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
     Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume)
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
-from nameko.testing.utils import (
-    ANY_PARTIAL, DummyProvider, wait_for_call, worker_context_factory)
+from nameko.testing.utils import ANY_PARTIAL, DummyProvider, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
 CONSUME_TIMEOUT = 1
-
-
-class CustomWorkerContext(WorkerContextBase):
-    context_keys = NAMEKO_CONTEXT_KEYS + ('customheader',)
 
 
 @pytest.yield_fixture
@@ -168,8 +162,9 @@ def test_publish_custom_headers(
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
-    worker_ctx = CustomWorkerContext(container, service,
-                                     DummyProvider('method'), data=ctx_data)
+    worker_ctx = WorkerContext(
+        container, service, DummyProvider('method'), data=ctx_data
+    )
 
     publisher = Publisher(queue=foobar_queue).bind(container, "publish")
 
@@ -203,13 +198,14 @@ def test_header_encoder(empty_config):
     encoder = HeaderEncoder()
     with patch.object(encoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx_cls = worker_context_factory('foo', 'bar', 'xxx')
-        worker_ctx = worker_ctx_cls(data=context_data)
-        worker_ctx.call_id_stack = ['x']
+        worker_ctx = Mock(context_data=context_data)
 
         res = encoder.get_message_headers(worker_ctx)
-        assert res == {'testprefix.foo': 'FOO', 'testprefix.bar': 'BAR',
-                       'testprefix.call_id_stack': ['x']}
+        assert res == {
+            'testprefix.foo': 'FOO',
+            'testprefix.bar': 'BAR',
+            'testprefix.baz': 'BAZ',
+        }
 
 
 def test_header_decoder():
@@ -218,21 +214,22 @@ def test_header_decoder():
         'testprefix.foo': 'FOO',
         'testprefix.bar': 'BAR',
         'testprefix.baz': 'BAZ',
-        'bogusprefix.foo': 'XXX',
+        'differentprefix.foo': 'XXX',
         'testprefix.call_id_stack': ['a', 'b', 'c'],
     }
 
     decoder = HeaderDecoder()
     with patch.object(decoder, 'header_prefix', new="testprefix"):
 
-        worker_ctx_cls = worker_context_factory("foo", "bar", "call_id_stack")
         message = Mock(headers=headers)
 
-        res = decoder.unpack_message_headers(worker_ctx_cls, message)
+        res = decoder.unpack_message_headers(None, message)
         assert res == {
             'foo': 'FOO',
             'bar': 'BAR',
+            'baz': 'BAZ',
             'call_id_stack': ['a', 'b', 'c'],
+            'differentprefix.foo': 'XXX'
         }
 
 
@@ -251,8 +248,9 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
-    worker_ctx = CustomWorkerContext(container, service,
-                                     DummyProvider('method'), data=ctx_data)
+    worker_ctx = WorkerContext(
+        container, service, DummyProvider('method'), data=ctx_data
+    )
 
     publisher = Publisher(
         exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
@@ -295,8 +293,9 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
 
     ctx_data = {'language': 'en', 'customheader': None}
     service = Mock()
-    worker_ctx = CustomWorkerContext(container, service,
-                                     DummyProvider('method'), data=ctx_data)
+    worker_ctx = WorkerContext(
+        container, service, DummyProvider('method'), data=ctx_data
+    )
 
     publisher = Publisher(
         exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
@@ -321,7 +320,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.worker_ctx_cls = CustomWorkerContext
+    container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
     container.config = rabbit_config
     container.max_workers = 10
@@ -334,7 +333,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     container.spawn_managed_thread = spawn_managed_thread
 
-    worker_ctx = CustomWorkerContext(container, None, DummyProvider())
+    worker_ctx = WorkerContext(container, None, DummyProvider())
 
     consumer = Consumer(
         queue=foobar_queue, requeue_on_error=False).bind(container, "publish")

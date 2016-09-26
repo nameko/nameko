@@ -1,6 +1,6 @@
 from nameko.containers import ServiceContainer
 
-class Service(object):
+class Service:
     name = "service"
 
 # create a container

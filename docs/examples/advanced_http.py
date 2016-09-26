@@ -3,7 +3,7 @@
 from nameko.web.handlers import http
 from werkzeug.wrappers import Response
 
-class Service(object):
+class Service:
     name = "advanced_http_service"
 
     @http('GET', '/privileged')

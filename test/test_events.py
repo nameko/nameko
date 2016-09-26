@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import eventlet
 import pytest
-from mock import ANY, Mock, patch
+from mock import ANY, Mock, create_autospec, patch
 
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -17,9 +17,10 @@ EVENTS_TIMEOUT = 5
 
 @pytest.yield_fixture
 def queue_consumer():
-    replacement = Mock(spec=QueueConsumer)
-    with patch.object(QueueConsumer, 'bind', new=replacement) as mock_ext:
-        yield mock_ext.return_value
+    replacement = create_autospec(QueueConsumer)
+    with patch.object(QueueConsumer, 'bind') as mock_ext:
+        mock_ext.return_value = replacement
+        yield replacement
 
 
 def test_event_dispatcher(mock_container, mock_producer):
@@ -613,7 +614,7 @@ def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
 
     payload = {'custom': 'data'}
     dispatch = standalone_dispatcher(rabbit_config)
-    dispatch('srcservice',  "eventtype", payload)
+    dispatch('srcservice', "eventtype", payload)
 
     # wait for it to arrive
     with eventlet.timeout.Timeout(EVENTS_TIMEOUT):

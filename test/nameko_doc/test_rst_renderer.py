@@ -1,4 +1,4 @@
-from mock import Mock, patch, MagicMock, call
+from mock import Mock, patch, call, create_autospec
 import pytest
 from nameko.nameko_doc import rst_render as rst
 
@@ -140,7 +140,7 @@ def mock_write():
     with open('/dev/null') as test:
         file_type = type(test)  # can we get this from six?
     with patch('nameko.nameko_doc.rst_render.open', create=True) as m:
-        m.return_value = MagicMock(spec=file_type)
+        m.return_value = create_autospec(file_type)
         yield m, m.return_value.__enter__.return_value
 
 

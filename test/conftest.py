@@ -1,6 +1,8 @@
+
 import json
 import socket
 import subprocess
+import sys
 import time
 import uuid
 
@@ -9,6 +11,7 @@ import requests
 from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
+from types import ModuleType
 
 
 @pytest.yield_fixture
@@ -140,3 +143,11 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     controller = Controller(proxy_uri)
     yield controller
     controller.reset()
+
+
+@pytest.yield_fixture
+def fake_module():
+    module = ModuleType("fake_module")
+    sys.modules[module.__name__] = module
+    yield module
+    del sys.modules[module.__name__]
