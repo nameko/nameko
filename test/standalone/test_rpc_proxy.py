@@ -1,9 +1,10 @@
 import socket
-from distutils import spawn
 
 import eventlet
 import pytest
 from kombu.message import Message
+
+from test import skip_if_no_toxiproxy
 
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
@@ -416,10 +417,7 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
     assert len(consumer_tags) == 1
 
 
-@pytest.mark.skipif(
-    spawn.find_executable('toxiproxy-server') is None,
-    reason="toxiproxy not installed"
-)
+@skip_if_no_toxiproxy
 class TestStandaloneProxyDisconnections(object):
 
     @pytest.fixture(autouse=True)

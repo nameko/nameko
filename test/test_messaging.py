@@ -1,11 +1,12 @@
 import socket
-from distutils import spawn
 
 import eventlet
 import pytest
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
+
+from test import skip_if_no_toxiproxy
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 from nameko.containers import WorkerContext
@@ -382,10 +383,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     consumer.queue_consumer.kill()
 
 
-@pytest.mark.skipif(
-    spawn.find_executable('toxiproxy-server') is None,
-    reason="toxiproxy not installed"
-)
+@skip_if_no_toxiproxy
 class TestPublisherDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
 

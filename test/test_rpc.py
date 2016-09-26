@@ -1,13 +1,14 @@
 import socket
 import uuid
 import warnings
-from distutils import spawn
 
 import eventlet
 import pytest
 from eventlet.event import Event
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
+
+from test import skip_if_no_toxiproxy
 
 from nameko.containers import ServiceContainer
 from nameko.events import event_handler
@@ -653,10 +654,7 @@ def test_rpc_consumer_cannot_exit_with_providers(
     container.kill()
 
 
-@pytest.mark.skipif(
-    spawn.find_executable('toxiproxy-server') is None,
-    reason="toxiproxy not installed"
-)
+@skip_if_no_toxiproxy
 class TestProxyDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
 
@@ -816,10 +814,7 @@ class TestProxyDisconnections(object):
                 assert echo(2) == 2
 
 
-@pytest.mark.skipif(
-    spawn.find_executable('toxiproxy-server') is None,
-    reason="toxiproxy not installed"
-)
+@skip_if_no_toxiproxy
 class TestResponderDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
 
