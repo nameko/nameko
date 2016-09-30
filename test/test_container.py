@@ -558,17 +558,16 @@ def test_get_service_name():
     ((), {'protected': True})
 ])
 def test_spawn_managed_thread_backwards_compat_warning(
-    warnings, container, args, kwargs
+    container, warnings, args, kwargs
 ):
 
     def wait():
         Event().wait()
 
-    container.spawn_managed_thread(wait, *args, **kwargs)
-
     # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
     # `testdir` plugin is not compatible with eventlet on python3 --
     # see https://github.com/mattbennett/eventlet-pytest-bug
+    container.spawn_managed_thread(wait, *args, **kwargs)
     assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
 
     container.kill()
