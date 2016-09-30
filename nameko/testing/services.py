@@ -81,9 +81,7 @@ def entrypoint_hook(container, method_name, context_data=None):
 
 
 @contextmanager
-def entrypoint_waiter(
-    container, method_name, timeout=30, callback=None, worker_callback=None
-):
+def entrypoint_waiter(container, method_name, timeout=30, callback=None):
     """ Context manager that waits until an entrypoint has fired, and
     the generated worker has exited and been torn down.
 
@@ -111,23 +109,17 @@ def entrypoint_waiter(
     for the `entrypoint_waiter` to exit. The signature for the callback
     function is::
 
-        def callback(args, kwargs, result, exc_info):
+        def callback(worker_ctx, result, exc_info):
             pass
 
-    The parameters are as follows:
+    Where there parameters are as follows:
 
-        args: (tuple):
-            Positional arguments for the entrypoint method call.
+        worker_ctx (WorkerContext): WorkerContext of the entrypoint call.
 
-        kwargs: (dict):
-            Keyword arguments for the entrypoint method call.
+        result (object): The return value of the entrypoint.
 
-        result (object):
-            The return value of the entrypoint.
-
-        exc_info (tuple):
-            Tuple as returned by `sys.exc_info` if the entrypoint raised an
-            exception, otherwise `None`.
+        exc_info (tuple): Tuple as returned by `sys.exc_info` if the
+            entrypoint raised an exception, otherwise `None`.
 
     **Usage**
 
@@ -155,8 +147,8 @@ def entrypoint_waiter(
         with entrypoint_waiter(container, 'handle_event', timeout=5):
             ...  # action that dispatches event
 
-        # with `callback` that waits until entrypoint stops raising
-        def callback(args, kwargs, result, exc_info):
+        # with callback that waits until entrypoint stops raising
+        def callback(worker_ctx, result, exc_info):
             if exc_info is None:
                 return True
 
@@ -171,30 +163,27 @@ def entrypoint_waiter(
     class Result(WaitResult):
         worker_ctx = None
 
-        def send(self, worker_ctx, res, exc_info):
+        def send(self, worker_ctx, result, exc_info):
             self.worker_ctx = worker_ctx
-            super(Result, self).send(res, exc_info)
+            super(Result, self).send(result, exc_info)
 
-    result = Result()
+    waiter_callback = callback
+    waiter_result = Result()
 
-    def on_worker_result(worker_ctx, res, exc_info):
+    def on_worker_result(worker_ctx, result, exc_info):
         complete = False
         if worker_ctx.entrypoint.method_name == method_name:
-            if callable(worker_callback):
-                complete = worker_callback(worker_ctx, res, exc_info)
-            elif callable(callback):
-                complete = callback(
-                    worker_ctx.args, worker_ctx.kwargs, res, exc_info
-                )
-            else:
+            if not callable(waiter_callback):
                 complete = True
+            else:
+                complete = waiter_callback(worker_ctx, result, exc_info)
 
         if complete:
-            result.send(worker_ctx, res, exc_info)
+            waiter_result.send(worker_ctx, result, exc_info)
         return complete
 
     def on_worker_teardown(worker_ctx):
-        if result.worker_ctx is worker_ctx:
+        if waiter_result.worker_ctx is worker_ctx:
             return True
         return False
 
@@ -212,7 +201,7 @@ def entrypoint_waiter(
                 container, '_worker_result',
                 lambda args, kwargs, res, exc: on_worker_result(*args)
             ):
-                yield result
+                yield waiter_result
 
 
 class EntrypointWaiterTimeout(Exception):
