@@ -12,6 +12,11 @@ Released PENDING
 
 * Enhanced :func:`~nameko.testing.services.replace_dependencies` to allow
   specific replacement values to be provided with named arguments.
+* Enhanced :func:`~nameko.testing.services.entrypoint_waiter`. The new
+  implementation is backwards compatible but additionally:
+    - Gives you access to the result returned (or exception raised)
+    - Adds the ability to wait for a specific result
+    - Doesn't fire until the worker is completely torn down
 
 Version 2.4.0
 -------------
@@ -30,16 +35,19 @@ Released 2016-08-30
   `ServiceContainer` class that defines the `worker_ctx_cls` attribute.
 * Remove the `context_keys` attribute of the `WorkerContext`, which was
   previously used to "whitelist" worker context data passed from call to call.
-  It was a feature that leaked from a specific implementation into the main framework, and not useful enough in its own right to continue to be
+  It was a feature that leaked from a specific implementation into the main
+  framework, and not useful enough in its own right to continue to be
   supported.
-* Refactor `ServiceContainer` internals for better separation between "managed" and "worker" threads. Improved logging when threads are killed.
+* Refactor `ServiceContainer` internals for better separation between "managed"
+  and "worker" threads. Improved logging when threads are killed.
 
 Version 2.3.1
 -------------
 
 Released 2016-05-11
 
-* Deprecate ``MethodProxy.async`` in favour of ``MethodProxy.call_async`` in preparation for async becoming a keyword
+* Deprecate ``MethodProxy.async`` in favour of ``MethodProxy.call_async`` in
+  preparation for async becoming a keyword
 * Add support for loading logging configuration from ``config.yaml``
 
 
@@ -111,8 +119,11 @@ Released 2015-03-31
 * Introduction of nameko "extensions" and nomenclature clarification
 * Removal of ``DependencyFactory`` in favour of prototype pattern
 * Complete documentation rewrite
-* Spun out ``nameko.contrib.sqlalchemy`` into `nameko-sqlalchemy <https://pypi.python.org/pypi/nameko-sqlalchemy>`_ as a **community extension**.
-* Spun out ``nameko.legacy`` package into `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
+* Spun out ``nameko.contrib.sqlalchemy`` into
+  `nameko-sqlalchemy <https://pypi.python.org/pypi/nameko-sqlalchemy>`_
+  as a **community extension**.
+* Spun out ``nameko.legacy`` package into
+ `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
 * Rename the standalone rpc proxy to
   :class:`~nameko.standalone.rpc.ServiceRpcProxy` and add a
   :class:`~nameko.standalone.rpc.ClusterRpcProxy`, using a single reply queue
