@@ -60,6 +60,12 @@ Run your service with environment variables set:
 
     $ RABBITMQ_USER=user RABBITMQ_PASSWORD=password RABBITMQ_HOST=host nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
 
+If you need to quote your yaml values explicit resolver ``!env_var`` is required
+
+.. code-block:: yaml
+
+    # foobar.yaml
+    AMQP_URI: !env_var "amqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
 
 Interacting with running services
 ---------------------------------
