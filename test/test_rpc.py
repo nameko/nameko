@@ -1,13 +1,10 @@
 import socket
-import sys
 import uuid
 import warnings
-from contextlib import contextmanager
 
 import eventlet
 import pytest
 from eventlet.event import Event
-from eventlet.queue import Queue
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
@@ -23,7 +20,7 @@ from nameko.rpc import (
     MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc)
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints)
+    dummy, entrypoint_hook, restrict_entrypoints)
 from nameko.testing.utils import get_extension, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 
