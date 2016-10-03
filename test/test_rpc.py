@@ -917,7 +917,7 @@ class TestResponderDisconnections(object):
         assert service_rpc.echo(1) == 1
         assert service_rpc.echo(2) == 2
 
-    def test_downx(self, container, service_rpc, toxiproxy):
+    def test_down(self, container, service_rpc, toxiproxy):
         toxiproxy.disable()
 
         eventlet.spawn_n(service_rpc.echo, 1)
@@ -953,14 +953,14 @@ class TestResponderDisconnections(object):
 
         toxiproxy.disable()
 
-        service_rpc.echo(2)
+        eventlet.spawn_n(service_rpc.echo, 2)
 
         # the container will raise if the responder cannot reply
         with pytest.raises(socket.error) as exc_info:
             container.wait()
         assert "ECONNREFUSED" in str(exc_info.value)
 
-        service_rpc.kill()
+        service_rpc.abort()
 
     def test_reuse_when_recovered(
         self, container, service_rpc, toxiproxy, use_confirms,
