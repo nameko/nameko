@@ -93,12 +93,9 @@ class TestConfigEnvironmentVariables(object):
     ):
         setup_yaml_parser()
 
-        for val in ['FOO', 'BAR']:
-            if os.environ.get(val):
-                del os.environ[val]
+        with patch.dict('os.environ'):
+            for key, val in env_vars.items():
+                os.environ[key] = val
 
-        for key, val in env_vars.items():
-            os.environ[key] = val
-
-        results = yaml.load(yaml_config)
-        assert results == expected_config
+            results = yaml.load(yaml_config)
+            assert results == expected_config

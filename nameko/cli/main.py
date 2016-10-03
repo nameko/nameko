@@ -10,29 +10,20 @@ from . import backdoor, run, shell
 
 ENV_VAR_MATCHER = re.compile(
     r"""
-        \$\{        # match characters ${ literally
-
-        ([^}:\s]+)  # 1st capturing group:
-                    # matches any character except } or :
-
-        (?::)?      # non-capturing group
-                    # matches between zero and one times character : literally
-
-        ([^}]+)     # 2nd capturing group
-                    # matches any character except }
-
-        ?\}         # match character } literally
-    """, re.X
+        \$\{       # match characters `${` literally
+        ([^}:\s]+) # 1st group: matches any character except `}` or `:`
+        :?         # matches between zero and one times character `:` literally
+        ([^}]+)?   # 2nd group: matches any character except `}`
+        \}         # match character `}` literally
+    """, re.VERBOSE
 )
 IMPLICIT_ENV_VAR_MATCHER = re.compile(
     r"""
         .*          # matches any number of any characters
-
         \$\{.*\}    # matches any number of any characters
-                    # between ${ and } literally
-
+                    # between `${` and `}` literally
         .*          # matches any number of any characters
-    """, re.X
+    """, re.VERBOSE
 )
 
 
