@@ -1,14 +1,16 @@
 import socket
+import sys
 import uuid
 import warnings
+from contextlib import contextmanager
 
 import eventlet
 import pytest
 from eventlet.event import Event
+from eventlet.queue import Queue
+from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
-
-from test import skip_if_no_toxiproxy
 
 from nameko.containers import ServiceContainer
 from nameko.events import event_handler
@@ -21,9 +23,11 @@ from nameko.rpc import (
     MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc)
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    dummy, entrypoint_hook, restrict_entrypoints)
+    dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints)
 from nameko.testing.utils import get_extension, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
+
+from test import skip_if_no_toxiproxy
 
 
 class ExampleError(Exception):
@@ -847,9 +851,8 @@ class TestResponderDisconnections(object):
         with patch.object(MethodProxy, 'retry', new=retry):
             yield
 
-    @pytest.fixture(autouse=True)
-    def container(self, container_factory, rabbit_config):
-
+    @pytest.fixture
+    def service_cls(self):
         class Service(object):
             name = "service"
 
@@ -857,36 +860,93 @@ class TestResponderDisconnections(object):
             def echo(self, arg):
                 return arg
 
+        return Service
+
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, service_cls, rabbit_config):
+
         config = rabbit_config
 
-        container = container_factory(Service, config)
+        container = container_factory(service_cls, config)
         container.start()
         return container
 
     @pytest.yield_fixture
     def service_rpc(self, rabbit_config):
-        with ServiceRpcProxy("service", rabbit_config) as proxy:
-            yield proxy
+
+        gts = []
+
+        def kill_greenthreads():
+            for gt in gts:
+                try:
+                    gt.kill()
+                except GreenletExit:
+                    pass
+            del gts[:]
+
+        class ThreadSafeRpcProxy(object):
+            """ The ServiceRpcProxy is not thread-safe, so we can't create it
+            in a fixture and use it directly from a new greenlet in a test
+            (which we need to, because it hangs in many of these tests).
+
+            Instead we fake the interface and make the underlying proxy call
+            in a dedicated thread, ensuring it's never shared.
+            """
+
+            def __getattr__(self, name):
+                if name == "abort":
+                    return self.abort()
+
+                def method(*args, **kwargs):
+                    def call():
+                        with ServiceRpcProxy(
+                            "service", rabbit_config
+                        ) as proxy:
+                            return getattr(proxy, name)(*args, **kwargs)
+
+                    gt = eventlet.spawn(call)
+                    gts.append(gt)
+                    return gt.wait()
+                return method
+
+            def abort(self):
+                kill_greenthreads()
+
+        proxy = ThreadSafeRpcProxy()
+        yield proxy
+        kill_greenthreads()
 
     def test_normal(self, service_rpc):
         assert service_rpc.echo(1) == 1
         assert service_rpc.echo(2) == 2
 
-    def test_down(self, service_rpc, toxiproxy):
+    def test_downx(self, container, service_rpc, toxiproxy):
         toxiproxy.disable()
 
-        # TODO
-        # spawn a thread to call the RPC proxy (will wait forever)
-        # use new entrypoint waiter to catch the responder socket error
+        eventlet.spawn_n(service_rpc.echo, 1)
 
-    def test_timeout(self, service_rpc, toxiproxy):
+        # the container will raise if the responder cannot reply
+        with pytest.raises(socket.error) as exc_info:
+            container.wait()
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        service_rpc.abort()
+
+    def test_timeout(self, container, service_rpc, toxiproxy):
         toxiproxy.timeout()
 
-        # TODO
-        # spawn a thread to call the RPC proxy (will wait forever)
-        # use new entrypoint waiter to catch the responder socket timeout
+        eventlet.spawn_n(service_rpc.echo, 1)
 
-    def test_reuse_when_down(self, service_rpc, toxiproxy, use_confirms):
+        # the container will raise if the responder cannot reply
+        with pytest.raises(socket.error) as exc_info:
+            container.wait()
+        assert "Socket closed" in str(exc_info.value)
+
+        service_rpc.abort()
+
+    def test_reuse_when_down(
+        self, container, service_rpc, toxiproxy, use_confirms
+    ):
         if not use_confirms:
             pytest.skip(
                 "unconfirmed messages will be lost after disconnection"
@@ -896,11 +956,19 @@ class TestResponderDisconnections(object):
 
         toxiproxy.disable()
 
-        # TODO
-        # spawn a thread to call the RPC proxy (will wait forever)
-        # use new entrypoint waiter to catch the responder socket error
+        service_rpc.echo(2)
 
-    def test_reuse_when_recovered(self, service_rpc, toxiproxy, use_confirms):
+        # the container will raise if the responder cannot reply
+        with pytest.raises(socket.error) as exc_info:
+            container.wait()
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        service_rpc.kill()
+
+    def test_reuse_when_recovered(
+        self, container, service_rpc, toxiproxy, use_confirms,
+        container_factory, rabbit_config, service_cls
+    ):
         if not use_confirms:
             pytest.skip(
                 "unconfirmed messages will be lost after disconnection"
@@ -910,9 +978,16 @@ class TestResponderDisconnections(object):
 
         toxiproxy.disable()
 
-        # TODO
-        # spawn a thread to call the RPC proxy (will wait forever)
-        # use new entrypoint waiter to catch the responder socket error
+        eventlet.spawn_n(service_rpc.echo, 2)
+
+        # the container will raise if the responder cannot reply
+        with pytest.raises(socket.error) as exc_info:
+            container.wait()
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        # create new container
+        replacement_container = container_factory(service_cls, rabbit_config)
+        replacement_container.start()
 
         toxiproxy.enable()
 
