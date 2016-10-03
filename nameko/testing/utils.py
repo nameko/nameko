@@ -1,6 +1,7 @@
 """
 Common testing utilities.
 """
+import warnings
 from contextlib import contextmanager
 from functools import partial
 
@@ -59,6 +60,10 @@ def wait_for_worker_idle(container, timeout=10):
     Raises an :class:`eventlet.Timeout` if the method was not called
     within ``timeout`` seconds.
     """
+    warnings.warn(
+        "`wait_for_worker_idle` is deprecated. Use the `entrypoint_waiter` "
+        "to wait for specific entrypoints instead.", DeprecationWarning
+    )
     with eventlet.Timeout(timeout):
         container._worker_pool.waitall()
 

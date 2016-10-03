@@ -1,5 +1,3 @@
-""" From https://github.com/mattbennett/call-waiting
-"""
 import sys
 import time
 from threading import Thread
@@ -36,9 +34,7 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if res == 10:
-                return True
-            return False
+            return res == 10
 
         with wait_for_call(counter, 'count', callback=cb) as result:
             Thread(target=count_forever).start()
@@ -47,31 +43,30 @@ class TestPatchWaitUseCases(object):
 
     def test_wait_until_called_with_argument(self, forever):
 
-        class CounterWithSkipTo(object):
+        class CounterWithSet(object):
+
             value = 0
 
             def count(self):
                 self.value += 1
                 return self.value
 
-            def skip_to(self, skip_to):
-                self.value = skip_to
+            def set(self, value):
+                self.value = value
                 return self.value
 
-        counter = CounterWithSkipTo()
+        counter = CounterWithSet()
 
-        def increment_forever():
+        def increment_forever_via_set():
             while forever:
-                counter.skip_to(counter.value + 1)
+                counter.set(counter.value + 1)
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if args == (10,):
-                return True
-            return False
+            return args == (10,)
 
-        with wait_for_call(counter, 'skip_to', callback=cb) as result:
-            Thread(target=increment_forever).start()
+        with wait_for_call(counter, 'set', callback=cb) as result:
+            Thread(target=increment_forever_via_set).start()
 
         assert result.get() == 10
 
@@ -100,9 +95,7 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if exc_info is not None:
-                return True
-            return False
+            return exc_info is not None
 
         with wait_for_call(counter, 'count', callback=cb) as result:
             Thread(target=count_forever).start()
@@ -139,9 +132,7 @@ class TestPatchWaitUseCases(object):
                 time.sleep(0)
 
         def cb(args, kwargs, res, exc_info):
-            if exc_info is not None:
-                return False
-            return True
+            return exc_info is None
 
         with wait_for_call(counter, 'count', callback=cb) as result:
             Thread(target=count_forever).start()
@@ -207,10 +198,27 @@ class TestPatchWait(object):
         arg = "hello"
 
         with wait_for_call(echo, 'upper') as result:
-            assert result.get() is None  # not ready
+            with pytest.raises(result.NotReady):
+                result.get()
             res = echo.upper(arg)
 
         assert result.get() == res
+
+    def test_result_is_none(self):
+
+        class Echo(object):
+
+            def nothing(self):
+                return None
+
+        echo = Echo()
+
+        with wait_for_call(echo, 'nothing') as result:
+            res = echo.nothing()
+
+        assert res is None
+        assert result.get() is None
+        assert result.has_result is True
 
     def test_wrapped_method_raises(self):
 

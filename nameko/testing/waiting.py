@@ -1,5 +1,3 @@
-""" From https://github.com/mattbennett/call-waiting
-"""
 import sys
 from contextlib import contextmanager
 from threading import Semaphore
@@ -9,12 +7,20 @@ from mock import patch
 
 
 class WaitResult(object):
-    res = None
+    sentinel = object()
+
+    res = sentinel
     exc_info = None
+
+    class NotReady(Exception):
+        pass
 
     @property
     def has_result(self):
-        return self.res is not None or self.exc_info is not None
+        return (
+            self.res is not self.sentinel or
+            self.exc_info is not None
+        )
 
     def send(self, res, exc_info):
         if not self.has_result:
@@ -22,6 +28,9 @@ class WaitResult(object):
             self.exc_info = exc_info
 
     def get(self):
+        if not self.has_result:
+            raise WaitResult.NotReady()
+
         if self.exc_info is not None:
             six.reraise(*self.exc_info)
         return self.res

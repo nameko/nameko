@@ -2,18 +2,18 @@
 Utilities for testing nameko services.
 """
 
+import inspect
 from collections import OrderedDict
 from contextlib import contextmanager
-import inspect
 
 import eventlet
 from eventlet import event
-from eventlet.semaphore import Semaphore
 from mock import MagicMock
 
-from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.exceptions import ExtensionNotFound
-from nameko.testing.utils import get_extension, wait_for_worker_idle
+from nameko.extensions import DependencyProvider, Entrypoint
+from nameko.testing.utils import get_extension
+from nameko.testing.waiting import WaitResult, wait_for_call
 
 
 @contextmanager
@@ -48,93 +48,166 @@ def entrypoint_hook(container, method_name, context_data=None):
                 method_name, container))
 
     def hook(*args, **kwargs):
-        result = event.Event()
+        hook_result = event.Event()
 
-        def handle_result(worker_ctx, res=None, exc_info=None):
-            result.send(res, exc_info)
-            return res, exc_info
-
-        container.spawn_worker(entrypoint, args, kwargs,
-                               context_data=context_data,
-                               handle_result=handle_result)
-
-        # If the container errors (e.g. due to a bad entrypoint), handle_result
-        # is never called and we hang. To mitigate, we spawn a greenlet waiting
-        # for the container, and if that throws we send the exception back
-        # as our result
-        def catch_container_errors(gt):
+        def wait_for_entrypoint():
+            with entrypoint_waiter(container, method_name) as waiter_result:
+                container.spawn_worker(
+                    entrypoint, args, kwargs,
+                    context_data=context_data
+                )
             try:
-                gt.wait()
+                hook_result.send(waiter_result.get())
             except Exception as exc:
-                result.send_exception(exc)
+                hook_result.send_exception(exc)
 
-        gt = eventlet.spawn(container.wait)
-        gt.link(catch_container_errors)
+        def wait_for_container():
+            try:
+                container.wait()
+            except Exception as exc:
+                if not hook_result.ready():
+                    hook_result.send_exception(exc)
 
-        return result.wait()
+        # If the container errors (e.g. due to a bad entrypoint), the
+        # entrypoint_waiter never completes. To mitigate, we also wait on
+        # the container, and if that throws we send the exception back
+        # as our result.
+        eventlet.spawn_n(wait_for_entrypoint)
+        eventlet.spawn_n(wait_for_container)
+
+        return hook_result.wait()
 
     yield hook
 
 
-class EntrypointWaiter(DependencyProvider):
-    """Helper for `entrypoint_waiter`
-
-    DependencyProvider to be manually (and temporarily) added to an existing
-    container. Takes an entrypoint name, and exposes a `wait` method, which
-    will return once the entrypoint has fired.
-    """
-
-    class Timeout(Exception):
-        pass
-
-    def __init__(self, entrypoint):
-        self.attr_name = '_entrypoint_waiter_{}'.format(entrypoint)
-        self.entrypoint = entrypoint
-        self.done = Semaphore(value=0)
-
-    def worker_teardown(self, worker_ctx):
-        entrypoint = worker_ctx.entrypoint
-        if entrypoint.method_name == self.entrypoint:
-            self.done.release()
-
-    def wait(self):
-        self.done.acquire()
-
-
 @contextmanager
-def entrypoint_waiter(container, entrypoint, timeout=30):
-    """Helper to wait for entrypoints to fire (and complete)
+def entrypoint_waiter(container, method_name, timeout=30, callback=None):
+    """ Context manager that waits until an entrypoint has fired, and
+    the generated worker has exited and been torn down.
 
-    Usage::
+    It yields a :class:`nameko.testing.waiting.WaitResult` object that can be
+    used to get the result returned (exception raised) by the entrypoint
+    after the waiter has exited.
 
-        container = ServiceContainer(ExampleService, config)
-        with entrypoint_waiter(container, 'example_handler'):
-            ...  # e.g. rpc call that will result in handler being called
+    :Parameters:
+        container : ServiceContainer
+            The container hosting the service owning the entrypoint
+        method_name : str
+            The name of the entrypoint decorated method on the service class
+        timeout : int
+            Maximum seconds to wait
+        callback : callable
+            Function to conditionally control whether the entrypoint_waiter
+            should exit for a particular invocation
+
+    The `timeout` argument specifies the maximum number of seconds the
+    `entrypoint_waiter` should wait before exiting. It can be disabled by
+    passing `None`. The default is 30 seconds.
+
+    Optionally allows a `callback` to be provided which is invoked whenever
+    the entrypoint fires. If provided, the callback must return `True`
+    for the `entrypoint_waiter` to exit. The signature for the callback
+    function is::
+
+        def callback(worker_ctx, result, exc_info):
+            pass
+
+    Where there parameters are as follows:
+
+        worker_ctx (WorkerContext): WorkerContext of the entrypoint call.
+
+        result (object): The return value of the entrypoint.
+
+        exc_info (tuple): Tuple as returned by `sys.exc_info` if the
+            entrypoint raised an exception, otherwise `None`.
+
+    **Usage**
+
+    ::
+        class Service(object):
+            name = "service"
+
+            @event_handler('srcservice', 'eventtype')
+            def handle_event(self, msg):
+                return msg
+
+        container = ServiceContainer(Service, config)
+        container.start()
+
+        # basic
+        with entrypoint_waiter(container, 'handle_event'):
+            ...  # action that dispatches event
+
+        # giving access to the result
+        with entrypoint_waiter(container, 'handle_event') as result:
+            ...  # action that dispatches event
+        res = result.get()
+
+        # with custom timeout
+        with entrypoint_waiter(container, 'handle_event', timeout=5):
+            ...  # action that dispatches event
+
+        # with callback that waits until entrypoint stops raising
+        def callback(worker_ctx, result, exc_info):
+            if exc_info is None:
+                return True
+
+        with entrypoint_waiter(container, 'handle_event', callback=callback):
+            ...  # action that dispatches event
+
     """
-
-    waiter = EntrypointWaiter(entrypoint)
-    if not get_extension(container, Entrypoint, method_name=entrypoint):
+    if not get_extension(container, Entrypoint, method_name=method_name):
         raise RuntimeError("{} has no entrypoint `{}`".format(
-            container.service_name, entrypoint))
-    if get_extension(container, EntrypointWaiter, entrypoint=entrypoint):
-        raise RuntimeError("Waiter already registered for {}".format(
-            entrypoint))
+            container.service_name, method_name))
 
-    # can't mess with dependencies while container is running
-    wait_for_worker_idle(container)
-    container.dependencies.add(waiter)
+    class Result(WaitResult):
+        worker_ctx = None
 
-    try:
-        yield
-        exc = waiter.Timeout(
-            "Entrypoint {}.{} failed to complete within {} seconds".format(
-                container.service_name, entrypoint, timeout)
-        )
-        with eventlet.Timeout(timeout, exception=exc):
-            waiter.wait()
-    finally:
-        wait_for_worker_idle(container)
-        container.dependencies.remove(waiter)
+        def send(self, worker_ctx, result, exc_info):
+            self.worker_ctx = worker_ctx
+            super(Result, self).send(result, exc_info)
+
+    waiter_callback = callback
+    waiter_result = Result()
+
+    def on_worker_result(worker_ctx, result, exc_info):
+        complete = False
+        if worker_ctx.entrypoint.method_name == method_name:
+            if not callable(waiter_callback):
+                complete = True
+            else:
+                complete = waiter_callback(worker_ctx, result, exc_info)
+
+        if complete:
+            waiter_result.send(worker_ctx, result, exc_info)
+        return complete
+
+    def on_worker_teardown(worker_ctx):
+        if waiter_result.worker_ctx is worker_ctx:
+            return True
+        return False
+
+    exc = entrypoint_waiter.Timeout(
+        "Timeout on {}.{} after {} seconds".format(
+            container.service_name, method_name, timeout)
+    )
+
+    with eventlet.Timeout(timeout, exception=exc):
+        with wait_for_call(
+            container, '_worker_teardown',
+            lambda args, kwargs, res, exc: on_worker_teardown(*args)
+        ):
+            with wait_for_call(
+                container, '_worker_result',
+                lambda args, kwargs, res, exc: on_worker_result(*args)
+            ):
+                yield waiter_result
+
+
+class EntrypointWaiterTimeout(Exception):
+    pass
+
+entrypoint_waiter.Timeout = EntrypointWaiterTimeout
 
 
 def worker_factory(service_cls, **dependencies):
