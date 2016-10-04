@@ -730,7 +730,7 @@ class TestProxyDisconnections(object):
         with pytest.raises(IOError) as exc_info:
             with entrypoint_hook(client_container, 'echo') as echo:
                 echo(1)
-            assert "Socket closed" in str(exc_info.value)
+        assert "ECONNREFUSED" in str(exc_info.value)
 
     def test_timeout(self, client_container, toxiproxy):
         toxiproxy.timeout()
@@ -738,7 +738,7 @@ class TestProxyDisconnections(object):
         with pytest.raises(IOError) as exc_info:
             with entrypoint_hook(client_container, 'echo') as echo:
                 echo(1)
-            assert "Socket closed" in str(exc_info.value)
+        assert "Socket closed" in str(exc_info.value)
 
     def test_reuse_when_down(
         self, client_container, toxiproxy, use_confirms
