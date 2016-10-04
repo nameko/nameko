@@ -1,4 +1,3 @@
-import socket
 import uuid
 import warnings
 
@@ -845,7 +844,7 @@ class TestResponderDisconnections(object):
         if "enable_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy, 'retry', new=retry):
+        with patch.object(Responder, 'retry', new=retry):
             yield
 
     @pytest.fixture
@@ -958,7 +957,12 @@ class TestResponderDisconnections(object):
         # the container will raise if the responder cannot reply
         with pytest.raises(IOError) as exc_info:
             container.wait()
-        assert "ECONNREFUSED" in str(exc_info.value)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
 
         service_rpc.abort()
 
@@ -980,13 +984,18 @@ class TestResponderDisconnections(object):
         # the container will raise if the responder cannot reply
         with pytest.raises(IOError) as exc_info:
             container.wait()
-        assert "ECONNREFUSED" in str(exc_info.value)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+        toxiproxy.enable()
 
         # create new container
         replacement_container = container_factory(service_cls, rabbit_config)
         replacement_container.start()
-
-        toxiproxy.enable()
 
         assert service_rpc.echo(3) == 3
 
