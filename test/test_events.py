@@ -1,7 +1,6 @@
 import itertools
 from collections import defaultdict
 
-import eventlet
 import pytest
 from mock import Mock, create_autospec, patch
 
