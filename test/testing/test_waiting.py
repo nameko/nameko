@@ -46,10 +46,6 @@ class TestPatchWaitUseCases(object):
         class CounterWithSet(object):
             value = 0
 
-            def count(self):
-                self.value += 1
-                return self.value
-
             def set(self, value):
                 self.value = value
                 return self.value

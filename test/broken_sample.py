@@ -1,3 +1,1 @@
-import non_existent
-
-non_existent  # pyflakes
+import non_existent  # noqa: F401

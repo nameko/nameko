@@ -1,11 +1,11 @@
 import json
 
-from mock import patch
 import pytest
+from mock import patch
 from werkzeug.wrappers import Response
 
 from nameko.testing.utils import get_extension
-from nameko.web.handlers import http, HttpRequestHandler
+from nameko.web.handlers import HttpRequestHandler, http
 
 
 class ExampleService(object):
@@ -48,7 +48,7 @@ class SimpleService(object):
 
     @http('GET', '/method')
     def method(self, request):
-        pass
+        pass  # pragma: no cover
 
 
 @pytest.fixture

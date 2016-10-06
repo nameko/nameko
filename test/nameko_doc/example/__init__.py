@@ -6,7 +6,7 @@ class ExampleService(object):
 
     @rpc
     def method(self):
-        pass
+        pass  # pragma: no cover
 
     def red_herring(self):
-        pass
+        pass  # pragma: no cover

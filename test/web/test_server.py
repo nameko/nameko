@@ -1,17 +1,14 @@
-from mock import patch
-import pytest
 import socket
+
+import pytest
 from eventlet import wsgi
+from mock import patch
 from werkzeug.contrib.fixers import ProxyFix
 
 from nameko.exceptions import ConfigurationError
-from nameko.web.handlers import http, HttpRequestHandler
+from nameko.web.handlers import HttpRequestHandler, http
 from nameko.web.server import (
-    BaseHTTPServer,
-    parse_address,
-    WebServer,
-    HttpOnlyProtocol
-)
+    BaseHTTPServer, HttpOnlyProtocol, WebServer, parse_address)
 
 
 class ExampleService(object):
@@ -99,7 +96,7 @@ def test_adding_middleware_with_get_wsgi_app(container_factory, web_config):
 
         @http('GET', '/')
         def do_index(self, request):
-            return ''
+            return ''  # pragma: no cover
 
     container = container_factory(CustomServerExampleService, web_config)
     with patch.object(CustomWebServer, 'get_wsgi_server') as get_wsgi_server:
@@ -138,7 +135,7 @@ def test_custom_wsgi_server_is_used(
 
         @http('GET', '/')
         def do_index(self, request):
-            return ''
+            return ''  # pragma: no cover
 
     container = container_factory(CustomServerExampleService, web_config)
     container.start()

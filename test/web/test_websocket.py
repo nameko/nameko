@@ -3,14 +3,14 @@ import json
 import socket
 
 import eventlet
-from eventlet.event import Event
 import pytest
+from eventlet.event import Event
 
 from nameko.exceptions import (
-    MethodNotFound, RemoteError, deserialize, MalformedRequest)
-from nameko.web.websocket import WebSocketHubProvider, rpc
-from nameko.testing.services import get_extension, dummy, entrypoint_hook
+    MalformedRequest, MethodNotFound, RemoteError, deserialize)
+from nameko.testing.services import dummy, entrypoint_hook, get_extension
 from nameko.testing.websocket import make_virtual_socket
+from nameko.web.websocket import WebSocketHubProvider, rpc
 
 
 class ExampleService(object):
@@ -186,7 +186,7 @@ def test_badly_encoded_data(container, web_config_port):
 
     with pytest.raises(MalformedRequest) as exc:
         result.wait()
-        assert 'Invalid JSON data' in str(exc)
+    assert 'Invalid JSON data' in str(exc)
 
     ws_app.close()
     gt.kill()
