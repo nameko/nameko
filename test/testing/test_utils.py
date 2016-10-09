@@ -1,15 +1,16 @@
-import eventlet
-from eventlet.event import Event
-from mock import Mock, patch, call
-import pytest
-from requests import Response, HTTPError
+import warnings
 
+import eventlet
+import pytest
+from eventlet.event import Event
+from mock import Mock, call, patch
 from nameko.constants import DEFAULT_MAX_WORKERS
-from nameko.rpc import rpc, Rpc
+from nameko.rpc import Rpc, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
-    AnyInstanceOf, get_extension, get_container, wait_for_call,
-    get_rabbit_connections, wait_for_worker_idle, reset_rabbit_connections)
+    AnyInstanceOf, get_container, get_extension, get_rabbit_connections,
+    reset_rabbit_connections, wait_for_call, wait_for_worker_idle)
+from requests import HTTPError, Response
 
 
 def test_any_instance_of():
@@ -178,6 +179,14 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
     container.start()
 
     max_workers = DEFAULT_MAX_WORKERS
+
+    # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
+    # `testdir` plugin is not compatible with eventlet on python3 --
+    # see https://github.com/mattbennett/eventlet-pytest-bug
+    with warnings.catch_warnings(record=True) as ws:
+        wait_for_worker_idle(container)
+        assert len(ws) == 1
+        assert issubclass(ws[-1].category, DeprecationWarning)
 
     # verify nothing running
     assert container._worker_pool.free() == max_workers

@@ -10,16 +10,13 @@ from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    UnknownService,
-)
+    UnknownService)
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import ReplyListener, Rpc, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, restrict_entrypoints
-from nameko.testing.utils import (
-    get_extension, wait_for_call, wait_for_worker_idle,
-)
+from nameko.testing.utils import get_extension, wait_for_call
 
 
 class ExampleError(Exception):
@@ -266,7 +263,6 @@ def test_expected_exceptions_integration(container_factory, rabbit_config):
         with pytest.raises(AttributeError):
             very_broken()
 
-    wait_for_worker_idle(container)  # wait for worker lifecycle to complete
     assert worker_logger.expected == {'broken': ExampleError}
     assert worker_logger.unexpected == {'very_broken': AttributeError}
 
@@ -399,8 +395,11 @@ def test_async_rpc_deprecation_warning(container_factory, rabbit_config):
     container.start()
 
     with entrypoint_hook(container, 'deprecated_async') as call_async:
+
+        # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
+        # `testdir` plugin is not compatible with eventlet on python3 --
+        # see https://github.com/mattbennett/eventlet-pytest-bug
         with warnings.catch_warnings(record=True) as ws:
-            warnings.simplefilter('always')
             assert call_async() == [[], {}]
             assert len(ws) == 1
             assert issubclass(ws[-1].category, DeprecationWarning)
