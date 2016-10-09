@@ -62,7 +62,7 @@ To run your service and set environment variables for it to use:
 
     $ RABBITMQ_USER=user RABBITMQ_PASSWORD=password RABBITMQ_HOST=host nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
 
-If you need to quote the values in your YAML file, the explicit !env_var resolver is required:
+If you need to quote the values in your YAML file, the explicit ``!env_var`` resolver is required:
 
 .. code-block:: yaml
 
