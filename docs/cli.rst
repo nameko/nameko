@@ -46,7 +46,8 @@ The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should 
 Environment variable substitution
 ---------------------------------
 YAML configuration files have basic support for environment variables.
-You can use bash style syntax: ``${ENV_VAR}`` optionally you can provide default values ``${ENV_VAR:default_value}``
+You can use bash style syntax: ``${ENV_VAR}``
+Optionally you can provide default values ``${ENV_VAR:default_value}``
 
 
 .. code-block:: yaml
@@ -54,13 +55,13 @@ You can use bash style syntax: ``${ENV_VAR}`` optionally you can provide default
     # foobar.yaml
     AMQP_URI: amqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}
 
-Run your service with environment variables set:
+To run your service and set environment variables for it to use:
 
 .. code-block:: shell
 
     $ RABBITMQ_USER=user RABBITMQ_PASSWORD=password RABBITMQ_HOST=host nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
 
-If you need to quote your yaml values explicit resolver ``!env_var`` is required
+If you need to quote the values in your YAML file, the explicit !env_var resolver is required:
 
 .. code-block:: yaml
 

@@ -12,7 +12,7 @@ ENV_VAR_MATCHER = re.compile(
     r"""
         \$\{       # match characters `${` literally
         ([^}:\s]+) # 1st group: matches any character except `}` or `:`
-        :?         # matches between zero and one times character `:` literally
+        :?         # matches the literal `:` character zero or one times
         ([^}]+)?   # 2nd group: matches any character except `}`
         \}         # match character `}` literally
     """, re.VERBOSE
