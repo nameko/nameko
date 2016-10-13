@@ -445,7 +445,7 @@ def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
 
 def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
     vhost = rabbit_config['vhost']
-    container, = start_containers(RequeueingHandler, ('requeue',))
+    (container,) = start_containers(RequeueingHandler, ('requeue',))
 
     # the queue should been created and have one consumer
     queue = rabbit_manager.get_queue(
@@ -588,7 +588,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
     """Uses a custom handler subclass for the event_handler entrypoint"""
 
-    container, = start_containers(CustomHandler, ('custom-events',))
+    (container,) = start_containers(CustomHandler, ('custom-events',))
 
     payload = {'custom': 'data'}
     dispatch = standalone_dispatcher(rabbit_config)
