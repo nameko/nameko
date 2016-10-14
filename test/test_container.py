@@ -98,11 +98,6 @@ class Service(object):
     def egg(self):
         raise egg_error
 
-    @foobar
-    def wait(self):
-        while True:
-            sleep()
-
 
 @pytest.fixture
 def container():
@@ -127,7 +122,7 @@ def logger():
 
 
 def test_collects_extensions(container):
-    assert len(container.extensions) == 4
+    assert len(container.extensions) == 3
     assert container.extensions == (
         CallCollectingEntrypoint.instances |
         CallCollectingDependencyProvider.instances)
@@ -602,7 +597,7 @@ class TestContainerCustomWorkerCtxCls(object):
 
             @dummy
             def method(self):
-                pass
+                pass  # pragma: no cover
 
         return Service
 

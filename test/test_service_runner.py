@@ -8,7 +8,7 @@ from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import dummy
+from nameko.testing.services import dummy, entrypoint_waiter
 from nameko.testing.utils import assert_stops_raising, get_container
 
 
@@ -113,7 +113,7 @@ class TestRunnerCustomServiceContainerCls(object):
 
             @dummy
             def method(self):
-                pass
+                pass  # pragma: no cover
 
         return Service
 
@@ -208,9 +208,6 @@ def test_contextual_lifecycle():
         def kill(self, exc=None):
             events.add(('kill', self.service_cls.name, self.service_cls))
 
-        def wait(self):
-            events.add(('wait', self.service_cls.name, self.service_cls))
-
     config = {}
 
     with run_services(config, TestService1, TestService2,
@@ -294,9 +291,6 @@ def test_runner_waits_raises_error():
         def stop(self):
             pass
 
-        def kill(self, exc):
-            pass
-
         def wait(self):
             raise Exception('error in container')
 
@@ -335,13 +329,14 @@ def test_multiple_runners_coexist(
     # test events (both services will receive if in "broadcast" mode)
     event_data = "msg"
     dispatch = event_dispatcher(rabbit_config)
-    dispatch('srcservice', "testevent", event_data)
 
-    with eventlet.Timeout(1):
-        while len(received) < 2:
-            eventlet.sleep()
+    container1 = list(runner1.containers)[0]
+    container2 = list(runner2.containers)[0]
 
-        assert received == [event_data, event_data]
+    with entrypoint_waiter(container1, "handle"):
+        with entrypoint_waiter(container2, "handle"):
+            dispatch('srcservice', "testevent", event_data)
+    assert received == [event_data, event_data]
 
     # verify there are two consumers on the rpc queue
     rpc_queue = rabbit_manager.get_queue(vhost, 'rpc-service')
@@ -353,11 +348,7 @@ def test_multiple_runners_coexist(
     with ServiceRpcProxy('service', rabbit_config) as proxy:
         proxy.handle(arg)
 
-    with eventlet.Timeout(1):
-        while len(received) == 0:
-            eventlet.sleep()
-
-        assert received == [arg]
+    assert received == [arg]
 
 
 def test_runner_with_duplicate_services(runner_factory, rabbit_config):
@@ -389,11 +380,7 @@ def test_runner_with_duplicate_services(runner_factory, rabbit_config):
     with ServiceRpcProxy("service", rabbit_config) as proxy:
         proxy.handle(arg)
 
-    with eventlet.Timeout(1):
-        while len(received) == 0:
-            eventlet.sleep()
-
-        assert received == [arg]
+    assert received == [arg]
 
 
 def test_runner_catches_managed_thread_errors(runner_factory, rabbit_config):

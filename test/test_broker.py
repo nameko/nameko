@@ -1,18 +1,18 @@
-import eventlet
-from eventlet.event import Event
-from mock import Mock, call, patch, ANY
-import pytest
 import uuid
+
+import eventlet
+import pytest
+from eventlet.event import Event
+from mock import ANY, Mock, call, patch
 
 from nameko.events import event_handler
 from nameko.exceptions import RpcConnectionError
-from nameko.rpc import rpc, RpcProxy
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import entrypoint_hook, dummy
+from nameko.testing.services import dummy, entrypoint_hook
 from nameko.testing.utils import (
     assert_stops_raising, get_rabbit_connections, reset_rabbit_connections)
-
 
 disconnect_now = Event()
 disconnected = Event()
@@ -70,10 +70,6 @@ class ProxyService(object):
     name = "proxyservice"
 
     example_rpc = RpcProxy('exampleservice')
-
-    @dummy
-    def echo(self, arg):
-        return self.example_rpc.echo(arg)
 
     @dummy
     def entrypoint(self, arg):

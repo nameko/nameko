@@ -2,6 +2,9 @@
 concurrency = eventlet
 parallel = true
 data_file = /tmp/.coverage
+source =
+    nameko
+    test
 
 [report]
 show_missing = true
