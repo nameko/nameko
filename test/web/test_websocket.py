@@ -45,6 +45,10 @@ class ExampleService(object):
         })
         return status
 
+    @dummy
+    def list_subscribers(self):
+        return self.websocket_hub.subscriptions
+
 
 def get_message(ws):
     # matches the broadcast rpc call
@@ -127,6 +131,22 @@ def test_multiple_subscribers(container, websocket):
         broadcast(value=42)
     assert get_message(ws1) == 42
     assert get_message(ws2) == 42
+
+
+def test_close(container, websocket):
+    ws = websocket()
+
+    ws.rpc('subscribe')
+
+    with entrypoint_hook(container, 'list_subscribers') as list_subscribers:
+        subscribers1 = list_subscribers()
+        assert subscribers1['test_channel']
+
+    ws.app.close()
+
+    with entrypoint_hook(container, 'list_subscribers') as list_subscribers:
+        subscribers2 = list_subscribers()
+        assert not subscribers2['test_channel']
 
 
 def test_method_not_found(container, websocket):
