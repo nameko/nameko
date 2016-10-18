@@ -1,17 +1,14 @@
-from mock import patch
-import pytest
 import socket
+
+import pytest
 from eventlet import wsgi
+from mock import patch
 from werkzeug.contrib.fixers import ProxyFix
 
 from nameko.exceptions import ConfigurationError
-from nameko.web.handlers import http, HttpRequestHandler
+from nameko.web.handlers import HttpRequestHandler, http
 from nameko.web.server import (
-    BaseHTTPServer,
-    parse_address,
-    WebServer,
-    HttpOnlyProtocol
-)
+    BaseHTTPServer, HttpOnlyProtocol, WebServer, parse_address)
 
 
 class ExampleService(object):
@@ -38,6 +35,28 @@ def test_broken_pipe(
     s.sendall(b'GET /large \r\n\r\n')
     s.recv(10)
     s.close()  # break connection while there is still more data coming
+
+    # server should still work
+    assert web_session.get('/').text == ''
+
+
+@pytest.mark.xfail(reason="https://github.com/onefinestay/nameko/issues/368")
+def test_client_disconnect_os_error(
+    container_factory, web_config, web_config_port, web_session
+):
+    """ Regression for https://github.com/onefinestay/nameko/issues/368
+    """
+    container = container_factory(ExampleService, web_config)
+    container.start()
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('127.0.0.1', web_config_port))
+
+    with patch.object(HttpOnlyProtocol, 'handle_one_request') as handle:
+        handle.side_effect = OSError('raw readinto() returned invalid length')
+        s.sendall(b'GET / \r\n\r\n')
+        s.recv(10)
+        s.close()
 
     # server should still work
     assert web_session.get('/').text == ''
