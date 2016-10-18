@@ -40,7 +40,6 @@ def test_broken_pipe(
     assert web_session.get('/').text == ''
 
 
-@pytest.mark.xfail(reason="https://github.com/onefinestay/nameko/issues/368")
 def test_client_disconnect_os_error(
     container_factory, web_config, web_config_port, web_session
 ):
@@ -71,14 +70,17 @@ def test_other_error(
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('127.0.0.1', web_config_port))
 
+    class OtherError(Exception):
+        pass
+
     with patch.object(BaseHTTPServer.BaseHTTPRequestHandler, 'finish') as fin:
-        fin.side_effect = socket.error('boom')
+        fin.side_effect = OtherError('boom')
         s.sendall(b'GET / \r\n\r\n')
         s.recv(10)
         s.close()
 
     # takes down container
-    with pytest.raises(socket.error) as exc:
+    with pytest.raises(OtherError) as exc:
         container.wait()
     assert 'boom' in str(exc)
 

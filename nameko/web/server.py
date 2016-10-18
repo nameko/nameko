@@ -76,8 +76,17 @@ class WebServer(ProviderCollector, SharedExtension):
             sock, addr = self._sock.accept()
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(
-                partial(self._serv.process_request, (sock, addr))
+                partial(self.process_request, sock, addr)
             )
+
+    def process_request(self, sock, address):
+        try:
+            self._serv.process_request((sock, address))
+        except OSError:
+            # OSError("raw readinto() returned invalid length")
+            # can be raised when a client disconnects very early.
+            # See https://github.com/onefinestay/nameko/issues/368
+            pass
 
     def start(self):
         if not self._starting:
