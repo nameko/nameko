@@ -1,5 +1,5 @@
 import pytest
-from mock import ANY, Mock, patch
+from mock import ANY, Mock
 from nameko.constants import AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 from nameko.rpc import Responder
 
