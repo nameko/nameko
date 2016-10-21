@@ -7,7 +7,6 @@ from eventlet.event import Event
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
-
 from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
@@ -878,7 +877,7 @@ class TestResponderDisconnections(object):
             for gt in gts:
                 try:
                     gt.kill()
-                except GreenletExit:
+                except GreenletExit:  # pragma: no cover
                     pass
             del gts[:]
 
@@ -892,9 +891,6 @@ class TestResponderDisconnections(object):
             """
 
             def __getattr__(self, name):
-                if name == "abort":
-                    return self.abort()
-
                 def method(*args, **kwargs):
                     def call():
                         with ServiceRpcProxy(
