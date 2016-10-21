@@ -1,11 +1,11 @@
 # coding: utf-8
 
-from mock import Mock
 import pytest
+from mock import Mock
 
 from nameko.extensions import (
-    Extension, Entrypoint, DependencyProvider,
-    is_dependency, is_entrypoint, is_extension)
+    DependencyProvider, Entrypoint, Extension, is_dependency, is_entrypoint,
+    is_extension)
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_extension
 
@@ -21,6 +21,7 @@ class SimpleDependencyProvider(DependencyProvider):
 class SimpleEntrypoint(Entrypoint):
     pass
 
+
 simple = SimpleEntrypoint.decorator
 
 
@@ -31,11 +32,11 @@ class Service(object):
 
     @simple
     def meth1(self):
-        pass
+        pass  # pragma: no cover
 
     @simple
     def meth2(self):
-        pass
+        pass  # pragma: no cover
 
 
 def test_entrypoint_uniqueness(container_factory):

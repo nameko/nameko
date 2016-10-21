@@ -24,7 +24,7 @@ def test_fail_fast_imap():
 
     def slow_call():
         sleep(5)
-        slow_call_returned.send()
+        slow_call_returned.send()  # pragma: no cover
 
     def identity_fn(fn):
         return fn()
@@ -59,7 +59,7 @@ class TestGetRedactedArgs(object):
 
             @rpc(sensitive_variables=sensitive_variables)
             def method(self, a, b):
-                pass
+                pass  # pragma: no cover
 
         args = ("A", "B")
         kwargs = {}
@@ -82,7 +82,7 @@ class TestGetRedactedArgs(object):
 
             @rpc(sensitive_variables="a")
             def method(self, a, b=None):
-                pass
+                pass  # pragma: no cover
 
         expected = {'a': REDACTED, 'b': 'B'}
 
@@ -143,7 +143,7 @@ class TestGetRedactedArgs(object):
 
             @rpc(sensitive_variables=sensitive_variables)
             def method(self, a, b):
-                pass
+                pass  # pragma: no cover
 
         complex_arg = {
             'foo': [1, 2, 3],

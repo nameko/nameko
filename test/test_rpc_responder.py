@@ -1,6 +1,5 @@
 import pytest
-from mock import ANY, Mock
-
+from mock import ANY, Mock, patch
 from nameko.constants import AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 from nameko.rpc import Responder
 
@@ -11,7 +10,7 @@ EXCEPTION_MODULE = Exception.__module__
 @pytest.yield_fixture
 def unserializable():
     def unserializable_inner():
-        pass
+        pass  # pragma: no cover
     yield unserializable_inner
 
 

@@ -43,7 +43,7 @@ class SecondService(object):
 
     @rpc
     def task(self):
-        return 'task_result'
+        return 'task_result'  # pragma: no cover
 
 
 def test_error_in_worker(container_factory, rabbit_config):

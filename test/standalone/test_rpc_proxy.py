@@ -218,7 +218,7 @@ class ExampleService(object):
 
     def callback(self):
         # to be patched out with mock
-        pass
+        pass  # pragma: no cover
 
     @rpc
     def method(self, arg):
@@ -365,8 +365,6 @@ def test_recover_from_keyboardinterrupt(
     container.stop()  # but make sure call doesn't complete
 
     with ServiceRpcProxy('foobar', rabbit_config) as proxy:
-        def call():
-            return proxy.spam(ham=0)
 
         with patch('kombu.connection.Connection.drain_events') as drain_events:
             drain_events.side_effect = KeyboardInterrupt('killing from test')

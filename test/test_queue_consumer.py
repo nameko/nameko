@@ -302,10 +302,6 @@ def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
     rabbit_manager.publish(vhost, 'spam', '', 'bacon',
                            properties=dict(content_type=content_type))
 
-    with eventlet.Timeout(TIMEOUT):
-        while len(messages) < 2:
-            eventlet.sleep()
-
     # allow the waiting consumer to ack its message
     consumer_continue.send(None)
 
@@ -334,7 +330,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config,
         queue = ham_queue
 
         def handle_message(self, body, message):
-            pass
+            pass  # pragma: no cover
 
     queue_consumer.register_provider(Handler())
     queue_consumer.start()
@@ -345,7 +341,7 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config,
     # no connections should remain for our vhost
     vhost = rabbit_config['vhost']
     connections = get_rabbit_connections(vhost, rabbit_manager)
-    if connections:
+    if connections:  # pragma: no cover
         for connection in connections:
             assert connection['vhost'] != vhost
 
@@ -357,7 +353,7 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
         @rpc
         def echo(self, arg):
-            return arg
+            return arg  # pragma: no cover
 
     container = container_factory(Service, rabbit_config)
     queue_consumer = get_extension(container, QueueConsumer)

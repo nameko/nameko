@@ -1,15 +1,15 @@
+import itertools
 from collections import defaultdict
 
-import eventlet
 import pytest
 from mock import ANY, Mock, create_autospec, patch
-
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
+from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider
 
 EVENTS_TIMEOUT = 5
@@ -276,11 +276,7 @@ def service_factory(prefix, base):
     e.g. ``service_factory("foo", ServicePoolHandler)`` returns a type
     called ``FooServicePoolHandler`` that inherits from ``ServicePoolHandler``,
     and ``FooServicePoolHandler.name`` is ``"foo"``.
-
-    If prefix is falsy, return the base without modification.
     """
-    if not prefix:
-        return base
     name = prefix.title() + base.__name__
     cls = type(name, (base,), {'name': prefix})
     return cls
@@ -317,17 +313,6 @@ def start_containers(request, container_factory, rabbit_config, reset_state):
     return make
 
 
-def test_event_handler_event_type():
-
-    @event_handler('foo', 'bar')
-    def foo(self):
-        pass
-
-    @event_handler('foo', 'my_event')
-    def bar(self):
-        pass
-
-
 def test_service_pooled_events(rabbit_manager, rabbit_config,
                                start_containers):
     vhost = rabbit_config['vhost']
@@ -348,9 +333,7 @@ def test_service_pooled_events(rabbit_manager, rabbit_config,
                            properties=dict(content_type='application/json'))
 
     # a total of two events should be received
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 2:
-            eventlet.sleep()
+    assert len(events) == 2
 
     # exactly one instance of each service should have been created
     # each should have received an event
@@ -383,9 +366,7 @@ def test_service_pooled_events_multiple_handlers(
                            properties=dict(content_type='application/json'))
 
     # each handler (3 of them) of the two services should have received the evt
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 2:
-            eventlet.sleep()
+    assert len(events) == 2
 
     # two worker instances would have been created to deal with the handling
     assert len(services['double']) == 2
@@ -407,9 +388,7 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
                            properties=dict(content_type='application/json'))
 
     # exactly one event should have been received
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 1:
-            eventlet.sleep()
+    assert len(events) == 1
 
     # one lucky handler should have received the event
     assert len(services) == 1
@@ -438,9 +417,7 @@ def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
                            properties=dict(content_type='application/json'))
 
     # a total of three events should be received
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 3:
-            eventlet.sleep()
+    assert len(events) == 3
 
     # all three handlers should receive the event, but they're only of two
     # different types
@@ -465,22 +442,29 @@ def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
 
 def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
     vhost = rabbit_config['vhost']
-    start_containers(RequeueingHandler, ('requeue',))
+    (container,) = start_containers(RequeueingHandler, ('requeue',))
 
     # the queue should been created and have one consumer
     queue = rabbit_manager.get_queue(
         vhost, "evt-srcservice-eventtype--requeue.handle")
     assert len(queue['consumer_details']) == 1
 
-    exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
-                           properties=dict(content_type='application/json'))
+    counter = itertools.count()
+
+    def entrypoint_fired_twice(worker_ctx, res, exc_info):
+        return next(counter) > 1
+
+    with entrypoint_waiter(
+        container, 'handle', callback=entrypoint_fired_twice
+    ):
+        rabbit_manager.publish(
+            vhost, "srcservice.events", 'eventtype', '"msg"',
+            properties=dict(content_type='application/json')
+        )
 
     # the event will be received multiple times as it gets requeued and then
     # consumed again
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 2:
-            eventlet.sleep()
+    assert len(events) > 1
 
     # multiple instances of the service should have been instantiated
     assert len(services['requeue']) > 1
@@ -490,7 +474,9 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
         assert service.events == ["msg"]
 
 
-def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
+def test_reliable_delivery(
+    rabbit_manager, rabbit_config, start_containers, container_factory
+):
     """ Events sent to queues declared by ``reliable_delivery`` handlers
     should be received even if no service was listening when they were
     dispatched.
@@ -510,9 +496,6 @@ def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
                            properties=dict(content_type='application/json'))
 
     # wait for the event to be received
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) == 0:
-            eventlet.sleep()
     assert events == ["msg_1"]
 
     # stop container, check queue still exists, without consumers
@@ -531,16 +514,16 @@ def test_reliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert ['"msg_2"'] == [msg['payload'] for msg in messages]
 
     # start another container
-    (container,) = start_containers(ServicePoolHandler, ('service-pool',))
+    class ServicePool(ServicePoolHandler):
+        name = "service-pool"
 
-    # wait for the service to collect the pending event
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 2:
-            eventlet.sleep()
+    container = container_factory(ServicePool, rabbit_config)
+    with entrypoint_waiter(container, 'handle'):
+        container.start()
+
+    # check the new service to collects the pending event
     assert len(events) == 2
     assert events == ["msg_1", "msg_2"]
-
-    container.stop()
 
 
 def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
@@ -565,10 +548,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_1"',
                            properties=dict(content_type='application/json'))
 
-    # wait for it to arrive in both services
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 2:
-            eventlet.sleep()
+    # verify it arrived in both services
     assert events == ["msg_1", "msg_1"]
 
     # test that the unreliable service received it
@@ -595,11 +575,6 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_3"',
                            properties=dict(content_type='application/json'))
 
-    # wait for it to arrive in both services
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(events) < 5:
-            eventlet.sleep()
-
     # verify that the "unreliable" handler didn't receive the message sent
     # while it wasn't running
     assert len(services['unreliable']) == 2
@@ -610,16 +585,14 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
     """Uses a custom handler subclass for the event_handler entrypoint"""
 
-    start_containers(CustomHandler, ('custom-events',))
+    (container,) = start_containers(CustomHandler, ('custom-events',))
 
     payload = {'custom': 'data'}
     dispatch = standalone_dispatcher(rabbit_config)
-    dispatch('srcservice', "eventtype", payload)
 
-    # wait for it to arrive
-    with eventlet.timeout.Timeout(EVENTS_TIMEOUT):
-        while len(CustomEventHandler._calls) < 1:
-            eventlet.sleep()
+    with entrypoint_waiter(container, 'handle'):
+        dispatch('srcservice', "eventtype", payload)
+
     assert CustomEventHandler._calls[0].payload == payload
 
 

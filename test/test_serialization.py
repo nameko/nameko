@@ -1,17 +1,16 @@
 import json
 import uuid
 
+import pytest
 from kombu.serialization import register
 from mock import Mock, call
-import pytest
 
 from nameko.constants import SERIALIZER_CONFIG_KEY
-from nameko.events import event_handler, EventDispatcher
+from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.rpc import rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
-
 
 entrypoint_called = Mock()
 
@@ -36,9 +35,7 @@ serialized_info = {
     }
 }
 
-
-def unserializable():
-    pass
+unserializable = object()
 
 
 class Service(object):
@@ -52,10 +49,6 @@ class Service(object):
     @rpc
     def broken(self):
         return unserializable
-
-    @event_handler('service', 'example')
-    def event(self, evt_data):
-        entrypoint_called(evt_data)
 
 
 @pytest.fixture

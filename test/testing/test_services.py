@@ -65,7 +65,7 @@ def spawn_thread():
     for gt in threads:
         try:
             gt.kill()
-        except Exception:
+        except Exception:  # pragma: no cover
             pass
 
 
@@ -181,7 +181,7 @@ def test_entrypoint_hook_dependency_not_found(container_factory,
 
     with pytest.raises(ExtensionNotFound):
         with entrypoint_hook(container, method):
-            pass
+            pass    # pragma: no cover
 
 
 def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
@@ -384,7 +384,7 @@ def test_replace_non_dependency(container_factory, rabbit_config):
 
         @rpc
         def method(self):
-            pass
+            pass  # pragma: no cover
 
     container = container_factory(Service, rabbit_config)
 
@@ -421,7 +421,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
         @rpc
         @once("assert not seen")
         def handler_one(self, arg):
-            method_called(arg)
+            method_called(arg)  # pragma: no cover
 
         @event_handler('srcservice', 'eventtype')
         def handler_two(self, msg):
@@ -458,7 +458,7 @@ def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
 
         @rpc
         def method(self, arg):
-            pass
+            pass  # pragma: no cover
 
     container = container_factory(Service, rabbit_config)
 
@@ -474,7 +474,7 @@ def test_restrict_entrypoint_container_already_started(container_factory,
 
         @rpc
         def method(self, arg):
-            pass
+            pass  # pragma: no cover
 
     container = container_factory(Service, rabbit_config)
     container.start()
@@ -687,7 +687,7 @@ def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
 
     with pytest.raises(RuntimeError) as exc:
         with entrypoint_waiter(container, "unknown"):
-            pass
+            pass  # pragma: no cover
     assert 'has no entrypoint' in str(exc)
 
 

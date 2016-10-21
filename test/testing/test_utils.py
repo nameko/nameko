@@ -4,13 +4,14 @@ import eventlet
 import pytest
 from eventlet.event import Event
 from mock import Mock, call, patch
+from requests import HTTPError, Response
+
 from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import Rpc, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
     AnyInstanceOf, get_container, get_extension, get_rabbit_connections,
     reset_rabbit_connections, wait_for_call, wait_for_worker_idle)
-from requests import HTTPError, Response
 
 
 def test_any_instance_of():
@@ -52,7 +53,7 @@ def test_wait_for_call():
     with pytest.raises(eventlet.Timeout):
         eventlet.spawn(call_after, 1)
         with wait_for_call(0, mock.method):
-            pass
+            pass  # pragma: no cover
 
 
 def test_get_extension(rabbit_config):
@@ -66,11 +67,11 @@ def test_get_extension(rabbit_config):
 
         @rpc
         def foo(self):
-            pass
+            pass  # pragma: no cover
 
         @rpc
         def bar(self):
-            pass
+            pass  # pragma: no cover
 
     container = ServiceContainer(Service, rabbit_config)
 

@@ -114,7 +114,7 @@ class ExampleService(object):
 
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
-        pass
+        pass  # pragma: no cover
 
 
 @pytest.yield_fixture
@@ -181,7 +181,7 @@ def test_rpc_consumer_unregisters_if_no_providers(
 
         @rpc
         def method(self):
-            pass
+            pass  # pragma: no cover
 
     container = container_factory(Service, rabbit_config)
     restrict_entrypoints(container)  # disable 'method' entrypoint
@@ -460,6 +460,8 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
         (('kwargs_only', (), {'arg': 'arg'}), False),
         (('star_args', ('a', 'b'), {}), True),
         (('star_args', (), {'c': 'c'}), False),
+        (('star_kwargs', (), {'c': 'c'}), True),
+        (('star_kwargs', ('a', 'b'), {}), False),
         (('args_star_args', ('a',), {}), True),
         (('args_star_args', ('a', 'b'), {}), True),
         (('args_star_args', (), {}), False),
