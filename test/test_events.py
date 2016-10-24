@@ -12,7 +12,7 @@ from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider
-from nameko.testing.waiting import wait_for_call
+
 
 EVENTS_TIMEOUT = 5
 
