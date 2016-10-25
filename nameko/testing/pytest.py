@@ -287,7 +287,9 @@ def websocket(web_config_port):
             '127.0.0.1', web_config_port)
         gr = eventlet.spawn(ws_app.run_forever)
         active_sockets.append((gr, ws_app))
-        return wait_for_sock()
+        socket = wait_for_sock()
+        socket.app = ws_app
+        return socket
 
     try:
         yield socket_creator
