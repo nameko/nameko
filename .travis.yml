@@ -39,6 +39,7 @@ matrix:
     - env: TOX_ENV=py27-mastereventlet-lib
     - env: TOX_ENV=py33-mastereventlet-lib
     - env: TOX_ENV=py34-mastereventlet-lib
+    - env: TOX_ENV=py34-branchcoverage-lib
 
 script:
   - tox -e $TOX_ENV
