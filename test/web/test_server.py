@@ -82,6 +82,29 @@ def test_client_disconnect_os_error(
     assert web_session.get('/').text == ''
 
 
+def test_other_os_error(
+    container_factory, web_config, web_config_port, web_session
+):
+    """ Regression for https://github.com/onefinestay/nameko/issues/368
+    """
+    container = container_factory(ExampleService, web_config)
+    container.start()
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('127.0.0.1', web_config_port))
+
+    with patch.object(BaseHTTPServer.BaseHTTPRequestHandler, 'finish') as fin:
+        fin.side_effect = OSError('boom')
+        s.sendall(b'GET / \r\n\r\n')
+        s.recv(10)
+        s.close()
+
+    # takes down container
+    with pytest.raises(OSError) as exc:
+        container.wait()
+    assert 'boom' in str(exc)
+
+
 @pytest.mark.parametrize(['source', 'result'], [
     ('8000', ('', 8000)),
     ('foo:8000', ('foo', 8000)),
