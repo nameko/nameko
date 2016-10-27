@@ -82,11 +82,14 @@ class WebServer(ProviderCollector, SharedExtension):
     def process_request(self, sock, address):
         try:
             self._serv.process_request((sock, address))
-        except OSError:
+        except OSError as exc:
             # OSError("raw readinto() returned invalid length")
-            # can be raised when a client disconnects very early.
+            # can be raised when a client disconnects very early as a result
+            # of an eventlet bug: https://github.com/eventlet/eventlet/pull/353
             # See https://github.com/onefinestay/nameko/issues/368
-            pass
+            if "raw readinto() returned invalid length" in str(exc):
+                return
+            raise
 
     def start(self):
         if not self._starting:
