@@ -7,7 +7,6 @@ from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.exceptions import TimeoutError
 from mock import ANY, Mock, call, patch
-
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.messaging import QueueConsumer
 from nameko.rpc import RpcConsumer, rpc
