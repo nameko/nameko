@@ -1,5 +1,7 @@
 .PHONY: test docs
 
+ENABLE_BRANCH_COVERAGE ?= 0
+
 test: flake8 pylint test_lib test_examples
 
 flake8:
@@ -9,10 +11,10 @@ pylint:
 	pylint --rcfile=pylintrc nameko -E
 
 test_lib:
-	py.test test --cov --cov-config=$(CURDIR)/.coveragerc
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test test --cov --cov-config=$(CURDIR)/.coveragerc
 
 test_examples:
-	py.test docs/examples/test --cov=docs/examples
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
 	py.test docs/examples/testing
 
 test_docs: docs spelling #linkcheck
