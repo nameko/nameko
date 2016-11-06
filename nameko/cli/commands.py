@@ -11,12 +11,12 @@ class Command(object):
 
     @staticmethod
     def init_parser(parser):
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     @staticmethod
     def main(args):
         # import inline to avoid triggering imports from other subcommands
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
 
 class Backdoor(Command):

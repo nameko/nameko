@@ -2,7 +2,7 @@ import eventlet
 from mock import patch, DEFAULT
 import pytest
 
-from nameko.cli.backdoor import main
+from nameko.cli.commands import Backdoor
 from nameko.cli.main import setup_parser
 from nameko.cli.run import setup_backdoor
 from nameko.exceptions import CommandError
@@ -23,7 +23,7 @@ def test_no_telnet():
     with patch('nameko.cli.backdoor.os') as mock_os:
         mock_os.system.return_value = -1
         with pytest.raises(CommandError) as exc:
-            main(args)
+            Backdoor.main(args)
     assert 'Could not find an installed telnet' in str(exc)
 
 
@@ -36,7 +36,7 @@ def test_no_running_backdoor():
         mocks['os'].system.return_value = 0
         mocks['call'].return_value = -1
         with pytest.raises(CommandError) as exc:
-            main(args)
+            Backdoor.main(args)
     assert 'Backdoor unreachable' in str(exc)
 
 
@@ -50,7 +50,7 @@ def test_basic(running_backdoor):
         mock_call = mocks['call']
         mocks['os'].system.return_value = 0
         mock_call.return_value = 0
-        main(args)
+        Backdoor.main(args)
     (cmd, ), _ = mock_call.call_args
     expected = (
         ['rlwrap', 'netcat'] +
@@ -70,7 +70,7 @@ def test_default_host(running_backdoor):
         mock_call = mocks['call']
         mocks['os'].system.return_value = 0
         mock_call.return_value = 0
-        main(args)
+        Backdoor.main(args)
     (cmd, ), _ = mock_call.call_args
     expected = ['rlwrap', 'netcat', 'localhost'] + [str(port)] + ['--close']
     assert cmd == expected
@@ -86,4 +86,4 @@ def test_stop(running_backdoor):
         # choose telnet (skip nc and netcat) and find rlwrap
         mocks['os'].system.side_effect = [-1, -1, 0, 0]
         mocks['call'].side_effect = [KeyboardInterrupt, 0]
-        main(args)
+        Backdoor.main(args)
