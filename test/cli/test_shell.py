@@ -6,8 +6,9 @@ from os.path import join, dirname, abspath
 import pytest
 
 from nameko.standalone.rpc import ClusterProxy
+from nameko.cli.commands import Shell
 from nameko.cli.main import setup_parser
-from nameko.cli.shell import make_nameko_helper, main
+from nameko.cli.shell import make_nameko_helper
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 
@@ -49,7 +50,7 @@ def test_basic(pystartup):
     args = parser.parse_args(['shell'])
 
     with patch('nameko.cli.shell.code') as code:
-        main(args)
+        Shell.main(args)
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -63,7 +64,7 @@ def test_plain(pystartup):
     args = parser.parse_args(['shell', '--interface', 'plain'])
 
     with patch('nameko.cli.shell.code') as code:
-        main(args)
+        Shell.main(args)
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -77,7 +78,7 @@ def test_plain_fallback(pystartup):
     args = parser.parse_args(['shell', '--interface', 'bpython'])
 
     with patch('nameko.cli.shell.code') as code:
-        main(args)
+        Shell.main(args)
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -91,7 +92,7 @@ def test_bpython(pystartup):
     args = parser.parse_args(['shell', '--interface', 'bpython'])
 
     with patch('bpython.embed') as embed:
-        main(args)
+        Shell.main(args)
 
     _, kwargs = embed.call_args
     local = kwargs['locals_']
@@ -105,7 +106,7 @@ def test_ipython(pystartup):
     args = parser.parse_args(['shell', '--interface', 'ipython'])
 
     with patch('IPython.embed') as embed:
-        main(args)
+        Shell.main(args)
 
     _, kwargs = embed.call_args
     local = kwargs['user_ns']
@@ -119,7 +120,7 @@ def test_config(pystartup):
     args = parser.parse_args(['shell', '--config', TEST_CONFIG_FILE])
 
     with patch('nameko.cli.shell.code') as code:
-        main(args)
+        Shell.main(args)
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
