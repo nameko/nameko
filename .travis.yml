@@ -4,7 +4,7 @@ python:
   - "2.7"
 
 services:
-    - rabbitmq
+  - rabbitmq
 
 addons:
   apt_packages:
@@ -47,10 +47,10 @@ script:
 
 deploy:
   provider: pypi
-  user: onefinestay
+  user: mattbennett
   password:
-    secure: Mwinp9cxGaGe/KjGFcO+T7MAgLvy5yFNeYCq9zpGniuSXsp/AFH3JIS1kWBv71tMC8S2N5kwRMVXoHNMqJt+Iq/EmYIY6vbMK8GijAUqLo8KsbxgmigWTXTn6IHKDO4gwYmQt8BDYJmbq6CNeVVCHMxWyP0Y24S25y7N35oIroU=
+    secure: N3ISP4pvfkzEyWPRIJML4AgeRwAuyFJ/D5OLpLAzPIL4c2curggFhFN1M2wjmKcInvzib0s035kjWDY5ExQp0zhHhTi11Dw1pEgu4+wsYNaZAYUHuiG3N5JYGs8FbFv7CUrtB5HAJ8oyeyOghAFzf/0Kc0J9xPMCFZHbw8/pT7w=
   on:
     tags: true
-    repo: onefinestay/nameko
-  distributions: "sdist bdist_wheel"
+    repo: nameko/nameko
+  distributions: sdist bdist_wheel
