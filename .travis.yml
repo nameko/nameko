@@ -52,5 +52,5 @@ deploy:
     secure: Mwinp9cxGaGe/KjGFcO+T7MAgLvy5yFNeYCq9zpGniuSXsp/AFH3JIS1kWBv71tMC8S2N5kwRMVXoHNMqJt+Iq/EmYIY6vbMK8GijAUqLo8KsbxgmigWTXTn6IHKDO4gwYmQt8BDYJmbq6CNeVVCHMxWyP0Y24S25y7N35oIroU=
   on:
     tags: true
-    repo: onefinestay/nameko
+    repo: nameko/nameko
   distributions: "sdist bdist_wheel"
