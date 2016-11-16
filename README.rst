@@ -1,8 +1,8 @@
 Nameko
 ======
 
-.. image:: https://secure.travis-ci.org/onefinestay/nameko.png?branch=master
-   :target: http://travis-ci.org/onefinestay/nameko
+.. image:: https://secure.travis-ci.org/nameko/nameko.png?branch=master
+   :target: http://travis-ci.org/nameko/nameko
 
 *[nah-meh-koh]*
 
