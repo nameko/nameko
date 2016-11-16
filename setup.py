@@ -19,7 +19,7 @@ setup(
     long_description=readme,
     author='onefinestay',
     author_email='nameko-devs@onefinestay.com',
-    url='http://github.com/onefinestay/nameko',
+    url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "eventlet>=0.16.1",
