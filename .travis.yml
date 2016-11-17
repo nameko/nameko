@@ -9,7 +9,7 @@ services:
 before_install:
     - wget -O toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
     - chmod +x toxiproxy-server
-    - nohup bash -c "./toxiproxy-server > /dev/null 2>&1 &"
+    - export PATH=$PATH:$PWD/
 
 addons:
   apt_packages:
