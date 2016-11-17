@@ -485,32 +485,30 @@ class MethodProxy(HeaderEncoder):
 
         exchange = get_rpc_exchange(container.config)
 
-        def publish(producer):
-            headers = self.get_message_headers(worker_ctx)
-            correlation_id = str(uuid.uuid4())
-
-            reply_listener = self.reply_listener
-            reply_to_routing_key = reply_listener.routing_key
-            reply_event = reply_listener.get_reply_event(correlation_id)
-
-            producer.publish(
-                msg,
-                exchange=exchange,
-                routing_key=routing_key,
-                mandatory=True,
-                serializer=self.serializer,
-                reply_to=reply_to_routing_key,
-                headers=headers,
-                correlation_id=correlation_id,
-                retry=self.retry,
-                retry_policy=self.retry_policy
-            )
-            return reply_event
-
         # TODO: maybe_declare the exchange?
         try:
             with get_producer(self.amqp_uri, self.use_confirms) as producer:
-                reply_event = publish(producer)
+
+                headers = self.get_message_headers(worker_ctx)
+                correlation_id = str(uuid.uuid4())
+
+                reply_listener = self.reply_listener
+                reply_to_routing_key = reply_listener.routing_key
+                reply_event = reply_listener.get_reply_event(correlation_id)
+
+                producer.publish(
+                    msg,
+                    exchange=exchange,
+                    routing_key=routing_key,
+                    mandatory=True,
+                    serializer=self.serializer,
+                    reply_to=reply_to_routing_key,
+                    headers=headers,
+                    correlation_id=correlation_id,
+                    retry=self.retry,
+                    retry_policy=self.retry_policy
+                )
+
         except UndeliverableMessage:
             raise UnknownService(self.service_name)
 
