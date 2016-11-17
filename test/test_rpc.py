@@ -709,7 +709,7 @@ class TestProxyDisconnections(object):
         with patch.object(MethodProxy, 'retry', new=retry):
             yield
 
-    @pytest.yield_fixture(autouse=True, params=[True, False])
+    @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(MethodProxy, 'use_confirms', new=request.param):
             yield request.param
@@ -719,12 +719,14 @@ class TestProxyDisconnections(object):
         with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_normal(self, client_container):
 
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(1) == 1
             assert echo(2) == 2
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_down(self, client_container, toxiproxy):
         toxiproxy.disable()
 
@@ -733,6 +735,7 @@ class TestProxyDisconnections(object):
                 echo(1)
         assert "ECONNREFUSED" in str(exc_info.value)
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, client_container, toxiproxy):
         toxiproxy.set_timeout()
 
@@ -741,14 +744,13 @@ class TestProxyDisconnections(object):
                 echo(1)
         assert "Socket closed" in str(exc_info.value)
 
-    def test_reuse_when_down(
-        self, client_container, toxiproxy, use_confirms
-    ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+    def test_reuse_when_down(self, client_container, toxiproxy):
+        """ Verify we detect stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(1) == 1
 
@@ -764,14 +766,13 @@ class TestProxyDisconnections(object):
             "Socket closed" in str(exc_info.value)
         )
 
-    def test_reuse_when_recovered(
-        self, client_container, toxiproxy, use_confirms
-    ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+    def test_reuse_when_recovered(self, client_container, toxiproxy):
+        """ Verify we detect and recover from stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(1) == 1
 
@@ -793,14 +794,13 @@ class TestProxyDisconnections(object):
             assert echo(3) == 3
 
     @pytest.mark.enable_retry
-    def test_with_retry_policy(
-        self, client_container, toxiproxy, use_confirms
-    ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+    def test_with_retry_policy(self, client_container, toxiproxy):
+        """ Verify we automatically recover from stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(1) == 1
 
@@ -834,7 +834,7 @@ class TestResponderDisconnections(object):
         with patch.object(Responder, 'amqp_uri', new=toxiproxy.uri):
             yield
 
-    @pytest.yield_fixture(autouse=True, params=[True, False])
+    @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(Responder, 'use_confirms', new=request.param):
             yield request.param
@@ -910,10 +910,12 @@ class TestResponderDisconnections(object):
         yield proxy
         kill_greenthreads()
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_normal(self, service_rpc):
         assert service_rpc.echo(1) == 1
         assert service_rpc.echo(2) == 2
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_down(self, container, service_rpc, toxiproxy):
         toxiproxy.disable()
 
@@ -926,6 +928,7 @@ class TestResponderDisconnections(object):
 
         service_rpc.abort()
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, container, service_rpc, toxiproxy):
         toxiproxy.set_timeout()
 
@@ -938,14 +941,13 @@ class TestResponderDisconnections(object):
 
         service_rpc.abort()
 
-    def test_reuse_when_down(
-        self, container, service_rpc, toxiproxy, use_confirms
-    ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+    def test_reuse_when_down(self, container, service_rpc, toxiproxy):
+        """ Verify we detect stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         assert service_rpc.echo(1) == 1
 
         toxiproxy.disable()
@@ -965,14 +967,15 @@ class TestResponderDisconnections(object):
         service_rpc.abort()
 
     def test_reuse_when_recovered(
-        self, container, service_rpc, toxiproxy, use_confirms,
-        container_factory, rabbit_config, service_cls
+        self, container, service_rpc, toxiproxy, container_factory,
+        rabbit_config, service_cls
     ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+        """ Verify we detect and recover from stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         assert service_rpc.echo(1) == 1
 
         toxiproxy.disable()
@@ -998,12 +1001,13 @@ class TestResponderDisconnections(object):
         assert service_rpc.echo(3) == 3
 
     @pytest.mark.enable_retry
-    def test_with_retry_policy(self, service_rpc, toxiproxy, use_confirms):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+    def test_with_retry_policy(self, service_rpc, toxiproxy):
+        """ Verify we automatically recover from stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         assert service_rpc.echo(1) == 1
 
         toxiproxy.disable()

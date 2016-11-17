@@ -405,7 +405,7 @@ class TestPublisherDisconnections(object):
         with patch.object(Publisher, 'amqp_uri', new=toxiproxy.uri):
             yield
 
-    @pytest.yield_fixture(autouse=True, params=[True, False])
+    @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(Publisher, 'use_confirms', new=request.param):
             yield request.param
@@ -449,6 +449,7 @@ class TestPublisherDisconnections(object):
         container.start()
         yield container
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_normal(self, publisher_container, consumer_container, tracker):
 
         # call 1 succeeds
@@ -475,6 +476,7 @@ class TestPublisherDisconnections(object):
             call("recv", payload2),
         ]
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_down(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):
@@ -490,6 +492,7 @@ class TestPublisherDisconnections(object):
             call("send", payload1),
         ]
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_timeout(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):
@@ -507,13 +510,13 @@ class TestPublisherDisconnections(object):
 
     def test_reuse_when_down(
         self, publisher_container, consumer_container, tracker, toxiproxy,
-        use_confirms
     ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+        """ Verify we detect stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         # call 1 succeeds
         payload1 = "payload1"
         with entrypoint_waiter(consumer_container, 'recv'):
@@ -546,14 +549,14 @@ class TestPublisherDisconnections(object):
         ]
 
     def test_reuse_when_recovered(
-        self, publisher_container, consumer_container, tracker, toxiproxy,
-        use_confirms
+        self, publisher_container, consumer_container, tracker, toxiproxy
     ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+        """ Verify we detect and recover from stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         # call 1 succeeds
         payload1 = "payload1"
         with entrypoint_waiter(consumer_container, 'recv'):
@@ -603,14 +606,14 @@ class TestPublisherDisconnections(object):
 
     @pytest.mark.enable_retry
     def test_with_retry_policy(
-        self, publisher_container, consumer_container, tracker, toxiproxy,
-        use_confirms
+        self, publisher_container, consumer_container, tracker, toxiproxy
     ):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+        """ Verify we automatically recover from stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         # call 1 succeeds
         payload1 = "payload1"
         with entrypoint_waiter(consumer_container, 'recv'):
