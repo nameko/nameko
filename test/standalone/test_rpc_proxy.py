@@ -2,6 +2,7 @@ import socket
 
 import eventlet
 import pytest
+from kombu.connection import Connection
 from kombu.message import Message
 
 from test import skip_if_no_toxiproxy
@@ -12,6 +13,7 @@ from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, rpc
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
+from nameko.testing.waiting import wait_for_call as patch_wait
 
 # uses autospec on method; needs newer mock for py3
 try:
@@ -434,13 +436,15 @@ class TestStandaloneProxyDisconnections(object):
         container.start()
 
     @pytest.yield_fixture(autouse=True)
-    def disable_retry(self):
-        # we don't want to wait for multiple retry attempts before
-        # connection failures bubble out
-        with patch.object(MethodProxy, 'retry', new=False):
+    def retry(self, request):
+        retry = False
+        if "enable_retry" in request.keywords:
+            retry = True
+
+        with patch.object(MethodProxy, 'retry', new=retry):
             yield
 
-    @pytest.yield_fixture(autouse=True, params=[True, False])
+    @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(MethodProxy, 'use_confirms', new=request.param):
             yield request.param
@@ -454,10 +458,12 @@ class TestStandaloneProxyDisconnections(object):
         with ServiceRpcProxy("service", config) as proxy:
             yield proxy
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_normal(self, service_rpc):
         assert service_rpc.echo(1) == 1
         assert service_rpc.echo(2) == 2
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_down(self, service_rpc, toxiproxy):
         toxiproxy.disable()
 
@@ -465,6 +471,7 @@ class TestStandaloneProxyDisconnections(object):
             service_rpc.echo(1)
         assert "ECONNREFUSED" in str(exc_info.value)
 
+    @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, service_rpc, toxiproxy):
         toxiproxy.set_timeout()
 
@@ -472,12 +479,34 @@ class TestStandaloneProxyDisconnections(object):
             service_rpc.echo(1)
         assert "Socket closed" in str(exc_info.value)
 
-    def test_recover_from_down(self, service_rpc, toxiproxy, use_confirms):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
+    def test_reuse_when_down(self, service_rpc, toxiproxy):
+        """ Verify we detect stale connections.
 
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        # publisher cannot connect, raises
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(2)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+    def test_reuse_when_recovered(self, service_rpc, toxiproxy):
+        """ Verify we detect and recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
         assert service_rpc.echo(1) == 1
 
         toxiproxy.disable()
@@ -493,36 +522,6 @@ class TestStandaloneProxyDisconnections(object):
         )
 
         toxiproxy.enable()
-
-        # consumer discovers its socket was closed
-        # TODO: can we not reestablish the connection earlier?
-        with pytest.raises(RpcConnectionError) as exc_info:
-            service_rpc.echo(3)
-        assert "Disconnected while waiting for reply" in str(exc_info.value)
-
-        assert service_rpc.echo(4) == 4
-
-    def test_recover_from_timeout(self, service_rpc, toxiproxy, use_confirms):
-        if not use_confirms:
-            pytest.skip(
-                "unconfirmed messages will be lost after disconnection"
-            )
-
-        assert service_rpc.echo(1) == 1
-
-        toxiproxy.set_timeout()
-
-        # publisher cannot connect, raises
-        with pytest.raises(IOError) as exc_info:
-            service_rpc.echo(2)
-        assert (
-            # expect the write to raise a BrokenPipe or, if it succeeds,
-            # the socket to be closed on the subsequent confirmation read
-            "Broken pipe" in str(exc_info.value) or
-            "Socket closed" in str(exc_info.value)
-        )
-
-        toxiproxy.reset_timeout()
 
         # consumer discovers its socket was closed
         # TODO: can we not reestablish the connection earlier?
