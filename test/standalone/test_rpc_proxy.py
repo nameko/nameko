@@ -466,7 +466,7 @@ class TestStandaloneProxyDisconnections(object):
         assert "ECONNREFUSED" in str(exc_info.value)
 
     def test_timeout(self, service_rpc, toxiproxy):
-        toxiproxy.timeout()
+        toxiproxy.set_timeout()
 
         with pytest.raises(IOError) as exc_info:
             service_rpc.echo(1)
@@ -510,7 +510,7 @@ class TestStandaloneProxyDisconnections(object):
 
         assert service_rpc.echo(1) == 1
 
-        toxiproxy.timeout()
+        toxiproxy.set_timeout()
 
         # publisher cannot connect, raises
         with pytest.raises(IOError) as exc_info:

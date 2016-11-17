@@ -102,7 +102,7 @@ def toxiproxy(toxiproxy_server, rabbit_config, free_port):
             }
             requests.post(resource, json.dumps(data))
 
-        def timeout(self, timeout=500):
+        def set_timeout(self, timeout=500):
             resource = 'http://{}/proxies/{}/toxics'.format(
                 toxiproxy_server, proxy_name
             )

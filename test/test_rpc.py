@@ -665,7 +665,7 @@ class TestProxyDisconnections(object):
     without raising. These tests are skipped in this scenario.
 
     Note that publisher confirms do not protect against sockets that remain
-    open but do not deliver messages (i.e. `toxiproxy.timeout(0)`).
+    open but do not deliver messages (i.e. `toxiproxy.set_timeout(0)`).
     This can only be mitigated with AMQP heartbeats (not yet supported)
     """
 
@@ -734,7 +734,7 @@ class TestProxyDisconnections(object):
         assert "ECONNREFUSED" in str(exc_info.value)
 
     def test_timeout(self, client_container, toxiproxy):
-        toxiproxy.timeout()
+        toxiproxy.set_timeout()
 
         with pytest.raises(IOError) as exc_info:
             with entrypoint_hook(client_container, 'echo') as echo:
@@ -825,7 +825,7 @@ class TestResponderDisconnections(object):
     without raising. These tests are skipped in this scenario.
 
     Note that publisher confirms do not protect against sockets that remain
-    open but do not deliver messages (i.e. `toxiproxy.timeout(0)`).
+    open but do not deliver messages (i.e. `toxiproxy.set_timeout(0)`).
     This can only be mitigated with AMQP heartbeats (not yet supported)
     """
 
@@ -927,7 +927,7 @@ class TestResponderDisconnections(object):
         service_rpc.abort()
 
     def test_timeout(self, container, service_rpc, toxiproxy):
-        toxiproxy.timeout()
+        toxiproxy.set_timeout()
 
         eventlet.spawn_n(service_rpc.echo, 1)
 

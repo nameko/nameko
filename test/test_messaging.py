@@ -392,7 +392,7 @@ class TestPublisherDisconnections(object):
     without raising. These tests are skipped in this scenario.
 
     Note that publisher confirms do not protect against sockets that remain
-    open but do not deliver messages (i.e. `toxiproxy.timeout(0)`).
+    open but do not deliver messages (i.e. `toxiproxy.set_timeout(0)`).
     This can only be mitigated with AMQP heartbeats (not yet supported)
     """
 
@@ -493,7 +493,7 @@ class TestPublisherDisconnections(object):
     def test_timeout(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):
-        toxiproxy.timeout(500)
+        toxiproxy.set_timeout(500)
 
         payload1 = "payload1"
         with pytest.raises(IOError) as exc_info:  # socket closed
