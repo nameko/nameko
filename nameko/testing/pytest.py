@@ -237,19 +237,23 @@ def predictable_call_ids(request):
         yield get_id
 
 
-@pytest.fixture()
-def web_config(empty_config):
+@pytest.fixture
+def free_port():
     import socket
-    from nameko.constants import WEB_SERVER_CONFIG_KEY
 
-    # find a port that's likely to be free
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(('127.0.0.1', 0))
     port = sock.getsockname()[1]
     sock.close()
+    return port
+
+
+@pytest.fixture()
+def web_config(empty_config, free_port):
+    from nameko.constants import WEB_SERVER_CONFIG_KEY
 
     cfg = empty_config
-    cfg[WEB_SERVER_CONFIG_KEY] = str(port)
+    cfg[WEB_SERVER_CONFIG_KEY] = str(free_port)
     return cfg
 
 

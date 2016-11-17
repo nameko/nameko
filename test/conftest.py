@@ -1,5 +1,4 @@
 import json
-import socket
 import subprocess
 import sys
 import time
@@ -47,7 +46,7 @@ def toxiproxy_server():
 
 
 @pytest.yield_fixture
-def toxiproxy(toxiproxy_server, rabbit_config):
+def toxiproxy(toxiproxy_server, rabbit_config, free_port):
     """ Insert a toxiproxy in front of RabbitMQ
 
     https://github.com/douglas/toxiproxy-python is not released yet, so
@@ -59,11 +58,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     uri = urlparse(amqp_uri)
     rabbit_port = uri.port
 
-    # find a free port
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind((uri.hostname, 0))
-    proxy_port = sock.getsockname()[1]
-    sock.close()
+    proxy_port = free_port
 
     # create proxy
     proxy_name = "nameko_test_rabbitmq_{}".format(uuid.uuid4().hex)
