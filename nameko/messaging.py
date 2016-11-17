@@ -349,7 +349,12 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     @property
     def connection(self):
-        """ Kombu requirement """
+        """ Provide the connection parameters for kombu's ConsumerMixin.
+
+        The `Connection` object is a declaration of connection parameters
+        that is lazily evaluated. It doesn't represent an established
+        connection to the broker at this point.
+        """
         return Connection(self.amqp_uri)
 
     def get_consumers(self, Consumer, channel):
