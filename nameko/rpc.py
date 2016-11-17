@@ -488,7 +488,6 @@ class MethodProxy(HeaderEncoder):
 
         exchange = get_rpc_exchange(container.config)
 
-        # TODO: maybe_declare the exchange?
         try:
             with get_producer(self.amqp_uri, self.use_confirms) as producer:
 
