@@ -195,20 +195,46 @@ class Responder(object):
 
     @property
     def use_confirms(self):
+        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
+        for this responder's publisher.
+
+        The responder will wait for an acknowledgement from the broker that
+        the message was receieved and processed appropriately, and otherwise
+        raise. Confirms have a performance penalty but guarantee that messages
+        aren't lost, for example due to stale connections.
+
+        It is strongly recommended to use publish confirms in RPC Responders.
+        Without them, replies in an unstable network environment may be lost,
+        leaving the caller waiting indefinitely for a response.
+        """
         return True
 
     @property
     def serializer(self):
+        """ Name of the serializer to use when publishing response payloads.
+
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
         return self.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
 
     @property
     def retry(self):
+        """ Enable automatic retries when publishing a message that fails due
+        to a connection error.
+
+        Retries according to :attr:`self.retry_policy`.
+        """
         return True
 
     @property
     def retry_policy(self):
+        """ Policy to apply when retrying message publishes, if enabled.
+
+        See :attr:`self.retry`.
+        """
         return DEFAULT_RETRY_POLICY
 
     def send_response(self, result, exc_info, **kwargs):

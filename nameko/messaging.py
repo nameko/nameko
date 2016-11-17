@@ -107,20 +107,42 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     @property
     def use_confirms(self):
+        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
+        for this publisher.
+
+        The publisher will wait for an acknowledgement from the broker that
+        the message was receieved and processed appropriately, and otherwise
+        raise. Confirms have a performance penalty but guarantee that messages
+        aren't lost, for example due to stale connections.
+        """
         return True
 
     @property
     def serializer(self):
+        """ Name of the serializer to use when publishing messages.
+
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
         return self.container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
 
     @property
     def retry(self):
+        """ Enable automatic retries when publishing a message that fails due
+        to a connection error.
+
+        Retries according to :attr:`self.retry_policy`.
+        """
         return True
 
     @property
     def retry_policy(self):
+        """ Policy to apply when retrying message publishes, if enabled.
+
+        See :attr:`self.retry`.
+        """
         return DEFAULT_RETRY_POLICY
 
     def setup(self):
