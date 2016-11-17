@@ -411,6 +411,9 @@ class MethodProxy(HeaderEncoder):
         the message was receieved and processed appropriately, and otherwise
         raise. Confirms have a performance penalty but guarantee that messages
         aren't lost, for example due to stale connections.
+
+        Note that mechanism which raises :class:`UnknownService` exceptions
+        relies on publish confirms being enabled in the proxy.
         """
         return True
 
@@ -477,7 +480,7 @@ class MethodProxy(HeaderEncoder):
         # first, so by the time kombu returns (after waiting for the confim)
         # we can reliably check for returned messages.
 
-        # Note that overriding :attr:`self.use_confirms` will disable this
+        # Note that overriding :attr:`self.use_confirms` may disable this
         # functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
