@@ -157,7 +157,7 @@ class WebSocketHubProvider(DependencyProvider):
             for channel in con.subscriptions:
                 subs = self.hub.subscriptions.get(channel)
                 if subs:
-                    subs.discard(channel)
+                    subs.discard(socket_id)
 
 
 class WebSocketHub(object):

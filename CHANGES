@@ -5,6 +5,15 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.4.3
+-------------
+
+Released 2016-11-16
+
+* Pins kombu back to a compatible release (<4) [fixes #378]
+* Fixes compatibility with latest bpython and ipython shells [fixes #355 and #375]
+* Fixes socket cleanup bug in websocket hub [fixes #367]
+
 Version 2.4.2
 -------------
 

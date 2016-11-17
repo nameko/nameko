@@ -12,7 +12,7 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='2.4.2',
+    version='2.4.3',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
@@ -23,7 +23,7 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "eventlet>=0.16.1",
-        "kombu>=3.0.1",
+        "kombu>=3.0.1,<4",
         "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=3.10",

@@ -26,7 +26,7 @@ def fake_argv():
 
 
 def test_run():
-    with patch('nameko.cli.main.run.main') as run:
+    with patch('nameko.cli.run.main') as run:
         main()
     assert run.call_count == 1
     (args,), _ = run.call_args
@@ -35,7 +35,7 @@ def test_run():
 
 @pytest.mark.parametrize('exception', (CommandError, ConfigurationError))
 def test_error(exception, capsys):
-    with patch('nameko.cli.main.run.main') as run:
+    with patch('nameko.cli.run.main') as run:
         run.side_effect = exception('boom')
         main()
     out, _ = capsys.readouterr()
