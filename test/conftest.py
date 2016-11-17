@@ -13,6 +13,10 @@ from six.moves.urllib.parse import urlparse
 from types import ModuleType
 
 
+TOXIPROXY_HOST = "127.0.0.1"
+TOXIPROXY_PORT = 8474
+
+
 @pytest.yield_fixture
 def mock_producer():
     with patch('nameko.amqp.producers') as patched:
@@ -28,21 +32,11 @@ def mock_connection():
         yield patched[ANY].acquire().__enter__()
 
 
-@pytest.fixture(scope='session')
-def toxiproxy_host():
-    return "127.0.0.1"
-
-
-@pytest.fixture(scope='session')
-def toxiproxy_port(toxiproxy_host):
-    return 8474
-
-
 @pytest.yield_fixture(scope='session')
-def toxiproxy_server(toxiproxy_host, toxiproxy_port):
+def toxiproxy_server():
     # start a toxiproxy server
-    host = toxiproxy_host
-    port = toxiproxy_port
+    host = TOXIPROXY_HOST
+    port = TOXIPROXY_PORT
     server = subprocess.Popen(
         ['toxiproxy-server', '-port', str(port), '-host', host],
         stdout=subprocess.PIPE
