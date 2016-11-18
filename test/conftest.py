@@ -85,7 +85,9 @@ def toxiproxy(toxiproxy_server, rabbit_config, free_port):
     )
 
     # create proxied uri for publisher
-    proxy_uri = amqp_uri.replace(str(rabbit_port), str(proxy_port))
+    proxy_uri = "{}://{}:{}@{}{}".format(
+        uri.scheme, uri.username, uri.password, listen, uri.path
+    )
 
     toxic_name = '{}_timeout'.format(proxy_name)
 
