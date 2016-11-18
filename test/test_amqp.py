@@ -89,6 +89,25 @@ class TestGetProducer(object):
             producer_ids.append(id(producer))
             assert len(set(producer_ids)) == 1
 
+    def test_pool_gives_different_producers(self, rabbit_config):
+        amqp_uri = rabbit_config['AMQP_URI']
+        producer_ids = []
+
+        # get a producer
+        with get_producer(amqp_uri, True) as confirmed_producer:
+            producer_ids.append(id(confirmed_producer))
+            assert len(set(producer_ids)) == 1
+
+        # get a producer with the same parameters
+        with get_producer(amqp_uri, True) as confirmed_producer:
+            producer_ids.append(id(confirmed_producer))
+            assert len(set(producer_ids)) == 1  # same producer returned
+
+        # get a producer with different parameters
+        with get_producer(amqp_uri, False) as unconfirmed_producer:
+            producer_ids.append(id(unconfirmed_producer))
+            assert len(set(producer_ids)) == 2  # different producer returned
+
 
 class TestPublisherConfirms(object):
 
