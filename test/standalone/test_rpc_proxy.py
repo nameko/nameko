@@ -545,3 +545,85 @@ class TestStandaloneProxyDisconnections(object):
         # subsequent calls succeed (after reconnecting via retry policy)
         with patch_wait(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
+
+
+@skip_if_no_toxiproxy
+class TestStandaloneProxyConsumerDisconnections(object):
+
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                print("ECHO!", arg)
+                return arg
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+
+    @pytest.yield_fixture(autouse=True)
+    def non_toxic_rpc_proxy(self, rabbit_config):
+        """ Fix the AMQP URI passes to the publisher so we're only testing
+        the effect of the broken connection on the consumer.
+        """
+        amqp_uri = rabbit_config['AMQP_URI']
+        with patch.object(MethodProxy, 'amqp_uri', new=amqp_uri):
+            yield
+
+    @pytest.yield_fixture
+    def service_rpc(self, toxiproxy, rabbit_config):
+
+        config = rabbit_config.copy()
+        config['AMQP_URI'] = toxiproxy.uri
+
+        with ServiceRpcProxy("service", config) as proxy:
+            yield proxy
+
+    def test_normal(self, service_rpc):
+        assert service_rpc.echo(1) == 1
+        assert service_rpc.echo(2) == 2
+
+    def test_down(self, service_rpc, toxiproxy):
+        toxiproxy.disable()
+
+        # fails to set up initial consumer
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(1)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+    def test_timeout(self, service_rpc, toxiproxy):
+        toxiproxy.set_timeout(stream="downstream")
+
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(1)
+        assert "Socket closed" in str(exc_info.value)
+
+    def test_reuse_when_down(self, service_rpc, toxiproxy):
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(2)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+    def test_reuse_when_recovered(self, service_rpc, toxiproxy):
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(2)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        toxiproxy.enable()
+
+        # can't reuse it
+        with pytest.raises(RuntimeError) as raised:
+            service_rpc.echo(3)
+        assert "This consumer has been disconnected" in str(raised.value)

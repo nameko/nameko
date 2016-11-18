@@ -48,10 +48,17 @@ class ConsumeEvent(object):
         if self.exception:
             raise self.exception
 
-        if self.queue_consumer.consumer.connection is None:
+        if self.queue_consumer.stopped:
             raise RuntimeError(
                 "This consumer has been stopped, and can no longer be used"
             )
+        # TODO: seems unnecessarily unhelpful -- can't we try to reconnect?
+        if self.queue_consumer.connection.connected is False:
+            raise RuntimeError(
+                "This consumer has been disconnected, and can no longer "
+                "be used"
+            )
+
         self.queue_consumer.get_message(self.correlation_id)
 
         # disconnected while waiting
@@ -69,6 +76,7 @@ class PollingQueueConsumer(object):
     consumer = None
 
     def __init__(self, timeout=None):
+        self.stopped = False
         self.timeout = timeout
         self.replies = {}
 
@@ -111,6 +119,7 @@ class PollingQueueConsumer(object):
 
     def unregister_provider(self, provider):
         self.connection.close()
+        self.stopped = True
 
     def ack_message(self, msg):
         msg.ack()

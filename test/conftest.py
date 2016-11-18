@@ -114,14 +114,14 @@ def toxiproxy(toxiproxy_server, rabbit_config, free_port):
             }
             requests.post(resource, json.dumps(data))
 
-        def set_timeout(self, timeout=500):
+        def set_timeout(self, timeout=500, stream="upstream"):
             resource = 'http://{}/proxies/{}/toxics'.format(
                 toxiproxy_server, proxy_name
             )
             data = {
                 'name': toxic_name,
                 'type': 'timeout',
-                'stream': 'upstream',
+                'stream': stream,
                 'attributes': {
                     'timeout': timeout
                 }
