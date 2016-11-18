@@ -449,13 +449,14 @@ class TestStandaloneProxyDisconnections(object):
         with patch.object(MethodProxy, 'use_confirms', new=request.param):
             yield request.param
 
+    @pytest.yield_fixture(autouse=True)
+    def toxic_rpc_proxy(self, toxiproxy):
+        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
     @pytest.yield_fixture
-    def service_rpc(self, toxiproxy, rabbit_config):
-
-        config = rabbit_config
-        config['AMQP_URI'] = toxiproxy.uri
-
-        with ServiceRpcProxy("service", config) as proxy:
+    def service_rpc(self, rabbit_config):
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
             yield proxy
 
     @pytest.mark.usefixtures('use_confirms')
@@ -523,10 +524,24 @@ class TestStandaloneProxyDisconnections(object):
 
         toxiproxy.enable()
 
-        # consumer discovers its socket was closed
-        # TODO: can we not reestablish the connection earlier?
-        with pytest.raises(RpcConnectionError) as exc_info:
-            service_rpc.echo(3)
-        assert "Disconnected while waiting for reply" in str(exc_info.value)
+        assert service_rpc.echo(3) == 3
 
-        assert service_rpc.echo(4) == 4
+    @pytest.mark.enable_retry
+    def test_with_retry_policy(self, service_rpc, toxiproxy):
+        """ Verify we automatically recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        def enable_after_retry(args, kwargs, res, exc_info):
+            toxiproxy.enable()
+            return True
+
+        # subsequent calls succeed (after reconnecting via retry policy)
+        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+            assert service_rpc.echo(2) == 2
