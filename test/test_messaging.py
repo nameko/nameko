@@ -415,7 +415,7 @@ class TestPublisherDisconnections(object):
         self, request, container_factory, tracker, rabbit_config
     ):
         retry = False
-        if "enable_retry" in request.keywords:
+        if "publish_retry" in request.keywords:
             retry = True
 
         class Service(object):
@@ -604,7 +604,7 @@ class TestPublisherDisconnections(object):
             call("recv", payload3),
         ]
 
-    @pytest.mark.enable_retry
+    @pytest.mark.publish_retry
     def test_with_retry_policy(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):

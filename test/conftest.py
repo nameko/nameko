@@ -16,6 +16,13 @@ TOXIPROXY_HOST = "127.0.0.1"
 TOXIPROXY_PORT = 8474
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "publish_retry: distinguish tests that should use retry in publishers"
+    )
+
+
 @pytest.yield_fixture
 def mock_producer():
     with patch('nameko.amqp.producers') as patched:

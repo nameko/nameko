@@ -438,7 +438,7 @@ class TestStandaloneProxyDisconnections(object):
     @pytest.yield_fixture(autouse=True)
     def retry(self, request):
         retry = False
-        if "enable_retry" in request.keywords:
+        if "publish_retry" in request.keywords:
             retry = True
 
         with patch.object(MethodProxy, 'retry', new=retry):
@@ -526,7 +526,7 @@ class TestStandaloneProxyDisconnections(object):
 
         assert service_rpc.echo(3) == 3
 
-    @pytest.mark.enable_retry
+    @pytest.mark.publish_retry
     def test_with_retry_policy(self, service_rpc, toxiproxy):
         """ Verify we automatically recover from stale connections.
 
