@@ -7,9 +7,10 @@ services:
     - rabbitmq
 
 before_install:
-    - wget -O toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
-    - chmod +x toxiproxy-server
-    - export PATH=$PATH:$PWD/
+    - mkdir $PWD/bin
+    - wget -O $PWD/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
+    - chmod +x $PWD/bin/toxiproxy-server
+    - export PATH=$PATH:$PWD/bin/
 
 addons:
   apt_packages:
