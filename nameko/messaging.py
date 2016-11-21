@@ -3,9 +3,7 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
-import socket
 from functools import partial
-from itertools import count
 from logging import getLogger
 
 import eventlet
@@ -15,11 +13,10 @@ from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
 from kombu.pools import connections, producers
-
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
-    SERIALIZER_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
+    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
@@ -331,7 +328,10 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             return   # don't cache a connection during introspection
 
         if self._connection is None:
-            self._connection = Connection(self.amqp_uri)
+            heartbeat = self.container.config.get(
+                HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+            )
+            self._connection = Connection(self.amqp_uri, heartbeat=heartbeat)
 
         return self._connection
 
@@ -387,34 +387,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
                 pass
             else:
                 callback()
-
-    def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted from Kombu.
-
-        We switch the order of the `break` and `self.on_iteration()` to
-        avoid waiting on a drain_events timeout before breaking the loop.
-        """
-        elapsed = 0
-        with self.consumer_context(**kwargs) as (conn, channel, consumers):
-            for i in limit and range(limit) or count():
-                self.on_iteration()
-                if self.should_stop:
-                    break
-                try:
-                    conn.drain_events(timeout=safety_interval)
-                except socket.timeout:
-                    elapsed += safety_interval
-                    # Excluding the following clause from coverage,
-                    # as timeout never appears to be set - This method
-                    # is a lift from kombu so will leave in place for now.
-                    if timeout and elapsed >= timeout:  # pragma: no cover
-                        raise
-                except socket.error:
-                    if not self.should_stop:
-                        raise
-                else:
-                    yield
-                    elapsed = 0
 
 
 class Consumer(Entrypoint, HeaderDecoder):
