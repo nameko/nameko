@@ -12,4 +12,4 @@ class HttpService:
 
     @http('POST', '/post')
     def do_post(self, request):
-        return "received: {}".format(request.get_data(as_text=True))
+        return u"received: {}".format(request.get_data(as_text=True))
