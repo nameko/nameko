@@ -3,9 +3,7 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
-import socket
 from functools import partial
-from itertools import count
 from logging import getLogger
 
 import eventlet
@@ -17,11 +15,14 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.amqp import get_connection, get_producer, verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
-    SERIALIZER_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
+    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
+from itertools import count
+import socket
+
 
 _log = getLogger(__name__)
 
@@ -355,7 +356,10 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         that is lazily evaluated. It doesn't represent an established
         connection to the broker at this point.
         """
-        return Connection(self.amqp_uri)
+        heartbeat = self.container.config.get(
+            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+        )
+        return Connection(self.amqp_uri, heartbeat=heartbeat)
 
     def get_consumers(self, Consumer, channel):
         """ Kombu callback to set up consumers.
@@ -410,8 +414,8 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             else:
                 callback()
 
-    def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted from Kombu.
+    def consume(self, limit=None, timeout=None, safety_interval=1, **kwargs):
+        """ Lifted from kombu
 
         We switch the order of the `break` and `self.on_iteration()` to
         avoid waiting on a drain_events timeout before breaking the loop.
@@ -425,12 +429,13 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
                 try:
                     conn.drain_events(timeout=safety_interval)
                 except socket.timeout:
+                    conn.heartbeat_check()
                     elapsed += safety_interval
-                    # Excluding the following clause from coverage,
-                    # as timeout never appears to be set - This method
-                    # is a lift from kombu so will leave in place for now.
-                    if timeout and elapsed >= timeout:  # pragma: no cover
-                        raise
+                    if timeout and elapsed >= timeout:
+                        # Excluding the following clause from coverage,
+                        # as timeout never appears to be set - This method
+                        # is a lift from kombu so will leave in place for now.
+                        raise  # pragma: no cover
                 except socket.error:
                     if not self.should_stop:
                         raise

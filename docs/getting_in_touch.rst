@@ -8,7 +8,7 @@ If you have questions for the Nameko community or developers, there are a number
 GitHub
 ------
 
-To raise a bug or issue against the project, visit the `GitHub <https://github.com/onefinestay/nameko>`_ page.
+To raise a bug or issue against the project, visit the `GitHub <https://github.com/nameko/nameko>`_ page.
 
 Mailing list
 ------------
