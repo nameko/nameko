@@ -38,8 +38,8 @@ And play with it from another:
 .. code-block:: pycon
 
     $ nameko shell
-    >>> n.rpc.greeting_service.hello(name="Matt")
-    'Hello, Matt!'
+    >>> n.rpc.greeting_service.hello(name="ナメコ")
+    'Hello, ナメコ!'
 
 
 
