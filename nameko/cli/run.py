@@ -167,8 +167,8 @@ def main(args):
             AMQP_URI_CONFIG_KEY: args.broker
         }
 
-    if args.listen_fd:
-        config['WEB_SERVER_URI'] = 'fd://%d' % args.listen_fd
+    if args.listen:
+        config['WEB_SERVER_URI'] = args.listen
 
     if "LOGGING" in config:
         logging.config.dictConfig(config['LOGGING'])
