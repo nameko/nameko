@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import socket
@@ -18,6 +19,8 @@ from werkzeug.wrappers import Request
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
+
+_log = logging.getLogger(__name__)
 
 
 class HttpOnlyProtocol(HttpProtocol):
@@ -123,6 +126,10 @@ class WebServer(ProviderCollector, SharedExtension):
 
     def start(self):
         if not self._starting:
+            _log.info('Starting {} on {}'.format(
+                self.__class__.__name__,
+                self.socket.getsockname(),
+            ))
             self._starting = True
             self._serv = self.get_wsgi_server(self.socket, self.get_wsgi_app())
             self._gt = self.container.spawn_managed_thread(self.run)
