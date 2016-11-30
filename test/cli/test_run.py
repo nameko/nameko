@@ -61,7 +61,7 @@ def test_main_with_config(rabbit_config):
         (_, config) = run.call_args[0]
 
         assert config == {
-            WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+            WEB_SERVER_CONFIG_KEY: 'tcp://0.0.0.0:8001',
             AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
             SERIALIZER_CONFIG_KEY: 'json'
         }

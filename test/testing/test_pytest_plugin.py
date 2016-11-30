@@ -9,7 +9,7 @@ from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
 from nameko.web.handlers import http
-from nameko.web.server import parse_address
+from nameko.web.server import socket_from_uri
 from nameko.web.websocket import rpc as wsrpc
 
 pytest_plugins = "pytester"
@@ -300,9 +300,7 @@ def test_predictable_call_ids(runner_factory, rabbit_config):
 def test_web_config(web_config):
     assert WEB_SERVER_CONFIG_KEY in web_config
 
-    bind_address = parse_address(web_config[WEB_SERVER_CONFIG_KEY])
-    sock = socket.socket()
-    sock.bind(bind_address)
+    sock = socket_from_uri(web_config[WEB_SERVER_CONFIG_KEY])
 
 
 def test_web_session(web_config, container_factory, web_session):

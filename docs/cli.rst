@@ -26,7 +26,7 @@ and providing a simple YAML configuration file:
     # foobar.yaml
 
     AMQP_URI: 'pyamqp://guest:guest@localhost'
-    WEB_SERVER_ADDRESS: '0.0.0.0:8000'
+    WEB_SERVER_URI: 'tcp://0.0.0.0:8000'
     rpc_exchange: 'nameko-rpc'
     max_workers: 10
     parent_calls_tracked: 10

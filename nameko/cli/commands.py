@@ -72,6 +72,10 @@ class Run(Command):
             help='RabbitMQ broker url')
 
         parser.add_argument(
+            '--listen-fd', type=int,
+            help='A socket file descriptors to listen on.')
+
+        parser.add_argument(
             '--backdoor-port', type=int,
             help='Specify a port number to host a backdoor, which can be'
             ' connected to for an interactive interpreter within the running'
