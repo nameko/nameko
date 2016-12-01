@@ -249,7 +249,7 @@ def web_config(empty_config):
     sock.close()
 
     cfg = empty_config
-    cfg[WEB_SERVER_CONFIG_KEY] = str(port)
+    cfg[WEB_SERVER_CONFIG_KEY] = 'tcp://0.0.0.0:%d' % port
     return cfg
 
 
