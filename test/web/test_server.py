@@ -8,7 +8,7 @@ from werkzeug.contrib.fixers import ProxyFix
 from nameko.exceptions import ConfigurationError
 from nameko.web.handlers import HttpRequestHandler, http
 from nameko.web.server import (
-    BaseHTTPServer, HttpOnlyProtocol, WebServer)
+    BaseHTTPServer, HttpOnlyProtocol, WebServer, socket_from_uri)
 
 
 class ExampleService(object):
@@ -103,6 +103,17 @@ def test_other_os_error(
     with pytest.raises(OSError) as exc:
         container.wait()
     assert 'boom' in str(exc)
+
+
+@pytest.mark.parametrize(['source', 'result'], [
+    ('tcp://0.0.0.0:9998', ('0.0.0.0', 9998)),
+    ('tcp:///localhost:9999', ('localhost', 9999)),
+    ('unix:///tmp/nameko-test-socket', '/tmp/nameko-test-socket'),
+])
+def test_socket_from_uri(source, result):
+    _socket = socket_from_uri(source)
+    assert _socket.getsockname() == result
+    _socket.close()
 
 
 def test_adding_middleware_with_get_wsgi_app(container_factory, web_config):
