@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import socket
 
 import eventlet
@@ -6,16 +7,19 @@ from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
 
-from test import skip_if_no_toxiproxy
-
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.amqp import get_producer
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, HEARTBEAT_CONFIG_KEY)
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
-    Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume)
+    Consumer, HeaderDecoder, HeaderEncoder, Publisher, QueueConsumer, consume)
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
-from nameko.testing.utils import ANY_PARTIAL, DummyProvider, wait_for_call
+from nameko.testing.utils import (
+    ANY_PARTIAL, DummyProvider, get_extension, wait_for_call)
 from nameko.testing.waiting import wait_for_call as patch_wait
+
+from test import skip_if_no_toxiproxy
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
@@ -381,6 +385,220 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
         consumer.stop()
 
     consumer.queue_consumer.kill()
+
+
+@skip_if_no_toxiproxy
+class TestConsumerDisconnections(object):
+    """ Test and demonstrate behaviour under poor network conditions.
+    """
+    @pytest.yield_fixture(autouse=True)
+    def fast_reconnects(self):
+
+        @contextmanager
+        def establish_connection(self):
+            with self.create_connection() as conn:
+                conn.ensure_connection(
+                    self.on_connection_error,
+                    self.connect_max_retries,
+                    interval_start=0.1,
+                    interval_step=0.1)
+                yield conn
+
+        with patch.object(
+            QueueConsumer, 'establish_connection', new=establish_connection
+        ):
+            yield
+
+    @pytest.yield_fixture
+    def toxic_queue_consumer(self, toxiproxy):
+        with patch.object(QueueConsumer, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    @pytest.fixture
+    def queue(self,):
+        queue = Queue(name="queue")
+        return queue
+
+    @pytest.fixture
+    def publish(self, rabbit_config, queue):
+        amqp_uri = rabbit_config[AMQP_URI_CONFIG_KEY]
+
+        def publish(msg):
+            with get_producer(amqp_uri) as producer:
+                producer.publish(
+                    msg,
+                    serializer="json",
+                    routing_key=queue.name
+                )
+        return publish
+
+    @pytest.fixture(autouse=True)
+    def container(
+        self, container_factory, rabbit_config, toxic_queue_consumer, queue
+    ):
+
+        class Service(object):
+            name = "service"
+
+            @consume(queue)
+            def echo(self, arg):
+                return arg
+
+        # very fast heartbeat
+        config = rabbit_config
+        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
+
+        container = container_factory(Service, config)
+        container.start()
+
+        return container
+
+    def test_normal(self, container, publish):
+        msg = "foo"
+        with entrypoint_waiter(container, 'echo') as result:
+            publish(msg)
+        assert result.get() == msg
+
+    def test_down(self, container, publish, toxiproxy):
+        """ Verify we detect and recover from closed sockets.
+
+        This failure mode closes the socket between the consumer and the
+        rabbit broker.
+
+        Attempting to read from the closed socket raises a socket.error
+        and the connection is re-established.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.disable()
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_waiter(container, 'echo') as result:
+            publish(msg)
+        assert result.get() == msg
+
+    def test_upstream_timeout(self, container, publish, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
+
+        This failure mode means that the socket between the consumer and the
+        rabbit broker times for out `timeout` milliseconds and then closes.
+
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_upstream_blackhole` below.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(timeout=100)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_waiter(container, 'echo') as result:
+            publish(msg)
+        assert result.get() == msg
+
+    def test_upstream_blackhole(self, container, publish, toxiproxy):
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the consumer to the
+        rabbit broker is lost, but the socket remains open.
+
+        Heartbeats sent from the consumer are not received by the broker. After
+        two beats are missed the broker closes the connection, and subsequent
+        reads from the socket raise a socket.error, so the connection is
+        re-established.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(timeout=0)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_waiter(container, 'echo') as result:
+            publish(msg)
+        assert result.get() == msg
+
+    def test_downstream_timeout(self, container, publish, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
+
+        This failure mode means that the socket between the rabbit broker and
+        the consumer times for out `timeout` milliseconds and then closes.
+
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_downstream_blackhole` below, except that the consumer
+        cancel will eventually (`timeout` milliseconds) raise a socket.error,
+        which is ignored, allowing the teardown to continue.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(stream="downstream", timeout=100)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_waiter(container, 'echo') as result:
+            publish(msg)
+        assert result.get() == msg
+
+    def test_downstream_blackhole(  # pragma: no cover
+        self, container, publish, toxiproxy
+    ):
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the rabbit broker to
+        the consumer is lost, but the socket remains open.
+
+        Heartbeat acknowledgements from the broker are not received by the
+        consumer. After two beats are missed the consumer raises a "too many
+        heartbeats missed" error.
+
+        Cancelling the consumer requests an acknowledgement from the broker,
+        which is swallowed by the socket. There is no timeout when reading
+        the acknowledgement so this hangs forever.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        pytest.skip("skip until kombu supports recovery in this scenario")
+
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(stream="downstream", timeout=0)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_waiter(container, 'echo') as result:
+            publish(msg)
+        assert result.get() == msg
 
 
 @skip_if_no_toxiproxy
