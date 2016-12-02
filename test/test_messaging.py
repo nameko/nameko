@@ -565,9 +565,9 @@ class TestConsumerDisconnections(object):
             publish(msg)
         assert result.get() == msg
 
-    def test_downstream_blackhole(  # pragma: no cover
+    def test_downstream_blackhole(
         self, container, publish, toxiproxy
-    ):
+    ):  # pragma: no cover
         """ Verify we detect and recover from sockets losing data.
 
         This failure mode means that all data sent from the rabbit broker to
