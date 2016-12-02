@@ -183,9 +183,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
-    amqp_uri = None
-    prefetch_count = None
-
     def __init__(self):
 
         self._consumers = {}
@@ -201,6 +198,18 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         self._consumers_ready = Event()
         super(QueueConsumer, self).__init__()
 
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def prefetch_count(self):
+        return self.container.max_workers
+
+    @property
+    def accept(self):
+        return self.container.accept
+
     def _handle_thread_exited(self, gt):
         exc = None
         try:
@@ -212,9 +221,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self):
-        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
-        self.accept = self.container.accept
-        self.prefetch_count = self.container.max_workers
         verify_amqp_uri(self.amqp_uri)
 
     def start(self):
