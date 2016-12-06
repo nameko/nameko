@@ -11,6 +11,8 @@ from six.moves import queue
 from six.moves.urllib.parse import urlparse
 from types import ModuleType
 
+from nameko.testing.utils import find_free_port
+
 
 TOXIPROXY_HOST = "127.0.0.1"
 TOXIPROXY_PORT = 8474
@@ -56,7 +58,7 @@ def toxiproxy_server():
 
 
 @pytest.yield_fixture
-def toxiproxy(toxiproxy_server, rabbit_config, free_port):
+def toxiproxy(toxiproxy_server, rabbit_config):
     """ Insert a toxiproxy in front of RabbitMQ
 
     https://github.com/douglas/toxiproxy-python is not released yet, so
@@ -68,7 +70,7 @@ def toxiproxy(toxiproxy_server, rabbit_config, free_port):
     uri = urlparse(amqp_uri)
     rabbit_port = uri.port
 
-    proxy_port = free_port
+    proxy_port = find_free_port()
 
     # create proxy
     proxy_name = "nameko_test_rabbitmq_{}".format(uuid.uuid4().hex)
