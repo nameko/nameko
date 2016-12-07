@@ -7,7 +7,7 @@ from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
 
-from nameko.amqp import get_producer
+from nameko.amqp import get_producer, UndeliverableMessage
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, HEARTBEAT_CONFIG_KEY)
 from nameko.containers import WorkerContext
@@ -25,6 +25,12 @@ foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
 CONSUME_TIMEOUT = 1
+
+
+@pytest.yield_fixture
+def warnings():
+    with patch('nameko.messaging.warnings') as patched:
+        yield patched
 
 
 @pytest.yield_fixture
@@ -120,7 +126,7 @@ def test_publish_to_exchange(
     }
     mock_producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer,
+        serializer=container.serializer, mandatory=False,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
@@ -153,7 +159,7 @@ def test_publish_to_queue(
     service.publish(msg, publish_kwarg="value")
     mock_producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer,
+        serializer=container.serializer, mandatory=False,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
@@ -186,7 +192,7 @@ def test_publish_custom_headers(
     service.publish(msg, publish_kwarg="value")
     mock_producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer,
+        serializer=container.serializer, mandatory=False,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
 
@@ -385,6 +391,69 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
         consumer.stop()
 
     consumer.queue_consumer.kill()
+
+
+class TestMandatoryDelivery(object):
+    """ Test and demonstrate the mandatory delivery flag.
+
+    Publishing a message should raise an exception when mandatory delivery
+    is requested and there is no destination queue, as long as publish-confirms
+    are enabled.
+    """
+    @pytest.fixture()
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "publisher"
+
+            publish = Publisher()
+
+            @dummy
+            def method(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+        return container
+
+    def test_default(self, container):
+        # messages are not mandatory by default;
+        # no error when routing to a non-existent queue
+        with entrypoint_hook(container, 'method') as publish:
+            publish("payload", routing_key="bogus")
+
+    def test_mandatory_delivery(self, container):
+        # requesting mandatory delivery will result in an exception
+        # if there is no bound queue to receive the message
+        with pytest.raises(UndeliverableMessage):
+            with entrypoint_hook(container, 'method') as publish:
+                publish("payload", routing_key="bogus", mandatory=True)
+
+    def test_confirms_disabled(
+        self, container_factory, rabbit_config, warnings
+    ):
+
+        class UnconfirmedPublisher(Publisher):
+            use_confirms = False
+
+        class Service(object):
+            name = "service"
+
+            publish = UnconfirmedPublisher()
+
+            @dummy
+            def method(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # no exception will be raised if confirms are disabled,
+        # even when mandatory delivery is requested,
+        # but there will be a warning raised
+        with entrypoint_hook(container, 'method') as publish:
+            publish("payload", routing_key="bogus", mandatory=True)
+        assert warnings.warn.called
 
 
 @skip_if_no_toxiproxy

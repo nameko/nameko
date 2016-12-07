@@ -3,12 +3,10 @@ import socket
 import pytest
 from amqp.exceptions import NotFound
 from kombu import Connection
-from kombu.common import maybe_declare
-from kombu.messaging import Exchange, Producer, Queue
+from kombu.messaging import Producer
 from urllib3.util import Url, parse_url
 
-from nameko.amqp import (
-    UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
+from nameko.amqp import get_connection, get_producer, verify_amqp_uri
 
 
 @pytest.fixture
@@ -110,76 +108,10 @@ class TestGetProducer(object):
 
 
 class TestPublisherConfirms(object):
+    """ Publishing to a non-existent exchange raises if confirms are enabled.
+    """
 
-    @pytest.yield_fixture
-    def connection(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
-        with get_connection(amqp_uri) as connection:
-            yield connection
-
-    @pytest.fixture
-    def exchange(self, connection):
-        exchange = Exchange(name="exchange", type="topic")
-        maybe_declare(exchange, connection)
-        return exchange
-
-    @pytest.fixture
-    def queue(self, exchange, connection):
-        queue = Queue(exchange=exchange, routing_key="messages")
-        maybe_declare(queue, connection)
-        return queue
-
-
-class TestPublisherConfirmsEnabled(TestPublisherConfirms):
-
-    def test_missing_exchange(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
-
-        with pytest.raises(NotFound):
-            with get_producer(amqp_uri) as producer:
-                producer.publish(
-                    "msg", exchange="missing", routing_key="key"
-                )
-
-    def test_no_bound_queues(self, rabbit_config, exchange):
-        amqp_uri = rabbit_config['AMQP_URI']
-
-        def publish(mandatory):
-            with get_producer(amqp_uri) as producer:
-                producer.publish(
-                    "msg",
-                    mandatory=mandatory,
-                    exchange=exchange.name,
-                    routing_key="key"
-                )
-
-        publish(mandatory=False)
-
-        with pytest.raises(UndeliverableMessage):
-            publish(mandatory=True)
-
-    @pytest.mark.usefixtures('queue')
-    def test_no_matching_routes(self, rabbit_config, exchange):
-        amqp_uri = rabbit_config['AMQP_URI']
-
-        def publish(mandatory):
-            with get_producer(amqp_uri) as producer:
-                producer.publish(
-                    "msg",
-                    mandatory=mandatory,
-                    exchange=exchange.name,
-                    routing_key="notkey"
-                )
-
-        publish(mandatory=False)
-
-        with pytest.raises(UndeliverableMessage):
-            publish(mandatory=True)
-
-
-class TestPublisherConfirmsDisabled(TestPublisherConfirms):
-
-    def test_missing_exchange(self, rabbit_config):
+    def test_confirms_disabled(self, rabbit_config):
         amqp_uri = rabbit_config['AMQP_URI']
 
         with get_producer(amqp_uri, False) as producer:
@@ -187,33 +119,11 @@ class TestPublisherConfirmsDisabled(TestPublisherConfirms):
                 "msg", exchange="missing", routing_key="key"
             )
 
-    def test_no_bound_queues(self, rabbit_config, exchange):
+    def test_confirms_enabled(self, rabbit_config):
         amqp_uri = rabbit_config['AMQP_URI']
 
-        def publish(mandatory):
-            with get_producer(amqp_uri, False) as producer:
+        with pytest.raises(NotFound):
+            with get_producer(amqp_uri) as producer:
                 producer.publish(
-                    "msg",
-                    mandatory=mandatory,
-                    exchange=exchange.name,
-                    routing_key="key"
+                    "msg", exchange="missing", routing_key="key"
                 )
-
-        publish(mandatory=False)
-        publish(mandatory=True)
-
-    @pytest.mark.usefixtures('queue')
-    def test_no_matching_routes(self, rabbit_config, exchange):
-        amqp_uri = rabbit_config['AMQP_URI']
-
-        def publish(mandatory):
-            with get_producer(amqp_uri, False) as producer:
-                producer.publish(
-                    "msg",
-                    mandatory=mandatory,
-                    exchange=exchange.name,
-                    routing_key="notkey"
-                )
-
-        publish(mandatory=False)
-        publish(mandatory=True)

@@ -8,7 +8,6 @@ from amqp.exceptions import NotAllowed
 from kombu import Connection
 from kombu.pools import connections, producers
 from kombu.transport.pyamqp import Transport
-from six.moves import queue
 
 BAD_CREDENTIALS = (
     'Error connecting to broker, probably caused by invalid credentials'
@@ -75,9 +74,3 @@ def get_producer(amqp_uri, confirms=True):
 
     with producers[conn].acquire(block=True) as producer:
         yield producer
-        try:
-            returned = producer.channel.returned_messages.get_nowait()
-        except queue.Empty:
-            pass
-        else:
-            raise UndeliverableMessage(returned)

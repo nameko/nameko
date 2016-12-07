@@ -3,7 +3,10 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
+import socket
+import warnings
 from functools import partial
+from itertools import count
 from logging import getLogger
 
 import eventlet
@@ -12,17 +15,16 @@ from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
+from six.moves import queue
 
-from nameko.amqp import get_connection, get_producer, verify_amqp_uri
+from nameko.amqp import (
+    UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
     DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
-from itertools import count
-import socket
-
 
 _log = getLogger(__name__)
 
@@ -162,21 +164,38 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def get_dependency(self, worker_ctx):
         def publish(msg, **kwargs):
             exchange = self.exchange
-            queue = self.queue
             serializer = self.serializer
 
-            if exchange is None and queue is not None:
-                exchange = queue.exchange
+            if exchange is None and self.queue is not None:
+                exchange = self.queue.exchange
 
             retry = kwargs.pop('retry', self.retry)
             retry_policy = kwargs.pop('retry_policy', self.retry_policy)
+            mandatory = kwargs.pop('mandatory', False)
 
             with get_producer(self.amqp_uri, self.use_confirms) as producer:
                 headers = self.get_message_headers(worker_ctx)
                 producer.publish(
                     msg, exchange=exchange, headers=headers,
-                    serializer=serializer,
-                    retry=retry, retry_policy=retry_policy, **kwargs)
+                    serializer=serializer, retry=retry,
+                    retry_policy=retry_policy, mandatory=mandatory,
+                    **kwargs
+                )
+
+                if mandatory:
+                    if not self.use_confirms:
+                        warnings.warn(
+                            "Mandatory delivery was requested, but "
+                            "unroutable messages cannot be detected without "
+                            "publish confirms enabled."
+                        )
+                    try:
+                        returned_messages = producer.channel.returned_messages
+                        returned = returned_messages.get_nowait()
+                    except queue.Empty:
+                        pass
+                    else:
+                        raise UndeliverableMessage(returned)
 
         return publish
 
