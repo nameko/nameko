@@ -12,14 +12,13 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='2.4.3',
+    version='2.4.4',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
     long_description=readme,
     author='onefinestay',
-    author_email='nameko-devs@onefinestay.com',
-    url='http://github.com/onefinestay/nameko',
+    url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "eventlet>=0.16.1",

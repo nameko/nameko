@@ -1,11 +1,11 @@
 Contributing
 ============
 
-Nameko is developed on `GitHub <https://github.com/onefinestay/nameko>`_ and contributions are welcome.
+Nameko is developed on `GitHub <https://github.com/nameko/nameko>`_ and contributions are welcome.
 
-Use GitHub `issues <https://github.com/onefinestay/nameko/issues>`_ to report bugs and make feature requests.
+Use GitHub `issues <https://github.com/nameko/nameko/issues>`_ to report bugs and make feature requests.
 
-You're welcome to `fork <https://github.com/onefinestay/nameko/fork>`_ the repository and raise a pull request with your contributions.
+You're welcome to `fork <https://github.com/nameko/nameko/fork>`_ the repository and raise a pull request with your contributions.
 
 You can install all the development dependencies using::
 
@@ -16,7 +16,7 @@ and the requirements for building docs using::
     pip install -e .[docs]
 
 
-Pull requests are automatically built with `Travis-CI <https://travis-ci.org/onefinestay/nameko/>`_. Travis will fail the build unless all of the following are true:
+Pull requests are automatically built with `Travis-CI <https://travis-ci.org/nameko/nameko/>`_. Travis will fail the build unless all of the following are true:
 
     * All tests pass
     * 100% line coverage by tests

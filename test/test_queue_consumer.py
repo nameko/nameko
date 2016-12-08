@@ -7,7 +7,8 @@ from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.exceptions import TimeoutError
 from mock import ANY, Mock, call, patch
-from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY)
 from nameko.messaging import QueueConsumer
 from nameko.rpc import RpcConsumer, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -343,6 +344,40 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config,
     if connections:  # pragma: no cover
         for connection in connections:
             assert connection['vhost'] != vhost
+
+
+class TestHeartbeats(object):
+
+    @pytest.fixture
+    def service_cls(self):
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                return arg  # pragma: no cover
+
+        return Service
+
+    def test_default(self, service_cls, container_factory, rabbit_config):
+
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        queue_consumer = get_extension(container, QueueConsumer)
+        assert queue_consumer.connection.heartbeat == DEFAULT_HEARTBEAT
+
+    @pytest.mark.parametrize("heartbeat", [30, None])
+    def test_config_value(
+        self, heartbeat, service_cls, container_factory, rabbit_config
+    ):
+        rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
+
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        queue_consumer = get_extension(container, QueueConsumer)
+        assert queue_consumer.connection.heartbeat == heartbeat
 
 
 def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):

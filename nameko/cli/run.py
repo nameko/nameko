@@ -12,6 +12,7 @@ import re
 import signal
 import sys
 
+import six
 import yaml
 from eventlet import backdoor
 from nameko.constants import AMQP_URI_CONFIG_KEY
@@ -26,7 +27,7 @@ MISSING_MODULE_TEMPLATE = "^No module named '?{}'?$"
 
 
 def is_type(obj):
-    return isinstance(obj, type)
+    return isinstance(obj, six.class_types)
 
 
 def is_entrypoint(method):
