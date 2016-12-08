@@ -11,7 +11,7 @@ pylint:
 	pylint --rcfile=pylintrc nameko -E
 
 test_lib:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test test --cov --cov-config=$(CURDIR)/.coveragerc
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test test --timeout 30 --cov --cov-config=$(CURDIR)/.coveragerc  --tx '10*popen//execmodel=eventlet' --dist load
 
 test_examples:
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
