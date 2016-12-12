@@ -2,13 +2,16 @@ import socket
 
 import eventlet
 import pytest
+from six.moves import queue as queue_six
 from kombu.message import Message
 
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, rpc
-from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
+from nameko.standalone.rpc import (
+    ClusterRpcProxy, ServiceRpcProxy, ClusterRpcProxyPool
+)
 from nameko.testing.utils import get_rabbit_connections
 
 # uses autospec on method; needs newer mock for py3
@@ -352,6 +355,29 @@ def test_cluster_proxy_dict_access(
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         assert proxy['foobar'].spam(ham=3) == 3
+
+
+def test_cluster_proxy_pool(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    pool = ClusterRpcProxyPool(rabbit_config, pool_size=2)
+    pool.start()
+    assert pool.queue.qsize() == 2
+
+    with pool.next():
+        assert pool.queue.qsize() == 1
+
+        with pool.next():
+            assert pool.queue.qsize() == 0
+
+            with pytest.raises(queue_six.Empty):
+                pool.next(timeout=1)
+
+        assert pool.queue.qsize() == 1
+    assert pool.queue.qsize() == 2
+
+    pool.stop()
 
 
 def test_recover_from_keyboardinterrupt(
