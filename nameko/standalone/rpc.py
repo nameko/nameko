@@ -25,6 +25,7 @@ class ConsumeEvent(object):
     """ Event for the RPC consumer with the same interface as eventlet.Event.
     """
     exception = None
+    body = None
 
     def __init__(self, queue_consumer, correlation_id):
         self.correlation_id = correlation_id
@@ -35,6 +36,9 @@ class ConsumeEvent(object):
 
     def send_exception(self, exc):
         self.exception = exc
+
+    def ready(self):
+        return getattr(self, 'body') or getattr(self, 'exception')
 
     def wait(self):
         """ Makes a blocking call to its queue_consumer until the message
@@ -49,6 +53,9 @@ class ConsumeEvent(object):
         # disconnected before starting to wait
         if self.exception:
             raise self.exception
+
+        if self.body:
+            return self.body
 
         if self.queue_consumer.consumer.connection is None:
             raise RuntimeError(
