@@ -32,12 +32,12 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.0",
-            "flake8==2.1.0",
-            "mccabe==0.3",
-            "pep8==1.6.1",
-            "pyflakes==0.8.1",
-            "pylint==1.5.1",
+            "coverage==4.2",
+            "flake8==3.2.1",
+            "mccabe==0.5.2",
+            "pycodestyle==2.2.0",
+            "pyflakes==1.3.0",
+            "pylint==1.6.4",
             "pytest==2.7.3",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
