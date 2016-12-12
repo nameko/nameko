@@ -268,4 +268,5 @@ class EventHandler(Consumer):
 
         super(EventHandler, self).setup()
 
+
 event_handler = EventHandler.decorator
