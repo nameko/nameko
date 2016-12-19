@@ -1,6 +1,9 @@
 import socket
+import sys
 
+import importlib
 import pytest
+from mock import patch
 
 from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
@@ -13,6 +16,17 @@ from nameko.web.server import parse_address
 from nameko.web.websocket import rpc as wsrpc
 
 pytest_plugins = "pytester"
+
+
+def test_import():
+    # nameko.testing.pytest is a pytest plugin, so may be imported _before_
+    # the pytest-cov plugin (and therefore missing from coverage),
+    # so we force re-import the module here
+    sys_modules = sys.modules.copy()
+    del sys_modules['nameko.testing.pytest']
+
+    with patch.dict(sys.modules, values=sys_modules, clear=True):
+        importlib.import_module('nameko.testing.pytest')
 
 
 def test_empty_config(empty_config):
