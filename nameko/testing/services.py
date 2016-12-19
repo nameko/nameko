@@ -207,6 +207,7 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 class EntrypointWaiterTimeout(Exception):
     pass
 
+
 entrypoint_waiter.Timeout = EntrypointWaiterTimeout
 
 
@@ -480,6 +481,7 @@ class Once(Entrypoint):
 
     def start(self):
         self.container.spawn_worker(self, self.args, self.kwargs)
+
 
 once = Once.decorator
 
