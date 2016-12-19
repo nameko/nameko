@@ -199,6 +199,7 @@ class CustomEventHandler(EventHandler):
         self._calls.append(message)
         return result, exc_info
 
+
 custom_event_handler = CustomEventHandler.decorator
 
 
