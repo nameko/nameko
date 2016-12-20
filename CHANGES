@@ -5,6 +5,14 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.5.0
+-------------
+
+Released 2016-12-20
+
+* Enables publish confirms by default for all AMQP message publishers
+* Refactors common AMQP connection code into `nameko.amqp`
+
 Version 2.4.4
 -------------
 
@@ -32,6 +40,7 @@ Released 2016-10-10
 * Added support for environment variables in YAML config files
 * Enhanced :func:`~nameko.testing.services.entrypoint_waiter`. The new
   implementation is backwards compatible but additionally:
+
     - Gives you access to the result returned (or exception raised)
     - Adds the ability to wait for a specific result
     - Doesn't fire until the worker is completely torn down
@@ -152,7 +161,7 @@ Released 2015-03-31
   `nameko-sqlalchemy <https://pypi.python.org/pypi/nameko-sqlalchemy>`_
   as a **community extension**.
 * Spun out ``nameko.legacy`` package into
- `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
+  `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
 * Rename the standalone rpc proxy to
   :class:`~nameko.standalone.rpc.ServiceRpcProxy` and add a
   :class:`~nameko.standalone.rpc.ClusterRpcProxy`, using a single reply queue
