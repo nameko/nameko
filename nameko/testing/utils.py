@@ -1,6 +1,7 @@
 """
 Common testing utilities.
 """
+import socket
 import warnings
 from contextlib import contextmanager
 from functools import partial
@@ -88,13 +89,6 @@ def assert_stops_raising(fn, exception_type=Exception, timeout=10,
             eventlet.sleep(interval)
 
 
-@contextmanager
-def as_context_manager(obj):
-    """ Return a context manager that provides ``obj`` on enter.
-    """
-    yield obj
-
-
 class AnyInstanceOf(object):
 
     def __init__(self, cls):
@@ -138,3 +132,11 @@ def reset_rabbit_connections(vhost, rabbit_manager):
                 pass  # connection closed in a race
             else:
                 raise
+
+
+def find_free_port(host='127.0.0.1'):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind((host, 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port

@@ -9,14 +9,12 @@ from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
 from nameko.amqp import verify_amqp_uri
-from nameko.constants import AMQP_URI_CONFIG_KEY
-from nameko.containers import WorkerContext
-from nameko.extensions import Entrypoint
-from nameko.exceptions import RpcConnectionError, RpcTimeout
-from nameko.rpc import ServiceProxy, ReplyListener
 from nameko.constants import (
-    SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY)
+from nameko.containers import WorkerContext
+from nameko.exceptions import RpcConnectionError, RpcTimeout
+from nameko.extensions import Entrypoint
+from nameko.rpc import ReplyListener, ServiceProxy
 
 _logger = logging.getLogger(__name__)
 
@@ -50,10 +48,20 @@ class ConsumeEvent(object):
         if self.exception:
             raise self.exception
 
-        if self.queue_consumer.consumer.connection is None:
+        if self.queue_consumer.stopped:
             raise RuntimeError(
                 "This consumer has been stopped, and can no longer be used"
             )
+        if self.queue_consumer.connection.connected is False:
+            # we can't just reconnect here. the consumer (and its exclusive,
+            # auto-delete reply queue) must be re-established _before_ sending
+            # any request, otherwise the reply queue may not exist when the
+            # response is published.
+            raise RuntimeError(
+                "This consumer has been disconnected, and can no longer "
+                "be used"
+            )
+
         self.queue_consumer.get_message(self.correlation_id)
 
         # disconnected while waiting
@@ -71,6 +79,7 @@ class PollingQueueConsumer(object):
     consumer = None
 
     def __init__(self, timeout=None):
+        self.stopped = False
         self.timeout = timeout
         self.replies = {}
 
@@ -113,6 +122,7 @@ class PollingQueueConsumer(object):
 
     def unregister_provider(self, provider):
         self.connection.close()
+        self.stopped = True
 
     def ack_message(self, msg):
         msg.ack()
@@ -146,7 +156,7 @@ class PollingQueueConsumer(object):
             # to be deleted
             self._setup_consumer()
 
-        except ConnectionError as exc:
+        except (IOError, ConnectionError) as exc:
             for event in self.provider._reply_events.values():
                 rpc_connection_error = RpcConnectionError(
                     'Disconnected while waiting for reply: %s', exc)

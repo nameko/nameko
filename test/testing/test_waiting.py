@@ -44,6 +44,7 @@ class TestPatchWaitUseCases(object):
     def test_wait_until_called_with_argument(self, forever):
 
         class CounterWithSet(object):
+
             value = 0
 
             def set(self, value):

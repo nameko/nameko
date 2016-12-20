@@ -52,7 +52,9 @@ class TestGetRedactedArgs(object):
         (("a", "b"), {'a': REDACTED, 'b': REDACTED}),
         (("c"), {'a': 'A', 'b': 'B'}),  # 'c' not a valid argument; ignored
     ])
-    def test_get_redacted_args(self, sensitive_variables, expected):
+    def test_get_redacted_args(
+        self, sensitive_variables, expected, rabbit_config
+    ):
 
         class Service(object):
             name = "service"
@@ -64,7 +66,7 @@ class TestGetRedactedArgs(object):
         args = ("A", "B")
         kwargs = {}
 
-        container = ServiceContainer(Service, {})
+        container = ServiceContainer(Service, rabbit_config)
         entrypoint = get_extension(container, Rpc)
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
@@ -75,7 +77,7 @@ class TestGetRedactedArgs(object):
         (('A',), {'b': "B"}),
         (tuple(), {'a': "A", 'b': "B"}),  # all kwargs
     ])
-    def test_get_redacted_args_invocation(self, args, kwargs):
+    def test_get_redacted_args_invocation(self, args, kwargs, rabbit_config):
 
         class Service(object):
             name = "service"
@@ -86,7 +88,7 @@ class TestGetRedactedArgs(object):
 
         expected = {'a': REDACTED, 'b': 'B'}
 
-        container = ServiceContainer(Service, {})
+        container = ServiceContainer(Service, rabbit_config)
         entrypoint = get_extension(container, Rpc)
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
@@ -136,7 +138,9 @@ class TestGetRedactedArgs(object):
             }
         ),
     ])
-    def test_get_redacted_args_partial(self, sensitive_variables, expected):
+    def test_get_redacted_args_partial(
+        self, sensitive_variables, expected, rabbit_config
+    ):
 
         class Service(object):
             name = "service"
@@ -153,7 +157,7 @@ class TestGetRedactedArgs(object):
         args = ("A", complex_arg)
         kwargs = {}
 
-        container = ServiceContainer(Service, {})
+        container = ServiceContainer(Service, rabbit_config)
         entrypoint = get_extension(container, Rpc)
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)

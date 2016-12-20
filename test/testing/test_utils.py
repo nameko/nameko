@@ -10,8 +10,9 @@ from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import Rpc, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
-    AnyInstanceOf, get_container, get_extension, get_rabbit_connections,
-    reset_rabbit_connections, wait_for_call, wait_for_worker_idle)
+    AnyInstanceOf, find_free_port, get_container, get_extension,
+    get_rabbit_connections, reset_rabbit_connections, wait_for_call,
+    wait_for_worker_idle)
 
 
 def test_any_instance_of():
@@ -223,3 +224,27 @@ def test_rabbit_connection_refused_error():
 
     message = str(exc_info.value)
     assert 'Connection error' in message
+
+
+@patch('nameko.testing.utils.socket')
+class TestFindFreePort(object):
+
+    def test_default_host(self, patched_socket):
+        host = '127.0.0.1'
+        free_port = 9999
+        mock_sock = patched_socket.socket()
+        mock_sock.getsockname.return_value = [host, free_port]
+
+        assert find_free_port() == free_port
+        assert mock_sock.bind.call_args_list == [call((host, 0))]
+        assert mock_sock.close.called
+
+    def test_specified_host(self, patched_socket):
+        host = '10.0.0.1'
+        free_port = 9999
+        mock_sock = patched_socket.socket()
+        mock_sock.getsockname.return_value = [host, free_port]
+
+        assert find_free_port(host) == free_port
+        assert mock_sock.bind.call_args_list == [call((host, 0))]
+        assert mock_sock.close.called
