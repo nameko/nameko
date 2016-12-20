@@ -3,7 +3,10 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
+import socket
+import warnings
 from functools import partial
+from itertools import count
 from logging import getLogger
 
 import eventlet
@@ -12,17 +15,16 @@ from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
-from kombu.pools import connections, producers
-from nameko.amqp import verify_amqp_uri
+from six.moves import queue
+
+from nameko.amqp import (
+    UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
     DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
-from itertools import count
-import socket
-
 
 _log = getLogger(__name__)
 
@@ -73,9 +75,6 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    amqp_uri = None
-    serializer = None
-
     def __init__(self, exchange=None, queue=None):
         """ Provides an AMQP message publisher method via dependency injection.
 
@@ -105,30 +104,58 @@ class Publisher(DependencyProvider, HeaderEncoder):
         self.exchange = exchange
         self.queue = queue
 
-    # TODO: should be a module level function
-    def get_connection(self):
-        conn = Connection(self.amqp_uri)
-        return connections[conn].acquire(block=True)
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
 
-    # TODO: should be a module level function
-    def get_producer(self):
-        conn = Connection(self.amqp_uri)
-        return producers[conn].acquire(block=True)
+    @property
+    def use_confirms(self):
+        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
+        for this publisher.
 
-    def setup(self):
+        The publisher will wait for an acknowledgement from the broker that
+        the message was receieved and processed appropriately, and otherwise
+        raise. Confirms have a performance penalty but guarantee that messages
+        aren't lost, for example due to stale connections.
+        """
+        return True
 
-        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+    @property
+    def serializer(self):
+        """ Name of the serializer to use when publishing messages.
 
-        self.serializer = self.container.config.get(
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
+        return self.container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
+
+    @property
+    def retry(self):
+        """ Enable automatic retries when publishing a message that fails due
+        to a connection error.
+
+        Retries according to :attr:`self.retry_policy`.
+        """
+        return True
+
+    @property
+    def retry_policy(self):
+        """ Policy to apply when retrying message publishes, if enabled.
+
+        See :attr:`self.retry`.
+        """
+        return DEFAULT_RETRY_POLICY
+
+    def setup(self):
 
         exchange = self.exchange
         queue = self.queue
 
         verify_amqp_uri(self.amqp_uri)
 
-        with self.get_connection() as conn:
+        with get_connection(self.amqp_uri) as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
             elif exchange is not None:
@@ -137,32 +164,45 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def get_dependency(self, worker_ctx):
         def publish(msg, **kwargs):
             exchange = self.exchange
-            queue = self.queue
             serializer = self.serializer
 
-            if exchange is None and queue is not None:
-                exchange = queue.exchange
+            if exchange is None and self.queue is not None:
+                exchange = self.queue.exchange
 
-            retry = kwargs.pop('retry', True)
-            retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+            retry = kwargs.pop('retry', self.retry)
+            retry_policy = kwargs.pop('retry_policy', self.retry_policy)
+            mandatory = kwargs.pop('mandatory', False)
 
-            with self.get_producer() as producer:
+            with get_producer(self.amqp_uri, self.use_confirms) as producer:
                 headers = self.get_message_headers(worker_ctx)
                 producer.publish(
                     msg, exchange=exchange, headers=headers,
-                    serializer=serializer,
-                    retry=retry, retry_policy=retry_policy, **kwargs)
+                    serializer=serializer, retry=retry,
+                    retry_policy=retry_policy, mandatory=mandatory,
+                    **kwargs
+                )
+
+                if mandatory:
+                    if not self.use_confirms:
+                        warnings.warn(
+                            "Mandatory delivery was requested, but "
+                            "unroutable messages cannot be detected without "
+                            "publish confirms enabled."
+                        )
+                    try:
+                        returned_messages = producer.channel.returned_messages
+                        returned = returned_messages.get_nowait()
+                    except queue.Empty:
+                        pass
+                    else:
+                        raise UndeliverableMessage(returned)
 
         return publish
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
-    amqp_uri = None
-    prefetch_count = None
-
     def __init__(self):
-        self._connection = None
 
         self._consumers = {}
 
@@ -177,6 +217,18 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         self._consumers_ready = Event()
         super(QueueConsumer, self).__init__()
 
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def prefetch_count(self):
+        return self.container.max_workers
+
+    @property
+    def accept(self):
+        return self.container.accept
+
     def _handle_thread_exited(self, gt):
         exc = None
         try:
@@ -188,9 +240,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self):
-        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
-        self.accept = self.container.accept
-        self.prefetch_count = self.container.max_workers
         verify_amqp_uri(self.amqp_uri)
 
     def start(self):
@@ -326,17 +375,16 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     @property
     def connection(self):
-        """ Kombu requirement """
-        if self.amqp_uri is None:
-            return   # don't cache a connection during introspection
+        """ Provide the connection parameters for kombu's ConsumerMixin.
 
-        if self._connection is None:
-            heartbeat = self.container.config.get(
-                HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
-            )
-            self._connection = Connection(self.amqp_uri, heartbeat=heartbeat)
-
-        return self._connection
+        The `Connection` object is a declaration of connection parameters
+        that is lazily evaluated. It doesn't represent an established
+        connection to the broker at this point.
+        """
+        heartbeat = self.container.config.get(
+            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+        )
+        return Connection(self.amqp_uri, heartbeat=heartbeat)
 
     def get_consumers(self, Consumer, channel):
         """ Kombu callback to set up consumers.

@@ -4,7 +4,6 @@ import time
 import eventlet
 import pytest
 from mock import Mock, call
-
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.extensions import DependencyProvider
@@ -15,6 +14,7 @@ from nameko.testing.services import (
     entrypoint_hook, entrypoint_waiter, once, replace_dependencies,
     restrict_entrypoints, worker_factory)
 from nameko.testing.utils import get_container
+from nameko.testing.waiting import wait_for_call
 
 
 class LanguageReporter(DependencyProvider):
@@ -769,11 +769,13 @@ def test_entrypoint_waiter_result_teardown_race(
     with entrypoint_waiter(container, 'handle', callback=wait_for_two_calls):
 
         # dispatch the first message
-        dispatch('srcservice', 'eventtype', "msg")
+        # wait until teardown has happened
+        with wait_for_call(TrackingDependency, 'worker_teardown'):
+            dispatch('srcservice', 'eventtype', "msg")
 
-        # wait until teardown has fired at least once
-        while tracker.worker_teardown.call_count == 0:
-            time.sleep(.1)
+        assert tracker.worker_teardown.call_count == 1
+        assert tracker.worker_result.call_count == 1
+        assert tracker.handle.call_count == 1
 
         # dispatch the second event
         dispatch('srcservice', 'eventtype', "msg")

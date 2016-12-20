@@ -44,9 +44,9 @@ class Service(object):
         return [a, b, c]
 
 
-def test_sensitive_rpc(container_factory):
+def test_sensitive_rpc(container_factory, rabbit_config):
 
-    container = container_factory(Service, {})
+    container = container_factory(Service, rabbit_config)
     rpc_entrypoint = get_extension(container, Rpc)
 
     assert rpc_entrypoint.sensitive_variables == ("a", "b.x[0]", "b.x[2]")
@@ -68,9 +68,9 @@ def test_sensitive_rpc(container_factory):
     }
 
 
-def test_sensitive_event(container_factory):
+def test_sensitive_event(container_factory, rabbit_config):
 
-    container = container_factory(Service, {})
+    container = container_factory(Service, rabbit_config)
     handler_entrypoint = get_extension(container, EventHandler)
 
     assert handler_entrypoint.sensitive_variables == "event_data.foo"

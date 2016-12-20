@@ -3,14 +3,16 @@ import time
 from collections import defaultdict
 
 import pytest
-from mock import Mock, create_autospec, patch
+from mock import ANY, Mock, create_autospec, patch
+
+from nameko.amqp import UndeliverableMessage
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
-from nameko.testing.services import entrypoint_waiter
+from nameko.testing.services import entrypoint_waiter, dummy, entrypoint_hook
 from nameko.testing.utils import DummyProvider
 
 
@@ -25,7 +27,7 @@ def queue_consumer():
         yield replacement
 
 
-def test_event_dispatcher(mock_container):
+def test_event_dispatcher(mock_container, mock_producer):
 
     container = mock_container
     container.service_name = "srcservice"
@@ -38,17 +40,16 @@ def test_event_dispatcher(mock_container):
     event_dispatcher.setup()
 
     service.dispatch = event_dispatcher.get_dependency(worker_ctx)
+    service.dispatch('eventtype', 'msg')
 
-    from mock import ANY
-    with patch('nameko.standalone.events.producers') as mock_producers:
-        with mock_producers[ANY].acquire() as mock_producer:
+    headers = event_dispatcher.get_message_headers(worker_ctx)
 
-            service.dispatch('eventtype', 'msg')
-            headers = event_dispatcher.get_message_headers(worker_ctx)
     mock_producer.publish.assert_called_once_with(
         'msg', exchange=ANY, headers=headers,
         serializer=container.serializer,
-        routing_key='eventtype', retry=True, retry_policy={'max_retries': 5})
+        routing_key='eventtype', retry=True, mandatory=False,
+        retry_policy={'max_retries': 5})
+
     _, call_kwargs = mock_producer.publish.call_args
     exchange = call_kwargs['exchange']
     assert exchange.name == 'srcservice.events'
@@ -666,3 +667,74 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     # test event receieved on manually added queue
     messages = rabbit_manager.get_messages(vhost, "event-sink")
     assert ['"msg"'] == [msg['payload'] for msg in messages]
+
+
+class TestMandatoryDelivery(object):
+    """ Test and demonstrate the mandatory delivery flag.
+
+    Dispatching an event should raise an exception when mandatory delivery
+    is requested and there is no destination queue, as long as publish-confirms
+    are enabled.
+    """
+
+    def test_default(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "dispatcher"
+
+            dispatch = EventDispatcher()
+
+            @dummy
+            def method(self, *args, **kwargs):
+                self.dispatch(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # events are not mandatory by default;
+        # no error when routing to a non-existent handler
+        with entrypoint_hook(container, 'method') as dispatch:
+            dispatch("event", "payload")
+
+    def test_mandatory_delivery(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "dispatcher"
+
+            dispatch = EventDispatcher(mandatory=True)
+
+            @dummy
+            def method(self, *args, **kwargs):
+                self.dispatch(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # requesting mandatory delivery will result in an exception
+        # if there is no bound queue to receive the message
+        with pytest.raises(UndeliverableMessage):
+            with entrypoint_hook(container, 'method') as publish:
+                publish("event", "payload")
+
+    @patch('nameko.standalone.events.warnings')
+    def test_confirms_disabled(
+        self, warnings, container_factory, rabbit_config
+    ):
+        class Service(object):
+            name = "dispatcher"
+
+            dispatch = EventDispatcher(mandatory=True, use_confirms=False)
+
+            @dummy
+            def method(self, *args, **kwargs):
+                self.dispatch(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # no exception will be raised if confirms are disabled,
+        # even when mandatory delivery is requested,
+        # but there will be a warning raised
+        with entrypoint_hook(container, 'method') as dispatch:
+            dispatch("event", "payload")
+        assert warnings.warn.called

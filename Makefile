@@ -11,10 +11,10 @@ pylint:
 	pylint --rcfile=pylintrc nameko -E
 
 test_lib:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test test --timeout 30 --cov --cov-config=$(CURDIR)/.coveragerc
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test test --strict --timeout 30 --cov --cov-config=$(CURDIR)/.coveragerc
 
 test_examples:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
 	py.test docs/examples/testing
 
 test_docs: docs spelling #linkcheck

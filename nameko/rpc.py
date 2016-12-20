@@ -8,10 +8,10 @@ from logging import getLogger
 
 import kombu.serialization
 from eventlet.event import Event
-from eventlet.queue import Empty
-from kombu import Connection, Exchange, Queue
-from kombu.pools import producers
+from kombu import Exchange, Queue
+from six.moves import queue
 
+from nameko.amqp import get_producer
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
     RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
@@ -190,6 +190,54 @@ class Responder(object):
         self.config = config
         self.message = message
 
+    @property
+    def amqp_uri(self):
+        return self.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def use_confirms(self):
+        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
+        for this responder's publisher.
+
+        The responder will wait for an acknowledgement from the broker that
+        the message was receieved and processed appropriately, and otherwise
+        raise. Confirms have a performance penalty but guarantee that messages
+        aren't lost, for example due to stale connections.
+
+        It is strongly recommended to use publish confirms in RPC Responders.
+        Without them, replies in an unstable network environment may be lost,
+        leaving the caller waiting indefinitely for a response.
+        """
+        return True
+
+    @property
+    def serializer(self):
+        """ Name of the serializer to use when publishing response payloads.
+
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
+        return self.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+
+    @property
+    def retry(self):
+        """ Enable automatic retries when publishing a message that fails due
+        to a connection error.
+
+        Retries according to :attr:`self.retry_policy`.
+        """
+        return True
+
+    @property
+    def retry_policy(self):
+        """ Policy to apply when retrying message publishes, if enabled.
+
+        See :attr:`self.retry`.
+        """
+        return DEFAULT_RETRY_POLICY
+
     def send_response(self, result, exc_info, **kwargs):
 
         error = None
@@ -201,25 +249,20 @@ class Responder(object):
         # unrecoverable errors (and the message will be requeued for another
         # victim)
 
-        serializer = self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
         try:
-            kombu.serialization.dumps(result, serializer)
+            kombu.serialization.dumps(result, self.serializer)
         except Exception:
             exc_info = sys.exc_info()
             # `error` below is guaranteed to serialize to json
             error = serialize(UnserializableValueError(result))
             result = None
 
-        conn = Connection(self.config[AMQP_URI_CONFIG_KEY])
-
         exchange = get_rpc_exchange(self.config)
 
-        retry = kwargs.pop('retry', True)
-        retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+        retry = kwargs.pop('retry', self.retry)
+        retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
-        with producers[conn].acquire(block=True) as producer:
+        with get_producer(self.amqp_uri, self.use_confirms) as producer:
 
             routing_key = self.message.properties['reply_to']
             correlation_id = self.message.properties.get('correlation_id')
@@ -230,7 +273,7 @@ class Responder(object):
             producer.publish(
                 msg, retry=retry, retry_policy=retry_policy,
                 exchange=exchange, routing_key=routing_key,
-                serializer=serializer,
+                serializer=self.serializer,
                 correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
@@ -351,6 +394,58 @@ class MethodProxy(HeaderEncoder):
         reply = self._call(*args, **kwargs)
         return reply.result()
 
+    @property
+    def container(self):
+        # TODO: seems wrong
+        return self.worker_ctx.container
+
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def use_confirms(self):
+        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
+        for this proxy's publisher.
+
+        The proxy will wait for an acknowledgement from the broker that
+        the message was receieved and processed appropriately, and otherwise
+        raise. Confirms have a performance penalty but guarantee that messages
+        aren't lost, for example due to stale connections.
+
+        Note that mechanism which raises :class:`UnknownService` exceptions
+        relies on publish confirms being enabled in the proxy.
+        """
+        return True
+
+    @property
+    def serializer(self):
+        """ Name of the serializer to use when publishing message payloads.
+
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
+        return self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+
+    @property
+    def retry(self):
+        """ Enable automatic retries when publishing a message that fails due
+        to a connection error.
+
+        Retries according to :attr:`self.retry_policy`.
+        """
+        return True
+
+    @property
+    def retry_policy(self):
+        """ Policy to apply when retrying message publishes, if enabled.
+
+        See :attr:`self.retry`.
+        """
+        return DEFAULT_RETRY_POLICY
+
     def call_async(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
         return reply
@@ -371,14 +466,6 @@ class MethodProxy(HeaderEncoder):
 
         msg = {'args': args, 'kwargs': kwargs}
 
-        conn = Connection(
-            container.config[AMQP_URI_CONFIG_KEY],
-            transport_options={'confirm_publish': True},
-        )
-
-        serializer = container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
         # We use the `mandatory` flag in `producer.publish` below to catch rpc
         # calls to non-existent services, which would otherwise wait forever
         # for a reply that will never arrive.
@@ -387,18 +474,22 @@ class MethodProxy(HeaderEncoder):
         # asynchronously and conditionally, so we can't wait() on the channel
         # for it (will wait forever on successful delivery).
         #
-        # Instead, we use (the rabbitmq extension) confirm_publish
+        # Instead, we make use of (the rabbitmq extension) confirm_publish
         # (https://www.rabbitmq.com/confirms.html), which _always_ sends a
         # reply down the channel. Moreover, in the case where no queues are
         # bound to the exchange (service unknown), the basic.return is sent
         # first, so by the time kombu returns (after waiting for the confim)
         # we can reliably check for returned messages.
 
+        # Note that overriding :attr:`self.use_confirms` may disable this
+        # functionality and therefore :class:`UnknownService` will never
+        # be raised (and the caller will hang).
+
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         exchange = get_rpc_exchange(container.config)
 
-        with producers[conn].acquire(block=True) as producer:
+        with get_producer(self.amqp_uri, self.use_confirms) as producer:
 
             headers = self.get_message_headers(worker_ctx)
             correlation_id = str(uuid.uuid4())
@@ -412,22 +503,17 @@ class MethodProxy(HeaderEncoder):
                 exchange=exchange,
                 routing_key=routing_key,
                 mandatory=True,
-                serializer=serializer,
+                serializer=self.serializer,
                 reply_to=reply_to_routing_key,
                 headers=headers,
                 correlation_id=correlation_id,
-                retry=True,
-                retry_policy=DEFAULT_RETRY_POLICY
+                retry=self.retry,
+                retry_policy=self.retry_policy
             )
 
-            # This used to do .empty() to check if the queue is empty
-            # but we actually need to clear out the queue here as
-            # otherwise future code that reuses the same producer will
-            # incorrectly see a failure which actually was an earlier
-            # one.
             try:
                 producer.channel.returned_messages.get_nowait()
-            except Empty:
+            except queue.Empty:
                 pass
             else:
                 raise UnknownService(self.service_name)

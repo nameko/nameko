@@ -6,6 +6,12 @@ python:
 services:
     - rabbitmq
 
+before_install:
+    - mkdir $PWD/bin
+    - wget -O $PWD/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
+    - chmod +x $PWD/bin/toxiproxy-server
+    - export PATH=$PATH:$PWD/bin/
+
 addons:
   apt_packages:
     - libenchant-dev
