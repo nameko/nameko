@@ -5,6 +5,14 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.5.0
+-------------
+
+Released 2016-12-20
+
+* Enables publish confirms by default for all AMQP message publishers
+* Refactors common AMQP connection code into `nameko.amqp`
+
 Version 2.4.4
 -------------
 
