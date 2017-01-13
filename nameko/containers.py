@@ -391,6 +391,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
+            self._inject_dependencies(worker_ctx)
             self._worker_setup(worker_ctx)
 
             result = exc_info = None
@@ -425,10 +426,12 @@ class ServiceContainer(object):
 
                 self._worker_teardown(worker_ctx)
 
+    def _inject_dependencies(self, worker_ctx):
+        for provider in self.dependencies:
+            dependency = provider.get_dependency(worker_ctx)
+            setattr(worker_ctx.service, provider.attr_name, dependency)
+
     def _worker_setup(self, worker_ctx):
-        # TODO: when we have better parallelization than ``spawningset``,
-        # do this injection inline
-        self.dependencies.all.inject(worker_ctx)
         self.dependencies.all.worker_setup(worker_ctx)
 
     def _worker_result(self, worker_ctx, result, exc_info):
