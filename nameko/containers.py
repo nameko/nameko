@@ -432,14 +432,17 @@ class ServiceContainer(object):
             setattr(worker_ctx.service, provider.attr_name, dependency)
 
     def _worker_setup(self, worker_ctx):
-        self.dependencies.all.worker_setup(worker_ctx)
+        for provider in self.dependencies:
+            provider.worker_setup(worker_ctx)
 
     def _worker_result(self, worker_ctx, result, exc_info):
         _log.debug('signalling result for %s', worker_ctx)
-        self.dependencies.all.worker_result(worker_ctx, result, exc_info)
+        for provider in self.dependencies:
+            provider.worker_result(worker_ctx, result, exc_info)
 
     def _worker_teardown(self, worker_ctx):
-        self.dependencies.all.worker_teardown(worker_ctx)
+        for provider in self.dependencies:
+            provider.worker_teardown(worker_ctx)
 
     def _kill_worker_threads(self):
         """ Kill any currently executing worker threads.
