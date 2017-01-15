@@ -7,7 +7,7 @@ from mock import call, patch
 
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.services import entrypoint_waiter
+from nameko.testing.services import entrypoint_waiter, entrypoint_hook
 
 
 class TestHttp(object):
@@ -281,3 +281,18 @@ class TestWebsocketRpc(object):
 
         ws = websocket()
         assert ws.rpc('echo', value=u"hellø") == u'hellø'
+
+
+class TestConfig:
+
+    def test_can_get_config_value(self, container_factory, empty_config):
+        from examples.config_dependency import Service
+
+        config = empty_config.copy()
+        config["max_workers"] = 123
+
+        container = container_factory(Service, config)
+        container.start()
+
+        with entrypoint_hook(container, "get_max_workers") as get_max_workers:
+            assert 123 == get_max_workers()
