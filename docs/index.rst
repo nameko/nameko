@@ -56,7 +56,7 @@ This section covers most things you need to know to create and run your own Name
    installation
    cli
    built_in_extensions
-   built_in_dependencies
+   built_in_dependency_providers
    community_extensions
    testing
    writing_extensions

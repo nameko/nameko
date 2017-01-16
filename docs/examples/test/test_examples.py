@@ -2,6 +2,7 @@
 """ Tests for the files and snippets in nameko/docs/examples
 """
 import os
+import pytest
 
 from mock import call, patch
 
@@ -285,14 +286,27 @@ class TestWebsocketRpc(object):
 
 class TestConfig:
 
+    def test_config_value_not_set(self, container_factory, empty_config):
+        from examples.config_dependency_provider import (
+            Service, FeatureNotEnabled
+        )
+
+        container = container_factory(Service, empty_config)
+        container.start()
+
+        with pytest.raises(FeatureNotEnabled):
+            with entrypoint_hook(container, "foo") as foo:
+                foo()
+
     def test_can_get_config_value(self, container_factory, empty_config):
-        from examples.config_dependency import Service
+        from examples.config_dependency_provider import Service
 
         config = empty_config.copy()
-        config["max_workers"] = 123
+        config["FOO_FEATURE_ENABLED"] = True
 
         container = container_factory(Service, config)
         container.start()
 
-        with entrypoint_hook(container, "get_max_workers") as get_max_workers:
-            assert 123 == get_max_workers()
+        with entrypoint_hook(container, "foo") as foo:
+            assert "foo" == foo()
+
