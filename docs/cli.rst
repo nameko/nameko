@@ -26,7 +26,7 @@ and providing a simple YAML configuration file:
     # foobar.yaml
 
     AMQP_URI: 'pyamqp://guest:guest@localhost'
-    WEB_SERVER_ADDRESS: '0.0.0.0:8000'
+    WEB_SERVER_URI: 'tcp://0.0.0.0:8000'
     rpc_exchange: 'nameko-rpc'
     max_workers: 10
     parent_calls_tracked: 10
@@ -42,6 +42,29 @@ and providing a simple YAML configuration file:
 
 
 The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should conform to the schema for that call.
+
+The ``WEB_SERVER_URI`` entry configures the internal web server to listen on either a TCP socket, a unix socket or a file descriptor.
+
+For example:
+
+.. code-block:: yaml
+
+    # foobar.yaml
+
+    ...
+    WEB_SERVER_URI: 'tcp://0.0.0.0:8000'
+    # unix socket
+    WEB_SERVER_URI: 'unix:///path/to/some.sock'
+    # file descriptor
+    WEB_SERVER_URI: 'fd://5'
+    ...
+
+The URI to listen on can also be defined using the ``--listen`` command line argument which if given takes precedence over the ``WEB_SERVER_URI`` entry in the config file.
+
+.. code-block:: shell
+
+    $ nameko run --listen 'fd://5'  <module>[:<ServiceClass>]
+
 
 
 Environment variable substitution

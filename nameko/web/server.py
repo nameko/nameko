@@ -1,10 +1,15 @@
+import logging
+import os
 import re
 import socket
-from collections import namedtuple
+import sys
 from functools import partial
+
+from six.moves.urllib.parse import urlparse
 
 import eventlet
 from eventlet import wsgi
+from eventlet.green import socket
 from eventlet.support import get_errno
 from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
 from werkzeug.exceptions import HTTPException
@@ -15,20 +20,7 @@ from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
 
-BindAddress = namedtuple("BindAddress", ['address', 'port'])
-
-
-def parse_address(address_string):
-    address_re = re.compile('^((?P<address>[^:]+):)?(?P<port>\d+)$')
-    match = address_re.match(address_string)
-    if match is None:
-        raise ConfigurationError(
-            'Misconfigured bind address `{}`. '
-            'Should be `[address:]port`'.format(address_string)
-        )
-    address = match.group('address') or ''
-    port = int(match.group('port'))
-    return BindAddress(address, port)
+_log = logging.getLogger(__name__)
 
 
 class HttpOnlyProtocol(HttpProtocol):
@@ -49,6 +41,41 @@ class HttpOnlyProtocol(HttpProtocol):
         self.connection.close()
 
 
+def socket_from_uri(web_server_uri):
+    address = None
+    uri = urlparse(web_server_uri)
+    if uri.scheme == 'tcp':
+        _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        address = (uri.hostname, uri.port)
+    elif uri.scheme == 'unix':
+        _socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            os.remove(uri.path)
+        except OSError:
+            pass
+        address = uri.path
+    elif uri.scheme == 'fd':
+        _socket = socket.fromfd(int(uri.netloc), socket.AF_INET, socket.SOCK_STREAM)
+    # from eventlet.listen
+    if sys.platform[:3] != "win":
+        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if hasattr(socket, 'SO_REUSEPORT'):
+        # NOTE(zhengwei): linux kernel >= 3.9
+        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+    if address:
+        _socket.bind(address)
+
+    if uri.query:
+        options = dict(item.split('=') for item in uri.query.split('&'))
+    else:
+        options = {}
+    # backlog default from eventlet.listen
+    options.setdefault('backlog', 50)
+    _socket.listen(int(options['backlog']))
+    return _socket
+
+
 class WebServer(ProviderCollector, SharedExtension):
     """A SharedExtension that wraps a WSGI interface for processing HTTP
     requests.
@@ -60,20 +87,26 @@ class WebServer(ProviderCollector, SharedExtension):
     def __init__(self):
         super(WebServer, self).__init__()
         self._gt = None
-        self._sock = None
         self._serv = None
+        self._socket = None
         self._starting = False
         self._is_accepting = True
 
     @property
-    def bind_addr(self):
-        address_str = self.container.config.get(
-            WEB_SERVER_CONFIG_KEY, '0.0.0.0:8000')
-        return parse_address(address_str)
+    def socket(self):
+        if self._socket is None:
+            web_server_uri = self.container.config.get(
+                WEB_SERVER_CONFIG_KEY, None)
+            if web_server_uri is None:
+                # backcompat
+                web_server_uri = 'tcp://'+ self.container.config.get(
+                    'WEB_SERVER_ADDRESS', '0.0.0.0:8000')
+            self._socket = socket_from_uri(web_server_uri)
+        return self._socket
 
     def run(self):
         while self._is_accepting:
-            sock, addr = self._sock.accept()
+            sock, addr = self.socket.accept()
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(
                 partial(self.process_request, sock, addr)
@@ -93,9 +126,12 @@ class WebServer(ProviderCollector, SharedExtension):
 
     def start(self):
         if not self._starting:
+            _log.info('Starting {} on {}'.format(
+                self.__class__.__name__,
+                self.socket.getsockname(),
+            ))
             self._starting = True
-            self._sock = eventlet.listen(self.bind_addr)
-            self._serv = self.get_wsgi_server(self._sock, self.get_wsgi_app())
+            self._serv = self.get_wsgi_server(self.socket, self.get_wsgi_app())
             self._gt = self.container.spawn_managed_thread(self.run)
 
     def get_wsgi_app(self):
@@ -121,7 +157,7 @@ class WebServer(ProviderCollector, SharedExtension):
     def stop(self):
         self._is_accepting = False
         self._gt.kill()
-        self._sock.close()
+        self.socket.close()
         super(WebServer, self).stop()
 
     def make_url_map(self):

@@ -8,7 +8,7 @@ from werkzeug.contrib.fixers import ProxyFix
 from nameko.exceptions import ConfigurationError
 from nameko.web.handlers import HttpRequestHandler, http
 from nameko.web.server import (
-    BaseHTTPServer, HttpOnlyProtocol, WebServer, parse_address)
+    BaseHTTPServer, HttpOnlyProtocol, WebServer, socket_from_uri)
 
 
 class ExampleService(object):
@@ -106,19 +106,14 @@ def test_other_os_error(
 
 
 @pytest.mark.parametrize(['source', 'result'], [
-    ('8000', ('', 8000)),
-    ('foo:8000', ('foo', 8000)),
-    ('foo', None),
+    ('tcp://0.0.0.0:9998', ('0.0.0.0', 9998)),
+    ('tcp:///localhost:9999', ('localhost', 9999)),
+    ('unix:///tmp/nameko-test-socket', '/tmp/nameko-test-socket'),
 ])
-def test_parse_address(source, result):
-    if result is None:
-        with pytest.raises(ConfigurationError) as exc:
-            parse_address(source)
-        assert 'Misconfigured bind address' in str(exc)
-        assert '`foo`' in str(exc)
-
-    else:
-        assert parse_address(source) == result
+def test_socket_from_uri(source, result):
+    _socket = socket_from_uri(source)
+    assert _socket.getsockname() == result
+    _socket.close()
 
 
 def test_adding_middleware_with_get_wsgi_app(container_factory, web_config):

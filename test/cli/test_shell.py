@@ -126,7 +126,7 @@ def test_config(pystartup):
     local = kwargs['local']
     assert 'n' in local.keys()
     assert local['n'].config == {
-        WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+        WEB_SERVER_CONFIG_KEY: 'tcp://0.0.0.0:8001',
         AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
         SERIALIZER_CONFIG_KEY: 'json'
     }

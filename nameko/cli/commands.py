@@ -72,6 +72,10 @@ class Run(Command):
             help='RabbitMQ broker url')
 
         parser.add_argument(
+            '--listen',
+            help='The URI where the internal web server should listen.')
+
+        parser.add_argument(
             '--backdoor-port', type=int,
             help='Specify a port number to host a backdoor, which can be'
             ' connected to for an interactive interpreter within the running'

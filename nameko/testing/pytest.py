@@ -245,15 +245,16 @@ def web_config(empty_config):
     port = find_free_port()
 
     cfg = empty_config
-    cfg[WEB_SERVER_CONFIG_KEY] = str(port)
+    cfg[WEB_SERVER_CONFIG_KEY] = 'tcp://0.0.0.0:%d' % port
     return cfg
 
 
 @pytest.fixture()
 def web_config_port(web_config):
     from nameko.constants import WEB_SERVER_CONFIG_KEY
-    from nameko.web.server import parse_address
-    return parse_address(web_config[WEB_SERVER_CONFIG_KEY]).port
+    from six.moves.urllib.parse import urlparse
+    url = urlparse(web_config[WEB_SERVER_CONFIG_KEY])
+    return url.port
 
 
 @pytest.yield_fixture()
