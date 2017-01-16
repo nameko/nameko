@@ -391,6 +391,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
+            self._inject_dependencies(worker_ctx)
             self._worker_setup(worker_ctx)
 
             result = exc_info = None
@@ -425,18 +426,23 @@ class ServiceContainer(object):
 
                 self._worker_teardown(worker_ctx)
 
+    def _inject_dependencies(self, worker_ctx):
+        for provider in self.dependencies:
+            dependency = provider.get_dependency(worker_ctx)
+            setattr(worker_ctx.service, provider.attr_name, dependency)
+
     def _worker_setup(self, worker_ctx):
-        # TODO: when we have better parallelization than ``spawningset``,
-        # do this injection inline
-        self.dependencies.all.inject(worker_ctx)
-        self.dependencies.all.worker_setup(worker_ctx)
+        for provider in self.dependencies:
+            provider.worker_setup(worker_ctx)
 
     def _worker_result(self, worker_ctx, result, exc_info):
         _log.debug('signalling result for %s', worker_ctx)
-        self.dependencies.all.worker_result(worker_ctx, result, exc_info)
+        for provider in self.dependencies:
+            provider.worker_result(worker_ctx, result, exc_info)
 
     def _worker_teardown(self, worker_ctx):
-        self.dependencies.all.worker_teardown(worker_ctx)
+        for provider in self.dependencies:
+            provider.worker_teardown(worker_ctx)
 
     def _kill_worker_threads(self):
         """ Kill any currently executing worker threads.

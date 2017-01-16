@@ -151,13 +151,6 @@ class DependencyProvider(Extension):
         an object to be injected into the worker instance by the container.
         """
 
-    def inject(self, worker_ctx):
-        """ TODO when we have better parallelization than ``spawningset``,
-            do this injection in the container
-        """
-        dependency = self.get_dependency(worker_ctx)
-        setattr(worker_ctx.service, self.attr_name, dependency)
-
     def worker_result(self, worker_ctx, result=None, exc_info=None):
         """ Called with the result of a service worker execution.
 
