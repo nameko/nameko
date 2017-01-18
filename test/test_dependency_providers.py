@@ -28,4 +28,4 @@ class TestConfig:
         container.start()
 
         with entrypoint_hook(container, "foo") as foo:
-            assert "bar" == foo()
+            assert foo() == "bar"
