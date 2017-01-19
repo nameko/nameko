@@ -5,6 +5,14 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.5.1
+-------------
+
+Released 2017-01-19
+
+* Adds a DependencyProvider to give services access to the config object
+* Internal refactor to make all worker lifecycle steps run in the same thread
+
 Version 2.5.0
 -------------
 
