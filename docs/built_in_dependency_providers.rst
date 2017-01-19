@@ -10,6 +10,6 @@ Nameko includes some commonly used :ref:`dependency providers <dependency_inject
 Config
 ------
 
-Config is a simple dependency provider for accessing configuration values run time, see :ref:`running_a_service`.
+Config is a simple dependency provider that gives services read-only access to configuration values at run time, see :ref:`running_a_service`.
 
 .. literalinclude:: examples/config_dependency_provider.py
