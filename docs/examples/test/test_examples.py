@@ -2,12 +2,13 @@
 """ Tests for the files and snippets in nameko/docs/examples
 """
 import os
+import pytest
 
 from mock import call, patch
 
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.services import entrypoint_waiter
+from nameko.testing.services import entrypoint_waiter, entrypoint_hook
 
 
 class TestHttp(object):
@@ -281,3 +282,31 @@ class TestWebsocketRpc(object):
 
         ws = websocket()
         assert ws.rpc('echo', value=u"hellø") == u'hellø'
+
+
+class TestConfig:
+
+    def test_config_value_not_set(self, container_factory, empty_config):
+        from examples.config_dependency_provider import (
+            Service, FeatureNotEnabled
+        )
+
+        container = container_factory(Service, empty_config)
+        container.start()
+
+        with pytest.raises(FeatureNotEnabled):
+            with entrypoint_hook(container, "foo") as foo:
+                foo()
+
+    def test_can_get_config_value(self, container_factory, empty_config):
+        from examples.config_dependency_provider import Service
+
+        config = empty_config.copy()
+        config["FOO_FEATURE_ENABLED"] = True
+
+        container = container_factory(Service, config)
+        container.start()
+
+        with entrypoint_hook(container, "foo") as foo:
+            assert foo() == "foo"
+
