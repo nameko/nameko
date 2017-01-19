@@ -45,7 +45,7 @@ and providing a simple YAML configuration file:
 
 The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should conform to the schema for that call.
 
-Config values can be accessed via the built-in :ref:`config_dependency_provider` dependency provider.
+Config values can be read via the built-in :ref:`config_dependency_provider` dependency provider.
 
 
 Environment variable substitution
