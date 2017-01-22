@@ -15,7 +15,6 @@ from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
-from six.moves import queue
 
 from nameko.amqp import (
     UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
@@ -75,22 +74,22 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    def __init__(self, exchange=None, queue=None):
+    def __init__(self, exchange=None, queues_to_declare=None):
         """ Provides an AMQP message publisher method via dependency injection.
 
-        In AMQP messages are published to *exchanges* and routed to bound
-        *queues*. This dependency accepts either an `exchange` or a bound
-        `queue`, and will ensure both are declared before publishing.
+        In AMQP, messages are published to *exchanges* and routed to
+        bound *queues*. This dependency accepts both an `exchange`
+        and `queues_to_declare`, a list of Kombu queues, and will ensure
+        that all of them are declared before publishing.
 
         :Parameters:
             exchange : :class:`kombu.Exchange`
                 Destination exchange
-            queue : :class:`kombu.Queue`
-                Bound queue. The event will be published to this queue's
-                exchange.
+            queues_to_declare : list
+                A list of :class:`kombu.Queue` to be declared.
 
-        If neither `queue` nor `exchange` are provided, the message will be
-        published to the default exchange.
+        If `exchange` is not provided, the message will be published to
+        the default exchange.
 
         Example::
 
@@ -102,7 +101,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     self.publish('spam:' + data)
         """
         self.exchange = exchange
-        self.queue = queue
+        self.queues_to_declare = queues_to_declare
 
     @property
     def amqp_uri(self):
@@ -149,15 +148,16 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return DEFAULT_RETRY_POLICY
 
     def setup(self):
-
         exchange = self.exchange
-        queue = self.queue
+        queues_to_declare = self.queues_to_declare
 
         verify_amqp_uri(self.amqp_uri)
 
         with get_connection(self.amqp_uri) as conn:
-            if queue is not None:
-                maybe_declare(queue, conn)
+            if queues_to_declare is not None:
+                for queue in queues_to_declare:
+                    if queue is not None:
+                        maybe_declare(queue, conn)
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
@@ -165,9 +165,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
         def publish(msg, **kwargs):
             exchange = self.exchange
             serializer = self.serializer
-
-            if exchange is None and self.queue is not None:
-                exchange = self.queue.exchange
 
             retry = kwargs.pop('retry', self.retry)
             retry_policy = kwargs.pop('retry_policy', self.retry_policy)
@@ -192,7 +189,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     try:
                         returned_messages = producer.channel.returned_messages
                         returned = returned_messages.get_nowait()
-                    except queue.Empty:
+                    except six.moves.queue.Empty:
                         pass
                     else:
                         raise UndeliverableMessage(returned)

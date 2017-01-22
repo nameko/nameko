@@ -24,6 +24,9 @@ from test import skip_if_no_toxiproxy
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
+baz_ex = Exchange('baz_ex', durable=False)
+baz_queue = Queue('baz_queue', exchange=baz_ex, durable=False)
+
 CONSUME_TIMEOUT = 1
 
 
@@ -131,7 +134,7 @@ def test_publish_to_exchange(
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_queue(
+def test_publish_to_default_exchange(
     maybe_declare, mock_producer, mock_connection, mock_container
 ):
     container = mock_container
@@ -143,11 +146,16 @@ def test_publish_to_queue(
     worker_ctx = WorkerContext(
         container, service, DummyProvider("publish"), data=ctx_data)
 
-    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
+    publisher = Publisher(
+        queues_to_declare=[foobar_queue, baz_queue]
+    ).bind(container, "publish")
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
+    assert maybe_declare.call_args_list == [
+        call(foobar_queue, mock_connection),
+        call(baz_queue, mock_connection),
+    ]
 
     # test publish
     msg = "msg"
@@ -158,7 +166,7 @@ def test_publish_to_queue(
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
+        msg, headers=headers, exchange=None, retry=True,
         serializer=container.serializer, mandatory=False,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
@@ -177,7 +185,9 @@ def test_publish_custom_headers(
         container, service, DummyProvider('method'), data=ctx_data
     )
 
-    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
+    publisher = Publisher(
+        queues_to_declare=[foobar_queue]
+    ).bind(container, "publish")
 
     # test declarations
     publisher.setup()
@@ -191,7 +201,7 @@ def test_publish_custom_headers(
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
     mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
+        msg, headers=headers, exchange=None, retry=True,
         serializer=container.serializer, mandatory=False,
         retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
 
@@ -264,19 +274,29 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
+        exchange=foobar_ex, queues_to_declare=[foobar_queue, baz_queue]
+    ).bind(container, "publish")
 
-    # test queue, exchange and binding created in rabbit
+    # test queues, exchange and binding created in rabbit
     publisher.setup()
     publisher.start()
 
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
-    bindings = rabbit_manager.get_queue_bindings(vhost, foobar_queue.name)
+    foobar_bindings = rabbit_manager.get_queue_bindings(
+        vhost, foobar_queue.name
+    )
+    baz_bindings = rabbit_manager.get_queue_bindings(vhost, baz_queue.name)
 
-    assert "foobar_ex" in [exchange['name'] for exchange in exchanges]
-    assert "foobar_queue" in [queue['name'] for queue in queues]
-    assert "foobar_ex" in [binding['source'] for binding in bindings]
+    exchange_names = [exchange['name'] for exchange in exchanges]
+    queue_names = [queue['name'] for queue in queues]
+
+    assert "foobar_ex" in exchange_names
+    assert "baz_ex" in exchange_names
+    assert "foobar_queue" in queue_names
+    assert "baz_queue" in queue_names
+    assert "foobar_ex" in [binding['source'] for binding in foobar_bindings]
+    assert "baz_ex" in [binding['source'] for binding in baz_bindings]
 
     # test message published to queue
     service.publish = publisher.get_dependency(worker_ctx)
@@ -309,7 +329,8 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
+        exchange=foobar_ex, queues_to_declare=[foobar_queue]
+    ).bind(container, "publish")
 
     publisher.setup()
     publisher.start()
