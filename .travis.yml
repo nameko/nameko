@@ -17,7 +17,7 @@ addons:
     - libenchant-dev
 
 install:
-  - pip install tox
+  - pip install coveralls tox
 
 cache:
   directories:
@@ -51,6 +51,9 @@ matrix:
 
 script:
   - tox -e $TOX_ENV
+
+after_success:
+  coveralls --rcfile .coveragerc
 
 deploy:
   provider: pypi
