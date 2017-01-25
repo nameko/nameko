@@ -31,11 +31,12 @@ Example::
 from __future__ import absolute_import
 
 import uuid
+from functools import partial
 from logging import getLogger
 
 from kombu import Queue
 from nameko.messaging import Consumer, Publisher
-from nameko.standalone.events import event_dispatcher, get_event_exchange
+from nameko.standalone.events import get_event_exchange
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
@@ -75,8 +76,8 @@ class EventDispatcher(Publisher):
                 self.dispatch_spam('spam.ham', evt_data)
 
     """
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
+    def __init__(self, **defaults):
+        self.defaults = defaults
         super(EventDispatcher, self).__init__()
 
     def setup(self):
@@ -85,16 +86,14 @@ class EventDispatcher(Publisher):
         self.exchange = get_event_exchange(self.service_name)
         super(EventDispatcher, self).setup()
 
+    def dispatch(self, event_type, event_data, **kwargs):
+        self.publish(event_data, routing_key=event_type, **kwargs)
+
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
         headers = self.get_message_headers(worker_ctx)
-        kwargs = self.kwargs
-        dispatcher = event_dispatcher(self.config, headers=headers, **kwargs)
-
-        def dispatch(event_type, event_data):
-            dispatcher(self.service_name, event_type, event_data)
-        return dispatch
+        return partial(self.dispatch, headers=headers, **self.defaults)
 
 
 class EventHandler(Consumer):
@@ -267,5 +266,6 @@ class EventHandler(Consumer):
             durable=True, auto_delete=auto_delete, exclusive=exclusive)
 
         super(EventHandler, self).setup()
+
 
 event_handler = EventHandler.decorator

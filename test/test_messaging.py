@@ -111,13 +111,25 @@ def test_publish_to_exchange(
     msg = "msg"
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
+
     headers = {
         'nameko.call_id_stack': ['srcservice.publish.0']
     }
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'retry': publisher.retry,
+        'retry_policy': publisher.retry_policy
+    }
+    expected_kwargs.update(publisher.delivery_options)
+    expected_kwargs.update(publisher.encoding_options)
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
@@ -147,10 +159,21 @@ def test_publish_to_queue(
     }
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'retry': publisher.retry,
+        'retry_policy': publisher.retry_policy
+    }
+    expected_kwargs.update(publisher.delivery_options)
+    expected_kwargs.update(publisher.encoding_options)
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
@@ -180,10 +203,21 @@ def test_publish_custom_headers(
                'nameko.call_id_stack': ['srcservice.method.0']}
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'retry': publisher.retry,
+        'retry_policy': publisher.retry_policy
+    }
+    expected_kwargs.update(publisher.delivery_options)
+    expected_kwargs.update(publisher.encoding_options)
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 def test_header_encoder(empty_config):

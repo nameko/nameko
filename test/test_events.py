@@ -34,7 +34,9 @@ def test_event_dispatcher(mock_container, mock_producer):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
 
-    event_dispatcher = EventDispatcher(retry_policy={'max_retries': 5}).bind(
+    custom_retry_policy = {'max_retries': 5}
+
+    event_dispatcher = EventDispatcher(retry_policy=custom_retry_policy).bind(
         container, attr_name="dispatch")
     event_dispatcher.setup()
 
@@ -43,14 +45,22 @@ def test_event_dispatcher(mock_container, mock_producer):
 
     headers = event_dispatcher.get_message_headers(worker_ctx)
 
-    mock_producer.publish.assert_called_once_with(
-        'msg', exchange=ANY, headers=headers,
-        serializer=container.serializer,
-        routing_key='eventtype', retry=True, retry_policy={'max_retries': 5})
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'exchange': ANY,
+        'routing_key': 'eventtype',
+        'headers': headers,
+        'retry': event_dispatcher.retry,
+        'retry_policy': custom_retry_policy
+    }
+    expected_kwargs.update(event_dispatcher.delivery_options)
+    expected_kwargs.update(event_dispatcher.encoding_options)
 
-    _, call_kwargs = mock_producer.publish.call_args
-    exchange = call_kwargs['exchange']
-    assert exchange.name == 'srcservice.events'
+    assert mock_producer.publish.call_count == 1
+    args, kwargs = mock_producer.publish.call_args
+    assert args == expected_args
+    assert kwargs == expected_kwargs
+    assert kwargs['exchange'].name == 'srcservice.events'
 
 
 def test_event_handler(queue_consumer, mock_container):
@@ -197,6 +207,7 @@ class CustomEventHandler(EventHandler):
             message, worker_ctx, result, exc_info)
         self._calls.append(message)
         return result, exc_info
+
 
 custom_event_handler = CustomEventHandler.decorator
 

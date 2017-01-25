@@ -118,6 +118,23 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return True
 
     @property
+    def delivery_options(self):
+        return {
+            'delivery_mode': PERSISTENT,
+            'mandatory': False,
+            'immediate': False,
+            'priority': 0,
+            'expiration': None,
+        }
+
+    @property
+    def encoding_options(self):
+        return {
+            'serializer': self.serializer,
+            'compression': None
+        }
+
+    @property
     def serializer(self):
         """ Name of the serializer to use when publishing messages.
 
@@ -158,26 +175,37 @@ class Publisher(DependencyProvider, HeaderEncoder):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
+    def publish(self, msg, **kwargs):
+        """
+        """
+        exchange = self.exchange
+        queue = self.queue
+
+        if exchange is None and queue is not None:
+            exchange = queue.exchange
+
+        retry = kwargs.pop('retry', self.retry)
+        retry_policy = kwargs.pop('retry_policy', self.retry_policy)
+
+        for key in self.delivery_options:
+            if key not in kwargs:
+                kwargs[key] = self.delivery_options[key]
+        for key in self.encoding_options:
+            if key not in kwargs:
+                kwargs[key] = self.encoding_options[key]
+
+        with get_producer(self.amqp_uri, self.use_confirms) as producer:
+            producer.publish(
+                msg,
+                exchange=exchange,
+                retry=retry,
+                retry_policy=retry_policy,
+                **kwargs
+            )
+
     def get_dependency(self, worker_ctx):
-        def publish(msg, **kwargs):
-            exchange = self.exchange
-            queue = self.queue
-            serializer = self.serializer
-
-            if exchange is None and queue is not None:
-                exchange = queue.exchange
-
-            retry = kwargs.pop('retry', self.retry)
-            retry_policy = kwargs.pop('retry_policy', self.retry_policy)
-
-            with get_producer(self.amqp_uri, self.use_confirms) as producer:
-                headers = self.get_message_headers(worker_ctx)
-                producer.publish(
-                    msg, exchange=exchange, headers=headers,
-                    serializer=serializer,
-                    retry=retry, retry_policy=retry_policy, **kwargs)
-
-        return publish
+        headers = self.get_message_headers(worker_ctx)
+        return partial(self.publish, headers=headers)
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
