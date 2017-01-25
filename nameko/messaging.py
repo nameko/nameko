@@ -72,7 +72,7 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    def __init__(self, exchange=None, queue=None):
+    def __init__(self, exchange=None, queue=None, **defaults):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP messages are published to *exchanges* and routed to bound
@@ -100,6 +100,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         """
         self.exchange = exchange
         self.queue = queue
+        self.defaults = defaults
 
     @property
     def amqp_uri(self):
@@ -205,7 +206,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     def get_dependency(self, worker_ctx):
         headers = self.get_message_headers(worker_ctx)
-        return partial(self.publish, headers=headers)
+        return partial(self.publish, headers=headers, **self.defaults)
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):

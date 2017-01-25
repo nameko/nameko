@@ -166,6 +166,31 @@ def rabbit_config(request, rabbit_manager):
 
 
 @pytest.fixture
+def amqp_uri(rabbit_config):
+    from nameko.constants import AMQP_URI_CONFIG_KEY
+
+    return rabbit_config[AMQP_URI_CONFIG_KEY]
+
+
+@pytest.fixture
+def get_message_from_queue(amqp_uri):
+    from nameko.amqp import get_connection
+
+    def get(queue_name, ack=True, block=True, timeout=1):
+        with get_connection(amqp_uri) as conn:
+            queue = conn.SimpleQueue(queue_name)
+            message = queue.get(block=block, timeout=timeout)
+            if ack:
+                message.ack()
+            else:
+                message.requeue()
+            queue.close()
+        return message
+
+    return get
+
+
+@pytest.fixture
 def ensure_cleanup_order(request):
     """ Ensure ``rabbit_config`` is invoked early if it's used by any fixture
     in ``request``.

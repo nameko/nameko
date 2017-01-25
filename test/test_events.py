@@ -3,15 +3,21 @@ import time
 from collections import defaultdict
 
 import pytest
+from kombu import BrokerConnection
+from kombu.common import maybe_declare
+from kombu.messaging import Queue
 from mock import ANY, Mock, create_autospec, patch
 
+from nameko.amqp import get_connection
 from nameko.containers import WorkerContext
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
-from nameko.testing.services import entrypoint_waiter
+from nameko.standalone.events import get_event_exchange
+from nameko.testing.services import entrypoint_waiter, entrypoint_hook, dummy
 from nameko.testing.utils import DummyProvider
 
 
@@ -675,3 +681,109 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     # test event receieved on manually added queue
     messages = rabbit_manager.get_messages(vhost, "event-sink")
     assert ['"msg"'] == [msg['payload'] for msg in messages]
+
+
+class TestEventDispatcherOptionPrecedence(object):
+
+    @pytest.fixture
+    def event_type(self):
+        return "event_type"
+
+    @pytest.fixture
+    def service_base(self):
+
+        class Service(object):
+            name = "service"
+
+            dispatch = EventDispatcher()
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.dispatch(*args, **kwargs)
+
+        return Service
+
+    @pytest.fixture
+    def queue(self, amqp_uri, service_base, event_type):
+        """ Make a "sniffer" queue bound to the event exchange
+        """
+        exchange = get_event_exchange(service_base.name)
+        queue = Queue(
+            name="sniffer", exchange=exchange, routing_key=event_type
+        )
+
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(queue, connection)
+        return queue
+
+    def test_specify_with_subclass(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+
+        class ExpiringEventDispatcher(EventDispatcher):
+            delivery_options = {
+                'expiration': 1
+            }
+
+        class Service(service_base):
+            dispatch = ExpiringEventDispatcher()
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(event_type, "payload")
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_specify_at_declare_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+
+        class Service(service_base):
+            dispatch = EventDispatcher(expiration=1)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(event_type, "payload")
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_specify_at_publish_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(
+                event_type, "payload", expiration=1
+            )
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_override_at_publish_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+        class Service(service_base):
+            dispatch = EventDispatcher(expiration=1)
+
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(
+                event_type, "payload", expiration=2
+            )
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(2 * 1000)

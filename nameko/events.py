@@ -77,8 +77,7 @@ class EventDispatcher(Publisher):
 
     """
     def __init__(self, **defaults):
-        self.defaults = defaults
-        super(EventDispatcher, self).__init__()
+        super(EventDispatcher, self).__init__(**defaults)
 
     def setup(self):
         self.service_name = self.container.service_name

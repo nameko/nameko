@@ -3,12 +3,13 @@ import socket
 import eventlet
 import pytest
 from kombu import Exchange, Queue
+from kombu.common import maybe_declare
 from kombu.connection import Connection
 from mock import Mock, call, patch
 
 from test import skip_if_no_toxiproxy
 
-from nameko.constants import DEFAULT_RETRY_POLICY
+from nameko.amqp import get_connection
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
@@ -24,7 +25,7 @@ CONSUME_TIMEOUT = 1
 
 
 @pytest.yield_fixture
-def maybe_declare():
+def patch_maybe_declare():
     with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
         yield patched
 
@@ -93,7 +94,7 @@ def test_consume_provider(mock_container):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    maybe_declare, mock_connection, mock_producer, mock_container
+    patch_maybe_declare, mock_connection, mock_producer, mock_container
 ):
     container = mock_container
     container.service_name = "srcservice"
@@ -105,7 +106,7 @@ def test_publish_to_exchange(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_ex, mock_connection)
+    patch_maybe_declare.assert_called_once_with(foobar_ex, mock_connection)
 
     # test publish
     msg = "msg"
@@ -134,7 +135,7 @@ def test_publish_to_exchange(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
-    maybe_declare, mock_producer, mock_connection, mock_container
+    patch_maybe_declare, mock_producer, mock_connection, mock_container
 ):
     container = mock_container
     container.shared_extensions = {}
@@ -149,7 +150,7 @@ def test_publish_to_queue(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
+    patch_maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
 
     # test publish
     msg = "msg"
@@ -178,7 +179,7 @@ def test_publish_to_queue(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
-    mock_container, maybe_declare, mock_producer, mock_connection
+    mock_container, patch_maybe_declare, mock_producer, mock_connection
 ):
 
     container = mock_container
@@ -194,7 +195,7 @@ def test_publish_custom_headers(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
+    patch_maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
 
     # test publish
     msg = "msg"
@@ -679,3 +680,111 @@ class TestPublisherDisconnections(object):
                 call("send", payload2),
                 call("recv", payload2),
             ]
+
+
+class TestPublisherOptionPrecedence(object):
+
+    @pytest.fixture
+    def routing_key(self):
+        return "routing_key"
+
+    @pytest.fixture
+    def exchange(self, amqp_uri):
+        """ Make a "sniffer" queue bound to the exchange receiving messages
+        """
+        exchange = Exchange(name="exchange")
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(exchange, connection)
+        return exchange
+
+    @pytest.fixture
+    def queue(self, amqp_uri, exchange, routing_key):
+        queue = Queue(
+            name="queue", exchange=exchange, routing_key=routing_key
+        )
+
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(queue, connection)
+        return queue
+
+    @pytest.fixture
+    def service_base(self, exchange):
+
+        class Service(object):
+            name = "service"
+
+            publish = Publisher(exchange=exchange)
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        return Service
+
+    def test_subclass(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, exchange
+    ):
+
+        class ExpiringPublisher(Publisher):
+            delivery_options = {
+                'expiration': 1
+            }
+
+        class Service(service_base):
+            publish = ExpiringPublisher(exchange=exchange)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_declare_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, exchange
+    ):
+
+        class Service(service_base):
+            publish = Publisher(exchange=exchange, expiration=1)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_publish_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, expiration=1)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_publish_time_override(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, exchange
+    ):
+        class Service(service_base):
+            publish = Publisher(exchange=exchange, expiration=1)
+
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, expiration=2)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(2 * 1000)
