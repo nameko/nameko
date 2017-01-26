@@ -123,7 +123,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return {
             'delivery_mode': PERSISTENT,
             'mandatory': False,
-            'immediate': False,
             'priority': 0,
             'expiration': None,
         }
@@ -178,6 +177,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     def publish(self, msg, **kwargs):
         """
+
         """
         exchange = self.exchange
         queue = self.queue
@@ -196,6 +196,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 kwargs[key] = self.encoding_options[key]
 
         with get_producer(self.amqp_uri, self.use_confirms) as producer:
+
             producer.publish(
                 msg,
                 exchange=exchange,

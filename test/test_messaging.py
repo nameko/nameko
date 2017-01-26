@@ -1,15 +1,19 @@
 import socket
+from datetime import datetime
 
 import eventlet
 import pytest
+from amqp.exceptions import PreconditionFailed
 from kombu import Exchange, Queue
 from kombu.common import maybe_declare
 from kombu.connection import Connection
+from kombu.compression import get_encoder
+from kombu.serialization import registry
 from mock import Mock, call, patch
 
 from test import skip_if_no_toxiproxy
 
-from nameko.amqp import get_connection
+from nameko.amqp import get_connection, UndeliverableMessage
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
@@ -788,3 +792,206 @@ class TestPublisherOptionPrecedence(object):
 
         message = get_message_from_queue(queue.name)
         assert message.properties['expiration'] == str(2 * 1000)
+
+
+@pytest.mark.behavioural
+class TestPublisherOptions(object):
+
+    @pytest.fixture
+    def routing_key(self):
+        return "routing_key"
+
+    @pytest.fixture
+    def exchange(self, amqp_uri):
+        """ Make a "sniffer" queue bound to the exchange receiving messages
+        """
+        exchange = Exchange(name="exchange")
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(exchange, connection)
+        return exchange
+
+    @pytest.fixture
+    def queue(self, amqp_uri, exchange, routing_key):
+        queue = Queue(
+            name="queue", exchange=exchange, routing_key=routing_key
+        )
+
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(queue, connection)
+        return queue
+
+    @pytest.fixture
+    def service_base(self, exchange):
+
+        class Service(object):
+            name = "service"
+
+            publish = Publisher(exchange=exchange)
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        return Service
+
+    @pytest.mark.parametrize("option,value,expected", [
+        ('delivery_mode', 1, 1),
+        ('mandatory', True, True),
+        ('priority', 10, 10),
+        ('expiration', 10, str(10 * 1000)),
+    ])
+    def test_delivery_options(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, option, value, expected
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, **{option: value})
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties[option] == expected
+
+    def test_mandatory_delivery(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key="missing", mandatory=False)
+
+        with pytest.raises(UndeliverableMessage):
+            with entrypoint_hook(container, "proxy") as publish:
+                publish("payload", routing_key="missing", mandatory=True)
+
+    @pytest.mark.parametrize("serializer", ['json', 'pickle'])
+    def test_serializer(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, serializer
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = {"key": "value"}
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, serializer=serializer)
+
+        content_type, content_encoding, expected_body = (
+            registry.dumps(payload, serializer=serializer)
+        )
+
+        message = get_message_from_queue(queue.name, accept=content_type)
+        assert message.body == expected_body
+
+    def test_compression(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = {"key": "value"}
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, compression="gzip")
+
+        _, expected_content_type = get_encoder('gzip')
+
+        message = get_message_from_queue(queue.name)
+        assert message.headers['compression'] == expected_content_type
+
+    def test_content_type(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = (
+            b'GIF89a\x01\x00\x01\x00\x00\xff\x00,'
+            '\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;'
+        )
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, content_type="image/gif")
+
+        message = get_message_from_queue(queue.name)
+        assert message.payload == payload
+        assert message.properties['content_type'] == 'image/gif'
+        assert message.properties['content_encoding'] == 'binary'
+
+    def test_content_encoding(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = "A"
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(
+                payload.encode('utf-16'), routing_key=routing_key,
+                content_type="application/text", content_encoding="utf-16")
+
+        message = get_message_from_queue(queue.name)
+        assert message.payload == payload
+        assert message.properties['content_type'] == 'application/text'
+        assert message.properties['content_encoding'] == 'utf-16'
+
+    @pytest.mark.parametrize("option,value,expected", [
+        ('reply_to', "queue_name", "queue_name"),
+        ('message_id', "msg.1", "msg.1"),
+        ('type', "type", "type"),
+        ('app_id', "app.1", "app.1"),
+        ('cluster_id', "cluster.1", "cluster.1"),
+        ('correlation_id', "msg.1", "msg.1"),
+    ])
+    def test_message_properties(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, option, value, expected
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, **{option: value})
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties[option] == expected
+
+    def test_timestamp(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        now = datetime.now().replace(microsecond=0)
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, timestamp=now)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['timestamp'] == now
+
+    def test_user_id(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        user_id = rabbit_config['username']
+
+        # successful case
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, user_id=user_id)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['user_id'] == user_id
+
+        # when user_id does not match the current user, expect an error
+        with pytest.raises(PreconditionFailed):
+            with entrypoint_hook(container, "proxy") as publish:
+                publish("payload", routing_key=routing_key, user_id="invalid")
