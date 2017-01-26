@@ -85,14 +85,16 @@ class EventDispatcher(Publisher):
         self.exchange = get_event_exchange(self.service_name)
         super(EventDispatcher, self).setup()
 
-    def dispatch(self, event_type, event_data, **kwargs):
-        self.publish(event_data, routing_key=event_type, **kwargs)
+    def dispatch(self, propagate_headers, event_type, event_data, **kwargs):
+        self.publish(
+            propagate_headers, event_data, routing_key=event_type, **kwargs
+        )
 
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        headers = self.get_message_headers(worker_ctx)
-        return partial(self.dispatch, headers=headers, **self.defaults)
+        propagate_headers = self.get_message_headers(worker_ctx)
+        return partial(self.dispatch, propagate_headers, **self.defaults)
 
 
 class EventHandler(Consumer):

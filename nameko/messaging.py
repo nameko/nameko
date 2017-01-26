@@ -175,15 +175,18 @@ class Publisher(DependencyProvider, HeaderEncoder):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
-    def publish(self, msg, **kwargs):
+    def publish(self, propagating_headers, msg, **kwargs):
         """
-
         """
         exchange = self.exchange
         queue = self.queue
 
         if exchange is None and queue is not None:
             exchange = queue.exchange
+
+        # add any new headers to the existing ones we're propagating
+        headers = propagating_headers.copy()
+        headers.update(kwargs.pop('headers', {}))
 
         retry = kwargs.pop('retry', self.retry)
         retry_policy = kwargs.pop('retry_policy', self.retry_policy)
@@ -200,14 +203,15 @@ class Publisher(DependencyProvider, HeaderEncoder):
             producer.publish(
                 msg,
                 exchange=exchange,
+                headers=headers,
                 retry=retry,
                 retry_policy=retry_policy,
                 **kwargs
             )
 
     def get_dependency(self, worker_ctx):
-        headers = self.get_message_headers(worker_ctx)
-        return partial(self.publish, headers=headers, **self.defaults)
+        propagate_headers = self.get_message_headers(worker_ctx)
+        return partial(self.publish, propagate_headers, **self.defaults)
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):

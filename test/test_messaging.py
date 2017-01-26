@@ -836,7 +836,6 @@ class TestPublisherOptions(object):
 
     @pytest.mark.parametrize("option,value,expected", [
         ('delivery_mode', 1, 1),
-        ('mandatory', True, True),
         ('priority', 10, 10),
         ('expiration', 10, str(10 * 1000)),
     ])
@@ -938,6 +937,31 @@ class TestPublisherOptions(object):
         assert message.payload == payload
         assert message.properties['content_type'] == 'application/text'
         assert message.properties['content_encoding'] == 'utf-16'
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = {"key": "value"}
+        headers = {
+            'x-foo': 'foo'
+        }
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, headers=headers)
+
+        expected_headers = {
+            'nameko.call_id_stack': ['service.proxy.0']  # propagating headers
+        }
+        expected_headers.update(headers)
+
+        message = get_message_from_queue(queue.name)
+        assert message.headers == expected_headers
+        assert message.properties['application_headers'] == expected_headers
 
     @pytest.mark.parametrize("option,value,expected", [
         ('reply_to', "queue_name", "queue_name"),
