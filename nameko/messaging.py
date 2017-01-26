@@ -107,9 +107,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     self.publish('spam:' + data)
         """
         self.exchange = exchange
-        self.queues_to_declare = queues_to_declare
+        self.queues_to_declare = list(queues_to_declare or [])
 
-        if queue:
+        if queue is not None:
             warnings.warn(
                 "The signature of `Publisher` has changed. The `queue` kwarg "
                 "is now deprecated. You can use the `queues_to_declare` kwarg "
@@ -119,7 +119,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 DeprecationWarning
             )
 
-            self.queues_to_declare = (queues_to_declare or []) + [queue]
+            self.queues_to_declare.append(queue)
 
             if exchange is None:
                 self.exchange = queue.exchange
@@ -175,10 +175,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
         verify_amqp_uri(self.amqp_uri)
 
         with get_connection(self.amqp_uri) as conn:
-            if queues_to_declare is not None:
-                for queue in queues_to_declare:
-                    if queue is not None:
-                        maybe_declare(queue, conn)
+            for queue in queues_to_declare:
+                if queue is not None:
+                    maybe_declare(queue, conn)
             if exchange is not None:
                 maybe_declare(exchange, conn)
 
