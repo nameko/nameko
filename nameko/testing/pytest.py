@@ -167,7 +167,6 @@ def rabbit_config(request, rabbit_manager):
 
 @pytest.fixture
 def amqp_uri(rabbit_config):
-    # TODO: needs test
     from nameko.constants import AMQP_URI_CONFIG_KEY
 
     return rabbit_config[AMQP_URI_CONFIG_KEY]
@@ -175,7 +174,6 @@ def amqp_uri(rabbit_config):
 
 @pytest.fixture
 def get_message_from_queue(amqp_uri):
-    # TODO: needs test
     from nameko.amqp import get_connection
 
     def get(queue_name, ack=True, block=True, timeout=1, accept=None):

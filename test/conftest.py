@@ -21,6 +21,10 @@ def pytest_configure(config):
         "markers",
         "publish_retry: distinguish tests that should use retry in publishers"
     )
+    config.addinivalue_line(
+        "markers",
+        "behavioural: distinguish behavioural tests"
+    )
 
 
 @pytest.yield_fixture

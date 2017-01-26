@@ -3,14 +3,12 @@ import time
 from collections import defaultdict
 
 import pytest
-from kombu import BrokerConnection
 from kombu.common import maybe_declare
 from kombu.messaging import Queue
 from mock import ANY, Mock, create_autospec, patch
 
 from nameko.amqp import get_connection
 from nameko.containers import WorkerContext
-from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler)

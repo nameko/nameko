@@ -101,4 +101,5 @@ class HttpRequestHandler(Entrypoint):
             status=status_code,
         )
 
+
 http = HttpRequestHandler.decorator
