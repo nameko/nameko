@@ -74,7 +74,7 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    def __init__(self, exchange=None, queues_to_declare=None):
+    def __init__(self, exchange=None, queue=None, queues_to_declare=None):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP, messages are published to *exchanges* and routed to
@@ -82,14 +82,20 @@ class Publisher(DependencyProvider, HeaderEncoder):
         and `queues_to_declare`, a list of Kombu queues, and will ensure
         that all of them are declared before publishing.
 
+        It also accepts a `queue` and will ensure it's declared before
+        publishing. (**Deprecated**)
+
         :Parameters:
             exchange : :class:`kombu.Exchange`
                 Destination exchange
+            queue : :class:`kombu.Queue`
+                (**Deprecated**) Bound queue. The event will be published to
+                this queue's exchange.
             queues_to_declare : list
                 A list of :class:`kombu.Queue` to be declared.
 
-        If `exchange` is not provided, the message will be published to
-        the default exchange.
+        If neither `queue` nor `exchange` are provided, the message will
+        be published to the default exchange.
 
         Example::
 
@@ -102,6 +108,21 @@ class Publisher(DependencyProvider, HeaderEncoder):
         """
         self.exchange = exchange
         self.queues_to_declare = queues_to_declare
+
+        if queue:
+            warnings.warn(
+                "The signature of `Publisher` has changed. The `queue` kwarg "
+                "is now deprecated. You can use the `queues_to_declare` kwarg "
+                "to provide a list of Kombu queues to be declared. "
+                "See CHANGES, version 2.5.2 for more details. This warning "
+                "will be removed in version 2.7.0.",
+                DeprecationWarning
+            )
+
+            self.queues_to_declare = (queues_to_declare or []) + [queue]
+
+            if exchange is None:
+                self.exchange = queue.exchange
 
     @property
     def amqp_uri(self):
@@ -158,7 +179,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 for queue in queues_to_declare:
                     if queue is not None:
                         maybe_declare(queue, conn)
-            elif exchange is not None:
+            if exchange is not None:
                 maybe_declare(exchange, conn)
 
     def get_dependency(self, worker_ctx):

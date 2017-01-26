@@ -27,6 +27,9 @@ foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 baz_ex = Exchange('baz_ex', durable=False)
 baz_queue = Queue('baz_queue', exchange=baz_ex, durable=False)
 
+qux_ex = Exchange('qux_ex', durable=False)
+qux_queue = Queue('qux_queue', exchange=qux_ex, durable=False)
+
 CONSUME_TIMEOUT = 1
 
 
@@ -122,15 +125,57 @@ def test_publish_to_exchange(
 
     # test publish
     msg = "msg"
+    headers = {'nameko.call_id_stack': ['srcservice.publish.0']}
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
-    headers = {
-        'nameko.call_id_stack': ['srcservice.publish.0']
-    }
+
     mock_producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=foobar_ex, retry=True,
         serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value"
+    )
+
+
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_publish_to_queue_exchange(
+    maybe_declare, mock_producer, mock_connection, mock_container
+):
+    container = mock_container
+    container.shared_extensions = {}
+    container.service_name = "srcservice"
+
+    ctx_data = {'language': 'en'}
+    service = Mock()
+    worker_ctx = WorkerContext(
+        container, service, DummyProvider("publish"), data=ctx_data)
+
+    publisher = Publisher(
+        queue=qux_queue, queues_to_declare=[foobar_queue, baz_queue]
+    ).bind(container, "publish")
+
+    # test declarations
+    publisher.setup()
+    assert maybe_declare.call_args_list == [
+        call(foobar_queue, mock_connection),
+        call(baz_queue, mock_connection),
+        call(qux_queue, mock_connection),
+        call(qux_ex, mock_connection),
+    ]
+
+    # test publish
+    msg = "msg"
+    headers = {
+        'nameko.language': 'en',
+        'nameko.call_id_stack': ['srcservice.publish.0'],
+    }
+    service.publish = publisher.get_dependency(worker_ctx)
+    service.publish(msg, publish_kwarg="value")
+
+    mock_producer.publish.assert_called_once_with(
+        msg, headers=headers, exchange=qux_ex, retry=True,
+        serializer=container.serializer, mandatory=False,
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value"
+    )
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
@@ -165,10 +210,53 @@ def test_publish_to_default_exchange(
     }
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
+
     mock_producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=None, retry=True,
         serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value"
+    )
+
+
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_publish_to_provided_exchange_takes_precedence(
+    maybe_declare, mock_producer, mock_connection, mock_container
+):
+    container = mock_container
+    container.shared_extensions = {}
+    container.service_name = "srcservice"
+
+    ctx_data = {'language': 'en'}
+    service = Mock()
+    worker_ctx = WorkerContext(
+        container, service, DummyProvider("publish"), data=ctx_data)
+
+    publisher = Publisher(
+        exchange=foobar_ex, queue=qux_queue, queues_to_declare=[baz_queue]
+    ).bind(container, "publish")
+
+    # test declarations
+    publisher.setup()
+    assert maybe_declare.call_args_list == [
+        call(baz_queue, mock_connection),
+        call(qux_queue, mock_connection),
+        call(foobar_ex, mock_connection),
+    ]
+
+    # test publish
+    msg = "msg"
+    headers = {
+        'nameko.language': 'en',
+        'nameko.call_id_stack': ['srcservice.publish.0'],
+    }
+    service.publish = publisher.get_dependency(worker_ctx)
+    service.publish(msg, publish_kwarg="value")
+
+    mock_producer.publish.assert_called_once_with(
+        msg, headers=headers, exchange=foobar_ex, retry=True,
+        serializer=container.serializer, mandatory=False,
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value"
+    )
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
@@ -200,10 +288,12 @@ def test_publish_custom_headers(
                'nameko.call_id_stack': ['srcservice.method.0']}
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
+
     mock_producer.publish.assert_called_once_with(
         msg, headers=headers, exchange=None, retry=True,
         serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value"
+    )
 
 
 def test_header_encoder(empty_config):
