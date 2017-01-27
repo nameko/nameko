@@ -52,8 +52,11 @@ class ConsumeEvent(object):
             raise RuntimeError(
                 "This consumer has been stopped, and can no longer be used"
             )
-        # TODO: seems unnecessarily unhelpful -- can't we try to reconnect?
         if self.queue_consumer.connection.connected is False:
+            # we can't just reconnect here. the consumer (and its exclusive,
+            # auto-delete reply queue) must be re-established _before_ sending
+            # any request, otherwise the reply queue may not exist when the
+            # response is published.
             raise RuntimeError(
                 "This consumer has been disconnected, and can no longer "
                 "be used"

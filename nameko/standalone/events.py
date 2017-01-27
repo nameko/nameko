@@ -1,6 +1,8 @@
+import warnings
 from kombu import Exchange
+from six.moves import queue
 
-from nameko.amqp import get_connection, get_producer
+from nameko.amqp import get_connection, get_producer, UndeliverableMessage
 from nameko.constants import (
     DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY)
 from nameko.messaging import AMQP_URI_CONFIG_KEY, PERSISTENT
@@ -26,6 +28,7 @@ def event_dispatcher(nameko_config, **kwargs):
     retry = kwargs.pop('retry', True)
     retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
     use_confirms = kwargs.pop('use_confirms', True)
+    mandatory = kwargs.pop('mandatory', False)
 
     def dispatch(service_name, event_type, event_data):
         """ Dispatch an event claiming to originate from `service_name` with
@@ -48,5 +51,23 @@ def event_dispatcher(nameko_config, **kwargs):
                     routing_key=routing_key,
                     retry=retry,
                     retry_policy=retry_policy,
+                    mandatory=mandatory,
                     **kwargs)
+
+                if mandatory:
+                    if not use_confirms:
+                        warnings.warn(
+                            "Mandatory delivery was requested, but "
+                            "unroutable messages cannot be detected without "
+                            "publish confirms enabled."
+                        )
+
+                    try:
+                        returned_messages = producer.channel.returned_messages
+                        returned = returned_messages.get_nowait()
+                    except queue.Empty:
+                        pass
+                    else:
+                        raise UndeliverableMessage(returned)
+
     return dispatch

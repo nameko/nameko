@@ -3,6 +3,8 @@ Command Line Interface
 
 Nameko ships with a command line interface to make hosting and interacting with services as easy as possible.
 
+.. _running_a_service:
+
 Running a Service
 -----------------
 
@@ -42,6 +44,8 @@ and providing a simple YAML configuration file:
 
 
 The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should conform to the schema for that call.
+
+Config values can be read via the built-in :ref:`config_dependency_provider` dependency provider.
 
 
 Environment variable substitution

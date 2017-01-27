@@ -2,12 +2,13 @@
 """ Tests for the files and snippets in nameko/docs/examples
 """
 import os
+import pytest
 
 from mock import call, patch
 
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.services import entrypoint_waiter
+from nameko.testing.services import entrypoint_waiter, entrypoint_hook
 
 
 class TestHttp(object):
@@ -23,9 +24,9 @@ class TestHttp(object):
         assert res.status_code == 200
         assert res.text == '{"value": 42}'
 
-        res = web_session.post("/post", data="你好".encode('utf-8'))
+        res = web_session.post("/post", data=u"你好".encode('utf-8'))
         assert res.status_code == 200
-        assert res.text == 'received: 你好'
+        assert res.text == u'received: 你好'
 
     def test_advanced(self, container_factory, web_config, web_session):
 
@@ -169,7 +170,7 @@ class TestHelloWorld(object):
         container.start()
 
         with ServiceRpcProxy('greeting_service', rabbit_config) as greet_rpc:
-            assert greet_rpc.hello("Møtt") == "Hello, Møtt!"
+            assert greet_rpc.hello(u"Møtt") == u"Hello, Møtt!"
 
 
 class TestRpc(object):
@@ -184,7 +185,7 @@ class TestRpc(object):
         container_y.start()
 
         with ServiceRpcProxy('service_x', rabbit_config) as service_x_rpc:
-            assert service_x_rpc.remote_method("føø") == "føø-x-y"
+            assert service_x_rpc.remote_method(u"føø") == u"føø-x-y"
 
     def test_standalone_rpc(self, container_factory, rabbit_config):
 
@@ -280,4 +281,32 @@ class TestWebsocketRpc(object):
         container.start()
 
         ws = websocket()
-        assert ws.rpc('echo', value="hellø") == 'hellø'
+        assert ws.rpc('echo', value=u"hellø") == u'hellø'
+
+
+class TestConfig:
+
+    def test_config_value_not_set(self, container_factory, empty_config):
+        from examples.config_dependency_provider import (
+            Service, FeatureNotEnabled
+        )
+
+        container = container_factory(Service, empty_config)
+        container.start()
+
+        with pytest.raises(FeatureNotEnabled):
+            with entrypoint_hook(container, "foo") as foo:
+                foo()
+
+    def test_can_get_config_value(self, container_factory, empty_config):
+        from examples.config_dependency_provider import Service
+
+        config = empty_config.copy()
+        config["FOO_FEATURE_ENABLED"] = True
+
+        container = container_factory(Service, config)
+        container.start()
+
+        with entrypoint_hook(container, "foo") as foo:
+            assert foo() == "foo"
+

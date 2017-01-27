@@ -5,13 +5,39 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.5.1
+-------------
+
+Released 2017-01-19
+
+* Adds a DependencyProvider to give services access to the config object
+* Internal refactor to make all worker lifecycle steps run in the same thread
+
+Version 2.5.0
+-------------
+
+Released 2016-12-20
+
+* Enables publish confirms by default for all AMQP message publishers
+* Refactors common AMQP connection code into `nameko.amqp`
+
+Version 2.4.4
+-------------
+
+Released 2016-11-28
+
+* Adds AMQP heartbeats to Consumer connections
+* Handles an uncaught exception caused by a fast-disconnecting client under
+  Python 3 [fixes #367]
+
 Version 2.4.3
 -------------
 
 Released 2016-11-16
 
 * Pins kombu back to a compatible release (<4) [fixes #378]
-* Fixes compatibility with latest bpython and ipython shells [fixes #355 and #375]
+* Fixes compatibility with latest bpython and ipython shells
+  [fixes #355 and #375]
 * Fixes socket cleanup bug in websocket hub [fixes #367]
 
 Version 2.4.2
@@ -22,6 +48,7 @@ Released 2016-10-10
 * Added support for environment variables in YAML config files
 * Enhanced :func:`~nameko.testing.services.entrypoint_waiter`. The new
   implementation is backwards compatible but additionally:
+
     - Gives you access to the result returned (or exception raised)
     - Adds the ability to wait for a specific result
     - Doesn't fire until the worker is completely torn down
@@ -31,8 +58,9 @@ Version 2.4.1
 
 Released 2016-09-14
 
-* Enhanced :class: `~nameko.web.server.WebServer` with ``get_wsgi_app`` and ``get_wsgi_server``
-to allow easy usage of WSGI middleware and modifications of the WSGI server.
+* Enhanced :class: `~nameko.web.server.WebServer` with `get_wsgi_app` and
+  `get_wsgi_server` to allow easy usage of WSGI middleware and modifications
+  of the WSGI server.
 * Enhanced :func:`~nameko.testing.services.replace_dependencies` to allow
   specific replacement values to be provided with named arguments.
 
@@ -141,7 +169,7 @@ Released 2015-03-31
   `nameko-sqlalchemy <https://pypi.python.org/pypi/nameko-sqlalchemy>`_
   as a **community extension**.
 * Spun out ``nameko.legacy`` package into
- `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
+  `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
 * Rename the standalone rpc proxy to
   :class:`~nameko.standalone.rpc.ServiceRpcProxy` and add a
   :class:`~nameko.standalone.rpc.ClusterRpcProxy`, using a single reply queue

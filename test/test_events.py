@@ -6,8 +6,7 @@ import pytest
 from kombu.common import maybe_declare
 from kombu.messaging import Queue
 from mock import ANY, Mock, create_autospec, patch
-
-from nameko.amqp import get_connection
+from nameko.amqp import UndeliverableMessage, get_connection
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
@@ -15,9 +14,8 @@ from nameko.events import (
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.standalone.events import get_event_exchange
-from nameko.testing.services import entrypoint_waiter, entrypoint_hook, dummy
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import DummyProvider
-
 
 EVENTS_TIMEOUT = 5
 
@@ -55,7 +53,8 @@ def test_event_dispatcher(mock_container, mock_producer):
         'routing_key': 'eventtype',
         'headers': headers,
         'retry': event_dispatcher.retry,
-        'retry_policy': custom_retry_policy
+        'retry_policy': custom_retry_policy,
+        'mandatory': False
     }
     expected_kwargs.update(event_dispatcher.delivery_options)
     expected_kwargs.update(event_dispatcher.encoding_options)
@@ -785,3 +784,68 @@ class TestEventDispatcherOptionPrecedence(object):
 
         message = get_message_from_queue(queue.name)
         assert message.properties['expiration'] == str(2 * 1000)
+
+
+@pytest.mark.behavioural
+class TestMandatoryDelivery(object):
+    """ Test and demonstrate the mandatory delivery flag.
+
+    Dispatching an event should raise an exception when mandatory delivery
+    is requested and there is no destination queue, as long as publish-confirms
+    are enabled.
+    """
+    @pytest.fixture()
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "dispatcher"
+
+            dispatch = EventDispatcher()
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.dispatch(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+        return container
+
+    def test_default(self, container):
+        # events are not mandatory by default;
+        # no error when routing to a non-existent handler
+        with entrypoint_hook(container, 'proxy') as dispatch:
+            dispatch("event_type", "payload")
+
+    def test_mandatory_delivery(self, container):
+        # requesting mandatory delivery will result in an exception
+        # if there is no bound queue to receive the message
+        with pytest.raises(UndeliverableMessage):
+            with entrypoint_hook(container, 'proxy') as dispatch:
+                dispatch("event_type", "payload", mandatory=True)
+
+    @patch('nameko.messaging.warnings')
+    def test_confirms_disabled(
+        self, warnings, container_factory, rabbit_config
+    ):
+
+        class UnconfirmedEventDispatcher(EventDispatcher):
+            use_confirms = False
+
+        class Service(object):
+            name = "service"
+
+            dispatch = UnconfirmedEventDispatcher()
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.dispatch(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # no exception will be raised if confirms are disabled,
+        # even when mandatory delivery is requested,
+        # but there will be a warning raised
+        with entrypoint_hook(container, 'proxy') as dispatch:
+            dispatch("event_type", "payload", mandatory=True)
+        assert warnings.warn.called

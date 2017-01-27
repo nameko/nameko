@@ -12,14 +12,13 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='2.4.3',
+    version='2.5.1',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
     long_description=readme,
     author='onefinestay',
-    author_email='nameko-devs@onefinestay.com',
-    url='http://github.com/onefinestay/nameko',
+    url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "eventlet>=0.16.1",
@@ -33,12 +32,12 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.0",
-            "flake8==2.1.0",
-            "mccabe==0.3",
-            "pep8==1.6.1",
-            "pyflakes==0.8.1",
-            "pylint==1.5.1",
+            "coverage==4.2",
+            "flake8==3.2.1",
+            "mccabe==0.5.2",
+            "pycodestyle==2.2.0",
+            "pyflakes==1.3.0",
+            "pylint==1.6.4",
             "pytest==2.7.3",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",

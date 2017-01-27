@@ -4,6 +4,7 @@ Provides core messaging decorators and dependency providers.
 from __future__ import absolute_import
 
 import socket
+import warnings
 from functools import partial
 from itertools import count
 from logging import getLogger
@@ -14,11 +15,13 @@ from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
+from six.moves import queue as Queue
 
-from nameko.amqp import get_connection, get_producer, verify_amqp_uri
+from nameko.amqp import (
+    UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
-    SERIALIZER_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
+    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
@@ -198,6 +201,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
             if key not in kwargs:
                 kwargs[key] = self.encoding_options[key]
 
+        mandatory = kwargs.pop('mandatory', False)
+
         with get_producer(self.amqp_uri, self.use_confirms) as producer:
 
             producer.publish(
@@ -206,8 +211,24 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 headers=headers,
                 retry=retry,
                 retry_policy=retry_policy,
+                mandatory=mandatory,
                 **kwargs
             )
+
+            if mandatory:
+                if not self.use_confirms:
+                    warnings.warn(
+                        "Mandatory delivery was requested, but "
+                        "unroutable messages cannot be detected without "
+                        "publish confirms enabled."
+                    )
+                try:
+                    returned_messages = producer.channel.returned_messages
+                    returned = returned_messages.get_nowait()
+                except Queue.Empty:
+                    pass
+                else:
+                    raise UndeliverableMessage(returned)
 
     def get_dependency(self, worker_ctx):
         propagate_headers = self.get_message_headers(worker_ctx)
@@ -215,9 +236,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
-
-    amqp_uri = None
-    prefetch_count = None
 
     def __init__(self):
 
@@ -234,6 +252,18 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         self._consumers_ready = Event()
         super(QueueConsumer, self).__init__()
 
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def prefetch_count(self):
+        return self.container.max_workers
+
+    @property
+    def accept(self):
+        return self.container.accept
+
     def _handle_thread_exited(self, gt):
         exc = None
         try:
@@ -245,9 +275,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self):
-        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
-        self.accept = self.container.accept
-        self.prefetch_count = self.container.max_workers
         verify_amqp_uri(self.amqp_uri)
 
     def start(self):
@@ -389,7 +416,10 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         that is lazily evaluated. It doesn't represent an established
         connection to the broker at this point.
         """
-        return Connection(self.amqp_uri)
+        heartbeat = self.container.config.get(
+            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+        )
+        return Connection(self.amqp_uri, heartbeat=heartbeat)
 
     def get_consumers(self, Consumer, channel):
         """ Kombu callback to set up consumers.
@@ -444,8 +474,8 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             else:
                 callback()
 
-    def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted from Kombu.
+    def consume(self, limit=None, timeout=None, safety_interval=1, **kwargs):
+        """ Lifted from kombu
 
         We switch the order of the `break` and `self.on_iteration()` to
         avoid waiting on a drain_events timeout before breaking the loop.
@@ -459,12 +489,13 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
                 try:
                     conn.drain_events(timeout=safety_interval)
                 except socket.timeout:
+                    conn.heartbeat_check()
                     elapsed += safety_interval
-                    # Excluding the following clause from coverage,
-                    # as timeout never appears to be set - This method
-                    # is a lift from kombu so will leave in place for now.
-                    if timeout and elapsed >= timeout:  # pragma: no cover
-                        raise
+                    if timeout and elapsed >= timeout:
+                        # Excluding the following clause from coverage,
+                        # as timeout never appears to be set - This method
+                        # is a lift from kombu so will leave in place for now.
+                        raise  # pragma: no cover
                 except socket.error:
                     if not self.should_stop:
                         raise
