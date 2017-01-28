@@ -1134,7 +1134,7 @@ class TestPublisherOptions(object):
 
         payload = (
             b'GIF89a\x01\x00\x01\x00\x00\xff\x00,'
-            '\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;'
+            b'\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;'
         )
         with entrypoint_hook(container, "proxy") as publish:
             publish(payload, routing_key=routing_key, content_type="image/gif")
