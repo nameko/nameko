@@ -29,4 +29,5 @@ linkcheck:
 	sphinx-build -W -b linkcheck -d docs/build/doctrees docs docs/build/linkcheck
 
 coveralls:
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage combine --rcfile=$(CURDIR)/.coveragerc
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) coveralls --rcfile=$(CURDIR)/.coveragerc
