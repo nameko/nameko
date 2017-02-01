@@ -3,10 +3,13 @@ from __future__ import absolute_import
 import logging
 import socket
 
+import eventlet
+from eventlet import event
 from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
+from kombu.mixins import ConsumerMixin
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import (
@@ -173,6 +176,79 @@ class PollingQueueConsumer(object):
             self._setup_consumer()
 
 
+class MultiQueueConsumer(ConsumerMixin):
+
+    PREFETCH_COUNT_CONFIG_KEY = "PREFETCH_COUNT"
+    DEFAULT_PREFETCH_COUNT = 10
+
+    def __init__(self, timeout=None):
+        self.timeout = timeout
+        self.replies = {}
+        self._managed_threads = []
+        self._consumers_ready = event.Event()
+
+        self.provider = None
+        self.queue = None
+        self.serializer = None
+        self.accept = []
+        self.prefetch_count = None
+        self._connection = None
+
+    @property
+    def connection(self):
+        if not self._connection:
+            self._connection = Connection(self.provider.container.config[AMQP_URI_CONFIG_KEY])
+        return self._connection
+
+    def register_provider(self, provider):
+        _logger.debug("MultiQueueConsumer registering...")
+        self.provider = provider
+        self.queue = provider.queue
+        self.prefetch_count = self.provider.container.config.get(
+            self.PREFETCH_COUNT_CONFIG_KEY, self.DEFAULT_PREFETCH_COUNT)
+        self.serializer = provider.container.config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+        self.accept = [self.serializer]
+
+        verify_amqp_uri(provider.container.config[AMQP_URI_CONFIG_KEY])
+
+        self.start()
+
+    def start(self):
+        _logger.info("MultiQueueConsumer starting...")
+        gt = eventlet.spawn(self.run)
+        self._managed_threads.append(gt)
+        gt.link(self._handle_thread_exited)
+
+    def _handle_thread_exited(self, gt):
+        self._managed_threads.remove(gt)
+        try:
+            gt.wait()
+        except Exception as error:
+            _logger.error("Managed thread end with error: %s", error)
+
+    def on_message(self, body, message):
+        correlation_id = message.properties.get('correlation_id')
+        if correlation_id not in self.provider._reply_events:
+            _logger.debug(
+                "Unknown correlation id: %s", correlation_id)
+
+        self.replies[correlation_id] = (body, message)
+
+    def unregister_provider(self, _):
+        self.connection.close()
+        self.should_stop = True
+
+    def get_consumers(self, _, channel):
+        consumer = Consumer(channel, queues=[self.provider.queue], accept=self.accept,
+                            no_ack=False, callbacks=[self.on_message, self.provider.handle_message])
+        consumer.qos(prefetch_count=self.prefetch_count)
+        return [consumer]
+
+    @staticmethod
+    def ack_message(msg):
+        msg.ack()
+
+
 class SingleThreadedReplyListener(ReplyListener):
     """ A ReplyListener which uses a custom queue consumer and ConsumeEvent.
     """
@@ -186,6 +262,19 @@ class SingleThreadedReplyListener(ReplyListener):
         reply_event = ConsumeEvent(self.queue_consumer, correlation_id)
         self._reply_events[correlation_id] = reply_event
         return reply_event
+
+
+class MultiReplyListener(ReplyListener):
+
+    queue_consumer = None
+
+    def __init__(self, timeout=None):
+        self.queue_consumer = MultiQueueConsumer(timeout=timeout)
+        super(MultiReplyListener, self).__init__()
+
+    def stop(self):
+        self.queue_consumer.unregister_provider(self)
+        super(ReplyListener, self).stop()
 
 
 class StandaloneProxyBase(object):
@@ -207,17 +296,14 @@ class StandaloneProxyBase(object):
 
     def __init__(
         self, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
+        worker_ctx_cls=WorkerContext, reply_listener_cls=SingleThreadedReplyListener
     ):
         container = self.ServiceContainer(config)
-
-        reply_listener = SingleThreadedReplyListener(timeout=timeout).bind(
-            container)
 
         self._worker_ctx = worker_ctx_cls(
             container, service=None, entrypoint=self.Dummy,
             data=context_data)
-        self._reply_listener = reply_listener
+        self._reply_listener = reply_listener_cls(timeout=timeout).bind(container)
 
     def __enter__(self):
         return self.start()
@@ -337,3 +423,66 @@ class ClusterRpcProxy(StandaloneProxyBase):
     def __init__(self, *args, **kwargs):
         super(ClusterRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener)
+
+
+class MultiClusterRpcProxy(object):
+
+    _config = None
+    _rpc_proxy = None
+    _connection = None
+
+    RPC_TIMEOUT_CONFIG_KEY = 'RPC_TIMEOUT'
+
+    def __init__(self, config=None, context_data=None, worker_cls=None):
+        self.nameko_timeout = None
+        self.context_data = None
+        self.worker_cls = WorkerContext
+
+        if config:
+            self.configure(config, context_data, worker_cls)
+
+    def configure(self, config, context_data=None, worker_cls=None):
+        self._config = config
+        self.context_data = context_data
+        if worker_cls:
+            self.worker_cls = worker_cls
+        self.nameko_timeout = self._config.get(self.RPC_TIMEOUT_CONFIG_KEY)
+
+        self.connect()
+
+    def connect(self):
+        self._rpc_proxy = ClusterRpcProxy(
+            self._config,
+            timeout=float(self.nameko_timeout) if self.nameko_timeout else None,
+            context_data=self.context_data,
+            worker_ctx_cls=self.worker_cls,
+            reply_listener_cls=MultiReplyListener
+        )
+        self._connection = self._rpc_proxy.start()
+        _logger.debug("Nameko cluster rpc proxy connected")
+
+    def disconnect(self):
+        if self._rpc_proxy:
+            _logger.debug("Nameko cluster rpc proxy disconnect...")
+            return self._rpc_proxy.stop()
+
+    def _get_service(self, service):
+        return getattr(self.get_connection(), service)
+
+    def get_connection(self):
+        return self._connection
+
+    def __getattr__(self, name):
+        return self._get_service(name)
+
+    def __getitem__(self, item):
+        return self._get_service(item)
+
+    def __del__(self):
+        self.disconnect()
+
+    def __enter__(self):
+        return self._connection
+
+    def __exit__(self, tpe, value, traceback):
+        self.disconnect()
