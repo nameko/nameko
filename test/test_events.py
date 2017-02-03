@@ -823,7 +823,7 @@ class TestMandatoryDelivery(object):
             with entrypoint_hook(container, 'proxy') as dispatch:
                 dispatch("event_type", "payload", mandatory=True)
 
-    @patch('nameko.messaging.warnings')
+    @patch('nameko.amqp.publish.warnings')
     def test_confirms_disabled(
         self, warnings, container_factory, rabbit_config
     ):

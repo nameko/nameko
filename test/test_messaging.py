@@ -36,12 +36,6 @@ def patch_maybe_declare():
         yield patched
 
 
-@pytest.yield_fixture
-def warnings():
-    with patch('nameko.messaging.warnings') as patched:
-        yield patched
-
-
 def test_consume_provider(mock_container):
 
     container = mock_container
@@ -1283,8 +1277,9 @@ class TestMandatoryDelivery(object):
             with entrypoint_hook(container, 'proxy') as publish:
                 publish("payload", routing_key="bogus", mandatory=True)
 
+    @patch('nameko.amqp.publish.warnings')
     def test_confirms_disabled(
-        self, container_factory, rabbit_config, warnings
+        self, warnings, container_factory, rabbit_config
     ):
 
         class UnconfirmedPublisher(Publisher):

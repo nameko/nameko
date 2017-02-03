@@ -4,7 +4,6 @@ Provides core messaging decorators and dependency providers.
 from __future__ import absolute_import
 
 import socket
-import warnings
 from functools import partial
 from itertools import count
 from logging import getLogger
@@ -17,10 +16,11 @@ from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
 from six.moves import queue as Queue
 
-from nameko.amqp import (
-    UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
+from nameko.amqp import UndeliverableMessage, verify_amqp_uri
+from nameko.amqp.publish import get_connection, get_producer
+from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
     DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -73,7 +73,7 @@ class HeaderDecoder(object):
         return stripped
 
 
-class Publisher(DependencyProvider, HeaderEncoder):
+class Publisher(PublisherCore, DependencyProvider, HeaderEncoder):
 
     def __init__(self, exchange=None, queue=None, **defaults):
         """ Provides an AMQP message publisher method via dependency injection.
@@ -110,34 +110,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
     @property
-    def use_confirms(self):
-        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
-        for this publisher.
-
-        The publisher will wait for an acknowledgement from the broker that
-        the message was receieved and processed appropriately, and otherwise
-        raise. Confirms have a performance penalty but guarantee that messages
-        aren't lost, for example due to stale connections.
-        """
-        return True
-
-    @property
-    def delivery_options(self):
-        return {
-            'delivery_mode': PERSISTENT,
-            'mandatory': False,
-            'priority': 0,
-            'expiration': None,
-        }
-
-    @property
-    def encoding_options(self):
-        return {
-            'serializer': self.serializer,
-            'compression': None
-        }
-
-    @property
     def serializer(self):
         """ Name of the serializer to use when publishing messages.
 
@@ -147,23 +119,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return self.container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
-
-    @property
-    def retry(self):
-        """ Enable automatic retries when publishing a message that fails due
-        to a connection error.
-
-        Retries according to :attr:`self.retry_policy`.
-        """
-        return True
-
-    @property
-    def retry_policy(self):
-        """ Policy to apply when retrying message publishes, if enabled.
-
-        See :attr:`self.retry`.
-        """
-        return DEFAULT_RETRY_POLICY
 
     def setup(self):
 
@@ -177,58 +132,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 maybe_declare(queue, conn)
             elif exchange is not None:
                 maybe_declare(exchange, conn)
-
-    def publish(self, propagating_headers, msg, **kwargs):
-        """
-        """
-        exchange = self.exchange
-        queue = self.queue
-
-        if exchange is None and queue is not None:
-            exchange = queue.exchange
-
-        # add any new headers to the existing ones we're propagating
-        headers = propagating_headers.copy()
-        headers.update(kwargs.pop('headers', {}))
-
-        retry = kwargs.pop('retry', self.retry)
-        retry_policy = kwargs.pop('retry_policy', self.retry_policy)
-
-        for key in self.delivery_options:
-            if key not in kwargs:
-                kwargs[key] = self.delivery_options[key]
-        for key in self.encoding_options:
-            if key not in kwargs:
-                kwargs[key] = self.encoding_options[key]
-
-        mandatory = kwargs.pop('mandatory', False)
-
-        with get_producer(self.amqp_uri, self.use_confirms) as producer:
-
-            producer.publish(
-                msg,
-                exchange=exchange,
-                headers=headers,
-                retry=retry,
-                retry_policy=retry_policy,
-                mandatory=mandatory,
-                **kwargs
-            )
-
-            if mandatory:
-                if not self.use_confirms:
-                    warnings.warn(
-                        "Mandatory delivery was requested, but "
-                        "unroutable messages cannot be detected without "
-                        "publish confirms enabled."
-                    )
-                try:
-                    returned_messages = producer.channel.returned_messages
-                    returned = returned_messages.get_nowait()
-                except Queue.Empty:
-                    pass
-                else:
-                    raise UndeliverableMessage(returned)
 
     def get_dependency(self, worker_ctx):
         propagate_headers = self.get_message_headers(worker_ctx)
