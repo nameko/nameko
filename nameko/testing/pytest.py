@@ -24,7 +24,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--amqp-uri", action="store", dest='AMQP_URI',
-        default='amqp://guest:guest@localhost:5672/:random:',
+        default='pyamqp://guest:guest@localhost:5672/:random:',
         help=("The AMQP-URI to connect to rabbit with."))
 
     parser.addoption(

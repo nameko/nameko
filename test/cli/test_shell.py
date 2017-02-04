@@ -127,7 +127,7 @@ def test_config(pystartup):
     assert 'n' in local.keys()
     assert local['n'].config == {
         WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-        AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
+        AMQP_URI_CONFIG_KEY: 'pyamqp://guest:guest@localhost',
         SERIALIZER_CONFIG_KEY: 'json'
     }
     local['n'].disconnect()

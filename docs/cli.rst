@@ -58,7 +58,7 @@ Optionally you can provide default values ``${ENV_VAR:default_value}``
 .. code-block:: yaml
 
     # foobar.yaml
-    AMQP_URI: amqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}
+    AMQP_URI: pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}
 
 To run your service and set environment variables for it to use:
 
@@ -71,7 +71,7 @@ If you need to quote the values in your YAML file, the explicit ``!env_var`` res
 .. code-block:: yaml
 
     # foobar.yaml
-    AMQP_URI: !env_var "amqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
+    AMQP_URI: !env_var "pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
 
 Interacting with running services
 ---------------------------------
