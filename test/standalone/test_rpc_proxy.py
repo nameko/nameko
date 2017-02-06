@@ -11,7 +11,7 @@ from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, rpc
-from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy, MultiClusterRpcProxy
+from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy, MultiReplyListener
 from nameko.testing.utils import get_rabbit_connections
 from nameko.testing.waiting import wait_for_call as patch_wait
 
@@ -363,7 +363,7 @@ def test_multi_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with MultiClusterRpcProxy(rabbit_config) as proxy:
+    with ClusterRpcProxy(rabbit_config, reply_listener_cls=MultiReplyListener) as proxy:
         assert proxy.foobar.spam(ham=1) == 1
 
 
@@ -371,7 +371,7 @@ def test_multi_cluster_proxy_dict_access(container_factory, rabbit_manager, rabb
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with MultiClusterRpcProxy(rabbit_config) as proxy:
+    with ClusterRpcProxy(rabbit_config, reply_listener_cls=MultiReplyListener) as proxy:
         assert proxy['foobar'].spam(ham=3) == 3
 
 
@@ -380,7 +380,7 @@ def test_async_multi_cluster_proxy(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with MultiClusterRpcProxy(rabbit_config) as proxy:
+    with ClusterRpcProxy(rabbit_config, reply_listener_cls=MultiReplyListener) as proxy:
         rep1 = proxy.foobar.spam.call_async(ham=1)
         rep2 = proxy.foobar.spam.call_async(ham=2)
         rep3 = proxy.foobar.spam.call_async(ham=3)

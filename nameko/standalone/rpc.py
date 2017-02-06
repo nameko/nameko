@@ -178,8 +178,8 @@ class PollingQueueConsumer(object):
 
 class MultiQueueConsumer(ConsumerMixin):
 
-    PREFETCH_COUNT_CONFIG_KEY = "PREFETCH_COUNT"
-    DEFAULT_PREFETCH_COUNT = 10
+    PREFETCH_COUNT_CONFIG_KEY = 'PREFETCH_COUNT'
+    DEFAULT_KOMBU_PREFETCH_COUNT = 10
 
     def __init__(self, timeout=None):
         self.timeout = timeout
@@ -189,9 +189,9 @@ class MultiQueueConsumer(ConsumerMixin):
 
         self.provider = None
         self.queue = None
+        self.prefetch_count = None
         self.serializer = None
         self.accept = []
-        self.prefetch_count = None
         self._connection = None
 
     @property
@@ -204,9 +204,9 @@ class MultiQueueConsumer(ConsumerMixin):
         _logger.debug("MultiQueueConsumer registering...")
         self.provider = provider
         self.queue = provider.queue
-        self.prefetch_count = self.provider.container.config.get(
-            self.PREFETCH_COUNT_CONFIG_KEY, self.DEFAULT_PREFETCH_COUNT)
         self.serializer = provider.container.config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+        self.prefetch_count = self.provider.container.config.get(
+            self.PREFETCH_COUNT_CONFIG_KEY, self.DEFAULT_KOMBU_PREFETCH_COUNT)
         self.accept = [self.serializer]
 
         verify_amqp_uri(provider.container.config[AMQP_URI_CONFIG_KEY])
@@ -423,66 +423,3 @@ class ClusterRpcProxy(StandaloneProxyBase):
     def __init__(self, *args, **kwargs):
         super(ClusterRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener)
-
-
-class MultiClusterRpcProxy(object):
-
-    _config = None
-    _rpc_proxy = None
-    _connection = None
-
-    RPC_TIMEOUT_CONFIG_KEY = 'RPC_TIMEOUT'
-
-    def __init__(self, config=None, context_data=None, worker_cls=None):
-        self.nameko_timeout = None
-        self.context_data = None
-        self.worker_cls = WorkerContext
-
-        if config:
-            self.configure(config, context_data, worker_cls)
-
-    def configure(self, config, context_data=None, worker_cls=None):
-        self._config = config
-        self.context_data = context_data
-        if worker_cls:
-            self.worker_cls = worker_cls
-        self.nameko_timeout = self._config.get(self.RPC_TIMEOUT_CONFIG_KEY)
-
-        self.connect()
-
-    def connect(self):
-        self._rpc_proxy = ClusterRpcProxy(
-            self._config,
-            timeout=float(self.nameko_timeout) if self.nameko_timeout else None,
-            context_data=self.context_data,
-            worker_ctx_cls=self.worker_cls,
-            reply_listener_cls=MultiReplyListener
-        )
-        self._connection = self._rpc_proxy.start()
-        _logger.debug("Nameko cluster rpc proxy connected")
-
-    def disconnect(self):
-        if self._rpc_proxy:
-            _logger.debug("Nameko cluster rpc proxy disconnect...")
-            return self._rpc_proxy.stop()
-
-    def _get_service(self, service):
-        return getattr(self.get_connection(), service)
-
-    def get_connection(self):
-        return self._connection
-
-    def __getattr__(self, name):
-        return self._get_service(name)
-
-    def __getitem__(self, item):
-        return self._get_service(item)
-
-    def __del__(self):
-        self.disconnect()
-
-    def __enter__(self):
-        return self._connection
-
-    def __exit__(self, tpe, value, traceback):
-        self.disconnect()
