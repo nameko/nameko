@@ -73,7 +73,9 @@ class HeaderDecoder(object):
         return stripped
 
 
-class Publisher(PublisherCore, DependencyProvider, HeaderEncoder):
+class Publisher(DependencyProvider, HeaderEncoder):
+
+    Publisher = PublisherCore
 
     def __init__(self, exchange=None, queue=None, **defaults):
         """ Provides an AMQP message publisher method via dependency injection.
@@ -105,6 +107,15 @@ class Publisher(PublisherCore, DependencyProvider, HeaderEncoder):
         self.queue = queue
         self.defaults = defaults
 
+        # backwards compat
+        for compat_attr in ('retry', 'retry_policy', 'use_confirms'):
+            if hasattr(self, compat_attr):
+                self.defaults[compat_attr] = getattr(self, compat_attr)
+
+        # need: tests that just use the publisher core
+        # need: tests for sublassing and overriding attrs here
+        # then: get rid of propagating headers
+
     @property
     def amqp_uri(self):
         return self.container.config[AMQP_URI_CONFIG_KEY]
@@ -135,7 +146,11 @@ class Publisher(PublisherCore, DependencyProvider, HeaderEncoder):
 
     def get_dependency(self, worker_ctx):
         propagate_headers = self.get_message_headers(worker_ctx)
-        return partial(self.publish, propagate_headers, **self.defaults)
+
+        publisher = self.Publisher(self.amqp_uri, self.serializer)
+        publisher.queue = self.queue  # MYB: hack
+
+        return partial(publisher.publish, propagate_headers, self.exchange, **self.defaults)
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):

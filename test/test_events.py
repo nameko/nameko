@@ -52,12 +52,15 @@ def test_event_dispatcher(mock_container, mock_producer):
         'exchange': ANY,
         'routing_key': 'eventtype',
         'headers': headers,
-        'retry': event_dispatcher.retry,
+        'retry': event_dispatcher.Publisher.retry,
         'retry_policy': custom_retry_policy,
-        'mandatory': False
+        'compression': event_dispatcher.Publisher.compression,
+        'mandatory': event_dispatcher.Publisher.mandatory,
+        'expiration': event_dispatcher.Publisher.expiration,
+        'delivery_mode': event_dispatcher.Publisher.delivery_mode,
+        'priority': event_dispatcher.Publisher.priority,
+        'serializer': event_dispatcher.serializer
     }
-    expected_kwargs.update(event_dispatcher.delivery_options)
-    expected_kwargs.update(event_dispatcher.encoding_options)
 
     assert mock_producer.publish.call_count == 1
     args, kwargs = mock_producer.publish.call_args
@@ -719,9 +722,8 @@ class TestEventDispatcherOptionPrecedence(object):
     ):
 
         class ExpiringEventDispatcher(EventDispatcher):
-            delivery_options = {
-                'expiration': 1
-            }
+            class Publisher(EventDispatcher.Publisher):
+                expiration = 1
 
         class Service(service_base):
             dispatch = ExpiringEventDispatcher()
@@ -829,7 +831,8 @@ class TestMandatoryDelivery(object):
     ):
 
         class UnconfirmedEventDispatcher(EventDispatcher):
-            use_confirms = False
+            class Publisher(EventDispatcher.Publisher):
+                use_confirms = False
 
         class Service(object):
             name = "service"

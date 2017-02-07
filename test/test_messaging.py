@@ -127,12 +127,15 @@ def test_publish_to_exchange(
         'publish_kwarg': "value",
         'exchange': foobar_ex,
         'headers': headers,
-        'retry': publisher.retry,
-        'retry_policy': publisher.retry_policy,
-        'mandatory': False
+        'retry': publisher.Publisher.retry,
+        'retry_policy': publisher.Publisher.retry_policy,
+        'compression': publisher.Publisher.compression,
+        'mandatory': publisher.Publisher.mandatory,
+        'expiration': publisher.Publisher.expiration,
+        'delivery_mode': publisher.Publisher.delivery_mode,
+        'priority': publisher.Publisher.priority,
+        'serializer': publisher.serializer
     }
-    expected_kwargs.update(publisher.delivery_options)
-    expected_kwargs.update(publisher.encoding_options)
 
     assert mock_producer.publish.call_args_list == [
         call(*expected_args, **expected_kwargs)
@@ -172,12 +175,15 @@ def test_publish_to_queue(
         'publish_kwarg': "value",
         'exchange': foobar_ex,
         'headers': headers,
-        'retry': publisher.retry,
-        'retry_policy': publisher.retry_policy,
-        'mandatory': False
+        'retry': publisher.Publisher.retry,
+        'retry_policy': publisher.Publisher.retry_policy,
+        'compression': publisher.Publisher.compression,
+        'mandatory': publisher.Publisher.mandatory,
+        'expiration': publisher.Publisher.expiration,
+        'delivery_mode': publisher.Publisher.delivery_mode,
+        'priority': publisher.Publisher.priority,
+        'serializer': publisher.serializer
     }
-    expected_kwargs.update(publisher.delivery_options)
-    expected_kwargs.update(publisher.encoding_options)
 
     assert mock_producer.publish.call_args_list == [
         call(*expected_args, **expected_kwargs)
@@ -217,12 +223,15 @@ def test_publish_custom_headers(
         'publish_kwarg': "value",
         'exchange': foobar_ex,
         'headers': headers,
-        'retry': publisher.retry,
-        'retry_policy': publisher.retry_policy,
-        'mandatory': False
+        'retry': publisher.Publisher.retry,
+        'retry_policy': publisher.Publisher.retry_policy,
+        'compression': publisher.Publisher.compression,
+        'mandatory': publisher.Publisher.mandatory,
+        'expiration': publisher.Publisher.expiration,
+        'delivery_mode': publisher.Publisher.delivery_mode,
+        'priority': publisher.Publisher.priority,
+        'serializer': publisher.serializer
     }
-    expected_kwargs.update(publisher.delivery_options)
-    expected_kwargs.update(publisher.encoding_options)
 
     assert mock_producer.publish.call_args_list == [
         call(*expected_args, **expected_kwargs)
@@ -664,7 +673,7 @@ class TestPublisherDisconnections(object):
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
-        with patch.object(Publisher, 'use_confirms', new=request.param):
+        with patch.object(Publisher.Publisher, 'use_confirms', new=request.param):
             yield request.param
 
     @pytest.yield_fixture
@@ -949,9 +958,8 @@ class TestPublisherOptionPrecedence(object):
     ):
 
         class ExpiringPublisher(Publisher):
-            delivery_options = {
-                'expiration': 1
-            }
+            class Publisher(Publisher.Publisher):
+                expiration = 1
 
         class Service(service_base):
             publish = ExpiringPublisher(exchange=exchange)
@@ -1283,7 +1291,8 @@ class TestMandatoryDelivery(object):
     ):
 
         class UnconfirmedPublisher(Publisher):
-            use_confirms = False
+            class Publisher(Publisher.Publisher):
+                use_confirms = False
 
         class Service(object):
             name = "service"

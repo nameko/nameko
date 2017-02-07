@@ -86,8 +86,13 @@ class EventDispatcher(Publisher):
         super(EventDispatcher, self).setup()
 
     def dispatch(self, propagate_headers, event_type, event_data, **kwargs):
-        self.publish(
-            propagate_headers, event_data, routing_key=event_type, **kwargs
+
+        # MYB: fix this up: do we need a self.dispatch method?
+        publisher = self.Publisher(self.amqp_uri, self.serializer)
+        publisher.queue = self.queue  # MYB: hack
+
+        publisher.publish(
+            propagate_headers, self.exchange, event_data, routing_key=event_type, **kwargs
         )
 
     def get_dependency(self, worker_ctx):

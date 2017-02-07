@@ -36,69 +36,80 @@ def get_producer(amqp_uri, confirms=True):
 
 
 class Publisher(object):
+    """
+    """
 
-    def __init__(self, amqp_uri, serializer):
+    use_confirms = True
+    """
+    Enable `confirms <http://www.rabbitmq.com/confirms.html>`_ for this
+    publisher.
+
+    The publisher will wait for an acknowledgement from the broker that
+    the message was receieved and processed appropriately, and otherwise
+    raise. Confirms have a performance penalty but guarantee that messages
+    aren't lost, for example due to stale connections.
+    """
+
+    delivery_mode = PERSISTENT
+    """
+    Default delivery mode for messages published by this Publisher.
+    """
+
+    mandatory = False
+    """
+    """
+
+    priority = 0
+    """
+    """
+
+    expiration = None
+    """
+    """
+
+    compression = None
+    """
+    """
+
+    retry = True
+    """
+    Enable automatic retries when publishing a message that fails due
+    to a connection error.
+
+    Retries according to :attr:`self.retry_policy`.
+    """
+
+    retry_policy = DEFAULT_RETRY_POLICY
+    """
+    Policy to apply when retrying message publishes, if requested.
+
+    See :attr:`self.retry`.
+    """
+
+    def __init__(
+        self, amqp_uri, serializer, use_confirms=None, delivery_mode=None,
+        mandatory=None, priority=None, expiration=None, compression=None,
+        retry=None, retry_policy=None, **publish_kwargs
+    ):
         self.amqp_uri = amqp_uri
         self.serializer = serializer
-        # defaults?
 
-        # we want a solution where:
-        # 1. publisher core can be used as a standalone thing
-        # 2. options can be defined at class def time, instantiation time, and publish time
-        # 3. dependency provider easily wraps the core
-        # 4. instantiation time and ideally def time overrides on DP also possible
+        self.use_confirms = use_confirms or self.use_confirms
+        self.delivery_mode = delivery_mode or self.delivery_mode
+        self.mandatory = mandatory or self.mandatory
+        self.priority = priority or self.priority
+        self.expiration = expiration or self.expiration
+        self.compression = compression or self.compression
+        self.retry = retry or self.retry
+        self.retry_policy = retry_policy or self.retry_policy
 
-    @property
-    def use_confirms(self):
-        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
-        for this publisher.
+        # other publish arguments
+        self.publish_kwargs = publish_kwargs
 
-        The publisher will wait for an acknowledgement from the broker that
-        the message was receieved and processed appropriately, and otherwise
-        raise. Confirms have a performance penalty but guarantee that messages
-        aren't lost, for example due to stale connections.
-        """
-        return True
-
-    @property
-    def delivery_options(self):
-        return {
-            'delivery_mode': PERSISTENT,
-            'mandatory': False,
-            'priority': 0,
-            'expiration': None,
-        }
-
-    @property
-    def encoding_options(self):
-        return {
-            'serializer': self.serializer,
-            'compression': None
-        }
-
-    @property
-    def retry(self):
-        """ Enable automatic retries when publishing a message that fails due
-        to a connection error.
-
-        Retries according to :attr:`self.retry_policy`.
-        """
-        return True
-
-    @property
-    def retry_policy(self):
-        """ Policy to apply when retrying message publishes, if enabled.
-
-        See :attr:`self.retry`.
-        """
-        return DEFAULT_RETRY_POLICY
-
-    def publish(self, propagating_headers, msg, **kwargs):
+    def publish(self, propagating_headers, exchange, msg, **kwargs):
         """
         """
-        exchange = self.exchange
         queue = self.queue
-
         if exchange is None and queue is not None:
             exchange = queue.exchange
 
@@ -106,17 +117,17 @@ class Publisher(object):
         headers = propagating_headers.copy()
         headers.update(kwargs.pop('headers', {}))
 
+        delivery_mode = kwargs.pop('delivery_mode', self.delivery_mode)
+        mandatory = kwargs.pop('mandatory', self.mandatory)
+        priority = kwargs.pop('priority', self.priority)
+        expiration = kwargs.pop('expiration', self.expiration)
+        serializer = kwargs.pop('serializer', self.serializer)
+        compression = kwargs.pop('compression', self.compression)
         retry = kwargs.pop('retry', self.retry)
         retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
-        for key in self.delivery_options:
-            if key not in kwargs:
-                kwargs[key] = self.delivery_options[key]
-        for key in self.encoding_options:
-            if key not in kwargs:
-                kwargs[key] = self.encoding_options[key]
-
-        mandatory = kwargs.pop('mandatory', False)
+        publish_kwargs = self.publish_kwargs.copy()
+        publish_kwargs.update(kwargs)
 
         with get_producer(self.amqp_uri, self.use_confirms) as producer:
 
@@ -124,10 +135,15 @@ class Publisher(object):
                 msg,
                 exchange=exchange,
                 headers=headers,
+                delivery_mode=delivery_mode,
+                mandatory=mandatory,
+                priority=priority,
+                expiration=expiration,
+                compression=compression,
                 retry=retry,
                 retry_policy=retry_policy,
-                mandatory=mandatory,
-                **kwargs
+                serializer=serializer,
+                **publish_kwargs
             )
 
             if mandatory:

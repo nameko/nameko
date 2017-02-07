@@ -11,7 +11,7 @@ from eventlet.event import Event
 from kombu import Exchange, Queue
 from six.moves import queue
 
-from nameko.amqp import get_producer
+from nameko.amqp.publish import get_producer, Publisher
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
     RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
@@ -186,6 +186,8 @@ rpc = Rpc.decorator
 
 class Responder(object):
 
+    Publisher = Publisher
+
     def __init__(self, config, message):
         self.config = config
         self.message = message
@@ -262,19 +264,33 @@ class Responder(object):
         retry = kwargs.pop('retry', self.retry)
         retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
-        with get_producer(self.amqp_uri, self.use_confirms) as producer:
+        msg = {'result': result, 'error': error}
 
-            routing_key = self.message.properties['reply_to']
-            correlation_id = self.message.properties.get('correlation_id')
+        routing_key = self.message.properties['reply_to']
+        correlation_id = self.message.properties.get('correlation_id')
 
-            msg = {'result': result, 'error': error}
+        publisher = self.Publisher(self.amqp_uri, self.serializer)
+        publisher.queue = None  # MYB: hack
+        publisher.publish(
+            {}, exchange, msg,  # no headers
+            retry=retry, retry_policy=retry_policy,
+            routing_key=routing_key,
+            correlation_id=correlation_id, **kwargs
+        )
 
-            _log.debug('publish response %s:%s', routing_key, correlation_id)
-            producer.publish(
-                msg, retry=retry, retry_policy=retry_policy,
-                exchange=exchange, routing_key=routing_key,
-                serializer=self.serializer,
-                correlation_id=correlation_id, **kwargs)
+        # with get_producer(self.amqp_uri, self.use_confirms) as producer:
+
+        #     routing_key = self.message.properties['reply_to']
+        #     correlation_id = self.message.properties.get('correlation_id')
+
+        #     msg = {'result': result, 'error': error}
+
+        #     _log.debug('publish response %s:%s', routing_key, correlation_id)
+        #     producer.publish(
+        #         msg, retry=retry, retry_policy=retry_policy,
+        #         exchange=exchange, routing_key=routing_key,
+        #         serializer=self.serializer,
+        #         correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
 
