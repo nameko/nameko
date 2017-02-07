@@ -1,9 +1,11 @@
+from __future__ import absolute_import
+
 from amqp.exceptions import NotFound
 from kombu import Connection
 from kombu.messaging import Producer
 import pytest
 
-from nameko.amqp import get_connection, get_producer
+from nameko.amqp.publish import get_connection, get_producer, Publisher
 
 
 def test_get_connection(rabbit_config):

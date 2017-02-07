@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import socket
 from contextlib import contextmanager
 from datetime import datetime
@@ -1020,6 +1022,7 @@ class TestPublisherOptionPrecedence(object):
         assert message.properties['expiration'] == str(2 * 1000)
 
 
+# MYB: mostly copied to test/amqp/test_publish::TestPublisher
 @pytest.mark.behavioural
 class TestPublisherOptions(object):
 
@@ -1247,6 +1250,7 @@ class TestPublisherOptions(object):
                 publish("payload", routing_key=routing_key, user_id="invalid")
 
 
+# MYB: mostly copied to test/amqp/test_publish::TestMandatoryDelivery
 @pytest.mark.behavioural
 class TestMandatoryDelivery(object):
     """ Test and demonstrate the mandatory delivery flag.

@@ -1,7 +1,6 @@
 import socket
 
 import pytest
-from kombu import Connection
 from urllib3.util import Url, parse_url
 
 from nameko.amqp import verify_amqp_uri
