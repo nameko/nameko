@@ -90,14 +90,16 @@ class Publisher(object):
     See :attr:`self.retry`.
     """
 
+    declare = []
+    """
+    """
+
     def __init__(
         self, amqp_uri, use_confirms=None, serializer=None, compression=None,
         delivery_mode=None, mandatory=None, priority=None, expiration=None,
-        retry=None, retry_policy=None, **publish_kwargs
+        declare=None, retry=None, retry_policy=None, **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
-
-        # MYB: accept exchange and/or routing_key here? if not, justify
 
         # publish confirms
         self.use_confirms = use_confirms or self.use_confirms
@@ -115,6 +117,9 @@ class Publisher(object):
         # retry policy
         self.retry = retry or self.retry
         self.retry_policy = retry_policy or self.retry_policy
+
+        # declarations
+        self.declare = declare or self.declare
 
         # other publish arguments
         self.publish_kwargs = publish_kwargs
@@ -139,6 +144,9 @@ class Publisher(object):
         retry = kwargs.pop('retry', self.retry)
         retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
+        declare = self.declare[:]
+        declare.extend(kwargs.pop('declare', ()))
+
         publish_kwargs = self.publish_kwargs.copy()
         publish_kwargs.update(kwargs)  # publish-time kwargs win
 
@@ -152,6 +160,7 @@ class Publisher(object):
                 priority=priority,
                 expiration=expiration,
                 compression=compression,
+                declare=declare,
                 retry=retry,
                 retry_policy=retry_policy,
                 serializer=serializer,

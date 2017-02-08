@@ -7,6 +7,7 @@ import socket
 from functools import partial
 from itertools import count
 from logging import getLogger
+import warnings
 
 import eventlet
 import six
@@ -79,19 +80,23 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def __init__(self, exchange=None, queue=None, **defaults):
         """ Provides an AMQP message publisher method via dependency injection.
 
-        In AMQP messages are published to *exchanges* and routed to bound
-        *queues*. This dependency accepts either an `exchange` or a bound
-        `queue`, and will ensure both are declared before publishing.
+        In AMQP, messages are published to *exchanges* and routed to bound
+        *queues*. This dependency accepts the `exchange` to publish to and
+        will ensure that it is declared before publishing.
+
+        Optionally, you may use the `declare` keyword argument to pass a list
+        of other :class:`kombu.Exchange` or :class:`kombu.Queue` objects to
+        declare before publishing.
 
         :Parameters:
             exchange : :class:`kombu.Exchange`
                 Destination exchange
             queue : :class:`kombu.Queue`
-                Bound queue. The event will be published to this queue's
-                exchange.
+                **Deprecated**: Bound queue. The event will be published to
+                this queue's exchange.
 
-        If neither `queue` nor `exchange` are provided, the message will be
-        published to the default exchange.
+        If `exchange` is not provided, the message will be published to the
+        default exchange.
 
         Example::
 
@@ -103,12 +108,30 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     self.publish('spam:' + data)
         """
         self.exchange = exchange
-        self.queue = queue
         self.defaults = defaults
+
+        self.declare = []
+
+        if self.exchange:
+            self.declare.append(self.exchange)
+
+        if queue is not None:
+            warnings.warn(
+                "The signature of `Publisher` has changed. The `queue` kwarg "
+                "is now deprecated. You can use the `declare` kwarg "
+                "to provide a list of Kombu queues to be declared. "
+                "See CHANGES, version 2.5.2 for more details. This warning "
+                "will be removed in version 2.7.0.",
+                DeprecationWarning
+            )
+            if exchange is None:
+                self.exchange = queue.exchange
+            self.declare.append(queue)
 
         # backwards compat
         # TODO: should put serializer here too?
         for compat_attr in ('retry', 'retry_policy', 'use_confirms'):
+            # TODO: warn
             if hasattr(self, compat_attr):
                 self.defaults[compat_attr] = getattr(self, compat_attr)
 
@@ -133,41 +156,23 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     def setup(self):
 
-        exchange = self.exchange
-        queue = self.queue
-
         verify_amqp_uri(self.amqp_uri)
 
         self.publisher = self.Publisher(
             self.amqp_uri,
             serializer=self.serializer,
             exchange=self.exchange,
+            declare=self.declare,
             **self.defaults
         )
-
-        with get_connection(self.amqp_uri) as conn:
-            if queue is not None:
-                maybe_declare(queue, conn)
-            elif exchange is not None:
-                maybe_declare(exchange, conn)
 
     def get_dependency(self, worker_ctx):
         propagate_headers = self.get_message_headers(worker_ctx)
 
         def publish(msg, **kwargs):
 
-            # backwards compat: if bound queue was privided but no exchange,
-            # publish to its exchange
-            exchange = self.exchange
-            queue = self.queue
-            if exchange is None and queue is not None:
-                exchange = queue.exchange
-
             self.publisher.publish(
-                msg,
-                exchange=exchange,
-                extra_headers=propagate_headers,
-                **kwargs
+                msg, extra_headers=propagate_headers, **kwargs
             )
 
         return publish

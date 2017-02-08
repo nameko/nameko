@@ -76,12 +76,11 @@ class EventDispatcher(Publisher):
 
     """
     def __init__(self, **defaults):
-        super(EventDispatcher, self).__init__(**defaults)
+        super(EventDispatcher, self).__init__(exchange=None, **defaults)  # TODO: test/raise to say cannot provide exchange as default?
 
     def setup(self):
-        self.service_name = self.container.service_name
-        self.config = self.container.config
-        self.exchange = get_event_exchange(self.service_name)
+        self.exchange = get_event_exchange(self.container.service_name)
+        self.declare.append(self.exchange)
         super(EventDispatcher, self).setup()
 
     def get_dependency(self, worker_ctx):
