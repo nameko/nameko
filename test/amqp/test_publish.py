@@ -6,7 +6,6 @@ from mock import call
 import pytest
 from amqp.exceptions import NotFound, PreconditionFailed
 from kombu import Connection
-from kombu.common import maybe_declare
 from kombu.compression import get_encoder
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry

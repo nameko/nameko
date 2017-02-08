@@ -13,11 +13,9 @@ import eventlet
 import six
 from eventlet.event import Event
 from kombu import Connection
-from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
 
 from nameko.amqp import verify_amqp_uri
-from nameko.amqp.publish import get_connection
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
