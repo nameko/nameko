@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 
 from datetime import datetime
-from mock import call
+from mock import call, ANY
 
 import pytest
 from amqp.exceptions import NotFound, PreconditionFailed
 from kombu import Connection
 from kombu.compression import get_encoder
+from kombu.common import maybe_declare
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import patch
@@ -290,3 +291,29 @@ class TestPublisher(object):
         # when user_id does not match the current user, expect an error
         with pytest.raises(PreconditionFailed):
             publisher.publish("payload", user_id="invalid")
+
+    @patch('kombu.messaging.maybe_declare', wraps=maybe_declare)
+    def test_declare(
+        self, maybe_declare, publisher, get_message_from_queue, routing_key,
+        queue, exchange
+    ):
+        declare = [
+            Queue(name="q1", exchange=exchange, routing_key=routing_key),
+            Queue(name="q2", exchange=exchange, routing_key=routing_key)
+        ]
+
+        publisher.publish("payload", declare=declare)
+
+        assert maybe_declare.call_args_list == [
+            call(exchange, ANY, ANY),
+            call(queue, ANY, ANY),
+            call(declare[0], ANY, ANY),
+            call(declare[1], ANY, ANY)
+        ]
+
+        assert get_message_from_queue(queue.name).payload == "payload"
+        assert get_message_from_queue(declare[0].name).payload == "payload"
+        assert get_message_from_queue(declare[1].name).payload == "payload"
+
+    # test_retry
+    # test_retry_policy
