@@ -138,6 +138,13 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         verify_amqp_uri(self.amqp_uri)
 
+        self.publisher = self.Publisher(
+            self.amqp_uri,
+            serializer=self.serializer,
+            exchange=self.exchange,
+            **self.defaults
+        )
+
         with get_connection(self.amqp_uri) as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
@@ -146,10 +153,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     def get_dependency(self, worker_ctx):
         propagate_headers = self.get_message_headers(worker_ctx)
-
-        # MYB: TODO 4: same as in events, but here
-        # MYB; TODO 5: instaniate publisher earlier, maybe only in one class
-        publisher = self.Publisher(self.amqp_uri, serializer=self.serializer, **self.defaults)
 
         def publish(msg, **kwargs):
 
@@ -160,7 +163,12 @@ class Publisher(DependencyProvider, HeaderEncoder):
             if exchange is None and queue is not None:
                 exchange = queue.exchange
 
-            publisher.publish(msg, exchange=exchange, extra_headers=propagate_headers, **kwargs)
+            self.publisher.publish(
+                msg,
+                exchange=exchange,
+                extra_headers=propagate_headers,
+                **kwargs
+            )
 
         return publish
 
