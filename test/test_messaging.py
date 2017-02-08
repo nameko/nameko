@@ -128,7 +128,8 @@ def test_publish_to_exchange(
     expected_kwargs = {
         'publish_kwarg': "value",
         'exchange': foobar_ex,
-        'headers': headers,
+        'extra_headers': headers,
+        'headers': {},
         'retry': publisher.Publisher.retry,
         'retry_policy': publisher.Publisher.retry_policy,
         'compression': publisher.Publisher.compression,
@@ -176,7 +177,8 @@ def test_publish_to_queue(
     expected_kwargs = {
         'publish_kwarg': "value",
         'exchange': foobar_ex,
-        'headers': headers,
+        'extra_headers': headers,
+        'headers': {},
         'retry': publisher.Publisher.retry,
         'retry_policy': publisher.Publisher.retry_policy,
         'compression': publisher.Publisher.compression,
@@ -224,7 +226,8 @@ def test_publish_custom_headers(
     expected_kwargs = {
         'publish_kwarg': "value",
         'exchange': foobar_ex,
-        'headers': headers,
+        'extra_headers': headers,
+        'headers': {},
         'retry': publisher.Publisher.retry,
         'retry_policy': publisher.Publisher.retry_policy,
         'compression': publisher.Publisher.compression,

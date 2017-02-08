@@ -51,7 +51,8 @@ def test_event_dispatcher(mock_container, mock_producer):
     expected_kwargs = {
         'exchange': ANY,
         'routing_key': 'eventtype',
-        'headers': headers,
+        'extra_headers': headers,
+        'headers': {},
         'retry': event_dispatcher.Publisher.retry,
         'retry_policy': custom_retry_policy,
         'compression': event_dispatcher.Publisher.compression,

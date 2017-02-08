@@ -269,28 +269,16 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.Publisher(self.amqp_uri, self.serializer)
+        publisher = self.Publisher(self.amqp_uri)
         publisher.queue = None  # MYB: hack
+
         publisher.publish(
-            {}, exchange, msg,  # no headers
+            msg,
+            serializer=self.serializer,
+            exchange=exchange, routing_key=routing_key,
             retry=retry, retry_policy=retry_policy,
-            routing_key=routing_key,
             correlation_id=correlation_id, **kwargs
         )
-
-        # with get_producer(self.amqp_uri, self.use_confirms) as producer:
-
-        #     routing_key = self.message.properties['reply_to']
-        #     correlation_id = self.message.properties.get('correlation_id')
-
-        #     msg = {'result': result, 'error': error}
-
-        #     _log.debug('publish response %s:%s', routing_key, correlation_id)
-        #     producer.publish(
-        #         msg, retry=retry, retry_policy=retry_policy,
-        #         exchange=exchange, routing_key=routing_key,
-        #         serializer=self.serializer,
-        #         correlation_id=correlation_id, **kwargs)
 
         return result, exc_info
 

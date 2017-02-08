@@ -31,7 +31,6 @@ Example::
 from __future__ import absolute_import
 
 import uuid
-from functools import partial
 from logging import getLogger
 
 from kombu import Queue
@@ -85,21 +84,20 @@ class EventDispatcher(Publisher):
         self.exchange = get_event_exchange(self.service_name)
         super(EventDispatcher, self).setup()
 
-    def dispatch(self, propagate_headers, event_type, event_data, **kwargs):
-
-        # MYB: fix this up: do we need a self.dispatch method?
-        publisher = self.Publisher(self.amqp_uri, self.serializer)
-        publisher.queue = self.queue  # MYB: hack
-
-        publisher.publish(
-            propagate_headers, self.exchange, event_data, routing_key=event_type, **kwargs
-        )
-
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
         propagate_headers = self.get_message_headers(worker_ctx)
-        return partial(self.dispatch, propagate_headers, **self.defaults)
+
+        # TODO: all of these properties are fixed at setup time apart from
+        # extra_headers. maybe create the publisher earlier? is it identical to the Publisher's one? if so, just use superclass
+        publisher = self.Publisher(self.amqp_uri, serializer=self.serializer, **self.defaults)
+        publisher.queue = self.queue  # MYB: hack
+
+        def dispatch(event_type, event_data, **kwargs):  # MYB: TODO 3: move self.exchange into self.Publisher() constructor
+            publisher.publish(event_data, exchange=self.exchange, routing_key=event_type, extra_headers=propagate_headers, **kwargs)
+
+        return dispatch
 
 
 class EventHandler(Consumer):

@@ -147,10 +147,15 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def get_dependency(self, worker_ctx):
         propagate_headers = self.get_message_headers(worker_ctx)
 
-        publisher = self.Publisher(self.amqp_uri, self.serializer)
+        # MYB: TODO 4: same as in events, but here
+        # MYB; TODO 5: instaniate publisher earlier, maybe only in one class
+        publisher = self.Publisher(self.amqp_uri, serializer=self.serializer, **self.defaults)
         publisher.queue = self.queue  # MYB: hack
 
-        return partial(publisher.publish, propagate_headers, self.exchange, **self.defaults)
+        def publish(msg, **kwargs):
+            publisher.publish(msg, exchange=self.exchange, extra_headers=propagate_headers, **kwargs)
+
+        return publish
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):

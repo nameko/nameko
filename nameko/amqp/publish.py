@@ -67,6 +67,10 @@ class Publisher(object):
     """
     """
 
+    serializer = None
+    """
+    """
+
     compression = None
     """
     """
@@ -87,35 +91,50 @@ class Publisher(object):
     """
 
     def __init__(
-        self, amqp_uri, serializer, use_confirms=None, delivery_mode=None,
-        mandatory=None, priority=None, expiration=None, compression=None,
+        self, amqp_uri, use_confirms=None, serializer=None, compression=None,
+        delivery_mode=None, mandatory=None, priority=None, expiration=None,
         retry=None, retry_policy=None, **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
-        self.serializer = serializer
 
+        # MYB: accept exchange and/or routing_key here? if not, justify
+
+        # publish confirms
         self.use_confirms = use_confirms or self.use_confirms
+
+        # delivery options
         self.delivery_mode = delivery_mode or self.delivery_mode
         self.mandatory = mandatory or self.mandatory
         self.priority = priority or self.priority
         self.expiration = expiration or self.expiration
+
+        # message options
+        self.serializer = serializer or self.serializer
         self.compression = compression or self.compression
+
+        # retry policy
         self.retry = retry or self.retry
         self.retry_policy = retry_policy or self.retry_policy
 
         # other publish arguments
         self.publish_kwargs = publish_kwargs
 
-    def publish(self, propagating_headers, exchange, msg, **kwargs):
+    def publish(self, msg, **kwargs):
         """
         """
+        # MYB: TODO 1: remove this block
+        exchange = kwargs.pop('exchange', None)
         queue = self.queue
         if exchange is None and queue is not None:
             exchange = queue.exchange
 
-        # add any new headers to the existing ones we're propagating
-        headers = propagating_headers.copy()
-        headers.update(kwargs.pop('headers', {}))
+        # merge headers and extra_headers
+        # MYB: needs explicit test?
+        headers = kwargs.pop('headers', {}).copy()
+        headers.update(kwargs.pop('extra_headers', {}))
+
+        # MYB: needs test
+        use_confirms = kwargs.pop('use_confirms', self.use_confirms)
 
         delivery_mode = kwargs.pop('delivery_mode', self.delivery_mode)
         mandatory = kwargs.pop('mandatory', self.mandatory)
@@ -127,13 +146,13 @@ class Publisher(object):
         retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
         publish_kwargs = self.publish_kwargs.copy()
-        publish_kwargs.update(kwargs)
+        publish_kwargs.update(kwargs)  # publish-time kwargs win
 
-        with get_producer(self.amqp_uri, self.use_confirms) as producer:
+        with get_producer(self.amqp_uri, use_confirms) as producer:
 
             producer.publish(
                 msg,
-                exchange=exchange,
+                exchange=exchange,  # MYB:  TODO 2: if we remove the block above we can remove this too, which removes potential clash
                 headers=headers,
                 delivery_mode=delivery_mode,
                 mandatory=mandatory,
