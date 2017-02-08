@@ -101,11 +101,6 @@ class TestPublisher(object):
     @pytest.fixture
     def exchange(self, amqp_uri):
         exchange = Exchange(name="exchange")
-
-        # TODO: reqd?
-        with get_connection(amqp_uri) as connection:
-            maybe_declare(exchange, connection)
-
         return exchange
 
     @pytest.fixture
@@ -113,11 +108,6 @@ class TestPublisher(object):
         queue = Queue(
             name="queue", exchange=exchange, routing_key=routing_key
         )
-
-        # TODO: reqd?
-        with get_connection(amqp_uri) as connection:
-            maybe_declare(queue, connection)
-
         return queue
 
     @pytest.fixture
@@ -126,12 +116,12 @@ class TestPublisher(object):
             amqp_uri,
             serializer="json",
             exchange=exchange,
-            routing_key=routing_key,  # TODO: remove from elsewhere
+            routing_key=routing_key,
             declare=[exchange, queue]
         )
 
     def test_routing(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key
+        self, publisher, get_message_from_queue, queue
     ):
         # exchange and routing key can be specified at publish time
         publisher.publish(
@@ -146,23 +136,21 @@ class TestPublisher(object):
         ('expiration', 10, str(10 * 1000)),
     ])
     def test_delivery_options(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key,
-        option, value, expected
+        self, publisher, get_message_from_queue, queue, option, value, expected
     ):
-        publisher.publish(
-            "payload", routing_key=routing_key, **{option: value}
-        )
+        publisher.publish("payload", **{option: value})
         message = get_message_from_queue(queue.name)
         assert message.properties[option] == expected
 
     @pytest.mark.parametrize("use_confirms", [True, False])
     def test_confirms(self, use_confirms, amqp_uri, publisher):
+        # TODO: this is not strictly behavioural
         with patch('nameko.amqp.publish.get_producer') as get_producer:
             publisher.publish("payload", use_confirms=use_confirms)
         assert get_producer.call_args_list == [call(amqp_uri, use_confirms)]
 
     def test_mandatory_delivery(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key
+        self, publisher, get_message_from_queue, queue
     ):
         # messages are not mandatory by default;
         # no error when routing to a non-existent queue
@@ -187,13 +175,10 @@ class TestPublisher(object):
 
     @pytest.mark.parametrize("serializer", ['json', 'pickle'])
     def test_serializer(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key,
-        serializer
+        self, publisher, get_message_from_queue, queue, serializer
     ):
         payload = {"key": "value"}
-        publisher.publish(
-            payload, routing_key=routing_key, serializer=serializer
-        )
+        publisher.publish(payload, serializer=serializer)
 
         content_type, content_encoding, expected_body = (
             registry.dumps(payload, serializer=serializer)
@@ -203,10 +188,10 @@ class TestPublisher(object):
         assert message.body == expected_body
 
     def test_compression(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key
+        self, publisher, get_message_from_queue, queue
     ):
         payload = {"key": "value"}
-        publisher.publish(payload, routing_key=routing_key, compression="gzip")
+        publisher.publish(payload, compression="gzip")
 
         _, expected_content_type = get_encoder('gzip')
 
@@ -214,15 +199,13 @@ class TestPublisher(object):
         assert message.headers['compression'] == expected_content_type
 
     def test_content_type(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key
+        self, publisher, get_message_from_queue, queue
     ):
         payload = (
             b'GIF89a\x01\x00\x01\x00\x00\xff\x00,'
             b'\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;'
         )
-        publisher.publish(
-            payload, routing_key=routing_key, content_type="image/gif"
-        )
+        publisher.publish(payload, content_type="image/gif")
 
         message = get_message_from_queue(queue.name)
         assert message.payload == payload
@@ -230,12 +213,13 @@ class TestPublisher(object):
         assert message.properties['content_encoding'] == 'binary'
 
     def test_content_encoding(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key
+        self, publisher, get_message_from_queue, queue
     ):
         payload = "A"
         publisher.publish(
-            payload.encode('utf-16'), routing_key=routing_key,
-            content_type="application/text", content_encoding="utf-16"
+            payload.encode('utf-16'),
+            content_type="application/text",
+            content_encoding="utf-16"
         )
 
         message = get_message_from_queue(queue.name)
@@ -255,16 +239,13 @@ class TestPublisher(object):
     ])
     @pytest.mark.usefixtures('predictable_call_ids')
     def test_headers(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key,
+        self, publisher, get_message_from_queue, queue,
         headers, extra_headers, expected_headers
     ):
         payload = {"key": "value"}
 
         publisher.publish(
-            payload,
-            routing_key=routing_key,
-            headers=headers,
-            extra_headers=extra_headers
+            payload, headers=headers, extra_headers=extra_headers
         )
 
         message = get_message_from_queue(queue.name)
@@ -280,39 +261,33 @@ class TestPublisher(object):
         ('correlation_id', "msg.1", "msg.1"),
     ])
     def test_message_properties(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key,
-        option, value, expected
+        self, publisher, get_message_from_queue, queue, option, value, expected
     ):
-        publisher.publish(
-            "payload", routing_key=routing_key, **{option: value}
-        )
+        publisher.publish("payload", **{option: value})
 
         message = get_message_from_queue(queue.name)
         assert message.properties[option] == expected
 
     def test_timestamp(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key
+        self, publisher, get_message_from_queue, queue
     ):
         now = datetime.now().replace(microsecond=0)
-        publisher.publish("payload", routing_key=routing_key, timestamp=now)
+        publisher.publish("payload", timestamp=now)
 
         message = get_message_from_queue(queue.name)
         assert message.properties['timestamp'] == now
 
     def test_user_id(
-        self, publisher, get_message_from_queue, queue, exchange, routing_key,
-        rabbit_config
+        self, publisher, get_message_from_queue, queue, rabbit_config
     ):
         user_id = rabbit_config['username']
 
         # successful case
-        publisher.publish("payload", routing_key=routing_key, user_id=user_id)
+        publisher.publish("payload", user_id=user_id)
 
         message = get_message_from_queue(queue.name)
         assert message.properties['user_id'] == user_id
 
         # when user_id does not match the current user, expect an error
         with pytest.raises(PreconditionFailed):
-            publisher.publish(
-                "payload", routing_key=routing_key, user_id="invalid"
-            )
+            publisher.publish("payload", user_id="invalid")
