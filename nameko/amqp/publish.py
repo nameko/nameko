@@ -128,9 +128,8 @@ class Publisher(object):
         """
         """
         # merge headers and extra_headers
-        # MYB: needs explicit test?
         headers = kwargs.pop('headers', {}).copy()
-        headers.update(kwargs.pop('extra_headers', {}))
+        headers.update(kwargs.pop('extra_headers', {}))  # extra headers win
 
         # MYB: needs test
         use_confirms = kwargs.pop('use_confirms', self.use_confirms)
@@ -168,7 +167,7 @@ class Publisher(object):
             )
 
             if mandatory:
-                if not self.use_confirms:
+                if not use_confirms:
                     warnings.warn(
                         "Mandatory delivery was requested, but "
                         "unroutable messages cannot be detected without "

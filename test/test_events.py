@@ -794,6 +794,7 @@ class TestEventDispatcherOptionPrecedence(object):
         assert message.properties['expiration'] == str(2 * 1000)
 
 
+# MYB: mostly copied to test/amqp/test_publish::TestMandatoryDelivery
 @pytest.mark.behavioural
 class TestMandatoryDelivery(object):
     """ Test and demonstrate the mandatory delivery flag.
