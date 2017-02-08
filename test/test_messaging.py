@@ -665,7 +665,9 @@ class TestPublisherDisconnections(object):
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
-        with patch.object(Publisher.Publisher, 'use_confirms', new=request.param):
+        with patch.object(
+            Publisher.Publisher, 'use_confirms', new=request.param
+        ):
             yield request.param
 
     @pytest.yield_fixture
@@ -1264,70 +1266,3 @@ class TestPublisherOptions(object):
             with entrypoint_hook(container, "proxy") as publish:
                 publish("payload", routing_key=routing_key, user_id="invalid")
 
-
-# MYB: mostly copied to test/amqp/test_publish::TestMandatoryDelivery
-@pytest.mark.behavioural
-class TestMandatoryDelivery(object):
-    """ Test and demonstrate the mandatory delivery flag.
-
-    Publishing a message should raise an exception when mandatory delivery
-    is requested and there is no destination queue, as long as publish-confirms
-    are enabled.
-
-    """
-    @pytest.fixture()
-    def container(self, container_factory, rabbit_config):
-
-        class Service(object):
-            name = "publisher"
-
-            publish = Publisher()
-
-            @dummy
-            def proxy(self, *args, **kwargs):
-                self.publish(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-        return container
-
-    def test_default(self, container):
-        # messages are not mandatory by default;
-        # no error when routing to a non-existent queue
-        with entrypoint_hook(container, 'proxy') as publish:
-            publish("payload", routing_key="bogus")
-
-    def test_mandatory_delivery(self, container):
-        # requesting mandatory delivery will result in an exception
-        # if there is no bound queue to receive the message
-        with pytest.raises(UndeliverableMessage):
-            with entrypoint_hook(container, 'proxy') as publish:
-                publish("payload", routing_key="bogus", mandatory=True)
-
-    @patch('nameko.amqp.publish.warnings')
-    def test_confirms_disabled(
-        self, warnings, container_factory, rabbit_config
-    ):
-
-        class UnconfirmedPublisher(Publisher):
-            class Publisher(Publisher.Publisher):
-                use_confirms = False
-
-        class Service(object):
-            name = "service"
-
-            publish = UnconfirmedPublisher()
-
-            @dummy
-            def proxy(self, *args, **kwargs):
-                self.publish(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        # no exception will be raised if confirms are disabled,
-        # even when mandatory delivery is requested,
-        # but there will be a warning raised
-        with entrypoint_hook(container, 'proxy') as publish:
-            publish("payload", routing_key="bogus", mandatory=True)
-        assert warnings.warn.called
