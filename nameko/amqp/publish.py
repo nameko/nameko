@@ -122,12 +122,6 @@ class Publisher(object):
     def publish(self, msg, **kwargs):
         """
         """
-        # MYB: TODO 1: remove this block
-        exchange = kwargs.pop('exchange', None)
-        queue = self.queue
-        if exchange is None and queue is not None:
-            exchange = queue.exchange
-
         # merge headers and extra_headers
         # MYB: needs explicit test?
         headers = kwargs.pop('headers', {}).copy()
@@ -152,7 +146,6 @@ class Publisher(object):
 
             producer.publish(
                 msg,
-                exchange=exchange,  # MYB:  TODO 2: if we remove the block above we can remove this too, which removes potential clash
                 headers=headers,
                 delivery_mode=delivery_mode,
                 mandatory=mandatory,

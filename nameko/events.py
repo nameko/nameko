@@ -92,7 +92,6 @@ class EventDispatcher(Publisher):
         # TODO: all of these properties are fixed at setup time apart from
         # extra_headers. maybe create the publisher earlier? is it identical to the Publisher's one? if so, just use superclass
         publisher = self.Publisher(self.amqp_uri, serializer=self.serializer, **self.defaults)
-        publisher.queue = self.queue  # MYB: hack
 
         def dispatch(event_type, event_data, **kwargs):  # MYB: TODO 3: move self.exchange into self.Publisher() constructor
             publisher.publish(event_data, exchange=self.exchange, routing_key=event_type, extra_headers=propagate_headers, **kwargs)

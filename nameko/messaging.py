@@ -150,10 +150,17 @@ class Publisher(DependencyProvider, HeaderEncoder):
         # MYB: TODO 4: same as in events, but here
         # MYB; TODO 5: instaniate publisher earlier, maybe only in one class
         publisher = self.Publisher(self.amqp_uri, serializer=self.serializer, **self.defaults)
-        publisher.queue = self.queue  # MYB: hack
 
         def publish(msg, **kwargs):
-            publisher.publish(msg, exchange=self.exchange, extra_headers=propagate_headers, **kwargs)
+
+            # backwards compat: if bound queue was privided but no exchange,
+            # publish to its exchange
+            exchange = self.exchange
+            queue = self.queue
+            if exchange is None and queue is not None:
+                exchange = queue.exchange
+
+            publisher.publish(msg, exchange=exchange, extra_headers=propagate_headers, **kwargs)
 
         return publish
 
