@@ -439,35 +439,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             else:
                 callback()
 
-    def consume(self, limit=None, timeout=None, safety_interval=1, **kwargs):
-        """ Lifted from kombu
-
-        We switch the order of the `break` and `self.on_iteration()` to
-        avoid waiting on a drain_events timeout before breaking the loop.
-        """
-        elapsed = 0
-        with self.consumer_context(**kwargs) as (conn, channel, consumers):
-            for i in limit and range(limit) or count():
-                self.on_iteration()
-                if self.should_stop:
-                    break
-                try:
-                    conn.drain_events(timeout=safety_interval)
-                except socket.timeout:
-                    conn.heartbeat_check()
-                    elapsed += safety_interval
-                    if timeout and elapsed >= timeout:
-                        # Excluding the following clause from coverage,
-                        # as timeout never appears to be set - This method
-                        # is a lift from kombu so will leave in place for now.
-                        raise  # pragma: no cover
-                except socket.error:
-                    if not self.should_stop:
-                        raise
-                else:
-                    yield
-                    elapsed = 0
-
 
 class Consumer(Entrypoint, HeaderDecoder):
 
