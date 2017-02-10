@@ -2,7 +2,7 @@ import socket
 
 import pytest
 
-from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy

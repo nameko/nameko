@@ -27,9 +27,10 @@ def queue_consumer():
         yield replacement
 
 
-def test_event_dispatcher(mock_container, mock_producer):
+def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
 
     container = mock_container
+    container.config = rabbit_config
     container.service_name = "srcservice"
 
     service = Mock()
