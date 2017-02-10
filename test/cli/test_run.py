@@ -46,12 +46,20 @@ def test_run(rabbit_config):
     gt.wait()
 
 
-def test_main_with_config(rabbit_config):
+def test_main_with_config(rabbit_config, tmpdir):
+
+    config = tmpdir.join('config.yaml')
+    config.write("""
+        WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+        AMQP_URI: '{}'
+        serializer: 'json'
+    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+
     parser = setup_parser()
     args = parser.parse_args([
         'run',
         '--config',
-        TEST_CONFIG_FILE,
+        config.strpath,
         'test.sample',
     ])
 
@@ -62,7 +70,7 @@ def test_main_with_config(rabbit_config):
 
         assert config == {
             WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-            AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
+            AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
             SERIALIZER_CONFIG_KEY: 'json'
         }
 
