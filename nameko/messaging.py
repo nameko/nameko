@@ -3,10 +3,8 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
-import socket
 import warnings
 from functools import partial
-from itertools import count
 from logging import getLogger
 
 import eventlet
@@ -386,7 +384,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         )
         return Connection(self.amqp_uri, heartbeat=heartbeat)
 
-    def get_consumers(self, Consumer, channel):
+    def get_consumers(self, consumer_cls, channel):
         """ Kombu callback to set up consumers.
 
         Called after any (re)connection to the broker.
@@ -396,8 +394,11 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         for provider in self._providers:
             callbacks = [self._on_message, provider.handle_message]
 
-            consumer = Consumer(queues=[provider.queue], callbacks=callbacks,
-                                accept=self.accept)
+            consumer = consumer_cls(
+                queues=[provider.queue],
+                callbacks=callbacks,
+                accept=self.accept
+            )
             consumer.qos(prefetch_count=self.prefetch_count)
 
             self._consumers[provider] = consumer
