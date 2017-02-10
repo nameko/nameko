@@ -61,10 +61,7 @@ def always_warn_for_deprecation():
 
 @pytest.fixture
 def empty_config():
-    from nameko.constants import AMQP_URI_CONFIG_KEY
-    return {
-        AMQP_URI_CONFIG_KEY: ""
-    }
+    return {}
 
 
 @pytest.fixture

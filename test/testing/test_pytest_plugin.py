@@ -16,7 +16,7 @@ pytest_plugins = "pytester"
 
 
 def test_empty_config(empty_config):
-    assert AMQP_URI_CONFIG_KEY in empty_config
+    assert empty_config == {}
 
 
 def test_rabbit_manager(rabbit_manager):
