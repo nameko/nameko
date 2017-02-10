@@ -43,31 +43,6 @@ def test_rabbit_manager(rabbit_manager):
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
 
 
-def test_cleanup_order(testdir, plugin_options):
-
-    # without ``ensure_cleanup_order``, the following fixture ordering would
-    # tear down ``rabbit_config`` before the ``container_factory`` (generating
-    # an error about rabbit connections being left open)
-    testdir.makepyfile(
-        """
-        from nameko.rpc import rpc
-
-        class Service(object):
-            name = "service"
-
-            @rpc
-            def method(self):
-                pass
-
-        def test_service(container_factory, rabbit_config):
-            container = container_factory(Service, rabbit_config)
-            container.start()
-        """
-    )
-    result = testdir.runpytest(*plugin_options)
-    assert result.ret == 0
-
-
 def test_container_factory(
     testdir, rabbit_config, rabbit_manager, plugin_options
 ):

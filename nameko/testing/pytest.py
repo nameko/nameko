@@ -130,17 +130,8 @@ def rabbit_config(request, rabbit_manager):
     rabbit_manager.delete_vhost(vhost)
 
 
-@pytest.fixture
-def ensure_cleanup_order(request):
-    """ Ensure ``rabbit_config`` is invoked early if it's used by any fixture
-    in ``request``.
-    """
-    if "rabbit_config" in request.funcargnames:
-        request.getfuncargvalue("rabbit_config")
-
-
 @pytest.yield_fixture
-def container_factory(ensure_cleanup_order):
+def container_factory():
     from nameko.containers import get_container_cls
     import warnings
 
