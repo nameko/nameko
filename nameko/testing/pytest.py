@@ -102,7 +102,16 @@ def rabbit_manager(request):
 
 
 @pytest.yield_fixture()
-def rabbit_config(request, rabbit_manager):
+def rabbit_config(request, rabbit_manager, container_factory, runner_factory):
+    """
+    Having this fixture depend on `container_factory` and `runner_factory`
+    ensures that those fixtures tear down after this one.
+
+    By chance, this considerably speeds up tests that use those fixtures.
+    The reason is that deleting the RabbitMQ vhost sends basic-cancel to any
+    consumers, triggering the ConsumerMixin to perform its iteration cycle
+    early rather than waiting for the timeout to fire on its socket read.
+    """
     import random
     import string
 
@@ -162,7 +171,7 @@ def container_factory():
 
 
 @pytest.yield_fixture
-def runner_factory(ensure_cleanup_order):
+def runner_factory():
     from nameko.runners import ServiceRunner
 
     all_runners = []
