@@ -103,12 +103,8 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
-    import itertools
     import random
     import string
-    import time
-    from kombu import pools
-    from nameko.testing.utils import get_rabbit_connections
 
     host = request.config.getoption('RABBIT_HOST')
     port = request.config.getoption('RABBIT_PORT')
@@ -131,46 +127,7 @@ def rabbit_config(request, rabbit_manager):
     }
 
     yield conf
-
-    pools.reset()  # close connections in pools
-
-    def retry(fn):
-        """ Barebones retry decorator
-        """
-        def wrapper():
-            max_retries = 3
-            delay = 1
-            exceptions = RuntimeError
-
-            counter = itertools.count()
-            while True:
-                try:
-                    return fn()
-                except exceptions:
-                    if next(counter) == max_retries:
-                        raise
-                    time.sleep(delay)
-        return wrapper
-
-    @retry
-    def check_connections():
-        """ Raise a runtime error if the test leaves any connections open.
-
-        Allow a few retries because the rabbit api is eventually consistent.
-        """
-        connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
-        open_connections = [
-            conn for conn in connections if conn['state'] != "closed"
-        ]
-        if open_connections:
-            count = len(open_connections)
-            names = ", ".join(conn['name'] for conn in open_connections)
-            raise RuntimeError(
-                "{} rabbit connection(s) left open: {}".format(count, names))
-    try:
-        check_connections()
-    finally:
-        rabbit_manager.delete_vhost(vhost)
+    rabbit_manager.delete_vhost(vhost)
 
 
 @pytest.fixture
@@ -208,7 +165,7 @@ def container_factory(ensure_cleanup_order):
 
     for c in all_containers:
         try:
-            c.stop()
+            c.kill()
         except:  # pragma: no cover
             pass
 
@@ -230,7 +187,7 @@ def runner_factory(ensure_cleanup_order):
 
     for r in all_runners:
         try:
-            r.stop()
+            r.kill()
         except:  # pragma: no cover
             pass
 

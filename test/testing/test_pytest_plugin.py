@@ -43,37 +43,6 @@ def test_rabbit_manager(rabbit_manager):
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
 
 
-def test_rabbit_config_leftover_connections(testdir, plugin_options):
-
-    # run a test that leaves connections lying around
-    testdir.makepyfile(
-        """
-        from nameko.containers import ServiceContainer
-        from nameko.rpc import rpc
-
-        class Service(object):
-            name = "service"
-
-            @rpc
-            def method(self):
-                pass
-
-        def test_rabbit_config(rabbit_config):
-
-            # not using container factory; will leave connections behind
-            container = ServiceContainer(Service, rabbit_config)
-            container.start()
-        """
-    )
-
-    result = testdir.runpytest(*plugin_options)
-
-    assert result.ret == 1
-    result.stdout.fnmatch_lines(
-        ["*RuntimeError: 1 rabbit connection(s) left open*"]
-    )
-
-
 def test_cleanup_order(testdir, plugin_options):
 
     # without ``ensure_cleanup_order``, the following fixture ordering would
