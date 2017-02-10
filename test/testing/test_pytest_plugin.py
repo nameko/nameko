@@ -25,7 +25,7 @@ def plugin_options(request):
         '--rabbit-port',
         '--rabbit-user',
         '--rabbit-pass',
-        '--rabbit-mgmt-uri'
+        '--rabbit-api-uri'
     )
 
     args = [

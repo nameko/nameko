@@ -43,7 +43,7 @@ def pytest_addoption(parser):
         help=("RabbitMQ password."))
 
     parser.addoption(
-        "--rabbit-mgmt-uri", action="store", dest='RABBIT_MGMT_URI',
+        "--rabbit-api-uri", action="store", dest='RABBIT_API_URI',
         default='http://guest:guest@localhost:15672',
         help=("URI for RabbitMQ management interface."))
 
@@ -98,7 +98,7 @@ def rabbit_manager(request):
     from nameko.testing import rabbit
 
     config = request.config
-    return rabbit.Client(config.getoption('RABBIT_MGMT_URI'))
+    return rabbit.Client(config.getoption('RABBIT_API_URI'))
 
 
 @pytest.yield_fixture()
