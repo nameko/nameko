@@ -286,22 +286,22 @@ class TestWebsocketRpc(object):
 
 class TestConfig:
 
-    def test_config_value_not_set(self, container_factory, empty_config):
+    def test_config_value_not_set(self, container_factory, rabbit_config):
         from examples.config_dependency_provider import (
             Service, FeatureNotEnabled
         )
 
-        container = container_factory(Service, empty_config)
+        container = container_factory(Service, rabbit_config)
         container.start()
 
         with pytest.raises(FeatureNotEnabled):
             with entrypoint_hook(container, "foo") as foo:
                 foo()
 
-    def test_can_get_config_value(self, container_factory, empty_config):
+    def test_can_get_config_value(self, container_factory, rabbit_config):
         from examples.config_dependency_provider import Service
 
-        config = empty_config.copy()
+        config = rabbit_config
         config["FOO_FEATURE_ENABLED"] = True
 
         container = container_factory(Service, config)
@@ -309,4 +309,3 @@ class TestConfig:
 
         with entrypoint_hook(container, "foo") as foo:
             assert foo() == "foo"
-
