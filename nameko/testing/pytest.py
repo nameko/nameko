@@ -23,14 +23,29 @@ def pytest_addoption(parser):
         help=("The logging-level for the test run."))
 
     parser.addoption(
-        "--amqp-uri", action="store", dest='AMQP_URI',
-        default='amqp://guest:guest@localhost:5672/:random:',
-        help=("The AMQP-URI to connect to rabbit with."))
+        "--rabbit-host", action="store", dest='RABBIT_HOST',
+        default='localhost',
+        help=("Hostname of the RabbitMQ broker."))
 
     parser.addoption(
-        "--rabbit-ctl-uri", action="store", dest='RABBIT_CTL_URI',
+        "--rabbit-port", action="store", dest='RABBIT_PORT',
+        default='5672',
+        help=("AMQP port number on RabbitMQ broker."))
+
+    parser.addoption(
+        "--rabbit-user", action="store", dest='RABBIT_USER',
+        default='guest',
+        help=("RabbitMQ username."))
+
+    parser.addoption(
+        "--rabbit-pass", action="store", dest='RABBIT_PASS',
+        default='guest',
+        help=("RabbitMQ password."))
+
+    parser.addoption(
+        "--rabbit-mgmt-uri", action="store", dest='RABBIT_MGMT_URI',
         default='http://guest:guest@localhost:15672',
-        help=("The URI for rabbit's management API."))
+        help=("URI for RabbitMQ management interface."))
 
 
 def pytest_load_initial_conftests():
@@ -83,7 +98,7 @@ def rabbit_manager(request):
     from nameko.testing import rabbit
 
     config = request.config
-    return rabbit.Client(config.getoption('RABBIT_CTL_URI'))
+    return rabbit.Client(config.getoption('RABBIT_MGMT_URI'))
 
 
 @pytest.yield_fixture()
@@ -93,24 +108,21 @@ def rabbit_config(request, rabbit_manager):
     import string
     import time
     from kombu import pools
-    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     from nameko.testing.utils import get_rabbit_connections
 
-    amqp_uri = request.config.getoption('AMQP_URI')
+    host = request.config.getoption('RABBIT_HOST')
+    port = request.config.getoption('RABBIT_PORT')
+    username = request.config.getoption('RABBIT_USER')
+    password = request.config.getoption('RABBIT_PASS')
 
-    uri = urlparse(amqp_uri)
-    username = uri.username
-    vhost = uri.path[1:]
-
-    use_random_vost = (vhost == ":random:")
-
-    if use_random_vost:
-        vhost = "test_{}".format(
-            "".join(random.choice(string.ascii_lowercase) for _ in range(10))
-        )
-        amqp_uri = "{}://{}/{}".format(uri.scheme, uri.netloc, vhost)
-        rabbit_manager.create_vhost(vhost)
-        rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+    vhost = "nameko_test_{}".format(
+        "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+    )
+    amqp_uri = "pyamqp://{}:{}@{}:{}/{}".format(
+        username, password, host, port, vhost
+    )
+    rabbit_manager.create_vhost(vhost)
+    rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
     conf = {
         'AMQP_URI': amqp_uri,
@@ -158,8 +170,7 @@ def rabbit_config(request, rabbit_manager):
     try:
         check_connections()
     finally:
-        if use_random_vost:
-            rabbit_manager.delete_vhost(vhost)
+        rabbit_manager.delete_vhost(vhost)
 
 
 @pytest.fixture
