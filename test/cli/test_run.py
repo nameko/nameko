@@ -62,7 +62,7 @@ def test_main_with_config(rabbit_config):
 
         assert config == {
             WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-            AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
+            AMQP_URI_CONFIG_KEY: 'pyamqp://guest:guest@localhost',
             SERIALIZER_CONFIG_KEY: 'json'
         }
 

@@ -68,7 +68,7 @@ class Run(Command):
             help='The YAML configuration file')
 
         parser.add_argument(
-            '--broker', default='amqp://guest:guest@localhost',
+            '--broker', default='pyamqp://guest:guest@localhost',
             help='RabbitMQ broker url')
 
         parser.add_argument(
@@ -101,7 +101,7 @@ class Shell(Command):
     @classmethod
     def init_parser(cls, parser):
         parser.add_argument(
-            '--broker', default='amqp://guest:guest@localhost',
+            '--broker', default='pyamqp://guest:guest@localhost',
             help='RabbitMQ broker url')
         parser.add_argument(
             '--interface', choices=cls.SHELLS,

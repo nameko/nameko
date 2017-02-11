@@ -47,7 +47,7 @@ def test_rabbit_config_specific_vhost(testdir):
         """
     )
     result = testdir.runpytest(
-        "--amqp-uri", "amqp://guest:guest@localhost:5672/specified_vhost"
+        "--amqp-uri", "pyamqp://guest:guest@localhost:5672/specified_vhost"
     )
     assert result.ret == 0
 
