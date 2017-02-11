@@ -15,7 +15,7 @@ from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
-from six.moves import queue
+from six.moves import queue as Queue
 
 from nameko.amqp import (
     UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
@@ -75,7 +75,7 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    def __init__(self, exchange=None, queue=None):
+    def __init__(self, exchange=None, queue=None, **defaults):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP messages are published to *exchanges* and routed to bound
@@ -103,6 +103,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         """
         self.exchange = exchange
         self.queue = queue
+        self.defaults = defaults
 
     @property
     def amqp_uri(self):
@@ -119,6 +120,22 @@ class Publisher(DependencyProvider, HeaderEncoder):
         aren't lost, for example due to stale connections.
         """
         return True
+
+    @property
+    def delivery_options(self):
+        return {
+            'delivery_mode': PERSISTENT,
+            'mandatory': False,
+            'priority': 0,
+            'expiration': None,
+        }
+
+    @property
+    def encoding_options(self):
+        return {
+            'serializer': self.serializer,
+            'compression': None
+        }
 
     @property
     def serializer(self):
@@ -161,43 +178,61 @@ class Publisher(DependencyProvider, HeaderEncoder):
             elif exchange is not None:
                 maybe_declare(exchange, conn)
 
+    def publish(self, propagating_headers, msg, **kwargs):
+        """
+        """
+        exchange = self.exchange
+        queue = self.queue
+
+        if exchange is None and queue is not None:
+            exchange = queue.exchange
+
+        # add any new headers to the existing ones we're propagating
+        headers = propagating_headers.copy()
+        headers.update(kwargs.pop('headers', {}))
+
+        retry = kwargs.pop('retry', self.retry)
+        retry_policy = kwargs.pop('retry_policy', self.retry_policy)
+
+        for key in self.delivery_options:
+            if key not in kwargs:
+                kwargs[key] = self.delivery_options[key]
+        for key in self.encoding_options:
+            if key not in kwargs:
+                kwargs[key] = self.encoding_options[key]
+
+        mandatory = kwargs.pop('mandatory', False)
+
+        with get_producer(self.amqp_uri, self.use_confirms) as producer:
+
+            producer.publish(
+                msg,
+                exchange=exchange,
+                headers=headers,
+                retry=retry,
+                retry_policy=retry_policy,
+                mandatory=mandatory,
+                **kwargs
+            )
+
+            if mandatory:
+                if not self.use_confirms:
+                    warnings.warn(
+                        "Mandatory delivery was requested, but "
+                        "unroutable messages cannot be detected without "
+                        "publish confirms enabled."
+                    )
+                try:
+                    returned_messages = producer.channel.returned_messages
+                    returned = returned_messages.get_nowait()
+                except Queue.Empty:
+                    pass
+                else:
+                    raise UndeliverableMessage(returned)
+
     def get_dependency(self, worker_ctx):
-        def publish(msg, **kwargs):
-            exchange = self.exchange
-            serializer = self.serializer
-
-            if exchange is None and self.queue is not None:
-                exchange = self.queue.exchange
-
-            retry = kwargs.pop('retry', self.retry)
-            retry_policy = kwargs.pop('retry_policy', self.retry_policy)
-            mandatory = kwargs.pop('mandatory', False)
-
-            with get_producer(self.amqp_uri, self.use_confirms) as producer:
-                headers = self.get_message_headers(worker_ctx)
-                producer.publish(
-                    msg, exchange=exchange, headers=headers,
-                    serializer=serializer, retry=retry,
-                    retry_policy=retry_policy, mandatory=mandatory,
-                    **kwargs
-                )
-
-                if mandatory:
-                    if not self.use_confirms:
-                        warnings.warn(
-                            "Mandatory delivery was requested, but "
-                            "unroutable messages cannot be detected without "
-                            "publish confirms enabled."
-                        )
-                    try:
-                        returned_messages = producer.channel.returned_messages
-                        returned = returned_messages.get_nowait()
-                    except queue.Empty:
-                        pass
-                    else:
-                        raise UndeliverableMessage(returned)
-
-        return publish
+        propagate_headers = self.get_message_headers(worker_ctx)
+        return partial(self.publish, propagate_headers, **self.defaults)
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):

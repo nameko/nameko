@@ -1,15 +1,18 @@
-from contextlib import contextmanager
 import socket
+from contextlib import contextmanager
+from datetime import datetime
 
 import eventlet
 import pytest
+from amqp.exceptions import PreconditionFailed
 from kombu import Exchange, Queue
+from kombu.common import maybe_declare
+from kombu.compression import get_encoder
 from kombu.connection import Connection
+from kombu.serialization import registry
 from mock import Mock, call, patch
-
-from nameko.amqp import get_producer, UndeliverableMessage
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, HEARTBEAT_CONFIG_KEY)
+from nameko.amqp import UndeliverableMessage, get_connection, get_producer
+from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
@@ -28,14 +31,14 @@ CONSUME_TIMEOUT = 1
 
 
 @pytest.yield_fixture
-def warnings():
-    with patch('nameko.messaging.warnings') as patched:
+def patch_maybe_declare():
+    with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
         yield patched
 
 
 @pytest.yield_fixture
-def maybe_declare():
-    with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
+def warnings():
+    with patch('nameko.messaging.warnings') as patched:
         yield patched
 
 
@@ -103,7 +106,7 @@ def test_consume_provider(mock_container):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    maybe_declare, mock_connection, mock_producer, mock_container
+    patch_maybe_declare, mock_connection, mock_producer, mock_container
 ):
     container = mock_container
     container.service_name = "srcservice"
@@ -115,24 +118,36 @@ def test_publish_to_exchange(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_ex, mock_connection)
+    patch_maybe_declare.assert_called_once_with(foobar_ex, mock_connection)
 
     # test publish
     msg = "msg"
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
+
     headers = {
         'nameko.call_id_stack': ['srcservice.publish.0']
     }
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'retry': publisher.retry,
+        'retry_policy': publisher.retry_policy,
+        'mandatory': False
+    }
+    expected_kwargs.update(publisher.delivery_options)
+    expected_kwargs.update(publisher.encoding_options)
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
-    maybe_declare, mock_producer, mock_connection, mock_container
+    patch_maybe_declare, mock_producer, mock_connection, mock_container
 ):
     container = mock_container
     container.shared_extensions = {}
@@ -147,7 +162,7 @@ def test_publish_to_queue(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
+    patch_maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
 
     # test publish
     msg = "msg"
@@ -157,15 +172,27 @@ def test_publish_to_queue(
     }
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'retry': publisher.retry,
+        'retry_policy': publisher.retry_policy,
+        'mandatory': False
+    }
+    expected_kwargs.update(publisher.delivery_options)
+    expected_kwargs.update(publisher.encoding_options)
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
-    mock_container, maybe_declare, mock_producer, mock_connection
+    mock_container, patch_maybe_declare, mock_producer, mock_connection
 ):
 
     container = mock_container
@@ -181,7 +208,7 @@ def test_publish_custom_headers(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
+    patch_maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
 
     # test publish
     msg = "msg"
@@ -190,10 +217,22 @@ def test_publish_custom_headers(
                'nameko.call_id_stack': ['srcservice.method.0']}
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'retry': publisher.retry,
+        'retry_policy': publisher.retry_policy,
+        'mandatory': False
+    }
+    expected_kwargs.update(publisher.delivery_options)
+    expected_kwargs.update(publisher.encoding_options)
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 def test_header_encoder(empty_config):
@@ -391,69 +430,6 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
         consumer.stop()
 
     consumer.queue_consumer.kill()
-
-
-class TestMandatoryDelivery(object):
-    """ Test and demonstrate the mandatory delivery flag.
-
-    Publishing a message should raise an exception when mandatory delivery
-    is requested and there is no destination queue, as long as publish-confirms
-    are enabled.
-    """
-    @pytest.fixture()
-    def container(self, container_factory, rabbit_config):
-
-        class Service(object):
-            name = "publisher"
-
-            publish = Publisher()
-
-            @dummy
-            def method(self, *args, **kwargs):
-                self.publish(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-        return container
-
-    def test_default(self, container):
-        # messages are not mandatory by default;
-        # no error when routing to a non-existent queue
-        with entrypoint_hook(container, 'method') as publish:
-            publish("payload", routing_key="bogus")
-
-    def test_mandatory_delivery(self, container):
-        # requesting mandatory delivery will result in an exception
-        # if there is no bound queue to receive the message
-        with pytest.raises(UndeliverableMessage):
-            with entrypoint_hook(container, 'method') as publish:
-                publish("payload", routing_key="bogus", mandatory=True)
-
-    def test_confirms_disabled(
-        self, container_factory, rabbit_config, warnings
-    ):
-
-        class UnconfirmedPublisher(Publisher):
-            use_confirms = False
-
-        class Service(object):
-            name = "service"
-
-            publish = UnconfirmedPublisher()
-
-            @dummy
-            def method(self, *args, **kwargs):
-                self.publish(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        # no exception will be raised if confirms are disabled,
-        # even when mandatory delivery is requested,
-        # but there will be a warning raised
-        with entrypoint_hook(container, 'method') as publish:
-            publish("payload", routing_key="bogus", mandatory=True)
-        assert warnings.warn.called
 
 
 @skip_if_no_toxiproxy
@@ -932,3 +908,403 @@ class TestPublisherDisconnections(object):
                 call("send", payload2),
                 call("recv", payload2),
             ]
+
+
+class TestPublisherOptionPrecedence(object):
+
+    @pytest.fixture
+    def routing_key(self):
+        return "routing_key"
+
+    @pytest.fixture
+    def exchange(self, amqp_uri):
+        """ Make a "sniffer" queue bound to the exchange receiving messages
+        """
+        exchange = Exchange(name="exchange")
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(exchange, connection)
+        return exchange
+
+    @pytest.fixture
+    def queue(self, amqp_uri, exchange, routing_key):
+        queue = Queue(
+            name="queue", exchange=exchange, routing_key=routing_key
+        )
+
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(queue, connection)
+        return queue
+
+    @pytest.fixture
+    def service_base(self, exchange):
+
+        class Service(object):
+            name = "service"
+
+            publish = Publisher(exchange=exchange)
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        return Service
+
+    def test_subclass(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, exchange
+    ):
+
+        class ExpiringPublisher(Publisher):
+            delivery_options = {
+                'expiration': 1
+            }
+
+        class Service(service_base):
+            publish = ExpiringPublisher(exchange=exchange)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_declare_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, exchange
+    ):
+
+        class Service(service_base):
+            publish = Publisher(exchange=exchange, expiration=1)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_publish_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, expiration=1)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_publish_time_override(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, exchange
+    ):
+        class Service(service_base):
+            publish = Publisher(exchange=exchange, expiration=1)
+
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, expiration=2)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(2 * 1000)
+
+
+@pytest.mark.behavioural
+class TestPublisherOptions(object):
+
+    @pytest.fixture
+    def routing_key(self):
+        return "routing_key"
+
+    @pytest.fixture
+    def exchange(self, amqp_uri):
+        """ Make a "sniffer" queue bound to the exchange receiving messages
+        """
+        exchange = Exchange(name="exchange")
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(exchange, connection)
+        return exchange
+
+    @pytest.fixture
+    def queue(self, amqp_uri, exchange, routing_key):
+        queue = Queue(
+            name="queue", exchange=exchange, routing_key=routing_key
+        )
+
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(queue, connection)
+        return queue
+
+    @pytest.fixture
+    def service_base(self, exchange):
+
+        class Service(object):
+            name = "service"
+
+            publish = Publisher(exchange=exchange)
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        return Service
+
+    @pytest.mark.parametrize("option,value,expected", [
+        ('delivery_mode', 1, 1),
+        ('priority', 10, 10),
+        ('expiration', 10, str(10 * 1000)),
+    ])
+    def test_delivery_options(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, option, value, expected
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, **{option: value})
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties[option] == expected
+
+    def test_mandatory_delivery(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key="missing", mandatory=False)
+
+        with pytest.raises(UndeliverableMessage):
+            with entrypoint_hook(container, "proxy") as publish:
+                publish("payload", routing_key="missing", mandatory=True)
+
+    @pytest.mark.parametrize("serializer", ['json', 'pickle'])
+    def test_serializer(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, serializer
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = {"key": "value"}
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, serializer=serializer)
+
+        content_type, content_encoding, expected_body = (
+            registry.dumps(payload, serializer=serializer)
+        )
+
+        message = get_message_from_queue(queue.name, accept=content_type)
+        assert message.body == expected_body
+
+    def test_compression(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = {"key": "value"}
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, compression="gzip")
+
+        _, expected_content_type = get_encoder('gzip')
+
+        message = get_message_from_queue(queue.name)
+        assert message.headers['compression'] == expected_content_type
+
+    def test_content_type(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = (
+            b'GIF89a\x01\x00\x01\x00\x00\xff\x00,'
+            b'\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;'
+        )
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, content_type="image/gif")
+
+        message = get_message_from_queue(queue.name)
+        assert message.payload == payload
+        assert message.properties['content_type'] == 'image/gif'
+        assert message.properties['content_encoding'] == 'binary'
+
+    def test_content_encoding(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = "A"
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(
+                payload.encode('utf-16'), routing_key=routing_key,
+                content_type="application/text", content_encoding="utf-16")
+
+        message = get_message_from_queue(queue.name)
+        assert message.payload == payload
+        assert message.properties['content_type'] == 'application/text'
+        assert message.properties['content_encoding'] == 'utf-16'
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        payload = {"key": "value"}
+        headers = {
+            'x-foo': 'foo'
+        }
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish(payload, routing_key=routing_key, headers=headers)
+
+        expected_headers = {
+            'nameko.call_id_stack': ['service.proxy.0']  # propagating headers
+        }
+        expected_headers.update(headers)
+
+        message = get_message_from_queue(queue.name)
+        assert message.headers == expected_headers
+        assert message.properties['application_headers'] == expected_headers
+
+    @pytest.mark.parametrize("option,value,expected", [
+        ('reply_to', "queue_name", "queue_name"),
+        ('message_id', "msg.1", "msg.1"),
+        ('type', "type", "type"),
+        ('app_id', "app.1", "app.1"),
+        ('cluster_id', "cluster.1", "cluster.1"),
+        ('correlation_id', "msg.1", "msg.1"),
+    ])
+    def test_message_properties(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key, option, value, expected
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, **{option: value})
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties[option] == expected
+
+    def test_timestamp(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        now = datetime.now().replace(microsecond=0)
+
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, timestamp=now)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['timestamp'] == now
+
+    def test_user_id(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, routing_key
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        user_id = rabbit_config['username']
+
+        # successful case
+        with entrypoint_hook(container, "proxy") as publish:
+            publish("payload", routing_key=routing_key, user_id=user_id)
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['user_id'] == user_id
+
+        # when user_id does not match the current user, expect an error
+        with pytest.raises(PreconditionFailed):
+            with entrypoint_hook(container, "proxy") as publish:
+                publish("payload", routing_key=routing_key, user_id="invalid")
+
+
+@pytest.mark.behavioural
+class TestMandatoryDelivery(object):
+    """ Test and demonstrate the mandatory delivery flag.
+
+    Publishing a message should raise an exception when mandatory delivery
+    is requested and there is no destination queue, as long as publish-confirms
+    are enabled.
+
+    """
+    @pytest.fixture()
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "publisher"
+
+            publish = Publisher()
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+        return container
+
+    def test_default(self, container):
+        # messages are not mandatory by default;
+        # no error when routing to a non-existent queue
+        with entrypoint_hook(container, 'proxy') as publish:
+            publish("payload", routing_key="bogus")
+
+    def test_mandatory_delivery(self, container):
+        # requesting mandatory delivery will result in an exception
+        # if there is no bound queue to receive the message
+        with pytest.raises(UndeliverableMessage):
+            with entrypoint_hook(container, 'proxy') as publish:
+                publish("payload", routing_key="bogus", mandatory=True)
+
+    def test_confirms_disabled(
+        self, container_factory, rabbit_config, warnings
+    ):
+
+        class UnconfirmedPublisher(Publisher):
+            use_confirms = False
+
+        class Service(object):
+            name = "service"
+
+            publish = UnconfirmedPublisher()
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.publish(*args, **kwargs)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # no exception will be raised if confirms are disabled,
+        # even when mandatory delivery is requested,
+        # but there will be a warning raised
+        with entrypoint_hook(container, 'proxy') as publish:
+            publish("payload", routing_key="bogus", mandatory=True)
+        assert warnings.warn.called

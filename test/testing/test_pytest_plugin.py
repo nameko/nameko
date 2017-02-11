@@ -1,6 +1,8 @@
 import socket
+import time
 
 import pytest
+from six.moves import queue
 
 from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
@@ -22,6 +24,95 @@ def test_empty_config(empty_config):
 def test_rabbit_manager(rabbit_manager):
     assert isinstance(rabbit_manager, rabbit.Client)
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
+
+
+def test_amqp_uri(testdir):
+
+    amqp_uri = "amqp://user:pass@host:5672/vhost"
+
+    testdir.makepyfile(
+        """
+        import re
+
+        def test_amqp_uri(amqp_uri):
+            assert amqp_uri == '{}'
+        """.format(amqp_uri)
+    )
+    result = testdir.runpytest(
+        "--amqp-uri", amqp_uri
+    )
+    assert result.ret == 0
+
+
+class TestGetMessageFromQueue(object):
+
+    @pytest.fixture
+    def queue_name(self):
+        return "queue"
+
+    @pytest.fixture
+    def publish_message(self, rabbit_manager, rabbit_config, queue_name):
+        vhost = rabbit_config['vhost']
+        rabbit_manager.create_queue(vhost, queue_name, durable=True)
+
+        def publish(payload, **properties):
+            rabbit_manager.publish(
+                vhost, "amq.default", queue_name, payload, properties
+            )
+
+        return publish
+
+    def test_get_message(
+        self, publish_message, get_message_from_queue, queue_name,
+        rabbit_manager, rabbit_config
+    ):
+        payload = "payload"
+        publish_message(payload)
+
+        message = get_message_from_queue(queue_name)
+        assert message.payload == payload
+
+        vhost = rabbit_config['vhost']
+        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
+
+    def test_requeue(
+        self, publish_message, get_message_from_queue, queue_name,
+        rabbit_manager, rabbit_config
+    ):
+        payload = "payload"
+        publish_message(payload)
+
+        message = get_message_from_queue(queue_name, ack=False)
+        assert message.payload == payload
+
+        time.sleep(1)  # TODO: use retry decorator rather than sleep
+        vhost = rabbit_config['vhost']
+        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 1
+
+    def test_non_blocking(
+        self, publish_message, get_message_from_queue, queue_name
+    ):
+        # no message published; raises immediately
+        with pytest.raises(queue.Empty):
+            get_message_from_queue(queue_name, block=False)
+
+    def test_timeout(
+        self, publish_message, get_message_from_queue, queue_name
+    ):
+        # no message published; raises after timeout
+        with pytest.raises(queue.Empty):
+            get_message_from_queue(queue_name, timeout=0.01)
+
+    def test_accept(
+        self, publish_message, get_message_from_queue, queue_name
+    ):
+        payload = "payload"
+        content_type = "application/x-special"
+        publish_message(payload, content_type=content_type)
+
+        message = get_message_from_queue(queue_name, accept=content_type)
+        assert message.properties['content_type'] == content_type
+        assert message.payload == payload
 
 
 def test_rabbit_config_random_vhost(testdir):

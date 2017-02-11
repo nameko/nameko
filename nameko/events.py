@@ -31,11 +31,12 @@ Example::
 from __future__ import absolute_import
 
 import uuid
+from functools import partial
 from logging import getLogger
 
 from kombu import Queue
 from nameko.messaging import Consumer, Publisher
-from nameko.standalone.events import event_dispatcher, get_event_exchange
+from nameko.standalone.events import get_event_exchange
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
@@ -75,9 +76,8 @@ class EventDispatcher(Publisher):
                 self.dispatch_spam('spam.ham', evt_data)
 
     """
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-        super(EventDispatcher, self).__init__()
+    def __init__(self, **defaults):
+        super(EventDispatcher, self).__init__(**defaults)
 
     def setup(self):
         self.service_name = self.container.service_name
@@ -85,16 +85,16 @@ class EventDispatcher(Publisher):
         self.exchange = get_event_exchange(self.service_name)
         super(EventDispatcher, self).setup()
 
+    def dispatch(self, propagate_headers, event_type, event_data, **kwargs):
+        self.publish(
+            propagate_headers, event_data, routing_key=event_type, **kwargs
+        )
+
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        headers = self.get_message_headers(worker_ctx)
-        kwargs = self.kwargs
-        dispatcher = event_dispatcher(self.config, headers=headers, **kwargs)
-
-        def dispatch(event_type, event_data):
-            dispatcher(self.service_name, event_type, event_data)
-        return dispatch
+        propagate_headers = self.get_message_headers(worker_ctx)
+        return partial(self.dispatch, propagate_headers, **self.defaults)
 
 
 class EventHandler(Consumer):

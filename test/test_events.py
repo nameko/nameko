@@ -3,18 +3,19 @@ import time
 from collections import defaultdict
 
 import pytest
+from kombu.common import maybe_declare
+from kombu.messaging import Queue
 from mock import ANY, Mock, create_autospec, patch
-
-from nameko.amqp import UndeliverableMessage
+from nameko.amqp import UndeliverableMessage, get_connection
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
-from nameko.testing.services import entrypoint_waiter, dummy, entrypoint_hook
+from nameko.standalone.events import get_event_exchange
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import DummyProvider
-
 
 EVENTS_TIMEOUT = 5
 
@@ -35,7 +36,9 @@ def test_event_dispatcher(mock_container, mock_producer):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
 
-    event_dispatcher = EventDispatcher(retry_policy={'max_retries': 5}).bind(
+    custom_retry_policy = {'max_retries': 5}
+
+    event_dispatcher = EventDispatcher(retry_policy=custom_retry_policy).bind(
         container, attr_name="dispatch")
     event_dispatcher.setup()
 
@@ -44,15 +47,23 @@ def test_event_dispatcher(mock_container, mock_producer):
 
     headers = event_dispatcher.get_message_headers(worker_ctx)
 
-    mock_producer.publish.assert_called_once_with(
-        'msg', exchange=ANY, headers=headers,
-        serializer=container.serializer,
-        routing_key='eventtype', retry=True, mandatory=False,
-        retry_policy={'max_retries': 5})
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'exchange': ANY,
+        'routing_key': 'eventtype',
+        'headers': headers,
+        'retry': event_dispatcher.retry,
+        'retry_policy': custom_retry_policy,
+        'mandatory': False
+    }
+    expected_kwargs.update(event_dispatcher.delivery_options)
+    expected_kwargs.update(event_dispatcher.encoding_options)
 
-    _, call_kwargs = mock_producer.publish.call_args
-    exchange = call_kwargs['exchange']
-    assert exchange.name == 'srcservice.events'
+    assert mock_producer.publish.call_count == 1
+    args, kwargs = mock_producer.publish.call_args
+    assert args == expected_args
+    assert kwargs == expected_kwargs
+    assert kwargs['exchange'].name == 'srcservice.events'
 
 
 def test_event_handler(queue_consumer, mock_container):
@@ -669,6 +680,113 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     assert ['"msg"'] == [msg['payload'] for msg in messages]
 
 
+class TestEventDispatcherOptionPrecedence(object):
+
+    @pytest.fixture
+    def event_type(self):
+        return "event_type"
+
+    @pytest.fixture
+    def service_base(self):
+
+        class Service(object):
+            name = "service"
+
+            dispatch = EventDispatcher()
+
+            @dummy
+            def proxy(self, *args, **kwargs):
+                self.dispatch(*args, **kwargs)
+
+        return Service
+
+    @pytest.fixture
+    def queue(self, amqp_uri, service_base, event_type):
+        """ Make a "sniffer" queue bound to the event exchange
+        """
+        exchange = get_event_exchange(service_base.name)
+        queue = Queue(
+            name="sniffer", exchange=exchange, routing_key=event_type
+        )
+
+        with get_connection(amqp_uri) as connection:
+            maybe_declare(queue, connection)
+        return queue
+
+    def test_specify_with_subclass(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+
+        class ExpiringEventDispatcher(EventDispatcher):
+            delivery_options = {
+                'expiration': 1
+            }
+
+        class Service(service_base):
+            dispatch = ExpiringEventDispatcher()
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(event_type, "payload")
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_specify_at_declare_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+
+        class Service(service_base):
+            dispatch = EventDispatcher(expiration=1)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(event_type, "payload")
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_specify_at_publish_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(
+                event_type, "payload", expiration=1
+            )
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(1 * 1000)
+
+    def test_override_at_publish_time(
+        self, container_factory, rabbit_config, get_message_from_queue, queue,
+        service_base, event_type
+    ):
+        class Service(service_base):
+            dispatch = EventDispatcher(expiration=1)
+
+        container = container_factory(service_base, rabbit_config)
+        container.start()
+
+        with entrypoint_hook(container, "proxy") as dispatch:
+            dispatch(
+                event_type, "payload", expiration=2
+            )
+
+        message = get_message_from_queue(queue.name)
+        assert message.properties['expiration'] == str(2 * 1000)
+
+
+@pytest.mark.behavioural
 class TestMandatoryDelivery(object):
     """ Test and demonstrate the mandatory delivery flag.
 
@@ -676,8 +794,8 @@ class TestMandatoryDelivery(object):
     is requested and there is no destination queue, as long as publish-confirms
     are enabled.
     """
-
-    def test_default(self, container_factory, rabbit_config):
+    @pytest.fixture()
+    def container(self, container_factory, rabbit_config):
 
         class Service(object):
             name = "dispatcher"
@@ -685,48 +803,41 @@ class TestMandatoryDelivery(object):
             dispatch = EventDispatcher()
 
             @dummy
-            def method(self, *args, **kwargs):
+            def proxy(self, *args, **kwargs):
                 self.dispatch(*args, **kwargs)
 
         container = container_factory(Service, rabbit_config)
         container.start()
+        return container
 
+    def test_default(self, container):
         # events are not mandatory by default;
         # no error when routing to a non-existent handler
-        with entrypoint_hook(container, 'method') as dispatch:
-            dispatch("event", "payload")
+        with entrypoint_hook(container, 'proxy') as dispatch:
+            dispatch("event_type", "payload")
 
-    def test_mandatory_delivery(self, container_factory, rabbit_config):
-
-        class Service(object):
-            name = "dispatcher"
-
-            dispatch = EventDispatcher(mandatory=True)
-
-            @dummy
-            def method(self, *args, **kwargs):
-                self.dispatch(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
+    def test_mandatory_delivery(self, container):
         # requesting mandatory delivery will result in an exception
         # if there is no bound queue to receive the message
         with pytest.raises(UndeliverableMessage):
-            with entrypoint_hook(container, 'method') as publish:
-                publish("event", "payload")
+            with entrypoint_hook(container, 'proxy') as dispatch:
+                dispatch("event_type", "payload", mandatory=True)
 
-    @patch('nameko.standalone.events.warnings')
+    @patch('nameko.messaging.warnings')
     def test_confirms_disabled(
         self, warnings, container_factory, rabbit_config
     ):
-        class Service(object):
-            name = "dispatcher"
 
-            dispatch = EventDispatcher(mandatory=True, use_confirms=False)
+        class UnconfirmedEventDispatcher(EventDispatcher):
+            use_confirms = False
+
+        class Service(object):
+            name = "service"
+
+            dispatch = UnconfirmedEventDispatcher()
 
             @dummy
-            def method(self, *args, **kwargs):
+            def proxy(self, *args, **kwargs):
                 self.dispatch(*args, **kwargs)
 
         container = container_factory(Service, rabbit_config)
@@ -735,6 +846,6 @@ class TestMandatoryDelivery(object):
         # no exception will be raised if confirms are disabled,
         # even when mandatory delivery is requested,
         # but there will be a warning raised
-        with entrypoint_hook(container, 'method') as dispatch:
-            dispatch("event", "payload")
+        with entrypoint_hook(container, 'proxy') as dispatch:
+            dispatch("event_type", "payload", mandatory=True)
         assert warnings.warn.called
