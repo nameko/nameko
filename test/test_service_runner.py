@@ -364,7 +364,7 @@ def test_runner_with_duplicate_services(
 
     # it should only be hosted once
     assert len(runner.containers) == 1
-    container = runner.containers[0]
+    container = list(runner.containers)[0]
 
     # test events (only one service is hosted)
     event_data = "event"
