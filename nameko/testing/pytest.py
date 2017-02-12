@@ -102,16 +102,7 @@ def rabbit_manager(request):
 
 
 @pytest.yield_fixture()
-def rabbit_config(request, rabbit_manager, container_factory, runner_factory):
-    """
-    Having this fixture depend on `container_factory` and `runner_factory`
-    ensures that those fixtures tear down after this one.
-
-    By chance, this considerably speeds up tests that use those fixtures.
-    The reason is that deleting the RabbitMQ vhost sends basic-cancel to any
-    consumers, triggering the ConsumerMixin to perform its iteration cycle
-    early rather than waiting for the timeout to fire on its socket read.
-    """
+def rabbit_config(request, rabbit_manager):
     import random
     import string
 
@@ -139,6 +130,80 @@ def rabbit_config(request, rabbit_manager, container_factory, runner_factory):
     rabbit_manager.delete_vhost(vhost)
 
 
+@pytest.yield_fixture(autouse=True)
+def fast_teardown(container_factory, runner_factory, rabbit_config):
+    """
+    This fixture fixes the order of the `container_factory`, `runner_factory`
+    and `rabbit_config` fixtures to get the fastest possible teardown of tests
+    that use them.
+
+    Without this fixture, the teardown order depends on the fixture resolution
+    defined by the test, for example::
+
+    def test_foo(container_factory, rabbit_config):
+        pass  # rabbit_config tears down first
+
+    def test_bar(rabbit_config, container_factory):
+        pass  # container_factory tears down first
+
+    This fixture ensures the teardown order is:
+
+        1. `fast_teardown`  (this fixture)
+        2. `rabbit_config`
+        3. `container_factory` / `runner_factory`
+
+    That is, `rabbit_config` teardown, which removes the vhost created for
+    the test, happens *before* the consumers are stopped.
+
+    Deleting the vhost causes the broker to sends a "basic-cancel" message
+    to any connected consumers, which will include the consumers in all
+    containers created by the `container_factory` and `runner_factory`
+    fixtures.
+
+    This speeds up test teardown because the "basic-cancel" breaks
+    the consumers' `drain_events` loop (http://bit.do/kombu-drain-events)
+    which would otherwise wait for up to a second for the socket read to time
+    out before gracefully shutting down.
+
+    For even faster teardown, we monkeypatch the consumers to ensure they
+    don't try to reconnect between the "basic-cancel" and being explicitly
+    stopped when their container is killed.
+
+    In older versions of RabbitMQ, the monkeypatch also protects against a
+    race-condition that can lead to hanging tests.
+
+    Modern RabbitMQ raises a `NotAllowed` exception if you try to connect to
+    a vhost that doesn't exist, but older versions (including 3.4.3, used by
+    Travis) just raise a `socket.error`. This is classed as a recoverable
+    error, and consumers attempt to reconnect. Kombu's reconnection code blocks
+    until a connection is established, so consumers that attempt to reconnect
+    before being killed get stuck there.
+    """
+
+    from kombu.mixins import ConsumerMixin
+
+    consumers = []
+
+    # monkeypatch the ConsumerMixin constructor to stash a reference to
+    # each instance
+    orig_init = ConsumerMixin.__init__
+
+    def __init__(self, *args, **kwargs):
+        orig_init(self, *args, **kwargs)
+        consumers.append(self)
+
+    ConsumerMixin.__init__ = __init__
+
+    yield
+    ConsumerMixin.__init__ = orig_init
+
+    # set the `should_stop` attribute on all consumers *before* the rabbit
+    # vhost is killed, so that they don't try to reconnect before they're
+    # explicitly killed when their container stops.
+    for consumer in consumers:
+        consumer.should_stop = True
+
+
 @pytest.yield_fixture
 def container_factory():
     from nameko.containers import get_container_cls
@@ -162,7 +227,6 @@ def container_factory():
         return container
 
     yield make_container
-
     for c in all_containers:
         try:
             c.kill()
