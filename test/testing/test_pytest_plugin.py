@@ -21,10 +21,7 @@ def plugin_options(request):
     them into subprocess pytests created by the pytester plugin.
     """
     options = (
-        '--rabbit-host',
-        '--rabbit-port',
-        '--rabbit-user',
-        '--rabbit-pass',
+        '--rabbit-amqp-uri',
         '--rabbit-api-uri'
     )
 
