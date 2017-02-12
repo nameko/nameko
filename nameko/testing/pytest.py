@@ -101,7 +101,7 @@ def rabbit_config(request, rabbit_manager):
     import string
     import time
     from kombu import pools
-    from six.moves.urllib.parse import urlparse
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     from nameko.testing.utils import get_rabbit_connections
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
