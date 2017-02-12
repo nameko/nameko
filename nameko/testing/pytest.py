@@ -98,7 +98,7 @@ def rabbit_manager(request):
 def rabbit_config(request, rabbit_manager):
     import random
     import string
-    from six.moves.urllib.parse import urlparse
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
