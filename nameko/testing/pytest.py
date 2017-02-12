@@ -23,29 +23,22 @@ def pytest_addoption(parser):
         help=("The logging-level for the test run."))
 
     parser.addoption(
-        "--rabbit-host", action="store", dest='RABBIT_HOST',
-        default='localhost',
-        help=("Hostname of the RabbitMQ broker."))
+        "--amqp-uri", "--rabbit-amqp-uri",
+        action="store",
+        dest='RABBIT_AMQP_URI',
+        default='pyamqp://guest:guest@localhost:5672/',
+        help=(
+            "URI for the RabbitMQ broker. Any specified virtual host will be "
+            "ignored because tests run in their own isolated vhost."
+        ))
 
     parser.addoption(
-        "--rabbit-port", action="store", dest='RABBIT_PORT',
-        default='5672',
-        help=("AMQP port number on RabbitMQ broker."))
-
-    parser.addoption(
-        "--rabbit-user", action="store", dest='RABBIT_USER',
-        default='guest',
-        help=("RabbitMQ username."))
-
-    parser.addoption(
-        "--rabbit-pass", action="store", dest='RABBIT_PASS',
-        default='guest',
-        help=("RabbitMQ password."))
-
-    parser.addoption(
-        "--rabbit-api-uri", action="store", dest='RABBIT_API_URI',
+        "--rabbit-api-uri", "--rabbit-ctl-uri",
+        action="store",
+        dest='RABBIT_API_URI',
         default='http://guest:guest@localhost:15672',
-        help=("URI for RabbitMQ management interface."))
+        help=("URI for RabbitMQ management interface.")
+    )
 
 
 def pytest_load_initial_conftests():
@@ -105,20 +98,21 @@ def rabbit_manager(request):
 def rabbit_config(request, rabbit_manager):
     import random
     import string
+    from six.moves.urllib.parse import urlparse
 
-    host = request.config.getoption('RABBIT_HOST')
-    port = request.config.getoption('RABBIT_PORT')
-    username = request.config.getoption('RABBIT_USER')
-    password = request.config.getoption('RABBIT_PASS')
+    rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
+    uri_parts = urlparse(rabbit_amqp_uri)
+    username = uri_parts.username
 
     vhost = "nameko_test_{}".format(
         "".join(random.choice(string.ascii_lowercase) for _ in range(10))
     )
-    amqp_uri = "pyamqp://{}:{}@{}:{}/{}".format(
-        username, password, host, port, vhost
-    )
     rabbit_manager.create_vhost(vhost)
     rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+
+    amqp_uri = "{uri.scheme}://{uri.netloc}/{vhost}".format(
+        uri=uri_parts, vhost=vhost
+    )
 
     conf = {
         'AMQP_URI': amqp_uri,
