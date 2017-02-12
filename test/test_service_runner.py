@@ -1,6 +1,5 @@
-import eventlet
 import pytest
-from mock import ANY, call, patch
+from mock import ANY, call, patch, Mock
 
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.events import BROADCAST, event_handler
@@ -20,13 +19,9 @@ class TestService2(object):
     name = 'foobar_2'
 
 
-received = []
-
-
-@pytest.yield_fixture(autouse=True)
-def reset_mock():
-    yield
-    del received[:]
+@pytest.fixture
+def tracker():
+    return Mock()
 
 
 @pytest.yield_fixture
@@ -35,16 +30,21 @@ def warnings():
         yield patched
 
 
-class Service(object):
-    name = "service"
+@pytest.fixture
+def service_cls(tracker):
 
-    @rpc
-    @event_handler(
-        "srcservice", "testevent",
-        handler_type=BROADCAST, reliable_delivery=False
-    )
-    def handle(self, msg):
-        received.append(msg)
+    class Service(object):
+        name = "service"
+
+        @rpc
+        @event_handler(
+            "srcservice", "testevent",
+            handler_type=BROADCAST, reliable_delivery=False
+        )
+        def handle(self, msg):
+            tracker(msg)
+
+    return Service
 
 
 def test_runner_lifecycle():
@@ -160,7 +160,7 @@ class TestRunnerCustomWorkerCtxCls(object):
 
             @dummy
             def method(self):
-                pass
+                pass  # pragma: no cover
 
         return Service
 
@@ -304,13 +304,13 @@ def test_runner_waits_raises_error():
 
 
 def test_multiple_runners_coexist(
-    runner_factory, rabbit_config, rabbit_manager
+    runner_factory, rabbit_config, rabbit_manager, service_cls, tracker
 ):
 
-    runner1 = runner_factory(rabbit_config, Service)
+    runner1 = runner_factory(rabbit_config, service_cls)
     runner1.start()
 
-    runner2 = runner_factory(rabbit_config, Service)
+    runner2 = runner_factory(rabbit_config, service_cls)
     runner2.start()
 
     vhost = rabbit_config['vhost']
@@ -327,7 +327,7 @@ def test_multiple_runners_coexist(
     assert_stops_raising(check_consumers)
 
     # test events (both services will receive if in "broadcast" mode)
-    event_data = "msg"
+    event_data = "event"
     dispatch = event_dispatcher(rabbit_config)
 
     container1 = list(runner1.containers)[0]
@@ -336,54 +336,55 @@ def test_multiple_runners_coexist(
     with entrypoint_waiter(container1, "handle"):
         with entrypoint_waiter(container2, "handle"):
             dispatch('srcservice', "testevent", event_data)
-    assert received == [event_data, event_data]
+    assert tracker.call_args_list == [call(event_data), call(event_data)]
 
     # verify there are two consumers on the rpc queue
     rpc_queue = rabbit_manager.get_queue(vhost, 'rpc-service')
     assert rpc_queue['consumers'] == 2
 
     # test rpc (only one service will respond)
-    del received[:]
-    arg = "msg"
+    arg = "arg"
     with ServiceRpcProxy('service', rabbit_config) as proxy:
         proxy.handle(arg)
 
-    assert received == [arg]
+    assert tracker.call_args_list == [
+        call(event_data), call(event_data), call(arg)
+    ]
 
 
-def test_runner_with_duplicate_services(runner_factory, rabbit_config):
+def test_runner_with_duplicate_services(
+    runner_factory, rabbit_config, service_cls, tracker
+):
 
     # host Service multiple times
     runner = runner_factory(rabbit_config)
-    runner.add_service(Service)
-    runner.add_service(Service)  # no-op
+    runner.add_service(service_cls)
+    runner.add_service(service_cls)  # no-op
     runner.start()
 
     # it should only be hosted once
     assert len(runner.containers) == 1
+    container = runner.containers[0]
 
     # test events (only one service is hosted)
-    event_data = "msg"
+    event_data = "event"
     dispatch = event_dispatcher(rabbit_config)
-    dispatch('srcservice', 'testevent', event_data)
 
-    with eventlet.Timeout(1):
-        while len(received) == 0:
-            eventlet.sleep()
-
-        assert received == [event_data]
+    with entrypoint_waiter(container, "handle"):
+        dispatch('srcservice', "testevent", event_data)
+    assert tracker.call_args_list == [call(event_data)]
 
     # test rpc
-    arg = "msg"
-    del received[:]
-
+    arg = "arg"
     with ServiceRpcProxy("service", rabbit_config) as proxy:
         proxy.handle(arg)
 
-    assert received == [arg]
+    assert tracker.call_args_list == [call(event_data), call(arg)]
 
 
-def test_runner_catches_managed_thread_errors(runner_factory, rabbit_config):
+def test_runner_catches_managed_thread_errors(
+    runner_factory, rabbit_config, service_cls
+):
 
     class Broken(Exception):
         pass
@@ -391,9 +392,9 @@ def test_runner_catches_managed_thread_errors(runner_factory, rabbit_config):
     def raises():
         raise Broken('error')
 
-    runner = runner_factory(rabbit_config, Service)
+    runner = runner_factory(rabbit_config, service_cls)
 
-    container = get_container(runner, Service)
+    container = get_container(runner, service_cls)
     container.spawn_managed_thread(raises)
 
     with pytest.raises(Broken):
