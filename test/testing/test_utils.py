@@ -296,7 +296,7 @@ class TestResourcePipeline(object):
         pipeline.shutdown()
         # no need to yield because shutdown is blocking
         # expect all created items to have been destroyed
-        assert created == destroyed == range(size + 2)
+        assert created == destroyed == list(range(size + 2))
 
     def test_zero_size(self):
 
