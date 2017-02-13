@@ -125,7 +125,7 @@ def rabbit_config(request, rabbit_manager):
 
 
 @pytest.yield_fixture(autouse=True)
-def fast_teardown(container_factory, runner_factory, rabbit_config):
+def fast_teardown(request):
     """
     This fixture fixes the order of the `container_factory`, `runner_factory`
     and `rabbit_config` fixtures to get the fastest possible teardown of tests
@@ -173,8 +173,12 @@ def fast_teardown(container_factory, runner_factory, rabbit_config):
     until a connection is established, so consumers that attempt to reconnect
     before being killed get stuck there.
     """
-
     from kombu.mixins import ConsumerMixin
+
+    reorder_fixtures = ('container_factory', 'runner_factory', 'rabbit_config')
+    for fixture in reorder_fixtures:
+        if fixture in request.funcargnames:
+            request.getfuncargvalue(fixture)
 
     consumers = []
 
@@ -189,6 +193,7 @@ def fast_teardown(container_factory, runner_factory, rabbit_config):
     ConsumerMixin.__init__ = __init__
 
     yield
+
     ConsumerMixin.__init__ = orig_init
 
     # set the `should_stop` attribute on all consumers *before* the rabbit
