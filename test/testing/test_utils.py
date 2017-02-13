@@ -274,23 +274,28 @@ class TestResourcePipeline(object):
 
         # check initial size
         eventlet.sleep()  # let pipeline fill up
+        # when full, created is always exactly one more than `size`
         assert pipeline.ready.qsize() == size
         assert len(created) == size + 1
 
         # get an item
         item = pipeline.get()
         eventlet.sleep()  # let pipeline process
+        # expect pipeline to have created another item
         assert pipeline.ready.qsize() == size
         assert len(created) == size + 2
 
         # discard an item
         pipeline.discard(item)
         eventlet.sleep()  # let pipeline process
+        # expect item to have been destroyed
         assert pipeline.trash.qsize() == 0
         assert destroyed == [item]
 
         # shutdown
         pipeline.shutdown()
+        # no need to yield because shutdown is blocking
+        # expect all created items to have been destroyed
         assert created == destroyed == range(size + 2)
 
     def test_zero_size(self):

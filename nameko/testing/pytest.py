@@ -99,7 +99,6 @@ def vhost_pipeline(request, rabbit_manager):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
     import string
-    import eventlet
     from nameko.testing.utils import ResourcePipeline
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
