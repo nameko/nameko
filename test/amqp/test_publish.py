@@ -1,16 +1,16 @@
 from __future__ import absolute_import
 
 from datetime import datetime
-from mock import call, ANY
 
 import pytest
-from amqp.exceptions import NotFound, PreconditionFailed
+from amqp.exceptions import (
+    NotFound, PreconditionFailed, RecoverableConnectionError)
 from kombu import Connection
-from kombu.compression import get_encoder
 from kombu.common import maybe_declare
+from kombu.compression import get_encoder
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
-from mock import patch
+from mock import ANY, MagicMock, call, patch
 
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer)
@@ -142,12 +142,20 @@ class TestPublisher(object):
         message = get_message_from_queue(queue.name)
         assert message.properties[option] == expected
 
-    @pytest.mark.parametrize("use_confirms", [True, False])
-    def test_confirms(self, use_confirms, amqp_uri, publisher):
-        # TODO: this is not strictly behavioural
-        with patch('nameko.amqp.publish.get_producer') as get_producer:
-            publisher.publish("payload", use_confirms=use_confirms)
-        assert get_producer.call_args_list == [call(amqp_uri, use_confirms)]
+    def test_confirms(self, amqp_uri, publisher):
+        publisher.mandatory = True
+
+        # confirms are enabled by default;
+        # if a mandatory message cannot be delivered, expect an exception
+        with pytest.raises(UndeliverableMessage):
+            publisher.publish(
+                "payload", routing_key="missing", use_confirms=True
+            )
+
+        # disabling confirms disables the error
+        publisher.publish(
+            "payload", routing_key="missing", use_confirms=False
+        )
 
     def test_mandatory_delivery(
         self, publisher, get_message_from_queue, queue
@@ -315,5 +323,40 @@ class TestPublisher(object):
         assert get_message_from_queue(declare[0].name).payload == "payload"
         assert get_message_from_queue(declare[1].name).payload == "payload"
 
-    # test_retry
-    # test_retry_policy
+    def test_retry(
+        self, publisher, get_message_from_queue, rabbit_config
+    ):
+        mock_publish = MagicMock(__name__="", __doc__="", __module__="")
+        mock_publish.side_effect = RecoverableConnectionError("error")
+
+        expected_retries = publisher.retry_policy['max_retries'] + 1
+
+        # with retry
+        with patch.object(Producer, '_publish', new=mock_publish):
+            with pytest.raises(RecoverableConnectionError):
+                publisher.publish("payload", retry=True)
+        assert mock_publish.call_count == 1 + expected_retries
+
+        mock_publish.reset_mock()
+
+        # retry disabled
+        with patch.object(Producer, '_publish', new=mock_publish):
+            with pytest.raises(RecoverableConnectionError):
+                publisher.publish("payload", retry=False)
+        assert mock_publish.call_count == 1
+
+    def test_retry_policy(
+        self, publisher, get_message_from_queue, rabbit_config
+    ):
+        mock_publish = MagicMock(__name__="", __doc__="", __module__="")
+        mock_publish.side_effect = RecoverableConnectionError("error")
+
+        retry_policy = {
+            'max_retries': 5
+        }
+        expected_retries = retry_policy['max_retries'] + 1
+
+        with patch.object(Producer, '_publish', new=mock_publish):
+            with pytest.raises(RecoverableConnectionError):
+                publisher.publish("payload", retry_policy=retry_policy)
+        assert mock_publish.call_count == 1 + expected_retries
