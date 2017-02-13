@@ -140,3 +140,65 @@ def find_free_port(host='127.0.0.1'):
     port = sock.getsockname()[1]
     sock.close()
     return port
+
+
+class ResourcePipeline(object):
+    """ Creates and destroys resources in background threads.
+
+    Creates up to `size` resources ahead of time so the caller avoids waiting
+    for lazy creation.
+    """
+
+    STOP = object()
+
+    def __init__(self, create, destroy, size=3):
+        if size == 0:
+            raise RuntimeError("Zero size would create unbounded resources")
+        self.ready = eventlet.Queue(maxsize=size)
+        self.trash = eventlet.Queue()
+
+        self.threads = []
+        self.create = create
+        self.destroy = destroy
+
+    def start(self):
+        self.running = True
+        self.threads.append(eventlet.spawn(self._create))
+        self.threads.append(eventlet.spawn(self._destroy))
+
+    def _create(self):
+        while self.running:
+            obj = self.create()
+            self.ready.put(obj)
+
+    def _destroy(self):
+        while True:
+            obj = self.trash.get()
+            if obj is ResourcePipeline.STOP:
+                break
+            self.destroy(obj)
+
+    def get(self):
+        return self.ready.get()
+
+    def discard(self, vhost):
+        self.trash.put(vhost)
+
+    def shutdown(self):
+        self.running = False
+        while self.ready.qsize():
+            unused = self.ready.get()
+            self.trash.put(unused)
+            eventlet.sleep()  # allow create thread to run
+
+        self.trash.put(ResourcePipeline.STOP)
+        for gt in self.threads:
+            gt.wait()
+
+    @contextmanager
+    def run(self):
+        self.start()
+        try:
+            yield self
+        finally:
+            self.shutdown()

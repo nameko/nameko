@@ -94,21 +94,46 @@ def rabbit_manager(request):
     return rabbit.Client(config.getoption('RABBIT_API_URI'))
 
 
-@pytest.yield_fixture()
-def rabbit_config(request, rabbit_manager):
+@pytest.yield_fixture(scope='session')
+def vhost_pipeline(request, rabbit_manager):
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
     import string
+    import eventlet
+    from nameko.testing.utils import ResourcePipeline
+
+    rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
+    uri_parts = urlparse(rabbit_amqp_uri)
+    username = uri_parts.username
+
+    def create():
+        vhost = "nameko_test_{}".format(
+            "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+        )
+        rabbit_manager.create_vhost(vhost)
+        rabbit_manager.set_vhost_permissions(
+            vhost, username, '.*', '.*', '.*'
+        )
+        return vhost
+
+    def destroy(vhost):
+        rabbit_manager.delete_vhost(vhost)
+
+    pipeline = ResourcePipeline(create, destroy)
+
+    with pipeline.run() as vhosts:
+        yield vhosts
+
+
+@pytest.yield_fixture()
+def rabbit_config(request, vhost_pipeline, rabbit_manager):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
     username = uri_parts.username
 
-    vhost = "nameko_test_{}".format(
-        "".join(random.choice(string.ascii_lowercase) for _ in range(10))
-    )
-    rabbit_manager.create_vhost(vhost)
-    rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+    vhost = vhost_pipeline.get()
 
     amqp_uri = "{uri.scheme}://{uri.netloc}/{vhost}".format(
         uri=uri_parts, vhost=vhost
@@ -121,7 +146,8 @@ def rabbit_config(request, rabbit_manager):
     }
 
     yield conf
-    rabbit_manager.delete_vhost(vhost)
+
+    vhost_pipeline.discard(vhost)
 
 
 @pytest.yield_fixture(autouse=True)

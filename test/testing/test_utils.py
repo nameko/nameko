@@ -1,3 +1,4 @@
+import itertools
 import warnings
 
 import eventlet
@@ -10,9 +11,9 @@ from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import Rpc, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
-    AnyInstanceOf, find_free_port, get_container, get_extension,
-    get_rabbit_connections, reset_rabbit_connections, wait_for_call,
-    wait_for_worker_idle)
+    AnyInstanceOf, ResourcePipeline, find_free_port, get_container,
+    get_extension, get_rabbit_connections, reset_rabbit_connections,
+    wait_for_call, wait_for_worker_idle)
 
 
 def test_any_instance_of():
@@ -248,3 +249,51 @@ class TestFindFreePort(object):
         assert find_free_port(host) == free_port
         assert mock_sock.bind.call_args_list == [call((host, 0))]
         assert mock_sock.close.called
+
+
+class TestResourcePipeline(object):
+
+    @pytest.mark.parametrize('size', [1, 5, 1000])
+    def test_pipeline(self, size):
+
+        created = []
+        destroyed = []
+
+        counter = itertools.count()
+
+        def create():
+            obj = next(counter)
+            created.append(obj)
+            return obj
+
+        def destroy(obj):
+            destroyed.append(obj)
+
+        pipeline = ResourcePipeline(create, destroy, size)
+        pipeline.start()
+
+        # check initial size
+        eventlet.sleep()  # let pipeline fill up
+        assert pipeline.ready.qsize() == size
+        assert len(created) == size + 1
+
+        # get an item
+        item = pipeline.get()
+        eventlet.sleep()  # let pipeline process
+        assert pipeline.ready.qsize() == size
+        assert len(created) == size + 2
+
+        # discard an item
+        pipeline.discard(item)
+        eventlet.sleep()  # let pipeline process
+        assert pipeline.trash.qsize() == 0
+        assert destroyed == [item]
+
+        # shutdown
+        pipeline.shutdown()
+        assert created == destroyed == range(size + 2)
+
+    def test_zero_size(self):
+
+        with pytest.raises(RuntimeError):
+            ResourcePipeline(None, None, 0)
