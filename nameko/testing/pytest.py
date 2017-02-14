@@ -23,14 +23,22 @@ def pytest_addoption(parser):
         help=("The logging-level for the test run."))
 
     parser.addoption(
-        "--amqp-uri", action="store", dest='AMQP_URI',
-        default='amqp://guest:guest@localhost:5672/:random:',
-        help=("The AMQP-URI to connect to rabbit with."))
+        "--amqp-uri", "--rabbit-amqp-uri",
+        action="store",
+        dest='RABBIT_AMQP_URI',
+        default='pyamqp://guest:guest@localhost:5672/',
+        help=(
+            "URI for the RabbitMQ broker. Any specified virtual host will be "
+            "ignored because tests run in their own isolated vhost."
+        ))
 
     parser.addoption(
-        "--rabbit-ctl-uri", action="store", dest='RABBIT_CTL_URI',
+        "--rabbit-api-uri", "--rabbit-ctl-uri",
+        action="store",
+        dest='RABBIT_API_URI',
         default='http://guest:guest@localhost:15672',
-        help=("The URI for rabbit's management API."))
+        help=("URI for RabbitMQ management interface.")
+    )
 
 
 def pytest_load_initial_conftests():
@@ -61,10 +69,7 @@ def always_warn_for_deprecation():
 
 @pytest.fixture
 def empty_config():
-    from nameko.constants import AMQP_URI_CONFIG_KEY
-    return {
-        AMQP_URI_CONFIG_KEY: ""
-    }
+    return {}
 
 
 @pytest.fixture
@@ -86,7 +91,7 @@ def rabbit_manager(request):
     from nameko.testing import rabbit
 
     config = request.config
-    return rabbit.Client(config.getoption('RABBIT_CTL_URI'))
+    return rabbit.Client(config.getoption('RABBIT_API_URI'))
 
 
 @pytest.yield_fixture()
@@ -99,21 +104,19 @@ def rabbit_config(request, rabbit_manager):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     from nameko.testing.utils import get_rabbit_connections
 
-    amqp_uri = request.config.getoption('AMQP_URI')
+    rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
+    uri_parts = urlparse(rabbit_amqp_uri)
+    username = uri_parts.username
 
-    uri = urlparse(amqp_uri)
-    username = uri.username
-    vhost = uri.path[1:]
+    vhost = "nameko_test_{}".format(
+        "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+    )
+    rabbit_manager.create_vhost(vhost)
+    rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
-    use_random_vost = (vhost == ":random:")
-
-    if use_random_vost:
-        vhost = "test_{}".format(
-            "".join(random.choice(string.ascii_lowercase) for _ in range(10))
-        )
-        amqp_uri = "{}://{}/{}".format(uri.scheme, uri.netloc, vhost)
-        rabbit_manager.create_vhost(vhost)
-        rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
+    amqp_uri = "{uri.scheme}://{uri.netloc}/{vhost}".format(
+        uri=uri_parts, vhost=vhost
+    )
 
     conf = {
         'AMQP_URI': amqp_uri,
@@ -161,8 +164,7 @@ def rabbit_config(request, rabbit_manager):
     try:
         check_connections()
     finally:
-        if use_random_vost:
-            rabbit_manager.delete_vhost(vhost)
+        rabbit_manager.delete_vhost(vhost)
 
 
 @pytest.fixture

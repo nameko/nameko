@@ -2,7 +2,7 @@ import socket
 
 import pytest
 
-from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -15,8 +15,24 @@ from nameko.web.websocket import rpc as wsrpc
 pytest_plugins = "pytester"
 
 
+@pytest.fixture
+def plugin_options(request):
+    """ Get the options pytest may have been invoked with so we can pass
+    them into subprocess pytests created by the pytester plugin.
+    """
+    options = (
+        '--rabbit-amqp-uri',
+        '--rabbit-api-uri'
+    )
+
+    args = [
+        "{}={}".format(opt, request.config.getoption(opt)) for opt in options
+    ]
+    return args
+
+
 def test_empty_config(empty_config):
-    assert AMQP_URI_CONFIG_KEY in empty_config
+    assert empty_config == {}
 
 
 def test_rabbit_manager(rabbit_manager):
@@ -24,35 +40,7 @@ def test_rabbit_manager(rabbit_manager):
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
 
 
-def test_rabbit_config_random_vhost(testdir):
-
-    testdir.makepyfile(
-        """
-        import re
-
-        def test_rabbit_config(rabbit_config):
-            assert re.search("test_[a-z]+$", rabbit_config['AMQP_URI'])
-        """
-    )
-    result = testdir.runpytest()
-    assert result.ret == 0
-
-
-def test_rabbit_config_specific_vhost(testdir):
-
-    testdir.makepyfile(
-        """
-        def test_rabbit_config(rabbit_config):
-            assert "specified_vhost" in rabbit_config['AMQP_URI']
-        """
-    )
-    result = testdir.runpytest(
-        "--amqp-uri", "amqp://guest:guest@localhost:5672/specified_vhost"
-    )
-    assert result.ret == 0
-
-
-def test_rabbit_config_leftover_connections(testdir):
+def test_rabbit_config_leftover_connections(testdir, plugin_options):
 
     # run a test that leaves connections lying around
     testdir.makepyfile(
@@ -75,14 +63,15 @@ def test_rabbit_config_leftover_connections(testdir):
         """
     )
 
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
+
     assert result.ret == 1
     result.stdout.fnmatch_lines(
         ["*RuntimeError: 1 rabbit connection(s) left open*"]
     )
 
 
-def test_cleanup_order(testdir):
+def test_cleanup_order(testdir, plugin_options):
 
     # without ``ensure_cleanup_order``, the following fixture ordering would
     # tear down ``rabbit_config`` before the ``container_factory`` (generating
@@ -103,11 +92,13 @@ def test_cleanup_order(testdir):
             container.start()
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
 
-def test_container_factory(testdir, rabbit_config, rabbit_manager):
+def test_container_factory(
+    testdir, rabbit_config, rabbit_manager, plugin_options
+):
 
     testdir.makepyfile(
         """
@@ -129,14 +120,14 @@ def test_container_factory(testdir, rabbit_config, rabbit_manager):
                 assert proxy.method() == "OK"
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
     vhost = rabbit_config['vhost']
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
-def test_container_factory_with_custom_container_cls(testdir):
+def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
     testdir.makepyfile(container_module="""
         from nameko.containers import ServiceContainer
@@ -175,11 +166,13 @@ def test_container_factory_with_custom_container_cls(testdir):
                 assert proxy.method() == "OK"
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
 
-def test_container_factory_custom_worker_ctx_deprecation_warning(testdir):
+def test_container_factory_custom_worker_ctx_deprecation_warning(
+    testdir, plugin_options
+):
 
     testdir.makeconftest(
         """
@@ -226,11 +219,13 @@ def test_container_factory_custom_worker_ctx_deprecation_warning(testdir):
             ]
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
 
-def test_runner_factory(testdir, rabbit_config, rabbit_manager):
+def test_runner_factory(
+    testdir, plugin_options, rabbit_config, rabbit_manager
+):
 
     testdir.makepyfile(
         """
@@ -252,7 +247,7 @@ def test_runner_factory(testdir, rabbit_config, rabbit_manager):
                 assert proxy.method() == "OK"
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
     vhost = rabbit_config['vhost']

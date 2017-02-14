@@ -103,9 +103,11 @@ def test_consume_provider(mock_container):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    maybe_declare, mock_connection, mock_producer, mock_container
+    maybe_declare, mock_connection, mock_producer, mock_container,
+    rabbit_config
 ):
     container = mock_container
+    container.config = rabbit_config
     container.service_name = "srcservice"
 
     service = Mock()
@@ -132,9 +134,11 @@ def test_publish_to_exchange(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
-    maybe_declare, mock_producer, mock_connection, mock_container
+    maybe_declare, mock_producer, mock_connection, mock_container,
+    rabbit_config
 ):
     container = mock_container
+    container.config = rabbit_config
     container.shared_extensions = {}
     container.service_name = "srcservice"
 
@@ -165,10 +169,12 @@ def test_publish_to_queue(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
-    mock_container, maybe_declare, mock_producer, mock_connection
+    mock_container, maybe_declare, mock_producer, mock_connection,
+    rabbit_config
 ):
 
     container = mock_container
+    container.config = rabbit_config
     container.service_name = "srcservice"
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
