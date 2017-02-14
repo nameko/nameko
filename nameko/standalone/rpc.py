@@ -207,14 +207,16 @@ class StandaloneProxyBase(object):
 
     def __init__(
         self, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext, reply_listener_cls=SingleThreadedReplyListener
+        worker_ctx_cls=WorkerContext,
+        reply_listener_cls=SingleThreadedReplyListener
     ):
         container = self.ServiceContainer(config)
 
         self._worker_ctx = worker_ctx_cls(
             container, service=None, entrypoint=self.Dummy,
             data=context_data)
-        self._reply_listener = reply_listener_cls(timeout=timeout).bind(container)
+        self._reply_listener = reply_listener_cls(
+            timeout=timeout).bind(container)
 
     def __enter__(self):
         return self.start()
