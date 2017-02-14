@@ -2,7 +2,6 @@
 """ Tests for the files and snippets in nameko/docs/examples
 """
 import os
-import pytest
 
 from mock import call, patch
 
@@ -286,26 +285,30 @@ class TestWebsocketRpc(object):
 
 class TestConfig:
 
-    def test_config_value_not_set(self, container_factory, rabbit_config):
-        from examples.config_dependency_provider import (
-            Service, FeatureNotEnabled
-        )
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        with pytest.raises(FeatureNotEnabled):
-            with entrypoint_hook(container, "foo") as foo:
-                foo()
-
-    def test_can_get_config_value(self, container_factory, rabbit_config):
+    def test_config_value_not_set(
+        self, container_factory, web_config, web_session
+    ):
         from examples.config_dependency_provider import Service
 
-        config = rabbit_config
+        container = container_factory(Service, web_config)
+        container.start()
+
+        res = web_session.get('/foo')
+        assert res.status_code == 403
+        assert res.text == "FeatureNotEnabled"
+
+    def test_can_get_config_value(
+        self, container_factory, web_config, web_session
+    ):
+        from examples.config_dependency_provider import Service
+
+        config = web_config
+
         config["FOO_FEATURE_ENABLED"] = True
 
         container = container_factory(Service, config)
         container.start()
 
-        with entrypoint_hook(container, "foo") as foo:
-            assert foo() == "foo"
+        res = web_session.get('/foo')
+        assert res.status_code == 200
+        assert res.text == "foo"
