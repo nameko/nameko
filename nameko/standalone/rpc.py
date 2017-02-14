@@ -3,13 +3,10 @@ from __future__ import absolute_import
 import logging
 import socket
 
-import eventlet
-from eventlet import event
 from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
-from kombu.mixins import ConsumerMixin
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import (
@@ -176,79 +173,6 @@ class PollingQueueConsumer(object):
             self._setup_consumer()
 
 
-class MultiQueueConsumer(ConsumerMixin):
-
-    PREFETCH_COUNT_CONFIG_KEY = 'PREFETCH_COUNT'
-    DEFAULT_KOMBU_PREFETCH_COUNT = 10
-
-    def __init__(self, timeout=None):
-        self.timeout = timeout
-        self.replies = {}
-        self._managed_threads = []
-        self._consumers_ready = event.Event()
-
-        self.provider = None
-        self.queue = None
-        self.prefetch_count = None
-        self.serializer = None
-        self.accept = []
-        self._connection = None
-
-    @property
-    def connection(self):
-        if not self._connection:
-            self._connection = Connection(self.provider.container.config[AMQP_URI_CONFIG_KEY])
-        return self._connection
-
-    def register_provider(self, provider):
-        _logger.debug("MultiQueueConsumer registering...")
-        self.provider = provider
-        self.queue = provider.queue
-        self.serializer = provider.container.config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-        self.prefetch_count = self.provider.container.config.get(
-            self.PREFETCH_COUNT_CONFIG_KEY, self.DEFAULT_KOMBU_PREFETCH_COUNT)
-        self.accept = [self.serializer]
-
-        verify_amqp_uri(provider.container.config[AMQP_URI_CONFIG_KEY])
-
-        self.start()
-
-    def start(self):
-        _logger.info("MultiQueueConsumer starting...")
-        gt = eventlet.spawn(self.run)
-        self._managed_threads.append(gt)
-        gt.link(self._handle_thread_exited)
-
-    def _handle_thread_exited(self, gt):
-        self._managed_threads.remove(gt)
-        try:
-            gt.wait()
-        except Exception as error:
-            _logger.error("Managed thread end with error: %s", error)
-
-    def on_message(self, body, message):
-        correlation_id = message.properties.get('correlation_id')
-        if correlation_id not in self.provider._reply_events:
-            _logger.debug(
-                "Unknown correlation id: %s", correlation_id)
-
-        self.replies[correlation_id] = (body, message)
-
-    def unregister_provider(self, _):
-        self.connection.close()
-        self.should_stop = True
-
-    def get_consumers(self, _, channel):
-        consumer = Consumer(channel, queues=[self.provider.queue], accept=self.accept,
-                            no_ack=False, callbacks=[self.on_message, self.provider.handle_message])
-        consumer.qos(prefetch_count=self.prefetch_count)
-        return [consumer]
-
-    @staticmethod
-    def ack_message(msg):
-        msg.ack()
-
-
 class SingleThreadedReplyListener(ReplyListener):
     """ A ReplyListener which uses a custom queue consumer and ConsumeEvent.
     """
@@ -262,19 +186,6 @@ class SingleThreadedReplyListener(ReplyListener):
         reply_event = ConsumeEvent(self.queue_consumer, correlation_id)
         self._reply_events[correlation_id] = reply_event
         return reply_event
-
-
-class MultiReplyListener(ReplyListener):
-
-    queue_consumer = None
-
-    def __init__(self, timeout=None):
-        self.queue_consumer = MultiQueueConsumer(timeout=timeout)
-        super(MultiReplyListener, self).__init__()
-
-    def stop(self):
-        self.queue_consumer.unregister_provider(self)
-        super(ReplyListener, self).stop()
 
 
 class StandaloneProxyBase(object):
