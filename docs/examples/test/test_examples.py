@@ -303,6 +303,7 @@ class TestConfig:
         from examples.config_dependency_provider import Service
 
         config = web_config
+
         config["FOO_FEATURE_ENABLED"] = True
 
         container = container_factory(Service, config)

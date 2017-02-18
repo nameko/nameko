@@ -40,60 +40,145 @@ def test_rabbit_manager(rabbit_manager):
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
 
 
-def test_rabbit_config_leftover_connections(testdir, plugin_options):
+class TestFastTeardown(object):
 
-    # run a test that leaves connections lying around
-    testdir.makepyfile(
-        """
-        from nameko.containers import ServiceContainer
-        from nameko.rpc import rpc
+    def test_order(self, testdir):
 
-        class Service(object):
-            name = "service"
+        testdir.makeconftest(
+            """
+            from mock import Mock
+            import pytest
 
-            @rpc
-            def method(self):
+            @pytest.fixture(scope='session')
+            def tracker():
+                return Mock()
+
+            @pytest.yield_fixture
+            def rabbit_config(tracker):
+                tracker("rabbit_config", "up")
+                yield
+                tracker("rabbit_config", "down")
+
+            @pytest.yield_fixture
+            def container_factory(tracker):
+                tracker("container_factory", "up")
+                yield
+                tracker("container_factory", "down")
+            """
+        )
+
+        testdir.makepyfile(
+            """
+            from mock import call
+
+            def test_foo(container_factory, rabbit_config):
+                pass  # factory first
+
+            def test_bar(rabbit_config, container_factory):
+                pass  # rabbit first
+
+            def test_check(tracker):
+                assert tracker.call_args_list == [
+                    # test_foo
+                    call("container_factory", "up"),
+                    call("rabbit_config", "up"),
+                    call("rabbit_config", "down"),
+                    call("container_factory", "down"),
+                    # test_bar
+                    call("container_factory", "up"),
+                    call("rabbit_config", "up"),
+                    call("rabbit_config", "down"),
+                    call("container_factory", "down"),
+                ]
+            """
+        )
+        result = testdir.runpytest()
+        assert result.ret == 0
+
+    def test_only_affects_used_fixtures(self, testdir):
+
+        testdir.makeconftest(
+            """
+            from mock import Mock
+            import pytest
+
+            @pytest.fixture(scope='session')
+            def tracker():
+                return Mock()
+
+            @pytest.yield_fixture
+            def rabbit_config(tracker):
+                tracker("rabbit_config", "up")
+                yield
+                tracker("rabbit_config", "down")
+
+            @pytest.yield_fixture
+            def container_factory(tracker):
+                tracker("container_factory", "up")
+                yield
+                tracker("container_factory", "down")
+            """
+        )
+
+        testdir.makepyfile(
+            """
+            from mock import call
+
+            def test_no_rabbit(container_factory):
+                pass  # factory first
+
+            def test_check(tracker):
+                assert tracker.call_args_list == [
+                    call("container_factory", "up"),
+                    call("container_factory", "down"),
+                ]
+            """
+        )
+        result = testdir.runpytest()
+        assert result.ret == 0
+
+    def test_consumer_mixin_patch(self, testdir):
+
+        testdir.makeconftest(
+            """
+            from kombu.mixins import ConsumerMixin
+            import pytest
+
+            consumers = []
+
+            @pytest.fixture(autouse=True)
+            def fast_teardown(patch_checker, fast_teardown):
+                ''' Shadow the fast_teardown fixture to set fixture order:
+
+                Setup:
+
+                    1. patch_checker
+                    2. original fast_teardown (applies monkeypatch)
+                    3. this fixture (creates consumer)
+
+                Teardown:
+
+                    1. this fixture (creates consumer)
+                    2. original fast_teardown (removes patch; sets attribute)
+                    3. patch_checker (verifies consumer was stopped)
+                '''
+                consumers.append(ConsumerMixin())
+
+            @pytest.yield_fixture
+            def patch_checker():
+                yield
+                assert consumers[0].should_stop is True
+            """
+        )
+
+        testdir.makepyfile(
+            """
+            def test_mixin_patch(patch_checker):
                 pass
-
-        def test_rabbit_config(rabbit_config):
-
-            # not using container factory; will leave connections behind
-            container = ServiceContainer(Service, rabbit_config)
-            container.start()
-        """
-    )
-
-    result = testdir.runpytest(*plugin_options)
-
-    assert result.ret == 1
-    result.stdout.fnmatch_lines(
-        ["*RuntimeError: 1 rabbit connection(s) left open*"]
-    )
-
-
-def test_cleanup_order(testdir, plugin_options):
-
-    # without ``ensure_cleanup_order``, the following fixture ordering would
-    # tear down ``rabbit_config`` before the ``container_factory`` (generating
-    # an error about rabbit connections being left open)
-    testdir.makepyfile(
-        """
-        from nameko.rpc import rpc
-
-        class Service(object):
-            name = "service"
-
-            @rpc
-            def method(self):
-                pass
-
-        def test_service(container_factory, rabbit_config):
-            container = container_factory(Service, rabbit_config)
-            container.start()
-        """
-    )
-    result = testdir.runpytest(*plugin_options)
-    assert result.ret == 0
+            """
+        )
+        result = testdir.runpytest()
+        assert result.ret == 0
 
 
 def test_container_factory(

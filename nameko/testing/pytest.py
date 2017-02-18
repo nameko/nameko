@@ -96,13 +96,9 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture()
 def rabbit_config(request, rabbit_manager):
-    import itertools
     import random
     import string
-    import time
-    from kombu import pools
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
-    from nameko.testing.utils import get_rabbit_connections
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
@@ -125,59 +121,90 @@ def rabbit_config(request, rabbit_manager):
     }
 
     yield conf
-
-    pools.reset()  # close connections in pools
-
-    def retry(fn):
-        """ Barebones retry decorator
-        """
-        def wrapper():
-            max_retries = 3
-            delay = 1
-            exceptions = RuntimeError
-
-            counter = itertools.count()
-            while True:
-                try:
-                    return fn()
-                except exceptions:
-                    if next(counter) == max_retries:
-                        raise
-                    time.sleep(delay)
-        return wrapper
-
-    @retry
-    def check_connections():
-        """ Raise a runtime error if the test leaves any connections open.
-
-        Allow a few retries because the rabbit api is eventually consistent.
-        """
-        connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
-        open_connections = [
-            conn for conn in connections if conn['state'] != "closed"
-        ]
-        if open_connections:
-            count = len(open_connections)
-            names = ", ".join(conn['name'] for conn in open_connections)
-            raise RuntimeError(
-                "{} rabbit connection(s) left open: {}".format(count, names))
-    try:
-        check_connections()
-    finally:
-        rabbit_manager.delete_vhost(vhost)
+    rabbit_manager.delete_vhost(vhost)
 
 
-@pytest.fixture
-def ensure_cleanup_order(request):
-    """ Ensure ``rabbit_config`` is invoked early if it's used by any fixture
-    in ``request``.
+@pytest.yield_fixture(autouse=True)
+def fast_teardown(request):
     """
-    if "rabbit_config" in request.funcargnames:
-        request.getfuncargvalue("rabbit_config")
+    This fixture fixes the order of the `container_factory`, `runner_factory`
+    and `rabbit_config` fixtures to get the fastest possible teardown of tests
+    that use them.
+
+    Without this fixture, the teardown order depends on the fixture resolution
+    defined by the test, for example::
+
+    def test_foo(container_factory, rabbit_config):
+        pass  # rabbit_config tears down first
+
+    def test_bar(rabbit_config, container_factory):
+        pass  # container_factory tears down first
+
+    This fixture ensures the teardown order is:
+
+        1. `fast_teardown`  (this fixture)
+        2. `rabbit_config`
+        3. `container_factory` / `runner_factory`
+
+    That is, `rabbit_config` teardown, which removes the vhost created for
+    the test, happens *before* the consumers are stopped.
+
+    Deleting the vhost causes the broker to sends a "basic-cancel" message
+    to any connected consumers, which will include the consumers in all
+    containers created by the `container_factory` and `runner_factory`
+    fixtures.
+
+    This speeds up test teardown because the "basic-cancel" breaks
+    the consumers' `drain_events` loop (http://bit.do/kombu-drain-events)
+    which would otherwise wait for up to a second for the socket read to time
+    out before gracefully shutting down.
+
+    For even faster teardown, we monkeypatch the consumers to ensure they
+    don't try to reconnect between the "basic-cancel" and being explicitly
+    stopped when their container is killed.
+
+    In older versions of RabbitMQ, the monkeypatch also protects against a
+    race-condition that can lead to hanging tests.
+
+    Modern RabbitMQ raises a `NotAllowed` exception if you try to connect to
+    a vhost that doesn't exist, but older versions (including 3.4.3, used by
+    Travis) just raise a `socket.error`. This is classed as a recoverable
+    error, and consumers attempt to reconnect. Kombu's reconnection code blocks
+    until a connection is established, so consumers that attempt to reconnect
+    before being killed get stuck there.
+    """
+    from kombu.mixins import ConsumerMixin
+
+    reorder_fixtures = ('container_factory', 'runner_factory', 'rabbit_config')
+    for fixture in reorder_fixtures:
+        if fixture in request.funcargnames:
+            request.getfuncargvalue(fixture)
+
+    consumers = []
+
+    # monkeypatch the ConsumerMixin constructor to stash a reference to
+    # each instance
+    orig_init = ConsumerMixin.__init__
+
+    def __init__(self, *args, **kwargs):
+        orig_init(self, *args, **kwargs)
+        consumers.append(self)
+
+    ConsumerMixin.__init__ = __init__
+
+    yield
+
+    ConsumerMixin.__init__ = orig_init
+
+    # set the `should_stop` attribute on all consumers *before* the rabbit
+    # vhost is killed, so that they don't try to reconnect before they're
+    # explicitly killed when their container stops.
+    for consumer in consumers:
+        consumer.should_stop = True
 
 
 @pytest.yield_fixture
-def container_factory(ensure_cleanup_order):
+def container_factory():
     from nameko.containers import get_container_cls
     import warnings
 
@@ -199,16 +226,15 @@ def container_factory(ensure_cleanup_order):
         return container
 
     yield make_container
-
     for c in all_containers:
         try:
-            c.stop()
+            c.kill()
         except:  # pragma: no cover
             pass
 
 
 @pytest.yield_fixture
-def runner_factory(ensure_cleanup_order):
+def runner_factory():
     from nameko.runners import ServiceRunner
 
     all_runners = []
@@ -224,7 +250,7 @@ def runner_factory(ensure_cleanup_order):
 
     for r in all_runners:
         try:
-            r.stop()
+            r.kill()
         except:  # pragma: no cover
             pass
 
