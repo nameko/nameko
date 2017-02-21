@@ -178,11 +178,13 @@ class ResourcePipeline(object):
                 break
             self.destroy(item)
 
+    @contextmanager
     def get(self):
-        return self.ready.get()
-
-    def discard(self, item):
-        self.trash.put(item)
+        item = self.ready.get()
+        try:
+            yield item
+        finally:
+            self.trash.put(item)
 
     def shutdown(self):
         self.running = False

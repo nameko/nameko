@@ -132,21 +132,19 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
     uri_parts = urlparse(rabbit_amqp_uri)
     username = uri_parts.username
 
-    vhost = vhost_pipeline.get()
+    with vhost_pipeline.get() as vhost:
 
-    amqp_uri = "{uri.scheme}://{uri.netloc}/{vhost}".format(
-        uri=uri_parts, vhost=vhost
-    )
+        amqp_uri = "{uri.scheme}://{uri.netloc}/{vhost}".format(
+            uri=uri_parts, vhost=vhost
+        )
 
-    conf = {
-        'AMQP_URI': amqp_uri,
-        'username': username,
-        'vhost': vhost
-    }
+        conf = {
+            'AMQP_URI': amqp_uri,
+            'username': username,
+            'vhost': vhost
+        }
 
-    yield conf
-
-    vhost_pipeline.discard(vhost)
+        yield conf
 
 
 @pytest.yield_fixture(autouse=True)

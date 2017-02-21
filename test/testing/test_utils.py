@@ -279,14 +279,13 @@ class TestResourcePipeline(object):
         assert len(created) == size + 1
 
         # get an item
-        item = pipeline.get()
-        eventlet.sleep()  # let pipeline process
-        # expect pipeline to have created another item
-        assert pipeline.ready.qsize() == size
-        assert len(created) == size + 2
+        with pipeline.get() as item:
+            eventlet.sleep()  # let pipeline process
+            # expect pipeline to have created another item
+            assert pipeline.ready.qsize() == size
+            assert len(created) == size + 2
 
-        # discard an item
-        pipeline.discard(item)
+        # after exiting the context manager
         eventlet.sleep()  # let pipeline process
         # expect item to have been destroyed
         assert pipeline.trash.qsize() == 0
