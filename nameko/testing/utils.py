@@ -188,8 +188,11 @@ class ResourcePipeline(object):
         self.running = False
         while self.ready.qsize():
             unused = self.ready.get()
+            # allow create thread to run if it is blocked waiting for capacity
+            # in the ready queue. otherwise we'll exit this loop before the
+            # final item is added to the ready queue and it won't be destroyed
+            eventlet.sleep()
             self.trash.put(unused)
-            eventlet.sleep()  # allow create thread to run
 
         self.trash.put(ResourcePipeline.STOP)
         for gt in self.threads:
