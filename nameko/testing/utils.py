@@ -168,21 +168,21 @@ class ResourcePipeline(object):
 
     def _create(self):
         while self.running:
-            obj = self.create()
-            self.ready.put(obj)
+            item = self.create()
+            self.ready.put(item)
 
     def _destroy(self):
         while True:
-            obj = self.trash.get()
-            if obj is ResourcePipeline.STOP:
+            item = self.trash.get()
+            if item is ResourcePipeline.STOP:
                 break
-            self.destroy(obj)
+            self.destroy(item)
 
     def get(self):
         return self.ready.get()
 
-    def discard(self, vhost):
-        self.trash.put(vhost)
+    def discard(self, item):
+        self.trash.put(item)
 
     def shutdown(self):
         self.running = False
