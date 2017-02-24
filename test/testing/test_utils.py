@@ -329,12 +329,12 @@ class TestResourcePipeline(object):
 
         counter = itertools.count()
 
-        def create():
+        def create():  # pragma: no cover
             obj = next(counter)
             created.append(obj)
             return obj
 
-        def destroy(obj):
+        def destroy(obj):  # pragma: no cover
             destroyed.append(obj)
 
         with ResourcePipeline(create, destroy).run():
