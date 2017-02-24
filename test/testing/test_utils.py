@@ -255,6 +255,74 @@ class TestResourcePipeline(object):
 
     @pytest.mark.parametrize('size', [1, 5, 1000])
     def test_pipeline(self, size):
+        created = []
+        destroyed = []
+
+        counter = itertools.count()
+
+        def create():
+            obj = next(counter)
+            created.append(obj)
+            return obj
+
+        def destroy(obj):
+            destroyed.append(obj)
+
+        with ResourcePipeline(create, destroy, size).run() as pipeline:
+
+            # check initial size
+            eventlet.sleep()  # let pipeline fill up
+            # when full, created is always exactly one more than `size`
+            assert pipeline.ready.qsize() == size
+            assert len(created) == size + 1
+
+            # get an item
+            with pipeline.get() as item:
+                # let pipeline process
+                eventlet.sleep()
+                # expect pipeline to have created another item
+                assert pipeline.ready.qsize() == size
+                assert len(created) == size + 2
+
+            # after putting the item back
+            # let pipeline process
+            eventlet.sleep()
+            # expect item to have been destroyed
+            assert pipeline.trash.qsize() == 0
+            assert destroyed == [item]
+
+        # after shutdown (no need to yield because shutdown is blocking)
+        # expect all created items to have been destroyed
+        assert created == destroyed == list(range(size + 2))
+
+    def test_create_shutdown_race(self):
+        """
+        Test the race condition where the pipeline shuts down while
+        `create` is still executing.
+        """
+        created = []
+        destroyed = []
+
+        counter = itertools.count()
+        creating = Event()
+
+        def create():
+            creating.send(True)
+            eventlet.sleep()
+            obj = next(counter)
+            created.append(obj)
+            return obj
+
+        def destroy(obj):
+            destroyed.append(obj)
+
+        with ResourcePipeline(create, destroy).run():
+            creating.wait()
+            assert created == []
+
+        assert created == destroyed == list(range(1))
+
+    def test_shutdown_immediately(self):
 
         created = []
         destroyed = []
@@ -269,33 +337,10 @@ class TestResourcePipeline(object):
         def destroy(obj):
             destroyed.append(obj)
 
-        pipeline = ResourcePipeline(create, destroy, size)
-        pipeline.start()
+        with ResourcePipeline(create, destroy).run():
+            pass
 
-        # check initial size
-        eventlet.sleep()  # let pipeline fill up
-        # when full, created is always exactly one more than `size`
-        assert pipeline.ready.qsize() == size
-        assert len(created) == size + 1
-
-        # get an item
-        with pipeline.get() as item:
-            eventlet.sleep()  # let pipeline process
-            # expect pipeline to have created another item
-            assert pipeline.ready.qsize() == size
-            assert len(created) == size + 2
-
-        # after exiting the context manager
-        eventlet.sleep()  # let pipeline process
-        # expect item to have been destroyed
-        assert pipeline.trash.qsize() == 0
-        assert destroyed == [item]
-
-        # shutdown
-        pipeline.shutdown()
-        # no need to yield because shutdown is blocking
-        # expect all created items to have been destroyed
-        assert created == destroyed == list(range(size + 2))
+        assert created == destroyed == []
 
     def test_zero_size(self):
 
