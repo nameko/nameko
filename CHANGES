@@ -5,6 +5,15 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.5.2
+-------------
+
+Released 2017-02-28
+
+* Improves teardown speed of the `rabbit_config` pytest fixture
+* Support for providing an alternative reply listener to the standalone
+  RPC proxy 
+
 Version 2.5.1
 -------------
 
