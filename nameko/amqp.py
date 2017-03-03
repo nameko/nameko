@@ -59,18 +59,18 @@ class UndeliverableMessage(Exception):
 
 
 @contextmanager
-def get_connection(amqp_uri):
-    conn = Connection(amqp_uri)
+def get_connection(amqp_uri, ssl=None):
+    conn = Connection(amqp_uri, ssl=ssl)
     with connections[conn].acquire(block=True) as connection:
         yield connection
 
 
 @contextmanager
-def get_producer(amqp_uri, confirms=True):
+def get_producer(amqp_uri, confirms=True, ssl=None):
     transport_options = {
         'confirm_publish': confirms
     }
-    conn = Connection(amqp_uri, transport_options=transport_options)
+    conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with producers[conn].acquire(block=True) as producer:
         yield producer

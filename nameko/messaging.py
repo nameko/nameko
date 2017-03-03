@@ -155,7 +155,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         ssl = self.container.config.get(SSL_CONFIG_KEY)
         verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
-        with get_connection(self.amqp_uri) as conn:
+        with get_connection(self.amqp_uri, ssl=ssl) as conn:
             if queue is not None:
                 maybe_declare(queue, conn)
             elif exchange is not None:
