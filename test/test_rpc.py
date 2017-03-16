@@ -1023,7 +1023,10 @@ class TestResponderDisconnections(object):
 
 
 def test_prefetch_throughput(container_factory, rabbit_config):
-    """Make sure even max_workers=1 can consumer faster than 1 msg/second"""
+    """Make sure even max_workers=1 can consumer faster than 1 msg/second
+
+    Regression test for https://github.com/nameko/nameko/issues/417
+    """
 
     class Service(object):
         name = "service"
