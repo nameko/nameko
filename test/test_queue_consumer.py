@@ -289,13 +289,14 @@ def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
     queue_consumer2.start()
 
     vhost = rabbit_config['vhost']
-    properties = dict(content_type=content_type)
     # the first consumer only has a prefetch_count of 2 and will only consume 2
     # messages and wait in handler1(). the two handlers will take alternating
     # messages but are limited to holding 2 un-ACKed messages. Since handler 1
-    # never ACKs, it only ever gets messages 1 annd 3
+    # never ACKs, it only ever gets messages 0 annd 2
     for count in range(5):
-        rabbit_manager.publish(vhost, 'spam', '', str(count), properties=properties)
+        rabbit_manager.publish(vhost, 'spam', '', str(count), properties=dict(
+            content_type=content_type)
+        )
 
     # allow the waiting consumer to ack its message
     consumer_continue.send(None)
