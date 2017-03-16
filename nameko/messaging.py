@@ -221,7 +221,12 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     @property
     def prefetch_count(self):
-        return self.container.max_workers
+        # The prefetch_count should be larger than max_workers.
+        # If the max_workers <= max_workers,
+        # then there will be a dead lock between
+        # drain_events and on_iteration(since msg.ack in it)
+        # which leads slow down the throughout capacity.
+        return self.container.max_workers + 1
 
     @property
     def accept(self):

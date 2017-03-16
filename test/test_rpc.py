@@ -7,6 +7,7 @@ from eventlet.event import Event
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
+from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
@@ -1019,3 +1020,29 @@ class TestResponderDisconnections(object):
         # call 2 succeeds (after reconnecting via retry policy)
         with patch_wait(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
+
+
+def test_prefetch_throughput(container_factory, rabbit_config):
+    """Make sure even max_workers=1 can consumer faster than 1 msg/second
+
+    Regression test for https://github.com/nameko/nameko/issues/417
+    """
+
+    class Service(object):
+        name = "service"
+
+        @rpc
+        def method(self):
+            pass
+
+    rabbit_config[MAX_WORKERS_CONFIG_KEY] = 1
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    replies = []
+    with ServiceRpcProxy("service", rabbit_config) as proxy:
+        for _ in range(5):
+            replies.append(proxy.method.call_async())
+
+        with eventlet.Timeout(1):
+            [reply.result() for reply in replies]
