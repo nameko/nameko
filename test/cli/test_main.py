@@ -60,7 +60,7 @@ class TestConfigEnvironmentVariables(object):
 
     @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
         # no default value, no env value
-        ('FOO: ${BAR}', {}, {'FOO': ''}),
+        ('FOO: ${BAR}', {}, {'FOO': None}),
         # use default value if env value not provided
         ('FOO: ${BAR:foo}', {}, {'FOO': 'foo'}),
         # use env value
