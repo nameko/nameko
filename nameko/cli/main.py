@@ -45,9 +45,10 @@ def _replace_env_var(match):
 
 
 def _env_var_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return ENV_VAR_MATCHER.sub(_replace_env_var, value)
-
+    raw_value = loader.construct_scalar(node)
+    value = ENV_VAR_MATCHER.sub(_replace_env_var, raw_value)
+    new_tag = loader.resolve(yaml.ScalarNode, value, (True, False))
+    return loader.yaml_constructors[new_tag](loader, yaml.ScalarNode(new_tag, value))
 
 def setup_yaml_parser():
     yaml.add_constructor('!env_var', _env_var_constructor)
