@@ -117,7 +117,7 @@ class WebServer(ProviderCollector, SharedExtension):
             wsgi_app,
             protocol=protocol,
             debug=debug,
-            log=getLogger('wsgi')
+            log=getLogger(__name__)
         )
 
     def stop(self):
