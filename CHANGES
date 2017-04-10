@@ -6,6 +6,13 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.6.0
+
+Released: pending
+
+* Improves environment variable substitution to automatically resolve
+  supported scalar values (None, Int, Float and Boolean)
+
 Version 2.5.3
 -------------
 
