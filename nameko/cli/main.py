@@ -47,8 +47,11 @@ def _replace_env_var(match):
 def _env_var_constructor(loader, node):
     raw_value = loader.construct_scalar(node)
     value = ENV_VAR_MATCHER.sub(_replace_env_var, raw_value)
-    yaml_implicit_resolver = (True, False)
-    new_tag = loader.resolve(yaml.ScalarNode, value, yaml_implicit_resolver)
+    use_implicit_scalar_resolver = True
+    # PyYAML requires tuple/list value for `implicit` arg in `resolve` method
+    # containing two items. Second one is not used so passing `None` here.
+    new_tag = loader.resolve(
+        yaml.ScalarNode, value, (use_implicit_scalar_resolver, None))
     new_node = yaml.ScalarNode(new_tag, value)
     return loader.yaml_constructors[new_tag](loader, new_node)
 
