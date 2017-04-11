@@ -10,7 +10,7 @@ from mock import ANY, Mock, call, patch
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY)
 from nameko.messaging import QueueConsumer
-from nameko.rpc import RpcConsumer, rpc
+from nameko.rpc import rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections)
