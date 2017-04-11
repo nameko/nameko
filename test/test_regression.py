@@ -2,19 +2,16 @@
 """
 import itertools
 import time
-from datetime import datetime
 from functools import partial
 
 import pytest
 from mock import Mock, call
 
-from nameko.amqp import get_producer
 from nameko.events import event_handler
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import entrypoint_hook, entrypoint_waiter
-from nameko.web.handlers import http
+from nameko.testing.services import entrypoint_waiter
 
 
 class TestDeadlock(object):
@@ -195,7 +192,7 @@ class TestLostConsumers(object):
         return Service
 
     def test_duplicated_workers(
-        self, service_cls, container_factory, config, tracker, web_session
+        self, service_cls, container_factory, config, tracker
     ):
         """ Blocking on the worker pool longer than 2xHEARTBEAT will cause
         the broker to close the QueueConsumer's connection, and un-ack'd
@@ -277,7 +274,7 @@ class TestLostReplies(object):
 
     @pytest.mark.usefixtures('upstream')
     def test_lost_replies(
-        self, service_cls, container_factory, config, tracker, web_session
+        self, service_cls, container_factory, config, tracker
     ):
         """ Blocking on the worker pool longer than 2xHEARTBEAT will cause
         the broker to close the ReplyListener's connection, and in-flight
