@@ -389,6 +389,11 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         )
         return Connection(self.amqp_uri, heartbeat=heartbeat)
 
+    def handle_message(self, provider, body, message):
+        self.container.spawn_managed_thread(
+            lambda: provider.handle_message(body, message)
+        )
+
     def get_consumers(self, consumer_cls, channel):
         """ Kombu callback to set up consumers.
 
@@ -396,12 +401,9 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         """
         _log.debug('setting up consumers %s', self)
 
-        def handle_message(provider, body, message):
-            eventlet.spawn_n(provider.handle_message, body, message)
-
         for provider in self._providers:
             callbacks = [
-                self._on_message, partial(handle_message, provider)
+                self._on_message, partial(self.handle_message, provider)
             ]
 
             consumer = consumer_cls(
