@@ -396,8 +396,13 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         """
         _log.debug('setting up consumers %s', self)
 
+        def handle_message(provider, body, message):
+            eventlet.spawn_n(provider.handle_message, body, message)
+
         for provider in self._providers:
-            callbacks = [self._on_message, provider.handle_message]
+            callbacks = [
+                self._on_message, partial(handle_message, provider)
+            ]
 
             consumer = consumer_cls(
                 queues=[provider.queue],
