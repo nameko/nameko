@@ -355,7 +355,9 @@ def test_rpc_headers(container_factory, rabbit_config):
     handle_message = rpc_consumer.handle_message
 
     with patch.object(
-            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
+        rpc_consumer, 'handle_message', autospec=True
+    ) as patched_handler:
+
         def side_effect(body, message):
             headers.update(message.headers)  # extract message headers
             return handle_message(body, message)
@@ -363,11 +365,11 @@ def test_rpc_headers(container_factory, rabbit_config):
         patched_handler.side_effect = side_effect
         container.start()
 
-    # use a standalone rpc proxy to call exampleservice.say_hello()
-    with ServiceRpcProxy(
-        "exampleservice", rabbit_config, context_data
-    ) as proxy:
-        proxy.say_hello()
+        # use a standalone rpc proxy to call exampleservice.say_hello()
+        with ServiceRpcProxy(
+            "exampleservice", rabbit_config, context_data
+        ) as proxy:
+            proxy.say_hello()
 
     # headers as per context data, plus call stack
     assert headers == {
