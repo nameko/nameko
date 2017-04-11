@@ -387,25 +387,29 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
     container = container_factory(Service, rabbit_config)
     queue_consumer = get_extension(container, QueueConsumer)
-    rpc_consumer = get_extension(container, RpcConsumer)
 
-    # an error in rpc_consumer.handle_message will kill the queue_consumer's
-    # greenthread. when the container suicides and kills the queue_consumer,
-    # it should warn instead of re-raising the original exception
-    exc = Exception('error handling message')
-    with patch.object(rpc_consumer, 'handle_message') as handle_message:
-        handle_message.side_effect = exc
+    # an error in the queue_consumer's greenthread will bubble up to the
+    # container that manages the thread. when the container suicides and
+    # kills the queue_consumer, it should warn instead of re-raising the
+    # original exception
+
+    exc = Exception('error acking message')
+    with patch.object(
+        queue_consumer, '_process_pending_message_acks'
+    ) as process_pending_acks:
+
+        process_pending_acks.side_effect = exc
 
         container.start()
 
         with ServiceRpcProxy('service', rabbit_config) as service_rpc:
-            # spawn because `echo` will never respond
-            eventlet.spawn(service_rpc.echo, "foo")
+            # async because `echo` will never respond
+            service_rpc.echo.call_async("foo")
 
-    # container will have died with the messaging handling error
+    # container will have died with the messaging ack'ing error
     with pytest.raises(Exception) as exc_info:
         container.wait()
-    assert str(exc_info.value) == "error handling message"
+    assert str(exc_info.value) == "error acking message"
 
     # queueconsumer will have warned about the exc raised by its greenthread
     assert logger.warn.call_args_list == [
