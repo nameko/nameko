@@ -464,7 +464,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
                     conn.heartbeat_check()
                     elapsed += safety_interval
                     if timeout and elapsed >= timeout:
-                        raise
+                        raise  # pragma: no cover
                 except socket.error:
                     if not self.should_stop:
                         raise
