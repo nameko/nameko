@@ -3,8 +3,10 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
+import socket
 import warnings
 from functools import partial
+from itertools import count
 from logging import getLogger
 
 import eventlet
@@ -451,6 +453,29 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
                 pass
             else:
                 callback()
+
+    def consume(self, limit=None, timeout=None, safety_interval=.1, **kwargs):
+        """ Lifted from kombu.mixins.ConsumerMixin to reduce `safety_interval`
+        """
+        elapsed = 0
+        with self.consumer_context(**kwargs) as (conn, channel, consumers):
+            for i in limit and range(limit) or count():
+                if self.should_stop:
+                    break
+                self.on_iteration()
+                try:
+                    conn.drain_events(timeout=safety_interval)
+                except socket.timeout:
+                    conn.heartbeat_check()
+                    elapsed += safety_interval
+                    if timeout and elapsed >= timeout:
+                        raise
+                except socket.error:
+                    if not self.should_stop:
+                        raise
+                else:
+                    yield
+                    elapsed = 0
 
 
 class Consumer(Entrypoint, HeaderDecoder):
