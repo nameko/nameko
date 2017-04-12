@@ -308,10 +308,13 @@ def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
     rabbit_manager.publish(vhost, 'spam', '', 'bacon',
                            properties=dict(content_type=content_type))
 
+    # wait for queue_consumer2 to ack the first message and receive the next,
+    # after the `safety_interval` timeout
+    eventlet.sleep(.2)
+    assert messages == ['eggs', 'bacon']
+
     # allow the waiting consumer to ack its message
     consumer_continue.send(None)
-
-    assert messages == ['eggs', 'bacon']
 
     queue_consumer1.unregister_provider(handler1)
     queue_consumer2.unregister_provider(handler2)
