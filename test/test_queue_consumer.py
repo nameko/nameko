@@ -46,7 +46,7 @@ class MessageHandler(object):
         return self.handle_message_called.wait()
 
 
-def spawn_managed_thread(method):
+def spawn_managed_thread(method, identifier=None):
     return eventlet.spawn(method)
 
 
