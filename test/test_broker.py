@@ -92,6 +92,10 @@ def disconnect_on_event(rabbit_manager, connection_name):
     disconnected.send(True)
 
 
+def test_die():
+    raise Exception('error')
+
+
 def test_idle_disconnect(container_factory, rabbit_manager, rabbit_config):
     """ Break the connection to rabbit while a service is started but idle
     (i.e. without active workers)
