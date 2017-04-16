@@ -253,6 +253,7 @@ def test_disconnect_with_pending_reply(
                 return
             disconnect_once.called = True
             rabbit_manager.delete_connection(proxy_connection['name'])
+            eventlet.sleep(1)  # give connection time to close
 
         with patch.object(ExampleService, 'callback', disconnect_once):
 
