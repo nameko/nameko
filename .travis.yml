@@ -8,7 +8,8 @@ services:
 
 before_install:
     - mkdir $PWD/bin
-    - wget -O $PWD/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
+    # using build of toxiproxy master (90b2bc1b) while waiting for https://github.com/Shopify/toxiproxy/issues/159 to land
+    - wget -O $PWD/bin/toxiproxy-server https://www.dropbox.com/s/fu21egkze5ukkkp/toxiproxy-server
     - chmod +x $PWD/bin/toxiproxy-server
     - export PATH=$PATH:$PWD/bin/
 

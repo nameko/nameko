@@ -253,6 +253,8 @@ def test_disconnect_with_pending_reply(
                 return
             disconnect_once.called = True
             rabbit_manager.delete_connection(proxy_connection['name'])
+            while len(get_rabbit_connections(vhost, rabbit_manager)) > 1:
+                eventlet.sleep(.5)  # pragma: no cover
 
         with patch.object(ExampleService, 'callback', disconnect_once):
 

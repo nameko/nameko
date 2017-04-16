@@ -3,8 +3,10 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
+import socket
 import warnings
 from functools import partial
+from itertools import count
 from logging import getLogger
 
 import eventlet
@@ -221,12 +223,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     @property
     def prefetch_count(self):
-        # The prefetch_count should be larger than max_workers.
-        # If the max_workers <= max_workers,
-        # then there will be a dead lock between
-        # drain_events and on_iteration(since msg.ack in it)
-        # which leads slow down the throughout capacity.
-        return self.container.max_workers + 1
+        return self.container.max_workers
 
     @property
     def accept(self):
@@ -389,6 +386,14 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         )
         return Connection(self.amqp_uri, heartbeat=heartbeat)
 
+    def handle_message(self, provider, body, message):
+        ident = "{}.handle_message[{}]".format(
+            type(provider).__name__, message.delivery_info['routing_key']
+        )
+        self.container.spawn_managed_thread(
+            lambda: provider.handle_message(body, message), identifier=ident
+        )
+
     def get_consumers(self, consumer_cls, channel):
         """ Kombu callback to set up consumers.
 
@@ -397,7 +402,9 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         _log.debug('setting up consumers %s', self)
 
         for provider in self._providers:
-            callbacks = [self._on_message, provider.handle_message]
+            callbacks = [
+                self._on_message, partial(self.handle_message, provider)
+            ]
 
             consumer = consumer_cls(
                 queues=[provider.queue],
@@ -444,6 +451,35 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
                 pass
             else:
                 callback()
+
+    def consume(self, limit=None, timeout=None, safety_interval=.1, **kwargs):
+        """ Lifted from kombu
+        We switch the order of the `break` and `self.on_iteration()` to
+        avoid waiting on a drain_events timeout before breaking the loop.
+        And reduce safety_interval to 0.1
+        """
+        elapsed = 0
+        with self.consumer_context(**kwargs) as (conn, channel, consumers):
+            for i in limit and range(limit) or count():
+                self.on_iteration()
+                if self.should_stop:
+                    break
+                try:
+                    conn.drain_events(timeout=safety_interval)
+                except socket.timeout:
+                    conn.heartbeat_check()
+                    elapsed += safety_interval
+                    if timeout and elapsed >= timeout:
+                        # Excluding the following clause from coverage,
+                        # as timeout never appears to be set - This method
+                        # is a lift from kombu so will leave in place for now.
+                        raise  # pragma: no cover
+                except socket.error:
+                    if not self.should_stop:
+                        raise
+                else:
+                    yield
+                    elapsed = 0
 
 
 class Consumer(Entrypoint, HeaderDecoder):
