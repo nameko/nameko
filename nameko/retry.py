@@ -46,7 +46,7 @@ def retry(
             try:
                 return wrapped(*args, **kwargs)
             except for_exceptions:
-                if counter.next() == max_attempts:
+                if next(counter) == max_attempts:
                     raise
                 sleep(retry_delay.next())
 
