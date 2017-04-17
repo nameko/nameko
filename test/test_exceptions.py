@@ -72,6 +72,17 @@ def test_deserialize_to_remote_error():
     assert six.text_type(deserialized) == u"CustomError something went ಠ_ಠ"
 
 
+def test_deserialize_to_remote_error_with_non_ascii():
+
+    exc = CustomError(u'something w\xe9nt wrong')
+    data = serialize(exc)
+
+    deserialized = deserialize(data)
+    assert type(deserialized) == RemoteError
+    assert deserialized.exc_type == "CustomError"
+    assert deserialized.value == u"something w\xe9nt wrong"
+
+
 @pytest.mark.usefixtures('registry')
 def test_deserialize_to_instance():
 
