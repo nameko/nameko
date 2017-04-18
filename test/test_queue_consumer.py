@@ -471,12 +471,11 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
     # kills the queue_consumer, it should warn instead of re-raising the
     # original exception
 
-    exc = Exception('error acking message')
+    exc = Exception('error cancelling consumers')
     with patch.object(
-        queue_consumer, '_process_pending_message_acks'
-    ) as process_pending_acks:
-
-        process_pending_acks.side_effect = exc
+        queue_consumer, '_cancel_consumers_if_requested'
+    ) as cancel_consumers:
+        cancel_consumers.side_effect = exc
 
         container.start()
 
@@ -487,7 +486,7 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
     # container will have died with the messaging ack'ing error
     with pytest.raises(Exception) as exc_info:
         container.wait()
-    assert str(exc_info.value) == "error acking message"
+    assert str(exc_info.value) == str(exc)
 
     # queueconsumer will have warned about the exc raised by its greenthread
     assert logger.warn.call_args_list == [
