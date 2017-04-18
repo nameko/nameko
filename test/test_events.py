@@ -491,6 +491,10 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
             properties=dict(content_type='application/json')
         )
 
+    # stop container to make sure the assertions below aren't made in the
+    # middle of processing an event
+    container.stop()
+
     # the event will be received multiple times as it gets requeued and then
     # consumed again
     assert len(events) > 1
