@@ -14,7 +14,7 @@ from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY)
 from nameko.events import event_handler
 from nameko.messaging import QueueConsumer
-from nameko.rpc import RpcConsumer, RpcProxy, rpc
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_waiter
