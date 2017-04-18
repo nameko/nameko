@@ -60,7 +60,7 @@ def toxiproxy_server():
     def wait_until_server_ready():
         url = "http://{}:{}/proxies".format(TOXIPROXY_HOST, TOXIPROXY_PORT)
         res = requests.get(url)
-        if not res.status_code == 200:
+        if not res.status_code == 200:  # pragma: no cover
             raise NotReady("toxiproxy-server failed to start")
 
     wait_until_server_ready()
