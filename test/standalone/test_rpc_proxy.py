@@ -266,7 +266,7 @@ def test_disconnect_with_pending_reply(
             connections = get_rabbit_connections(vhost, rabbit_manager)
             for conn in connections:
                 if conn['name'] == name:
-                    raise ConnectionStillOpen(name)
+                    raise ConnectionStillOpen(name)  # pragma: no cover
 
         def cb(args, kwargs, res, exc_info):
             # trigger a disconnection on the second call.
