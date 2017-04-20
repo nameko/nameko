@@ -5,13 +5,24 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.5.4
+-------------
+
+Released: 2017-04-20
+
+* Don't block the QueueConsumer thread on the worker pool, which could cause
+  service deadlock and occasional dropped AMQP connections [fixes #428]
+* Revert prefetch count change from 2.5.3 and ack messages outside of the
+  QueueConsumer thread. [fixes #417 more robustly]
+
 
 Version 2.5.3
 -------------
 
 Released: 2017-03-16
 
-* Bump the amqp `prefetch_count` by 1 to `max_workers + 1` to fix throughput issue. [fixes 417]
+* Bump the amqp `prefetch_count` by 1 to `max_workers + 1` to fix throughput
+  issue. [fixes 417]
 
 
 Version 2.5.2
