@@ -12,12 +12,11 @@ from test import skip_if_no_toxiproxy
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.retry import retry
 from nameko.rpc import MethodProxy, Responder, rpc
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 from nameko.testing.waiting import wait_for_call
-
+from nameko.utils.retry import retry
 
 # uses autospec on method; needs newer mock for py3
 try:
