@@ -11,7 +11,7 @@ def tracker():
 
 @pytest.yield_fixture(autouse=True)
 def mock_sleep():
-    with patch('nameko.retry.sleep') as patched:
+    with patch('nameko.utils.retry.sleep') as patched:
 
         def total():
             return sum(delay for (delay,), _ in patched.call_args_list)
