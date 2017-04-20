@@ -11,7 +11,7 @@ from six.moves.urllib.parse import urlparse
 from types import ModuleType
 
 from nameko.testing.utils import find_free_port
-from nameko.retry import retry
+from nameko.utils.retry import retry
 
 
 TOXIPROXY_HOST = "127.0.0.1"

@@ -23,7 +23,7 @@ from nameko.constants import (
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
-from nameko.retry import retry
+from nameko.utils.retry import retry
 
 _log = getLogger(__name__)
 

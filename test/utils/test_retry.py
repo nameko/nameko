@@ -1,7 +1,7 @@
 import pytest
 from mock import Mock, patch
 
-from nameko.retry import retry
+from nameko.utils.retry import retry
 
 
 @pytest.fixture
