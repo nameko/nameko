@@ -360,7 +360,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             type(provider).__name__, message.delivery_info['routing_key']
         )
         self.container.spawn_managed_thread(
-            lambda: provider.handle_message(body, message), identifier=ident
+            partial(provider.handle_message, body, message), identifier=ident
         )
 
     def get_consumers(self, consumer_cls, channel):
