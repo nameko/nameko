@@ -1,7 +1,6 @@
 import json
 import subprocess
 import sys
-import time
 import uuid
 
 import pytest
@@ -12,6 +11,7 @@ from six.moves.urllib.parse import urlparse
 from types import ModuleType
 
 from nameko.testing.utils import find_free_port
+from nameko.utils.retry import retry
 
 
 TOXIPROXY_HOST = "127.0.0.1"
@@ -52,7 +52,18 @@ def toxiproxy_server():
         ['toxiproxy-server', '-port', str(port), '-host', host],
         stdout=subprocess.PIPE
     )
-    time.sleep(0.2)  # allow server to start
+
+    class NotReady(Exception):
+        pass
+
+    @retry(delay=0.1, max_attempts=10)
+    def wait_until_server_ready():
+        url = "http://{}:{}/proxies".format(TOXIPROXY_HOST, TOXIPROXY_PORT)
+        res = requests.get(url)
+        if not res.status_code == 200:  # pragma: no cover
+            raise NotReady("toxiproxy-server failed to start")
+
+    wait_until_server_ready()
     yield "{}:{}".format(host, port)
     server.terminate()
 

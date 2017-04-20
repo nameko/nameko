@@ -29,6 +29,7 @@ setup(
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
+        "wrapt>=1.0.0",
     ],
     extras_require={
         'dev': [

@@ -7,9 +7,9 @@ import warnings
 from functools import partial
 from logging import getLogger
 
-import eventlet
 import six
 from eventlet.event import Event
+from amqp.exceptions import RecoverableConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
@@ -23,6 +23,7 @@ from nameko.constants import (
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
+from nameko.utils.retry import retry
 
 _log = getLogger(__name__)
 
@@ -203,10 +204,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     def __init__(self):
 
         self._consumers = {}
-
-        self._pending_messages = set()
-        self._pending_ack_messages = []
-        self._pending_requeue_messages = []
         self._pending_remove_providers = {}
 
         self._gt = None
@@ -221,12 +218,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     @property
     def prefetch_count(self):
-        # The prefetch_count should be larger than max_workers.
-        # If the max_workers <= max_workers,
-        # then there will be a dead lock between
-        # drain_events and on_iteration(since msg.ack in it)
-        # which leads slow down the throughout capacity.
-        return self.container.max_workers + 1
+        return self.container.max_workers
 
     @property
     def accept(self):
@@ -302,9 +294,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             # we can't just kill the thread because we have to give
             # ConsumerMixin a chance to close the sockets properly.
             self._providers = set()
-            self._pending_messages = set()
-            self._pending_ack_messages = []
-            self._pending_requeue_messages = []
             self._pending_remove_providers = {}
             self.should_stop = True
             try:
@@ -334,19 +323,13 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
         super(QueueConsumer, self).unregister_provider(provider)
 
+    @retry(for_exceptions=RecoverableConnectionError, max_attempts=3)
     def ack_message(self, message):
-        _log.debug("stashing message-ack: %s", message)
-        self._pending_messages.remove(message)
-        self._pending_ack_messages.append(message)
+        message.ack()
 
+    @retry(for_exceptions=RecoverableConnectionError, max_attempts=3)
     def requeue_message(self, message):
-        _log.debug("stashing message-requeue: %s", message)
-        self._pending_messages.remove(message)
-        self._pending_requeue_messages.append(message)
-
-    def _on_message(self, body, message):
-        _log.debug("received message: %s", message)
-        self._pending_messages.add(message)
+        message.requeue()
 
     def _cancel_consumers_if_requested(self):
         provider_remove_events = self._pending_remove_providers.items()
@@ -358,23 +341,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             _log.debug('cancelling consumer [%s]: %s', provider, consumer)
             consumer.cancel()
             removed_event.send()
-
-    def _process_pending_message_acks(self):
-        messages = self._pending_ack_messages
-        if messages:
-            _log.debug('ack() %d processed messages', len(messages))
-            while messages:
-                msg = messages.pop()
-                msg.ack()
-                eventlet.sleep()
-
-        messages = self._pending_requeue_messages
-        if messages:
-            _log.debug('requeue() %d processed messages', len(messages))
-            while messages:
-                msg = messages.pop()
-                msg.requeue()
-                eventlet.sleep()
 
     @property
     def connection(self):
@@ -389,6 +355,14 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         )
         return Connection(self.amqp_uri, heartbeat=heartbeat)
 
+    def handle_message(self, provider, body, message):
+        ident = u"{}.handle_message[{}]".format(
+            type(provider).__name__, message.delivery_info['routing_key']
+        )
+        self.container.spawn_managed_thread(
+            partial(provider.handle_message, body, message), identifier=ident
+        )
+
     def get_consumers(self, consumer_cls, channel):
         """ Kombu callback to set up consumers.
 
@@ -397,7 +371,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         _log.debug('setting up consumers %s', self)
 
         for provider in self._providers:
-            callbacks = [self._on_message, provider.handle_message]
+            callbacks = [partial(self.handle_message, provider)]
 
             consumer = consumer_cls(
                 queues=[provider.queue],
@@ -414,12 +388,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         """ Kombu callback for each `drain_events` loop iteration."""
         self._cancel_consumers_if_requested()
 
-        self._process_pending_message_acks()
-
-        num_consumers = len(self._consumers)
-        num_pending_messages = len(self._pending_messages)
-
-        if num_consumers + num_pending_messages == 0:
+        if len(self._consumers) == 0:
             _log.debug('requesting stop after iteration')
             self.should_stop = True
 
