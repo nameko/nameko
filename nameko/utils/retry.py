@@ -22,7 +22,7 @@ class RetryDelay(object):
 
 
 def retry(
-    wrapped=None, for_exceptions=None, max_attempts=3,
+    wrapped=None, for_exceptions=Exception, max_attempts=3,
     delay=1, backoff=1, max_delay=None
 ):
     if wrapped is None:
@@ -31,7 +31,6 @@ def retry(
             delay=delay, backoff=backoff, max_delay=max_delay
         )
 
-    for_exceptions = for_exceptions or Exception
     if max_attempts is None:
         max_attempts = float('inf')
 
