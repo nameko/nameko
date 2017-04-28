@@ -449,14 +449,6 @@ class MethodProxy(HeaderEncoder):
         reply = self._call(*args, **kwargs)
         return reply
 
-    def async(self, *args, **kwargs):
-        warnings.warn(
-            "`MethodProxy.async` is deprecated, use `call_async` instead. "
-            "This warning will be removed in version 2.6.0.",
-            DeprecationWarning, 2
-        )
-        return self.call_async(*args, **kwargs)
-
     def _call(self, *args, **kwargs):
         _log.debug('invoking %s', self)
 
