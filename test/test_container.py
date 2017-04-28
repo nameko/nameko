@@ -547,26 +547,6 @@ def test_get_service_name():
     )
 
 
-@pytest.mark.parametrize("args,kwargs", [
-    ((True,), {}),
-    ((), {'protected': True})
-])
-def test_spawn_managed_thread_backwards_compat_warning(
-    container, warnings, args, kwargs
-):
-
-    def wait():
-        Event().wait()
-
-    # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
-    # `testdir` plugin is not compatible with eventlet on python3 --
-    # see https://github.com/mattbennett/eventlet-pytest-bug
-    container.spawn_managed_thread(wait, *args, **kwargs)
-    assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
-
-    container.kill()
-
-
 def test_logging_managed_threads(container, logger):
 
     def wait():

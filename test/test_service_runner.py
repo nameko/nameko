@@ -1,13 +1,12 @@
 import pytest
-from mock import ANY, call, patch, Mock
+from mock import call, patch, Mock
 
-from nameko.containers import ServiceContainer, WorkerContext
 from nameko.events import BROADCAST, event_handler
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import dummy, entrypoint_waiter
+from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import assert_stops_raising, get_container
 
 
