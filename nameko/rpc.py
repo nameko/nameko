@@ -164,8 +164,7 @@ class Rpc(Entrypoint, HeaderDecoder):
 
         self.check_signature(args, kwargs)
 
-        worker_ctx_cls = self.container.worker_ctx_cls
-        context_data = self.unpack_message_headers(worker_ctx_cls, message)
+        context_data = self.unpack_message_headers(message)
 
         handle_result = partial(self.handle_result, message)
         try:

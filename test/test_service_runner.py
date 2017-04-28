@@ -47,14 +47,13 @@ def service_cls(tracker):
     return Service
 
 
-def test_runner_lifecycle():
+def test_runner_lifecycle(fake_module):
     events = set()
 
     class Container(object):
-        def __init__(self, service_cls, worker_ctx_cls, config):
+        def __init__(self, service_cls, config):
             self.service_name = service_cls.__name__
             self.service_cls = service_cls
-            self.worker_ctx_cls = worker_ctx_cls
 
         def start(self):
             events.add(('start', self.service_cls.name, self.service_cls))
@@ -68,8 +67,10 @@ def test_runner_lifecycle():
         def wait(self):
             events.add(('wait', self.service_cls.name, self.service_cls))
 
-    config = {}
-    runner = ServiceRunner(config, container_cls=Container)
+    fake_module.ServiceContainer = Container
+
+    config = {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
+    runner = ServiceRunner(config)
 
     runner.add_service(TestService1)
     runner.add_service(TestService2)
@@ -103,101 +104,13 @@ def test_runner_lifecycle():
     }
 
 
-class TestRunnerCustomServiceContainerCls(object):
-
-    @pytest.fixture
-    def service_cls(self):
-
-        class Service(object):
-            name = "service"
-
-            @dummy
-            def method(self):
-                pass  # pragma: no cover
-
-        return Service
-
-    @pytest.fixture
-    def container_cls(self, fake_module):
-
-        class ServiceContainerX(ServiceContainer):
-            pass
-
-        fake_module.ServiceContainerX = ServiceContainerX
-        return ServiceContainerX
-
-    def test_config_key(self, service_cls, container_cls):
-        config = {
-            'SERVICE_CONTAINER_CLS': "fake_module.ServiceContainerX"
-        }
-        runner = ServiceRunner(config)
-        runner.add_service(service_cls)
-
-        container = get_container(runner, service_cls)
-        assert isinstance(container, container_cls)
-
-    def test_kwarg_deprecation_warning(
-        self, warnings, service_cls, container_cls
-    ):
-        config = {}
-        runner = ServiceRunner(config, container_cls=container_cls)
-        runner.add_service(service_cls)
-
-        container = get_container(runner, service_cls)
-        assert isinstance(container, container_cls)
-
-        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
-        assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
-
-
-class TestRunnerCustomWorkerCtxCls(object):
-
-    @pytest.fixture
-    def service_cls(self):
-
-        class Service(object):
-            name = "service"
-
-            @dummy
-            def method(self):
-                pass  # pragma: no cover
-
-        return Service
-
-    @pytest.fixture
-    def worker_ctx_cls(self, fake_module):
-
-        class WorkerContextX(WorkerContext):
-            pass
-
-        fake_module.WorkerContextX = WorkerContextX
-        return WorkerContextX
-
-    def test_kwarg_deprecation_warning(
-        self, warnings, service_cls, worker_ctx_cls
-    ):
-        config = {}
-        runner = ServiceRunner(config)
-        runner.add_service(service_cls, worker_ctx_cls=worker_ctx_cls)
-
-        container = get_container(runner, service_cls)
-        entrypoint = list(container.entrypoints)[0]
-
-        worker_ctx = container.spawn_worker(entrypoint, (), {})
-        assert isinstance(worker_ctx, worker_ctx_cls)
-
-        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
-        assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]
-
-
-def test_contextual_lifecycle():
+def test_contextual_lifecycle(fake_module):
     events = set()
 
     class Container(object):
-        def __init__(self, service_cls, worker_ctx_cls, config):
+        def __init__(self, service_cls, config):
             self.service_name = service_cls.__name__
             self.service_cls = service_cls
-            self.worker_ctx_cls = worker_ctx_cls
 
         def start(self):
             events.add(('start', self.service_cls.name, self.service_cls))
@@ -208,10 +121,11 @@ def test_contextual_lifecycle():
         def kill(self, exc=None):
             events.add(('kill', self.service_cls.name, self.service_cls))
 
-    config = {}
+    fake_module.ServiceContainer = Container
 
-    with run_services(config, TestService1, TestService2,
-                      container_cls=Container):
+    config = {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
+
+    with run_services(config, TestService1, TestService2):
         # Ensure the services were started
         assert events == {
             ('start', 'foobar_1', TestService1),
@@ -227,8 +141,7 @@ def test_contextual_lifecycle():
     }
 
     events = set()
-    with run_services(config, TestService1, TestService2,
-                      container_cls=Container, kill_on_exit=True):
+    with run_services(config, TestService1, TestService2, kill_on_exit=True):
         # Ensure the services were started
         assert events == {
             ('start', 'foobar_1', TestService1),
@@ -244,45 +157,9 @@ def test_contextual_lifecycle():
     }
 
 
-class TestContextualRunnerDeprecationWarnings(object):
-
-    def test_container_cls_warning(self, warnings):
-
-        class ServiceContainerX(ServiceContainer):
-            pass
-
-        config = {}
-        with run_services(config, container_cls=ServiceContainerX):
-            pass
-
-        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
-        assert warnings.warn.call_args_list == [
-            # from contextual runner
-            call(ANY, DeprecationWarning),
-            # from underlying ServiceRunner constructor
-            call(ANY, DeprecationWarning),
-        ]
-
-    def test_worker_ctx_cls_warning(self, warnings):
-
-        class WorkerContextX(WorkerContext):
-            pass
-
-        config = {}
-        with run_services(config, worker_ctx_cls=WorkerContext):
-            pass
-
-        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
-        assert warnings.warn.call_args_list == [
-            # from contextual runner
-            # (no calls to ServiceRunner.add_service in this test)
-            call(ANY, DeprecationWarning),
-        ]
-
-
-def test_runner_waits_raises_error():
+def test_runner_waits_raises_error(fake_module):
     class Container(object):
-        def __init__(self, service_cls, worker_ctx_cls, config):
+        def __init__(self, service_cls, config):
             pass
 
         def start(self):
@@ -294,7 +171,11 @@ def test_runner_waits_raises_error():
         def wait(self):
             raise Exception('error in container')
 
-    runner = ServiceRunner(config={}, container_cls=Container)
+    fake_module.ServiceContainer = Container
+
+    config = {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
+
+    runner = ServiceRunner(config=config)
     runner.add_service(TestService1)
     runner.start()
 

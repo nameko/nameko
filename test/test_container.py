@@ -11,10 +11,9 @@ from eventlet.event import Event
 from mock import ANY, Mock, call, patch
 
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.containers import ServiceContainer, WorkerContext, get_service_name
+from nameko.containers import ServiceContainer, get_service_name
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import DependencyProvider, Entrypoint
-from nameko.testing.services import dummy
 from nameko.testing.utils import get_extension
 
 
@@ -585,36 +584,3 @@ def test_logging_managed_threads(container, logger):
     assert call("killing managed thread `%s`", "wait") in call_args_list
     assert call("killing managed thread `%s`", "<unknown>") in call_args_list
     assert call("killing managed thread `%s`", "named") in call_args_list
-
-
-class TestContainerCustomWorkerCtxCls(object):
-
-    @pytest.fixture
-    def service_cls(self):
-
-        class Service(object):
-            name = "service"
-
-            @dummy
-            def method(self):
-                pass  # pragma: no cover
-
-        return Service
-
-    @pytest.fixture
-    def worker_ctx_cls(self, fake_module):
-
-        class WorkerContextX(WorkerContext):
-            pass
-
-        fake_module.WorkerContextX = WorkerContextX
-        return WorkerContextX
-
-    def test_kwarg_deprecation_warning(
-        self, warnings, service_cls, worker_ctx_cls
-    ):
-        config = {}
-        ServiceContainer(service_cls, config, worker_ctx_cls=worker_ctx_cls)
-
-        # TODO: replace with pytest.warns when eventlet >= 0.19.0 is released
-        assert warnings.warn.call_args_list == [call(ANY, DeprecationWarning)]

@@ -119,22 +119,10 @@ class WorkerContext(object):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, config, worker_ctx_cls=None):
+    def __init__(self, service_cls, config):
 
         self.service_cls = service_cls
         self.config = config
-
-        if worker_ctx_cls is not None:
-            warnings.warn(
-                "The constructor of `ServiceContainer` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
-                "version 2.4.0 for more details. This warning will be removed "
-                "in version 2.6.0", DeprecationWarning
-            )
-        else:
-            worker_ctx_cls = WorkerContext
-
-        self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
         self.shared_extensions = {}
@@ -341,8 +329,9 @@ class ServiceContainer(object):
             raise ContainerBeingKilled()
 
         service = self.service_cls()
-        worker_ctx = self.worker_ctx_cls(
-            self, service, entrypoint, args, kwargs, data=context_data)
+        worker_ctx = WorkerContext(
+            self, service, entrypoint, args, kwargs, data=context_data
+        )
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(

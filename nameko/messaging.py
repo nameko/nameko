@@ -64,7 +64,7 @@ class HeaderDecoder(object):
             return key[len(full_prefix):]
         return key
 
-    def unpack_message_headers(self, worker_ctx_cls, message):
+    def unpack_message_headers(self, message):
         stripped = {
             self._strip_header_name(k): v
             for k, v in six.iteritems(message.headers)
@@ -459,9 +459,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         args = (body,)
         kwargs = {}
 
-        # TODO: get valid headers from config, not worker_ctx_cls
-        worker_ctx_cls = self.container.worker_ctx_cls
-        context_data = self.unpack_message_headers(worker_ctx_cls, message)
+        context_data = self.unpack_message_headers(message)
 
         handle_result = partial(self.handle_result, message)
         try:
