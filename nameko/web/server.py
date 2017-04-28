@@ -7,6 +7,7 @@ import eventlet
 from eventlet import wsgi
 from eventlet.support import get_errno
 from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
+from logging import getLogger
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
@@ -115,7 +116,8 @@ class WebServer(ProviderCollector, SharedExtension):
             sock.getsockname(),
             wsgi_app,
             protocol=protocol,
-            debug=debug
+            debug=debug,
+            log=getLogger(__name__)
         )
 
     def stop(self):
