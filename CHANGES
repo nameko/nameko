@@ -16,6 +16,13 @@ Released: 2017-04-20
   QueueConsumer thread. [fixes #417 more robustly]
 
 
+Version 2.6.0
+
+Released: pending
+
+* Improves environment variable substitution to automatically resolve
+  supported scalar values (None, Int, Float and Boolean)
+
 Version 2.5.3
 -------------
 
