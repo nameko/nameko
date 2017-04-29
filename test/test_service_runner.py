@@ -23,12 +23,6 @@ def tracker():
     return Mock()
 
 
-@pytest.yield_fixture
-def warnings():
-    with patch('nameko.runners.warnings') as patched:
-        yield patched
-
-
 @pytest.fixture
 def service_cls(tracker):
 
