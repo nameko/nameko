@@ -109,12 +109,6 @@ def container():
 
 
 @pytest.yield_fixture
-def warnings():
-    with patch('nameko.containers.warnings') as patched:
-        yield patched
-
-
-@pytest.yield_fixture
 def logger():
     with patch('nameko.containers._log', autospec=True) as patched:
         yield patched
