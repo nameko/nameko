@@ -1,5 +1,5 @@
 import pytest
-from mock import call, patch, Mock
+from mock import call, Mock
 
 from nameko.events import BROADCAST, event_handler
 from nameko.rpc import rpc
