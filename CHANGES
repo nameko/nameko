@@ -10,7 +10,7 @@ Version 2.6.0
 
 Released: pending
 
-* Environment variables are now interpreted as native YAML datatypes rather
+* Environment variables are now interpreted as native YAML data types rather
   than just strings
 * The WSGI Server now uses an explicit logger so it can be controlled using a
   logging config
