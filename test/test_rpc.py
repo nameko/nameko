@@ -1,5 +1,4 @@
 import uuid
-import warnings
 
 import eventlet
 import pytest
@@ -95,10 +94,6 @@ class ExampleService(object):
         res2 = self.example_rpc.task_b.call_async()
         res3 = self.example_rpc.echo.call_async()
         return [res2.result(), res1.result(), res3.result()]
-
-    @rpc
-    def deprecated_async(self):
-        return self.example_rpc.echo.async().result()
 
     @rpc
     def call_unknown(self):
@@ -396,23 +391,6 @@ def test_async_rpc(container_factory, rabbit_config):
 
     with entrypoint_hook(container, 'call_async') as call_async:
         assert call_async() == ["result_b", "result_a", [[], {}]]
-
-
-def test_async_rpc_deprecation_warning(container_factory, rabbit_config):
-
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    with entrypoint_hook(container, 'deprecated_async') as call_async:
-
-        # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
-        # `testdir` plugin is not compatible with eventlet on python3 --
-        # see https://github.com/mattbennett/eventlet-pytest-bug
-        with warnings.catch_warnings(record=True) as ws:
-            assert call_async() == [[], {}]
-            assert len(ws) == 1
-            assert issubclass(ws[-1].category, DeprecationWarning)
-            assert "deprecated" in str(ws[-1].message)
 
 
 def test_rpc_incorrect_signature(container_factory, rabbit_config):

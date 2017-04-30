@@ -255,59 +255,6 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
     assert result.ret == 0
 
 
-def test_container_factory_custom_worker_ctx_deprecation_warning(
-    testdir, plugin_options
-):
-
-    testdir.makeconftest(
-        """
-        from mock import patch
-        import pytest
-
-        @pytest.yield_fixture
-        def warnings():
-            with patch('nameko.containers.warnings') as patched:
-                yield patched
-        """
-    )
-
-    testdir.makepyfile(
-        """
-        from mock import ANY, call
-
-        from nameko.containers import WorkerContext
-        from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
-
-        class ServiceX(object):
-            name = "x"
-
-            @rpc
-            def method(self):
-                return "OK"
-
-        def test_container_factory(
-            container_factory, rabbit_config, warnings
-        ):
-            class WorkerContextX(WorkerContext):
-                pass
-
-            container = container_factory(
-                ServiceX, rabbit_config, worker_ctx_cls=WorkerContextX
-            )
-            container.start()
-
-            # TODO: replace with pytest.warns when eventlet >= 0.19.0 is
-            # released
-            assert warnings.warn.call_args_list == [
-                call(ANY, DeprecationWarning)
-            ]
-        """
-    )
-    result = testdir.runpytest(*plugin_options)
-    assert result.ret == 0
-
-
 def test_runner_factory(
     testdir, plugin_options, rabbit_config, rabbit_manager
 ):

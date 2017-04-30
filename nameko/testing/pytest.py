@@ -229,22 +229,13 @@ def fast_teardown(request):
 @pytest.yield_fixture
 def container_factory():
     from nameko.containers import get_container_cls
-    import warnings
 
     all_containers = []
 
-    def make_container(service_cls, config, worker_ctx_cls=None):
+    def make_container(service_cls, config):
 
         container_cls = get_container_cls(config)
-
-        if worker_ctx_cls is not None:
-            warnings.warn(
-                "The constructor of `container_factory` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
-                "Version 2.4.0 for more details.", DeprecationWarning
-            )
-
-        container = container_cls(service_cls, config, worker_ctx_cls)
+        container = container_cls(service_cls, config)
         all_containers.append(container)
         return container
 

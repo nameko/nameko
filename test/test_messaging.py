@@ -43,7 +43,6 @@ def test_consume_provider(mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
 
     worker_ctx = WorkerContext(container, None, DummyProvider())
@@ -240,7 +239,7 @@ def test_header_decoder():
 
         message = Mock(headers=headers)
 
-        res = decoder.unpack_message_headers(None, message)
+        res = decoder.unpack_message_headers(message)
         assert res == {
             'foo': 'FOO',
             'bar': 'BAR',

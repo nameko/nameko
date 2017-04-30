@@ -5,6 +5,19 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.6.0
+-------------
+
+Released: 2017-04-30
+
+* Environment variables are now interpreted as native YAML data types rather
+  than just strings
+* The WSGI Server now uses an explicit logger so it can be controlled using a
+  logging config
+* Drops several backwards-compatibility shims that were marked as being
+  maintained only until this release
+
+
 Version 2.5.4
 -------------
 
@@ -15,13 +28,6 @@ Released: 2017-04-20
 * Revert prefetch count change from 2.5.3 and ack messages outside of the
   QueueConsumer thread. [fixes #417 more robustly]
 
-
-Version 2.6.0
-
-Released: pending
-
-* Improves environment variable substitution to automatically resolve
-  supported scalar values (None, Int, Float and Boolean)
 
 Version 2.5.3
 -------------
