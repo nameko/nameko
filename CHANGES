@@ -14,6 +14,8 @@ Released: pending
   than just strings
 * The WSGI Server now uses an explicit logger so it can be controlled using a
   logging config
+* Drops several backwards-compatibility shims that were marked as being
+  maintained only until this release
 
 Version 2.5.4
 -------------
