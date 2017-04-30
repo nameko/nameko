@@ -24,8 +24,6 @@ contextdata
 contextmanager
 contrib
 ctx
-datatype
-datatypes
 debian
 deployable
 deserializable
