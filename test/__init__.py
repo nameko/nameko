@@ -4,7 +4,7 @@ from distutils import spawn
 import pytest
 
 
-def toxiproxy_is_installed():
+def toxiproxy_is_installed():  # pragma: no cover
     return spawn.find_executable('toxiproxy-server') is not None
 
 
@@ -13,7 +13,7 @@ def on_travis():
 
 
 def skip_toxiproxy():
-    if not on_travis():
+    if not on_travis():  # pragma: no cover
         return not toxiproxy_is_installed()
 
 

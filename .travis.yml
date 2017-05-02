@@ -17,7 +17,7 @@ addons:
     - libenchant-dev
 
 install:
-  - pip install tox
+  - pip install coveralls tox
 
 cache:
   directories:
