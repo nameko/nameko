@@ -24,7 +24,7 @@ from test import skip_if_no_toxiproxy
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
-CONSUME_TIMEOUT = 1
+CONSUME_TIMEOUT = 1.2  # a bit more than 1 second
 
 
 @pytest.yield_fixture
