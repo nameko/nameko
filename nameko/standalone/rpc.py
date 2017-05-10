@@ -279,7 +279,7 @@ class ClusterProxy(object):
     cluster. It is commonly used as a context manager but may also be manually
     started and stopped.
 
-    This is similar to the service proxy, but may be uses a single reply queue
+    This is similar to the service proxy, but maybe uses a single reply queue
     for calls to all services, where a collection of service proxies would have
     one reply queue per proxy.
 
