@@ -14,6 +14,7 @@ from nameko.constants import (
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.extensions import Entrypoint
+from nameko.globals import push_worker_ctx
 from nameko.rpc import ReplyListener, ServiceProxy
 
 _logger = logging.getLogger(__name__)
@@ -216,6 +217,7 @@ class StandaloneProxyBase(object):
             data=context_data)
         self._reply_listener = reply_listener_cls(
             timeout=timeout).bind(container)
+        self._worker_ctx_mngr = None
 
     def __enter__(self):
         return self.start()
@@ -224,11 +226,15 @@ class StandaloneProxyBase(object):
         self.stop()
 
     def start(self):
+        self._worker_ctx_mngr = push_worker_ctx(self._worker_ctx)
+        self._worker_ctx_mngr.__enter__()  # pylint: disable=E1101
         self._reply_listener.setup()
         return self._proxy
 
     def stop(self):
         self._reply_listener.stop()
+        # pylint: disable=E1101
+        self._worker_ctx_mngr.__exit__(None, None, None)
 
 
 class ServiceRpcProxy(StandaloneProxyBase):

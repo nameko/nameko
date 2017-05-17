@@ -20,6 +20,7 @@ from nameko.extensions import (
     ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions)
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import SpawningSet, import_from_path
+from nameko.globals import push_worker_ctx
 
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
@@ -368,8 +369,8 @@ class ServiceContainer(object):
         _log.debug('call stack for %s: %s',
                    worker_ctx, '->'.join(worker_ctx.call_id_stack))
 
-        with _log_time('ran worker %s', worker_ctx):
-
+        with _log_time('ran worker %s', worker_ctx), \
+                push_worker_ctx(worker_ctx):
             self._inject_dependencies(worker_ctx)
             self._worker_setup(worker_ctx)
 
