@@ -233,7 +233,8 @@ class StandaloneProxyBase(object):
 
     def stop(self):
         self._reply_listener.stop()
-        self._worker_ctx_mngr.__exit__(None, None, None)  # pylint: disable=E1101
+        self._worker_ctx_mngr.__exit__(None, None,
+                                       None)  # pylint: disable=E1101
 
 
 class ServiceRpcProxy(StandaloneProxyBase):
