@@ -370,7 +370,7 @@ class ServiceContainer(object):
                    worker_ctx, '->'.join(worker_ctx.call_id_stack))
 
         with _log_time('ran worker %s', worker_ctx), \
-             push_worker_ctx(worker_ctx):
+                push_worker_ctx(worker_ctx):
             self._inject_dependencies(worker_ctx)
             self._worker_setup(worker_ctx)
 
