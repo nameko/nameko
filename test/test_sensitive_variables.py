@@ -1,9 +1,9 @@
 import pytest
 
 from nameko.events import event_handler, EventHandler
-from nameko.extensions import DependencyProvider
+from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.rpc import rpc, Rpc
-from nameko.testing.services import entrypoint_hook
+from nameko.testing.services import entrypoint_hook, dummy
 from nameko.testing.utils import get_extension
 from nameko.utils import get_redacted_args, REDACTED
 
@@ -42,6 +42,10 @@ class Service(object):
     @rpc(sensitive_variables=("a", "b.x[0]", "b.x[2]"))
     def method(self, a, b, c):
         return [a, b, c]
+
+    @dummy(sensitive_variables=("foo",))
+    def stub(self, foo, bar):
+        pass
 
 
 def test_sensitive_rpc(container_factory, rabbit_config):
@@ -83,4 +87,20 @@ def test_sensitive_event(container_factory, rabbit_config):
             'foo': REDACTED,
             'bar': 'BAR'
         }
+    }
+
+
+def test_sensitive_generic_entrypoint(container_factory, rabbit_config):
+
+    container = container_factory(Service, rabbit_config)
+    dummy_entrypoint = get_extension(container, Entrypoint, method_name="stub")
+
+    assert dummy_entrypoint.sensitive_variables == ("foo",)
+
+    with entrypoint_hook(container, "stub") as stub:
+        stub("FOO", "BAR")
+
+    assert redacted == {
+        'foo': REDACTED,
+        'bar': 'BAR'
     }
