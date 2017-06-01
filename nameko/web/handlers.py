@@ -17,10 +17,10 @@ _log = getLogger(__name__)
 class HttpRequestHandler(Entrypoint):
     server = WebServer()
 
-    def __init__(self, method, url, expected_exceptions=()):
+    def __init__(self, method, url, **kwargs):
         self.method = method
         self.url = url
-        self.expected_exceptions = expected_exceptions
+        super(HttpRequestHandler, self).__init__(**kwargs)
 
     def get_url_rule(self):
         return Rule(self.url, methods=[self.method])
