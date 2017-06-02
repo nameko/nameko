@@ -476,8 +476,15 @@ class Once(Entrypoint):
     the service container started.
     """
     def __init__(self, *args, **kwargs):
+        expected_exceptions = kwargs.pop('expected_exceptions', ())
+        sensitive_variables = kwargs.pop('sensitive_variables', ())
+
         self.args = args
         self.kwargs = kwargs
+        super(Once, self).__init__(
+            expected_exceptions=expected_exceptions,
+            sensitive_variables=sensitive_variables
+        )
 
     def start(self):
         self.container.spawn_worker(self, self.args, self.kwargs)
