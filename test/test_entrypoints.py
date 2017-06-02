@@ -1,61 +1,165 @@
+from collections import defaultdict
+
 from mock import Mock, call
 import pytest
 
-from nameko.testing.services import once
+from nameko.extensions import DependencyProvider, Entrypoint
+from nameko.testing.services import once, entrypoint_hook, dummy
+from nameko.testing.utils import get_extension
+from nameko.utils import get_redacted_args, REDACTED
 
 
-method_called = Mock()
+@pytest.fixture
+def tracker():
+    return Mock()
 
 
-@pytest.yield_fixture(autouse=True)
-def reset():
-    yield
-    method_called.reset_mock()
+class TestDecorator(object):
+
+    def test_decorator_without_args(self, container_factory, tracker):
+
+        class Service(object):
+            name = "service"
+
+            @once
+            def method(self, a="a", b="b"):
+                tracker(a, b)
+
+        container = container_factory(Service, config={})
+        container.start()
+        container.stop()  # graceful, waits for workers
+
+        assert tracker.call_args == call('a', 'b')
+
+    def test_decorator_with_args(self, container_factory, tracker):
+
+        class Service(object):
+            name = "service"
+
+            @once("x")
+            def method(self, a, b="b"):
+                tracker(a, b)
+
+        container = container_factory(Service, config={})
+        container.start()
+        container.stop()  # graceful, waits for workers
+
+        assert tracker.call_args == call('x', 'b')
+
+    def test_decorator_with_kwargs(self, container_factory, tracker):
+
+        class Service(object):
+            name = "service"
+
+            @once(b="x")
+            def method(self, a="a", b="b"):
+                tracker(a, b)
+
+        container = container_factory(Service, config={})
+        container.start()
+        container.stop()  # graceful, waits for workers
+
+        assert tracker.call_args == call('a', 'x')
 
 
-def test_decorator_without_args(container_factory):
+class TestExpectedExceptions(object):
 
-    class Service(object):
-        name = "service"
+    def test_expected_exceptions(self, container_factory):
 
-        @once
-        def method(self, a="a", b="b"):
-            method_called(a, b)
+        exceptions = defaultdict(list)
 
-    container = container_factory(Service, config={})
-    container.start()
-    container.stop()  # graceful, waits for workers
+        class CustomException(Exception):
+            pass
 
-    assert method_called.call_args == call('a', 'b')
+        class Logger(DependencyProvider):
+            """ Example DependencyProvider that interprets
+            ``expected_exceptions`` on an entrypoint
+            """
+
+            def worker_result(self, worker_ctx, result=None, exc_info=None):
+                if exc_info is None:
+                    return  # nothing to do
+
+                exc = exc_info[1]
+                expected = worker_ctx.entrypoint.expected_exceptions
+
+                if isinstance(exc, expected):
+                    exceptions['expected'].append(exc)
+                else:
+                    exceptions['unexpected'].append(exc)
+
+        class Service(object):
+            name = "service"
+
+            logger = Logger()
+
+            @dummy(expected_exceptions=CustomException)
+            def expected(self):
+                raise CustomException()
+
+            @dummy
+            def unexpected(self):
+                raise CustomException()
+
+        container = container_factory(Service, {})
+        container.start()
+
+        with entrypoint_hook(container, 'expected') as hook:
+            with pytest.raises(CustomException) as expected_exc:
+                hook()
+        assert expected_exc.value in exceptions['expected']
+
+        with entrypoint_hook(container, 'unexpected') as hook:
+            with pytest.raises(CustomException) as unexpected_exc:
+                hook()
+        assert unexpected_exc.value in exceptions['unexpected']
 
 
-def test_decorator_with_args(container_factory):
+class TestSensitiveVariables(object):
 
-    class Service(object):
-        name = "service"
+    def test_sensitive_variables(self, container_factory):
 
-        @once("x")
-        def method(self, a, b="b"):
-            method_called(a, b)
+        redacted = {}
 
-    container = container_factory(Service, config={})
-    container.start()
-    container.stop()  # graceful, waits for workers
+        class Logger(DependencyProvider):
+            """ Example DependencyProvider that makes use of
+            ``get_redacted_args`` to redact ``sensitive_variables``
+            on entrypoints.
+            """
 
-    assert method_called.call_args == call('x', 'b')
+            def worker_setup(self, worker_ctx):
+                entrypoint = worker_ctx.entrypoint
+                args = worker_ctx.args
+                kwargs = worker_ctx.kwargs
 
+                redacted.update(get_redacted_args(entrypoint, *args, **kwargs))
 
-def test_decorator_with_kwargs(container_factory):
+        class Service(object):
+            name = "service"
 
-    class Service(object):
-        name = "service"
+            logger = Logger()
 
-        @once(b="x")
-        def method(self, a="a", b="b"):
-            method_called(a, b)
+            @dummy(sensitive_variables=("a", "b.x[0]", "b.x[2]"))
+            def method(self, a, b, c):
+                return [a, b, c]
 
-    container = container_factory(Service, config={})
-    container.start()
-    container.stop()  # graceful, waits for workers
+        container = container_factory(Service, {})
+        entrypoint = get_extension(container, Entrypoint)
 
-    assert method_called.call_args == call('a', 'x')
+        assert entrypoint.sensitive_variables == ("a", "b.x[0]", "b.x[2]")
+
+        a = "A"
+        b = {'x': [1, 2, 3], 'y': [4, 5, 6]}
+        c = "C"
+
+        with entrypoint_hook(container, "method") as method:
+            assert method(a, b, c) == [a, b, c]
+
+        assert redacted == {
+            'a': REDACTED,
+            'b': {
+                'x': [REDACTED, 2, REDACTED],
+                'y': [4, 5, 6]
+            },
+            'c': 'C'
+        }
