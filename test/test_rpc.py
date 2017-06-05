@@ -82,6 +82,10 @@ class ExampleService(object):
     def async_task(self):
         pass  # pragma: no cover
 
+    @rpc
+    def raises(self):
+        raise ExampleError("error")
+
 
 @pytest.yield_fixture
 def get_rpc_exchange():
@@ -452,14 +456,14 @@ def test_handle_message_raise_other_exception(
                 proxy.task_a()
 
 
-def test_rpc_broken_method(container_factory, rabbit_config):
+def test_rpc_method_that_raises(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
     with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(RemoteError) as exc_info:
-            proxy.broken()
+            proxy.raises()
     assert exc_info.value.exc_type == "ExampleError"
 
 
