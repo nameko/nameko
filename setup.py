@@ -42,7 +42,7 @@ setup(
             "pytest==2.7.3",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
-            "urllib3==1.10.2",
+            "urllib3==1.21.1",
             "websocket-client==0.23.0",
         ],
         'docs': [
