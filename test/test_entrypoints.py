@@ -77,8 +77,8 @@ class TestExpectedExceptions(object):
             """
 
             def worker_result(self, worker_ctx, result=None, exc_info=None):
-                if exc_info is None:
-                    return  # nothing to do
+                if exc_info is None:  # nothing to do
+                    return  # pragma: no cover
 
                 exc = exc_info[1]
                 expected = worker_ctx.entrypoint.expected_exceptions
