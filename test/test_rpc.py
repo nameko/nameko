@@ -7,7 +7,6 @@ from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
