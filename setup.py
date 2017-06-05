@@ -35,9 +35,6 @@ setup(
         'dev': [
             "coverage==4.2",
             "flake8==3.2.1",
-            "mccabe==0.6.1",
-            "pycodestyle==2.3.1",
-            "pyflakes==1.5.0",
             "pylint==1.7.1",
             "pytest==2.7.3",
             "pytest-cov==2.1.0",
