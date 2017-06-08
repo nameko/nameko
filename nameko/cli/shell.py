@@ -70,17 +70,21 @@ Usage:
 
 
 def main(args):
-    banner = 'Nameko Python %s shell on %s\nBroker: %s' % (
-        sys.version,
-        sys.platform,
-        args.broker.encode('utf-8'),
-    )
 
     if args.config:
         with open(args.config) as fle:
             config = yaml.load(fle)
+        broker_from = " (from --config)"
     else:
         config = {AMQP_URI_CONFIG_KEY: args.broker}
+        broker_from = ""
+
+    banner = 'Nameko Python %s shell on %s\nBroker: %s%s' % (
+        sys.version,
+        sys.platform,
+        config[AMQP_URI_CONFIG_KEY].encode('utf-8'),
+        broker_from
+    )
 
     ctx = {}
     ctx['n'] = make_nameko_helper(config)
