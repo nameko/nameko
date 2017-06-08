@@ -33,8 +33,8 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.2",
-            "flake8==3.2.1",
+            "coverage==4.4.1",
+            "flake8==3.3.0",
             "mccabe==0.6.1",
             "pycodestyle==2.3.1",
             "pyflakes==1.5.0",
@@ -42,7 +42,8 @@ setup(
             "pytest==2.7.3",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
-            "urllib3==1.10.2",
+            "requests==2.17.3",
+            "urllib3==1.21.1",
             "websocket-client==0.23.0",
         ],
         'docs': [
