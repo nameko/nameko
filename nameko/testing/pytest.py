@@ -201,7 +201,11 @@ def fast_teardown(request):
     reorder_fixtures = ('container_factory', 'runner_factory', 'rabbit_config')
     for fixture in reorder_fixtures:
         if fixture in request.funcargnames:
-            request.getfuncargvalue(fixture)
+            # getfuncargvalue is renamed to getfixturevalue in pytest 3.0
+            if hasattr(request, 'getfixturevalue'):
+                request.getfixturevalue(fixture)  # pragma: no cover
+            else:
+                request.getfuncargvalue(fixture)  # pragma: no cover
 
     consumers = []
 
