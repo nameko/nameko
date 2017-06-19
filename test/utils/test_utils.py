@@ -6,8 +6,9 @@ from eventlet.event import Event
 
 import nameko.rpc
 from nameko.containers import ServiceContainer
+from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc, rpc
-from nameko.testing.services import get_extension
+from nameko.testing.services import entrypoint_hook, get_extension, dummy
 from nameko.utils import (
     REDACTED, fail_fast_imap, get_redacted_args, import_from_path)
 
@@ -162,6 +163,61 @@ class TestGetRedactedArgs(object):
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
+
+    def test_get_redacted_args_partial_no_mutation(self, container_factory):
+        """ Calling `get_redacted_args` should not mutate anything received by
+        the entrypoint.
+        """
+        redacted = {}
+
+        class Redactor(DependencyProvider):
+            """ Example DependencyProvider that redacts `sensitive_variables`
+            on entrypoints during the worker lifecycle.
+            """
+
+            def worker_setup(self, worker_ctx):
+                entrypoint = worker_ctx.entrypoint
+                args = worker_ctx.args
+                kwargs = worker_ctx.kwargs
+
+                redacted.update(get_redacted_args(entrypoint, *args, **kwargs))
+
+        class Service(object):
+            name = "service"
+
+            redactor = Redactor()
+
+            @dummy(sensitive_variables=['b[foo][1]'])
+            def method(self, a, b):
+                return {
+                    "a": a,
+                    "b": b
+                }
+
+        container = container_factory(Service, {})
+
+        complex_arg = {
+            'foo': [1, 2, 3],
+            'bar': "BAR"
+        }
+
+        with entrypoint_hook(container, 'method') as hook:
+            result = hook("A", complex_arg)
+
+        assert redacted == {
+            'a': 'A',
+            'b': {
+                'foo': [1, REDACTED, 3],
+                'bar': "BAR"
+            }
+        }
+        assert result == {
+            'a': 'A',
+            'b': {
+                'foo': [1, 2, 3],
+                'bar': "BAR"
+            }
+        }
 
 
 class TestImportFromPath(object):

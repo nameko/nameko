@@ -1,6 +1,7 @@
 import inspect
 import re
 import sys
+from copy import deepcopy
 from pydoc import locate
 
 import eventlet
@@ -78,6 +79,10 @@ def get_redacted_args(entrypoint, *args, **kwargs):
     method = getattr(entrypoint.container.service_cls, entrypoint.method_name)
     callargs = inspect.getcallargs(method, None, *args, **kwargs)
     del callargs['self']
+
+    # make a deepcopy before redacting so that "partial" redacations aren't
+    # applied to a referenced object
+    callargs = deepcopy(callargs)
 
     def redact(data, keys):
         key = keys[0]
