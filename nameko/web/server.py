@@ -20,7 +20,7 @@ BindAddress = namedtuple("BindAddress", ['address', 'port'])
 
 
 def parse_address(address_string):
-    address_re = re.compile('^((?P<address>[^:]+):)?(?P<port>\d+)$')
+    address_re = re.compile(r'^((?P<address>[^:]+):)?(?P<port>\d+)$')
     match = address_re.match(address_string)
     if match is None:
         raise ConfigurationError(
