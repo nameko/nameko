@@ -360,6 +360,9 @@ class ServiceProxy(object):
         return MethodProxy(
             self.worker_ctx, self.service_name, name, self.reply_listener)
 
+    def __getitem__(self, name):
+        """Enable dict-like access on the proxy. """
+        return getattr(self, name)
 
 class RpcReply(object):
     resp_body = None
