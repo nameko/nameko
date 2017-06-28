@@ -147,3 +147,6 @@ websocket
 websockets
 whitelist
 zato
+django
+cometd
+statsd

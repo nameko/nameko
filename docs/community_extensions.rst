@@ -1,15 +1,18 @@
 .. _community_extensions:
 
-Community Extensions
---------------------
+Community
+=========
 
-There are a number of extensions that are not part of the core library but that you may find useful when developing your own nameko services:
+There are a number of nameko extensions and contributions that are not part of the core library but that you may find useful when developing your own nameko services:
+
+Extensions
+----------
 
     * `nameko-sqlalchemy <https://github.com/onefinestay/nameko-sqlalchemy>`_
 
         A ``DependencyProvider`` for writing to databases with SQLAlchemy. Requires a pure-python or otherwise eventlet-compatible database driver.
 
-        Consider combining it with `SQLAlchemy-filters <https://github.com/Overseas-Student-Living/sqlalchemy-filters>`_ to add filtering, sorting and pagination of SQLAlchemy query objects when exposing them over a REST API.
+        Consider combining it with `SQLAlchemy-filters <https://github.com/Overseas-Student-Living/sqlalchemy-filters>`_ to add filtering, sorting and pagination of query objects when exposing them over a REST API.
 
     * `nameko-sentry <https://github.com/mattbennett/nameko-sentry>`_
 
@@ -19,9 +22,32 @@ There are a number of extensions that are not part of the core library but that 
 
         Nameko extension allowing AMQP entrypoints to retry later.
 
+    * `nameko-bayeux-client <https://github.com/Overseas-Student-Living/nameko-bayeux-client>`_
+
+        Nameko extension with a Cometd client implementing Bayeux protocol
+
+    * `nameko-slack <https://github.com/iky/nameko-slack>`_
+
+        Nameko extension for interaction with Slack APIs. Uses Slack Developer Kit for Python.
+
     * `nameko-eventlog-dispatcher <https://github.com/sohonetlabs/nameko-eventlog-dispatcher>`_
 
         Nameko dependency provider that dispatches log data using Events (Pub-Sub).
+
+    * `nameko-redis-py <https://github.com/fraglab/nameko-redis-py>`_
+
+        Redis dependency and utils for Nameko.
+
+    * `nameko-redis <https://github.com/etataurov/nameko-redis/>`_
+
+        Redis dependency for nameko services
+
+    * `nameko-statsd <https://github.com/sohonetlabs/nameko-statsd>`_
+
+        A StatsD dependency for nameko, enabling services to send stats.
+
+Contributions
+-------------
 
     * `django-nameko <https://github.com/and3rson/django-nameko>`_
 
@@ -35,26 +61,6 @@ There are a number of extensions that are not part of the core library but that 
 
         Standalone async proxy to communicate with Nameko microservices.
 
-    * `nameko-redis-py <https://github.com/fraglab/nameko-redis-py>`_
-
-        Redis dependency and utils for Nameko.
-
-    * `nameko-redis <https://github.com/etataurov/nameko-redis/>`_
-
-        Redis dependency for nameko services
-
-    * `nameko-bayeux-client <https://github.com/Overseas-Student-Living/nameko-bayeux-client>`_
-
-        Nameko extension with a Cometd client implementing Bayeux protocol
-
-    * `nameko-slack <https://github.com/iky/nameko-slack>`_
-
-        Nameko extension for interaction with Slack APIs. Uses Slack Developer Kit for Python.
-
-    * `nameko-statsd <https://github.com/sohonetlabs/nameko-statsd>`_
-
-        A StatsD dependency for nameko, enabling services to send stats.
-
 Search PyPi for more `nameko packages <https://pypi.python.org/pypi?%3Aaction=search&term=nameko&submit=search>`_
 
-If you would like your own extension to appear in this list, please :ref:`get in touch <getting_in_touch>`.
+If you would like your own nameko extension or contribution to appear on this page, please :ref:`get in touch <getting_in_touch>`.
