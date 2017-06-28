@@ -3,7 +3,7 @@
 Community
 =========
 
-There are a number of nameko extensions and contributions that are not part of the core library but that you may find useful when developing your own nameko services:
+There are a number of nameko extensions and supplementary libraries that are not part of the core project but that you may find useful when developing your own nameko services:
 
 Extensions
 ----------
@@ -46,8 +46,8 @@ Extensions
 
         A StatsD dependency for nameko, enabling services to send stats.
 
-Contributions
--------------
+Supplementary Libraries
+-----------------------
 
     * `django-nameko <https://github.com/and3rson/django-nameko>`_
 
@@ -63,4 +63,4 @@ Contributions
 
 Search PyPi for more `nameko packages <https://pypi.python.org/pypi?%3Aaction=search&term=nameko&submit=search>`_
 
-If you would like your own nameko extension or contribution to appear on this page, please :ref:`get in touch <getting_in_touch>`.
+If you would like your own nameko extension or library to appear on this page, please :ref:`get in touch <getting_in_touch>`.
