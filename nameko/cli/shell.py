@@ -82,7 +82,7 @@ def main(args):
     banner = 'Nameko Python %s shell on %s\nBroker: %s%s' % (
         sys.version,
         sys.platform,
-        config[AMQP_URI_CONFIG_KEY].encode('utf-8'),
+        config[AMQP_URI_CONFIG_KEY],
         broker_from
     )
 
