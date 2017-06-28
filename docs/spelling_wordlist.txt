@@ -10,6 +10,7 @@ ascii
 async
 auth
 backend
+bayeux
 bpython
 bugfix
 bugfixes
@@ -18,6 +19,7 @@ bytestrings
 channelhandler
 cli
 cls
+cometd
 config
 conftest
 contextdata
@@ -33,6 +35,7 @@ deserialized
 deserializers
 deserializes
 deserializing
+django
 entrypoint
 entrypoints
 eventlet
@@ -117,6 +120,8 @@ specialize
 specialized
 sqlalchemy
 startup
+stats
+StatsD
 stringified
 subclass
 subclasses
