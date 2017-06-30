@@ -86,6 +86,18 @@ def test_extension_uniqueness(container_factory):
     assert dep1.ext != dep2.ext
 
 
+def test_dependency_attr_name(container_factory):
+    c1 = container_factory(Service, config={})
+
+    bound_dep_provider = get_extension(c1, SimpleDependencyProvider)
+    assert bound_dep_provider.attr_name == 'dep'
+
+    dep_provider_declaration = c1.service_cls.dep
+    assert dep_provider_declaration.attr_name == 'dep'
+
+    assert bound_dep_provider != dep_provider_declaration
+
+
 def test_is_bound():
     container = Mock()
 
