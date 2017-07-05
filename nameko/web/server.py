@@ -7,6 +7,7 @@ import eventlet
 from eventlet import wsgi
 from eventlet.support import get_errno
 from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
+from logging import getLogger
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
@@ -19,7 +20,7 @@ BindAddress = namedtuple("BindAddress", ['address', 'port'])
 
 
 def parse_address(address_string):
-    address_re = re.compile('^((?P<address>[^:]+):)?(?P<port>\d+)$')
+    address_re = re.compile(r'^((?P<address>[^:]+):)?(?P<port>\d+)$')
     match = address_re.match(address_string)
     if match is None:
         raise ConfigurationError(
@@ -115,7 +116,8 @@ class WebServer(ProviderCollector, SharedExtension):
             sock.getsockname(),
             wsgi_app,
             protocol=protocol,
-            debug=debug
+            debug=debug,
+            log=getLogger(__name__)
         )
 
     def stop(self):

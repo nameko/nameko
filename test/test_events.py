@@ -28,9 +28,10 @@ def queue_consumer():
         yield replacement
 
 
-def test_event_dispatcher(mock_container, mock_producer):
+def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
 
     container = mock_container
+    container.config = rabbit_config
     container.service_name = "srcservice"
 
     service = Mock()
@@ -492,7 +493,7 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
         vhost, "evt-srcservice-eventtype--requeue.handle")
     assert len(queue['consumer_details']) == 1
 
-    counter = itertools.count()
+    counter = itertools.count(start=1)
 
     def entrypoint_fired_twice(worker_ctx, res, exc_info):
         return next(counter) > 1
@@ -504,6 +505,10 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
             vhost, "srcservice.events", 'eventtype', '"msg"',
             properties=dict(content_type='application/json')
         )
+
+    # stop container to make sure the assertions below aren't made in the
+    # middle of processing an event
+    container.stop()
 
     # the event will be received multiple times as it gets requeued and then
     # consumed again

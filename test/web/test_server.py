@@ -64,7 +64,7 @@ def test_other_socket_error(
 def test_client_disconnect_os_error(
     container_factory, web_config, web_config_port, web_session
 ):
-    """ Regression for https://github.com/onefinestay/nameko/issues/368
+    """ Regression for https://github.com/nameko/nameko/issues/368
     """
     container = container_factory(ExampleService, web_config)
     container.start()
@@ -85,7 +85,7 @@ def test_client_disconnect_os_error(
 def test_other_os_error(
     container_factory, web_config, web_config_port, web_session
 ):
-    """ Regression for https://github.com/onefinestay/nameko/issues/368
+    """ Regression for https://github.com/nameko/nameko/issues/368
     """
     container = container_factory(ExampleService, web_config)
     container.start()

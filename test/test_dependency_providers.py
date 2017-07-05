@@ -19,9 +19,9 @@ class TestConfig:
         return Service
 
     def test_get_config_value(
-        self, empty_config, container_factory, service_cls
+        self, rabbit_config, container_factory, service_cls
     ):
-        config = empty_config.copy()
+        config = rabbit_config
         config["FOO"] = "bar"
 
         container = container_factory(service_cls, config)

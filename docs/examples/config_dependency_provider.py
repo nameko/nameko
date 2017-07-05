@@ -1,9 +1,5 @@
 from nameko.dependency_providers import Config
-from nameko.rpc import rpc
-
-
-class FeatureNotEnabled(Exception):
-    pass
+from nameko.web.handlers import http
 
 
 class Service:
@@ -16,9 +12,9 @@ class Service:
     def foo_enabled(self):
         return self.config.get('FOO_FEATURE_ENABLED', False)
 
-    @rpc
-    def foo(self):
+    @http('GET', '/foo')
+    def foo(self, request):
         if not self.foo_enabled:
-            raise FeatureNotEnabled()
+            return 403, "FeatureNotEnabled"
 
         return 'foo'
