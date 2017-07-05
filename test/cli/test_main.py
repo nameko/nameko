@@ -60,7 +60,7 @@ class TestConfigEnvironmentVariables(object):
 
     @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
         # no default value, no env value
-        ('FOO: ${BAR}', {}, {'FOO': ''}),
+        ('FOO: ${BAR}', {}, {'FOO': None}),
         # use default value if env value not provided
         ('FOO: ${BAR:foo}', {}, {'FOO': 'foo'}),
         # use env value
@@ -86,7 +86,43 @@ class TestConfigEnvironmentVariables(object):
         (
             'FOO: http://${BAR:foo}/${FOO:bar}',
             {'BAR': 'bar', 'FOO': 'foo'},
-            {'FOO': 'http://bar/foo'}),
+            {'FOO': 'http://bar/foo'}
+        ),
+        # can handle int, float and boolean
+        (
+            """
+            FOO:
+                - BAR: ${INT:1}
+                - BAR: ${FLOAT:1.1}
+                - BAR: ${BOOL:True}
+            """,
+            {}, {'FOO': [{'BAR': 1}, {'BAR': 1.1}, {'BAR': True}]}
+        ),
+        (
+            """
+            FOO:
+                - BAR: ${INT}
+                - BAR: ${FLOAT}
+                - BAR: ${BOOL}
+            """,
+            {'INT': '1', 'FLOAT': '1.1', 'BOOL': 'True'},
+            {'FOO': [{'BAR': 1}, {'BAR': 1.1}, {'BAR': True}]}
+        ),
+        # list of scalar values
+        (
+            """
+            FOO:
+                - ${INT_1}
+                - ${INT_2}
+                - ${INT_3}
+            BAR:
+                - 1
+                - 2
+                - 3
+            """,
+            {'INT_1': '1', 'INT_2': '2', 'INT_3': '3'},
+            {'FOO': [1, 2, 3], 'BAR': [1, 2, 3]}
+        )
     ])
     def test_environment_vars_in_config(
         self, yaml_config, env_vars, expected_config

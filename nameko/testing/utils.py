@@ -140,3 +140,74 @@ def find_free_port(host='127.0.0.1'):
     port = sock.getsockname()[1]
     sock.close()
     return port
+
+
+class ResourcePipeline(object):
+    """ Creates and destroys resources in background threads.
+
+    Creates up to `size` resources ahead of time so the caller avoids waiting
+    for lazy creation.
+    """
+
+    STOP = object()
+
+    def __init__(self, create, destroy, size=3):
+        if size == 0:
+            raise RuntimeError("Zero size would create unbounded resources")
+        self.ready = eventlet.Queue(maxsize=size)
+        self.trash = eventlet.Queue()
+        self.size = size
+
+        self.create = create
+        self.destroy = destroy
+
+    def _start(self):
+        self.running = True
+        self.create_thread = eventlet.spawn(self._create)
+        self.destroy_thread = eventlet.spawn(self._destroy)
+
+    def _shutdown(self):
+        self.running = False
+
+        # increase max size of the ready queue and yield, allowing the
+        # create thread to exit now if it's blocked trying to put an item
+        self.ready.resize(self.size + 1)
+        eventlet.sleep()
+
+        # trash unused items while there are any left in the queue,
+        # or the create thread is still running
+        while self.ready.qsize() or not self.create_thread.dead:
+            unused = self.ready.get()
+            self.trash.put(unused)
+
+        # finally wait for the destroy thread to exit
+        self.trash.put(ResourcePipeline.STOP)
+        self.destroy_thread.wait()
+
+    def _create(self):
+        while self.running:
+            item = self.create()
+            self.ready.put(item)
+
+    def _destroy(self):
+        while True:
+            item = self.trash.get()
+            if item is ResourcePipeline.STOP:
+                break
+            self.destroy(item)
+
+    @contextmanager
+    def get(self):
+        item = self.ready.get()
+        try:
+            yield item
+        finally:
+            self.trash.put(item)
+
+    @contextmanager
+    def run(self):
+        self._start()
+        try:
+            yield self
+        finally:
+            self._shutdown()

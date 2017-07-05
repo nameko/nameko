@@ -2,7 +2,6 @@ from __future__ import absolute_import, unicode_literals
 
 import sys
 import uuid
-import warnings
 from functools import partial
 from logging import getLogger
 
@@ -164,8 +163,7 @@ class Rpc(Entrypoint, HeaderDecoder):
 
         self.check_signature(args, kwargs)
 
-        worker_ctx_cls = self.container.worker_ctx_cls
-        context_data = self.unpack_message_headers(worker_ctx_cls, message)
+        context_data = self.unpack_message_headers(message)
 
         handle_result = partial(self.handle_result, message)
         try:
@@ -269,7 +267,7 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.Publisher(self.amqp_uri)
+        publisher = self.Publisher(self.amqp_uri, self.use_confirms)
         publisher.queue = None  # MYB: hack
 
         publisher.publish(
@@ -453,14 +451,6 @@ class MethodProxy(HeaderEncoder):
     def call_async(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
         return reply
-
-    def async(self, *args, **kwargs):
-        warnings.warn(
-            "`MethodProxy.async` is deprecated, use `call_async` instead. "
-            "This warning will be removed in version 2.6.0.",
-            DeprecationWarning, 2
-        )
-        return self.call_async(*args, **kwargs)
 
     def _call(self, *args, **kwargs):
         _log.debug('invoking %s', self)

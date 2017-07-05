@@ -23,14 +23,22 @@ def pytest_addoption(parser):
         help=("The logging-level for the test run."))
 
     parser.addoption(
-        "--amqp-uri", action="store", dest='AMQP_URI',
-        default='amqp://guest:guest@localhost:5672/:random:',
-        help=("The AMQP-URI to connect to rabbit with."))
+        "--amqp-uri", "--rabbit-amqp-uri",
+        action="store",
+        dest='RABBIT_AMQP_URI',
+        default='pyamqp://guest:guest@localhost:5672/',
+        help=(
+            "URI for the RabbitMQ broker. Any specified virtual host will be "
+            "ignored because tests run in their own isolated vhost."
+        ))
 
     parser.addoption(
-        "--rabbit-ctl-uri", action="store", dest='RABBIT_CTL_URI',
+        "--rabbit-api-uri", "--rabbit-ctl-uri",
+        action="store",
+        dest='RABBIT_API_URI',
         default='http://guest:guest@localhost:15672',
-        help=("The URI for rabbit's management API."))
+        help=("URI for RabbitMQ management interface.")
+    )
 
 
 def pytest_load_initial_conftests():
@@ -61,10 +69,7 @@ def always_warn_for_deprecation():
 
 @pytest.fixture
 def empty_config():
-    from nameko.constants import AMQP_URI_CONFIG_KEY
-    return {
-        AMQP_URI_CONFIG_KEY: ""
-    }
+    return {}
 
 
 @pytest.fixture
@@ -86,83 +91,60 @@ def rabbit_manager(request):
     from nameko.testing import rabbit
 
     config = request.config
-    return rabbit.Client(config.getoption('RABBIT_CTL_URI'))
+    return rabbit.Client(config.getoption('RABBIT_API_URI'))
+
+
+@pytest.yield_fixture(scope='session')
+def vhost_pipeline(request, rabbit_manager):
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+    import random
+    import string
+    from nameko.testing.utils import ResourcePipeline
+
+    rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
+    uri_parts = urlparse(rabbit_amqp_uri)
+    username = uri_parts.username
+
+    def create():
+        vhost = "nameko_test_{}".format(
+            "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+        )
+        rabbit_manager.create_vhost(vhost)
+        rabbit_manager.set_vhost_permissions(
+            vhost, username, '.*', '.*', '.*'
+        )
+        return vhost
+
+    def destroy(vhost):
+        rabbit_manager.delete_vhost(vhost)
+
+    pipeline = ResourcePipeline(create, destroy)
+
+    with pipeline.run() as vhosts:
+        yield vhosts
 
 
 @pytest.yield_fixture()
-def rabbit_config(request, rabbit_manager):
-    import itertools
-    import random
-    import string
-    import time
-    from kombu import pools
+def rabbit_config(request, vhost_pipeline, rabbit_manager):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
-    from nameko.testing.utils import get_rabbit_connections
 
-    amqp_uri = request.config.getoption('AMQP_URI')
+    rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
+    uri_parts = urlparse(rabbit_amqp_uri)
+    username = uri_parts.username
 
-    uri = urlparse(amqp_uri)
-    username = uri.username
-    vhost = uri.path[1:]
+    with vhost_pipeline.get() as vhost:
 
-    use_random_vost = (vhost == ":random:")
-
-    if use_random_vost:
-        vhost = "test_{}".format(
-            "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+        amqp_uri = "{uri.scheme}://{uri.netloc}/{vhost}".format(
+            uri=uri_parts, vhost=vhost
         )
-        amqp_uri = "{}://{}/{}".format(uri.scheme, uri.netloc, vhost)
-        rabbit_manager.create_vhost(vhost)
-        rabbit_manager.set_vhost_permissions(vhost, username, '.*', '.*', '.*')
 
-    conf = {
-        'AMQP_URI': amqp_uri,
-        'username': username,
-        'vhost': vhost
-    }
+        conf = {
+            'AMQP_URI': amqp_uri,
+            'username': username,
+            'vhost': vhost
+        }
 
-    yield conf
-
-    pools.reset()  # close connections in pools
-
-    def retry(fn):
-        """ Barebones retry decorator
-        """
-        def wrapper():
-            max_retries = 3
-            delay = 1
-            exceptions = RuntimeError
-
-            counter = itertools.count()
-            while True:
-                try:
-                    return fn()
-                except exceptions:
-                    if next(counter) == max_retries:
-                        raise
-                    time.sleep(delay)
-        return wrapper
-
-    @retry
-    def check_connections():
-        """ Raise a runtime error if the test leaves any connections open.
-
-        Allow a few retries because the rabbit api is eventually consistent.
-        """
-        connections = get_rabbit_connections(conf['vhost'], rabbit_manager)
-        open_connections = [
-            conn for conn in connections if conn['state'] != "closed"
-        ]
-        if open_connections:
-            count = len(open_connections)
-            names = ", ".join(conn['name'] for conn in open_connections)
-            raise RuntimeError(
-                "{} rabbit connection(s) left open: {}".format(count, names))
-    try:
-        check_connections()
-    finally:
-        if use_random_vost:
-            rabbit_manager.delete_vhost(vhost)
+        yield conf
 
 
 @pytest.fixture
@@ -170,6 +152,89 @@ def amqp_uri(rabbit_config):
     from nameko.constants import AMQP_URI_CONFIG_KEY
 
     return rabbit_config[AMQP_URI_CONFIG_KEY]
+
+
+@pytest.yield_fixture(autouse=True)
+def fast_teardown(request):
+    """
+    This fixture fixes the order of the `container_factory`, `runner_factory`
+    and `rabbit_config` fixtures to get the fastest possible teardown of tests
+    that use them.
+
+    Without this fixture, the teardown order depends on the fixture resolution
+    defined by the test, for example::
+
+    def test_foo(container_factory, rabbit_config):
+        pass  # rabbit_config tears down first
+
+    def test_bar(rabbit_config, container_factory):
+        pass  # container_factory tears down first
+
+    This fixture ensures the teardown order is:
+
+        1. `fast_teardown`  (this fixture)
+        2. `rabbit_config`
+        3. `container_factory` / `runner_factory`
+
+    That is, `rabbit_config` teardown, which removes the vhost created for
+    the test, happens *before* the consumers are stopped.
+
+    Deleting the vhost causes the broker to sends a "basic-cancel" message
+    to any connected consumers, which will include the consumers in all
+    containers created by the `container_factory` and `runner_factory`
+    fixtures.
+
+    This speeds up test teardown because the "basic-cancel" breaks
+    the consumers' `drain_events` loop (http://bit.do/kombu-drain-events)
+    which would otherwise wait for up to a second for the socket read to time
+    out before gracefully shutting down.
+
+    For even faster teardown, we monkeypatch the consumers to ensure they
+    don't try to reconnect between the "basic-cancel" and being explicitly
+    stopped when their container is killed.
+
+    In older versions of RabbitMQ, the monkeypatch also protects against a
+    race-condition that can lead to hanging tests.
+
+    Modern RabbitMQ raises a `NotAllowed` exception if you try to connect to
+    a vhost that doesn't exist, but older versions (including 3.4.3, used by
+    Travis) just raise a `socket.error`. This is classed as a recoverable
+    error, and consumers attempt to reconnect. Kombu's reconnection code blocks
+    until a connection is established, so consumers that attempt to reconnect
+    before being killed get stuck there.
+    """
+    from kombu.mixins import ConsumerMixin
+
+    reorder_fixtures = ('container_factory', 'runner_factory', 'rabbit_config')
+    for fixture in reorder_fixtures:
+        if fixture in request.funcargnames:
+            # getfuncargvalue is renamed to getfixturevalue in pytest 3.0
+            if hasattr(request, 'getfixturevalue'):
+                request.getfixturevalue(fixture)  # pragma: no cover
+            else:
+                request.getfuncargvalue(fixture)  # pragma: no cover
+
+    consumers = []
+
+    # monkeypatch the ConsumerMixin constructor to stash a reference to
+    # each instance
+    orig_init = ConsumerMixin.__init__
+
+    def __init__(self, *args, **kwargs):
+        orig_init(self, *args, **kwargs)
+        consumers.append(self)
+
+    ConsumerMixin.__init__ = __init__
+
+    yield
+
+    ConsumerMixin.__init__ = orig_init
+
+    # set the `should_stop` attribute on all consumers *before* the rabbit
+    # vhost is killed, so that they don't try to reconnect before they're
+    # explicitly killed when their container stops.
+    for consumer in consumers:
+        consumer.should_stop = True
 
 
 @pytest.fixture
@@ -196,48 +261,29 @@ def get_message_from_queue(amqp_uri):
     return get
 
 
-@pytest.fixture
-def ensure_cleanup_order(request):
-    """ Ensure ``rabbit_config`` is invoked early if it's used by any fixture
-    in ``request``.
-    """
-    if "rabbit_config" in request.funcargnames:
-        request.getfuncargvalue("rabbit_config")
-
-
 @pytest.yield_fixture
-def container_factory(ensure_cleanup_order):
+def container_factory():
     from nameko.containers import get_container_cls
-    import warnings
 
     all_containers = []
 
-    def make_container(service_cls, config, worker_ctx_cls=None):
+    def make_container(service_cls, config):
 
         container_cls = get_container_cls(config)
-
-        if worker_ctx_cls is not None:
-            warnings.warn(
-                "The constructor of `container_factory` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
-                "Version 2.4.0 for more details.", DeprecationWarning
-            )
-
-        container = container_cls(service_cls, config, worker_ctx_cls)
+        container = container_cls(service_cls, config)
         all_containers.append(container)
         return container
 
     yield make_container
-
     for c in all_containers:
         try:
-            c.stop()
+            c.kill()
         except:  # pragma: no cover
             pass
 
 
 @pytest.yield_fixture
-def runner_factory(ensure_cleanup_order):
+def runner_factory():
     from nameko.runners import ServiceRunner
 
     all_runners = []
@@ -253,7 +299,7 @@ def runner_factory(ensure_cleanup_order):
 
     for r in all_runners:
         try:
-            r.stop()
+            r.kill()
         except:  # pragma: no cover
             pass
 

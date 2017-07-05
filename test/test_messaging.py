@@ -29,14 +29,13 @@ from test import skip_if_no_toxiproxy
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
-CONSUME_TIMEOUT = 1
+CONSUME_TIMEOUT = 1.2  # a bit more than 1 second
 
 
 def test_consume_provider(mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
 
     worker_ctx = WorkerContext(container, None, DummyProvider())
@@ -96,9 +95,10 @@ def test_consume_provider(mock_container):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    mock_connection, mock_producer, mock_container
+    mock_connection, mock_producer, mock_container, rabbit_config
 ):
     container = mock_container
+    container.config = rabbit_config
     container.service_name = "srcservice"
 
     service = Mock()
@@ -138,9 +138,10 @@ def test_publish_to_exchange(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
-    mock_producer, mock_connection, mock_container
+    mock_producer, mock_connection, mock_container, rabbit_config
 ):
     container = mock_container
+    container.config = rabbit_config
     container.shared_extensions = {}
     container.service_name = "srcservice"
 
@@ -184,10 +185,10 @@ def test_publish_to_queue(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
-    mock_container, mock_producer, mock_connection
+    mock_container, mock_producer, mock_connection, rabbit_config
 ):
-
     container = mock_container
+    container.config = rabbit_config
     container.service_name = "srcservice"
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
@@ -266,7 +267,7 @@ def test_header_decoder():
 
         message = Mock(headers=headers)
 
-        res = decoder.unpack_message_headers(None, message)
+        res = decoder.unpack_message_headers(message)
         assert res == {
             'foo': 'FOO',
             'bar': 'BAR',
@@ -373,7 +374,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     content_type = 'application/data'
     container.accept = [content_type]
 
-    def spawn_managed_thread(method):
+    def spawn_managed_thread(method, identifier=None):
         return eventlet.spawn(method)
 
     container.spawn_managed_thread = spawn_managed_thread
@@ -1012,4 +1013,3 @@ class TestPublisherOptionPrecedence(object):
 
         message = get_message_from_queue(queue.name)
         assert message.properties['expiration'] == str(2 * 1000)
-
