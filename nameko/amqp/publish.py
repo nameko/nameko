@@ -116,24 +116,34 @@ class Publisher(object):
         self.amqp_uri = amqp_uri
 
         # publish confirms
-        self.use_confirms = use_confirms or self.use_confirms
+        if use_confirms is not None:
+            self.use_confirms = use_confirms
 
         # delivery options
-        self.delivery_mode = delivery_mode or self.delivery_mode
-        self.mandatory = mandatory or self.mandatory
-        self.priority = priority or self.priority
-        self.expiration = expiration or self.expiration
+        if delivery_mode is not None:
+            self.delivery_mode = delivery_mode
+        if mandatory is not None:
+            self.mandatory = mandatory
+        if priority is not None:
+            self.priority = priority
+        if expiration is not None:
+            self.expiration = expiration
 
         # message options
-        self.serializer = serializer or self.serializer
-        self.compression = compression or self.compression
+        if serializer is not None:
+            self.serializer = serializer
+        if compression is not None:
+            self.compression = compression
 
         # retry policy
-        self.retry = retry or self.retry
-        self.retry_policy = retry_policy or self.retry_policy
+        if retry is not None:
+            self.retry = retry
+        if retry_policy is not None:
+            self.retry_policy = retry_policy
 
         # declarations
-        self.declare = declare or self.declare
+        if declare is not None:
+            self.declare = declare
 
         # other publish arguments
         self.publish_kwargs = publish_kwargs
