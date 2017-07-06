@@ -37,6 +37,7 @@ def get_producer(amqp_uri, confirms=True):
 
 class Publisher(object):
     """
+    Utility helper for publishing messages to RabbitMQ.
     """
 
     use_confirms = True
@@ -57,22 +58,33 @@ class Publisher(object):
 
     mandatory = False
     """
+    Require `mandatory <https://www.rabbitmq.com/amqp-0-9-1-reference.html
+    #basic.publish.mandatory>`_ delivery for published messages.
     """
 
     priority = 0
     """
+    Priority value for published messages, to be used in conjunction with
+    `consumer priorities <https://www.rabbitmq.com/priority.html>_`.
     """
 
     expiration = None
     """
+    `Per-message TTL <https://www.rabbitmq.com/ttl.html>`_, in milliseconds.
     """
 
-    serializer = None
-    """
+    serializer = "json"
+    """ Name of the serializer to use when publishing messages.
+
+    Must be registered as a
+    `kombu serializer <http://bit.do/kombu_serialization>`_.
     """
 
     compression = None
-    """
+    """ Name of the compression to use when publishing messages.
+
+    Must be registered as a
+    `kombu compression utility <http://bit.do/kombu-compression>`_.
     """
 
     retry = True
@@ -92,6 +104,8 @@ class Publisher(object):
 
     declare = []
     """
+    Kombu :class:`~kombu.messaging.Queue` or :class:`~kombu.messaging.Exchange`
+    objects to (re)declare before publishing a message.
     """
 
     def __init__(
@@ -124,8 +138,8 @@ class Publisher(object):
         # other publish arguments
         self.publish_kwargs = publish_kwargs
 
-    def publish(self, msg, **kwargs):
-        """
+    def publish(self, payload, **kwargs):
+        """ Publish a message.
         """
         # merge headers and extra_headers
         headers = kwargs.pop('headers', {}).copy()
@@ -152,7 +166,7 @@ class Publisher(object):
         with get_producer(self.amqp_uri, use_confirms) as producer:
 
             producer.publish(
-                msg,
+                payload,
                 headers=headers,
                 delivery_mode=delivery_mode,
                 mandatory=mandatory,
