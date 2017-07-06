@@ -12,7 +12,7 @@ from test import skip_if_no_toxiproxy
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.rpc import MethodProxy, Responder, rpc
+from nameko.rpc import MethodProxy, Responder, rpc, get_rpc_exchange
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 from nameko.testing.waiting import wait_for_call
@@ -169,7 +169,10 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
             'reply_to': proxy.reply_listener.routing_key,
             'correlation_id': 'invalid',
         })
-        responder = Responder(container.config, message)
+        amqp_uri = container.config['AMQP_URI']
+        exchange = get_rpc_exchange(container.config)
+
+        responder = Responder(amqp_uri, exchange, "json", message)
         with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
             responder.send_response(None, None)
             assert proxy.spam(ham='eggs') == 'eggs'

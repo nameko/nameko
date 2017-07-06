@@ -812,21 +812,24 @@ class TestResponderDisconnections(object):
 
     @pytest.yield_fixture(autouse=True)
     def toxic_responder(self, toxiproxy):
-        with patch.object(Responder, 'amqp_uri', new=toxiproxy.uri):
+        def replacement_constructor(amqp_uri, *args):
+            return Responder(toxiproxy.uri, *args)
+        with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
-        with patch.object(Responder, 'use_confirms', new=request.param):
-            yield request.param
+        value = request.param
+        with patch.object(Responder.Publisher, 'use_confirms', new=value):
+            yield value
 
     @pytest.yield_fixture(autouse=True)
     def retry(self, request):
-        retry = False
+        value = False
         if "publish_retry" in request.keywords:
-            retry = True
+            value = True
 
-        with patch.object(Responder, 'retry', new=retry):
+        with patch.object(Responder.Publisher, 'retry', new=value):
             yield
 
     @pytest.fixture

@@ -113,7 +113,14 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             self.handle_result(message, None, exc_info)
 
     def handle_result(self, message, result, exc_info):
-        responder = Responder(self.container.config, message)
+
+        amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+        serializer = self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+        exchange = get_rpc_exchange(self.container.config)
+
+        responder = Responder(amqp_uri, exchange, serializer, message)
         result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
@@ -186,59 +193,13 @@ class Responder(object):
 
     Publisher = Publisher
 
-    def __init__(self, config, message):
-        self.config = config
+    def __init__(self, amqp_uri, exchange, serializer, message):
+        self.amqp_uri = amqp_uri
+        self.serializer = serializer
         self.message = message
+        self.exchange = exchange
 
-    @property
-    def amqp_uri(self):
-        return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def use_confirms(self):
-        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
-        for this responder's publisher.
-
-        The responder will wait for an acknowledgement from the broker that
-        the message was receieved and processed appropriately, and otherwise
-        raise. Confirms have a performance penalty but guarantee that messages
-        aren't lost, for example due to stale connections.
-
-        It is strongly recommended to use publish confirms in RPC Responders.
-        Without them, replies in an unstable network environment may be lost,
-        leaving the caller waiting indefinitely for a response.
-        """
-        return True
-
-    @property
-    def serializer(self):
-        """ Name of the serializer to use when publishing response payloads.
-
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
-
-    @property
-    def retry(self):
-        """ Enable automatic retries when publishing a message that fails due
-        to a connection error.
-
-        Retries according to :attr:`self.retry_policy`.
-        """
-        return True
-
-    @property
-    def retry_policy(self):
-        """ Policy to apply when retrying message publishes, if enabled.
-
-        See :attr:`self.retry`.
-        """
-        return DEFAULT_RETRY_POLICY
-
-    def send_response(self, result, exc_info, **kwargs):
+    def send_response(self, result, exc_info):
 
         error = None
         if exc_info is not None:
@@ -257,25 +218,19 @@ class Responder(object):
             error = serialize(UnserializableValueError(result))
             result = None
 
-        exchange = get_rpc_exchange(self.config)
-
-        retry = kwargs.pop('retry', self.retry)
-        retry_policy = kwargs.pop('retry_policy', self.retry_policy)
-
-        msg = {'result': result, 'error': error}
+        payload = {'result': result, 'error': error}
 
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
         publisher = self.Publisher(self.amqp_uri, self.use_confirms)
-        publisher.queue = None  # MYB: hack
 
         publisher.publish(
-            msg,
+            payload,
             serializer=self.serializer,
-            exchange=exchange, routing_key=routing_key,
-            retry=retry, retry_policy=retry_policy,
-            correlation_id=correlation_id, **kwargs
+            exchange=self.exchange,
+            routing_key=routing_key,
+            correlation_id=correlation_id
         )
 
         return result, exc_info
