@@ -223,7 +223,7 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.Publisher(self.amqp_uri, self.use_confirms)
+        publisher = self.Publisher(self.amqp_uri)
 
         publisher.publish(
             payload,
