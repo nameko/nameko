@@ -151,9 +151,9 @@ class Publisher(object):
     def publish(self, payload, **kwargs):
         """ Publish a message.
         """
-        # merge headers and extra_headers
+        # merge headers and extra_headers; extra headers win
         headers = kwargs.pop('headers', {}).copy()
-        headers.update(kwargs.pop('extra_headers', {}))  # extra headers win
+        headers.update(kwargs.pop('extra_headers', {}))
 
         # MYB: needs test
         use_confirms = kwargs.pop('use_confirms', self.use_confirms)
