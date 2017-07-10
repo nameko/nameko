@@ -380,16 +380,16 @@ class TestDefaults(object):
     def test_precedence(self, param, producer):
         """ Verify that a default specified as a class attribute can be
         overriden by a default specified at instantiation time, which can
-        further be overriden by a value specified when used. (OOO case)
+        further be overriden by a value specified when used.
         """
-        publisher_cls = type("Publisher", (Publisher,), {param: "a"})
-        publisher = publisher_cls("amqp://", **{param: "b"})
+        publisher_cls = type("Publisher", (Publisher,), {param: "value"})
+        publisher = publisher_cls("amqp://", **{param: True})
 
         publisher.publish("payload")
-        assert producer.publish.call_args[1][param] == "b"
+        assert producer.publish.call_args[1][param] is True
 
-        publisher.publish("payload", **{param: "c"})
-        assert producer.publish.call_args[1][param] == "c"
+        publisher.publish("payload", **{param: False})
+        assert producer.publish.call_args[1][param] is False
 
     def test_declaration_precedence(self, producer):
         """ Verify that declarations at publish time extend any provided
@@ -420,3 +420,4 @@ class TestDefaults(object):
         assert producer.publish.call_args[1]["correlation_id"] == "1"
         # irrelevant keywords pass through transparently
         assert producer.publish.call_args[1]["bogus"] == "bogus"
+
