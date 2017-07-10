@@ -11,6 +11,7 @@ from kombu.compression import get_encoder
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
+from six.moves import queue
 
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer)
@@ -365,9 +366,16 @@ class TestPublisher(object):
 class TestDefaults(object):
 
     @pytest.yield_fixture
-    def producer(self):
+    def get_producer(self):
         with patch('nameko.amqp.publish.get_producer') as get_producer:
-            yield get_producer().__enter__.return_value
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
 
     @pytest.mark.parametrize("param", [
         # delivery options
@@ -396,7 +404,7 @@ class TestDefaults(object):
         at instantiation time.
         """
         queue1 = Mock()
-        publisher = Publisher(declare=[queue1])
+        publisher = Publisher("amqp://", declare=[queue1])
 
         queue2 = Mock()
         publisher.publish("payload", declare=[queue2])
@@ -409,7 +417,7 @@ class TestDefaults(object):
         override any provided at instantiation time in the case of a clash.
         Verify that any keyword argument is transparently passed to kombu.
         """
-        publisher = Publisher(reply_to="queue1")
+        publisher = Publisher("amqp://", reply_to="queue1")
         publisher.publish(
             "payload", reply_to="queue2", correlation_id="1", bogus="bogus"
         )
@@ -421,3 +429,17 @@ class TestDefaults(object):
         # irrelevant keywords pass through transparently
         assert producer.publish.call_args[1]["bogus"] == "bogus"
 
+    def test_use_confirms(self, get_producer):
+        """ Verify that publish-confirms can be set as a default specified at
+        instantiation time, which can be overriden by a value specified at
+        publish time.
+        """
+        publisher = Publisher("amqp://", use_confirms=False)
+
+        publisher.publish("payload")
+        (_, use_confirms), _ = get_producer.call_args
+        assert use_confirms is False
+
+        publisher.publish("payload", use_confirms=True)
+        (_, use_confirms), _ = get_producer.call_args
+        assert use_confirms is True
