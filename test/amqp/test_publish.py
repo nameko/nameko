@@ -10,7 +10,7 @@ from kombu.common import maybe_declare
 from kombu.compression import get_encoder
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
-from mock import ANY, MagicMock, call, patch
+from mock import ANY, MagicMock, Mock, call, patch
 
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer)
@@ -360,3 +360,63 @@ class TestPublisher(object):
             with pytest.raises(RecoverableConnectionError):
                 publisher.publish("payload", retry_policy=retry_policy)
         assert mock_publish.call_count == 1 + expected_retries
+
+
+class TestDefaults(object):
+
+    @pytest.yield_fixture
+    def producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer().__enter__.return_value
+
+    @pytest.mark.parametrize("param", [
+        # delivery options
+        'delivery_mode', 'mandatory', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy'
+    ])
+    def test_precedence(self, param, producer):
+        """ Verify that a default specified as a class attribute can be
+        overriden by a default specified at instantiation time, which can
+        further be overriden by a value specified when used. (OOO case)
+        """
+        publisher_cls = type("Publisher", (Publisher,), {param: "a"})
+        publisher = publisher_cls("amqp://", **{param: "b"})
+
+        publisher.publish("payload")
+        assert producer.publish.call_args[1][param] == "b"
+
+        publisher.publish("payload", **{param: "c"})
+        assert producer.publish.call_args[1][param] == "c"
+
+    def test_declaration_precedence(self, producer):
+        """ Verify that declarations at publish time extend any provided
+        at instantiation time.
+        """
+        queue1 = Mock()
+        publisher = Publisher(declare=[queue1])
+
+        queue2 = Mock()
+        publisher.publish("payload", declare=[queue2])
+
+        assert producer.publish.call_args[1]["declare"] == [queue1, queue2]
+
+    def test_publish_kwargs(self, producer):
+        """ Verify that publish_kwargs at publish time augment any provided
+        at instantiation time. Verify that publish_kwargs at publish time
+        override any provided at instantiation time in the case of a clash.
+        Verify that any keyword argument is transparently passed to kombu.
+        """
+        publisher = Publisher(reply_to="queue1")
+        publisher.publish(
+            "payload", reply_to="queue2", correlation_id="1", bogus="bogus"
+        )
+
+        # publish-time kwargs override indtantiation-time kwargs
+        assert producer.publish.call_args[1]["reply_to"] == "queue2"
+        # publish-time kwargs augment instantiation-time kwargs
+        assert producer.publish.call_args[1]["correlation_id"] == "1"
+        # irrelevant keywords pass through transparently
+        assert producer.publish.call_args[1]["bogus"] == "bogus"
