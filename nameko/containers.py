@@ -3,7 +3,6 @@ from __future__ import absolute_import, unicode_literals
 import inspect
 import sys
 import uuid
-import warnings
 from collections import deque
 from logging import getLogger
 
@@ -119,22 +118,10 @@ class WorkerContext(object):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, config, worker_ctx_cls=None):
+    def __init__(self, service_cls, config):
 
         self.service_cls = service_cls
         self.config = config
-
-        if worker_ctx_cls is not None:
-            warnings.warn(
-                "The constructor of `ServiceContainer` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
-                "version 2.4.0 for more details. This warning will be removed "
-                "in version 2.6.0", DeprecationWarning
-            )
-        else:
-            worker_ctx_cls = WorkerContext
-
-        self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
         self.shared_extensions = {}
@@ -341,8 +328,9 @@ class ServiceContainer(object):
             raise ContainerBeingKilled()
 
         service = self.service_cls()
-        worker_ctx = self.worker_ctx_cls(
-            self, service, entrypoint, args, kwargs, data=context_data)
+        worker_ctx = WorkerContext(
+            self, service, entrypoint, args, kwargs, data=context_data
+        )
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(
@@ -353,7 +341,7 @@ class ServiceContainer(object):
         self._worker_threads[worker_ctx] = gt
         return worker_ctx
 
-    def spawn_managed_thread(self, fn, protected=None, identifier=None):
+    def spawn_managed_thread(self, fn, identifier=None):
         """ Spawn a managed thread to run ``fn`` on behalf of an extension.
         The passed `identifier` will be included in logs related to this
         thread, and otherwise defaults to `fn.__name__`, if it is set.
@@ -366,15 +354,6 @@ class ServiceContainer(object):
 
         Extensions should delegate all thread spawning to the container.
         """
-        if protected is not None:
-            warnings.warn(
-                "The signature of `spawn_managed_thread` has changed. "
-                "The `protected` kwarg is now deprecated, and extensions "
-                "can pass an idenifier as a keyword argument for better "
-                "logging. See :meth:`nameko.containers.ServiceContainer."
-                "spawn_managed_thread`. This warning will be removed in "
-                "version 2.6.0.", DeprecationWarning
-            )
         if identifier is None:
             identifier = getattr(fn, '__name__', "<unknown>")
 

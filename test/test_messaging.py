@@ -24,7 +24,7 @@ from test import skip_if_no_toxiproxy
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 
-CONSUME_TIMEOUT = 1
+CONSUME_TIMEOUT = 1.2  # a bit more than 1 second
 
 
 @pytest.yield_fixture
@@ -43,7 +43,6 @@ def test_consume_provider(mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
 
     worker_ctx = WorkerContext(container, None, DummyProvider())
@@ -240,7 +239,7 @@ def test_header_decoder():
 
         message = Mock(headers=headers)
 
-        res = decoder.unpack_message_headers(None, message)
+        res = decoder.unpack_message_headers(message)
         assert res == {
             'foo': 'FOO',
             'bar': 'BAR',
@@ -345,7 +344,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     content_type = 'application/data'
     container.accept = [content_type]
 
-    def spawn_managed_thread(method):
+    def spawn_managed_thread(method, identifier=None):
         return eventlet.spawn(method)
 
     container.spawn_managed_thread = spawn_managed_thread

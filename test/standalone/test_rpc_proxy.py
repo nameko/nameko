@@ -1,7 +1,9 @@
+import itertools
 import socket
 
 import eventlet
 import pytest
+from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
 
@@ -13,7 +15,8 @@ from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, rpc
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
-from nameko.testing.waiting import wait_for_call as patch_wait
+from nameko.testing.waiting import wait_for_call
+from nameko.utils.retry import retry
 
 # uses autospec on method; needs newer mock for py3
 try:
@@ -215,24 +218,25 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
         res.result()
 
 
-class ExampleService(object):
-    name = "exampleservice"
-
-    def callback(self):
-        # to be patched out with mock
-        pass  # pragma: no cover
-
-    @rpc
-    def method(self, arg):
-        self.callback()
-        return arg
-
-
 def test_disconnect_with_pending_reply(
-        container_factory, rabbit_manager, rabbit_config):
+    container_factory, rabbit_manager, rabbit_config
+):
+    block = Event()
 
-    example_container = container_factory(ExampleService, rabbit_config)
-    example_container.start()
+    class ExampleService(object):
+        name = "exampleservice"
+
+        def hook(self):
+            pass  # pragma: no cover
+
+        @rpc
+        def method(self, arg):
+            self.hook()
+            block.wait()
+            return arg
+
+    container = container_factory(ExampleService, rabbit_config)
+    container.start()
 
     vhost = rabbit_config['vhost']
 
@@ -243,33 +247,56 @@ def test_disconnect_with_pending_reply(
     container_connection = connections[0]
 
     with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
+
+        # grab the proxy's connection too, the only other connection
         connections = get_rabbit_connections(vhost, rabbit_manager)
         assert len(connections) == 2
         proxy_connection = [
-            conn for conn in connections if conn != container_connection][0]
+            conn for conn in connections if conn != container_connection
+        ][0]
 
-        def disconnect_once(self):
-            if hasattr(disconnect_once, 'called'):
-                return
-            disconnect_once.called = True
-            rabbit_manager.delete_connection(proxy_connection['name'])
+        counter = itertools.count(start=1)
 
-        with patch.object(ExampleService, 'callback', disconnect_once):
+        class ConnectionStillOpen(Exception):
+            pass
 
-            async = proxy.method.call_async('hello')
+        @retry(for_exceptions=ConnectionStillOpen, delay=0.2)
+        def wait_for_connection_close(name):
+            connections = get_rabbit_connections(vhost, rabbit_manager)
+            for conn in connections:
+                if conn['name'] == name:
+                    raise ConnectionStillOpen(name)  # pragma: no cover
 
-            # if disconnecting while waiting for a reply, call fails
+        def cb(args, kwargs, res, exc_info):
+            # trigger a disconnection on the second call.
+            # release running workers once the connection has been closed
+            count = next(counter)
+            if count == 2:
+                rabbit_manager.delete_connection(proxy_connection['name'])
+                wait_for_connection_close(proxy_connection['name'])
+                block.send(True)
+                return True
+
+        # attach a callback to `hook` so we can close the connection
+        # while there are requests in-flight
+        with wait_for_call(ExampleService, 'hook', callback=cb):
+
+            # make an async call that runs for some time
+            async_call = proxy.method.call_async("hello")
+
+            # make another call that will trigger the disconnection;
+            # expect the blocking proxy to raise when the service reconnects
             with pytest.raises(RpcConnectionError):
-                proxy.method('hello')
+                proxy.method("hello")
 
-            # the failure above also has to consider any other pending calls a
-            # failure, since the reply may have been sent while the queue was
-            # gone (deleted on disconnect, and not added until re-connect)
+            # also expect the running call to raise, since the reply may have
+            # been sent while the queue was gone (deleted on disconnect, and
+            # not added until re-connect)
             with pytest.raises(RpcConnectionError):
-                async.result()
+                async_call.result()
 
-            # proxy should work again afterwards
-            assert proxy.method('hello') == 'hello'
+        # proxy should work again afterwards
+        assert proxy.method("hello") == "hello"
 
 
 def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):
@@ -543,7 +570,7 @@ class TestStandaloneProxyDisconnections(object):
             return True
 
         # subsequent calls succeed (after reconnecting via retry policy)
-        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
 
 

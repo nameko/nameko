@@ -12,7 +12,7 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='2.5.2',
+    version='2.6.0',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
@@ -29,19 +29,21 @@ setup(
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
+        "wrapt>=1.0.0",
     ],
     extras_require={
         'dev': [
-            "coverage==4.2",
-            "flake8==3.2.1",
-            "mccabe==0.5.2",
-            "pycodestyle==2.2.0",
-            "pyflakes==1.3.0",
-            "pylint==1.6.4",
+            "coverage==4.4.1",
+            "flake8==3.3.0",
+            "mccabe==0.6.1",
+            "pycodestyle==2.3.1",
+            "pyflakes==1.5.0",
+            "pylint==1.7.1",
             "pytest==2.7.3",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
-            "urllib3==1.10.2",
+            "requests==2.17.3",
+            "urllib3==1.21.1",
             "websocket-client==0.23.0",
         ],
         'docs': [

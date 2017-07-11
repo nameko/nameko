@@ -1,4 +1,6 @@
+import itertools
 import socket
+import time
 import uuid
 
 import eventlet
@@ -7,11 +9,15 @@ from eventlet.event import Event
 from kombu import Connection, Exchange, Queue
 from kombu.exceptions import TimeoutError
 from mock import ANY, Mock, call, patch
+
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY)
+from nameko.events import event_handler
 from nameko.messaging import QueueConsumer
-from nameko.rpc import RpcConsumer, rpc
+from nameko.rpc import RpcProxy, rpc
+from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections)
 
@@ -40,7 +46,7 @@ class MessageHandler(object):
         return self.handle_message_called.wait()
 
 
-def spawn_managed_thread(method):
+def spawn_managed_thread(method, identifier=None):
     return eventlet.spawn(method)
 
 
@@ -289,23 +295,18 @@ def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
     queue_consumer2.start()
 
     vhost = rabbit_config['vhost']
-    # the first consumer only has a prefetch_count of 1 and will only
-    # consume 1 message and wait in handler1()
-    rabbit_manager.publish(vhost, 'spam', '', 'ham',
-                           properties=dict(content_type=content_type))
-    # the next message will go to handler2() no matter of any prefetch_count
-    rabbit_manager.publish(vhost, 'spam', '', 'eggs',
-                           properties=dict(content_type=content_type))
-    # the third message is only going to handler2 because the first consumer
-    # has a prefetch_count of 1 and thus is unable to deal with another message
-    # until having ACKed the first one
-    rabbit_manager.publish(vhost, 'spam', '', 'bacon',
-                           properties=dict(content_type=content_type))
+    # the two handlers would ordinarily take alternating messages, but are
+    # limited to holding 1 un-ACKed message. Since handler 1 never ACKs, it
+    # only ever gets message 'a'; handler 2 gets the others.
+    for message in ('a', 'b', 'c'):
+        rabbit_manager.publish(vhost, 'spam', '', message, properties=dict(
+            content_type=content_type)
+        )
 
     # allow the waiting consumer to ack its message
     consumer_continue.send(None)
 
-    assert messages == ['eggs', 'bacon']
+    assert messages == ['b', 'c']
 
     queue_consumer1.unregister_provider(handler1)
     queue_consumer2.unregister_provider(handler2)
@@ -380,6 +381,79 @@ class TestHeartbeats(object):
         assert queue_consumer.connection.heartbeat == heartbeat
 
 
+class TestDeadlockRegression(object):
+    """ Regression test for https://github.com/nameko/nameko/issues/428
+    """
+
+    @pytest.fixture
+    def config(self, rabbit_config):
+        config = rabbit_config.copy()
+        config['max_workers'] = 2
+        return config
+
+    @pytest.fixture
+    def upstream(self, container_factory, config):
+
+        class Service(object):
+            name = "upstream"
+
+            @rpc
+            def method(self):
+                time.sleep(.5)
+
+        container = container_factory(Service, config)
+        container.start()
+
+    @pytest.fixture
+    def service_cls(self):
+
+        class Service(object):
+            name = "downsteam"
+
+            upstream_rpc = RpcProxy("upstream")
+
+            @event_handler('service', 'event1')
+            def handle_event1(self, event_data):
+                self.upstream_rpc.method()
+
+            @event_handler('service', 'event2')
+            def handle_event2(self, event_data):
+                self.upstream_rpc.method()
+
+        return Service
+
+    @pytest.mark.usefixtures('upstream')
+    def test_deadlock_due_to_slow_workers(
+        self, service_cls, container_factory, config
+    ):
+        """ Deadlock will occur if the unack'd messages grows beyond the
+        size of the worker pool at any point. The QueueConsumer will block
+        waiting for a worker and pending RPC replies will not be ack'd.
+        Any running workers therefore never complete, and the worker pool
+        remains exhausted.
+        """
+        container = container_factory(service_cls, config)
+        container.start()
+
+        count = 2
+
+        dispatch = event_dispatcher(config)
+        for _ in range(count):
+            dispatch("service", "event1", 1)
+            dispatch("service", "event2", 1)
+
+        counter = itertools.count(start=1)
+
+        def cb(worker_ctx, res, exc_info):
+            if next(counter) == count:
+                return True
+
+        with entrypoint_waiter(
+            container, 'handle_event1', timeout=5, callback=cb
+        ):
+            pass
+
+
 def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
     class Service(object):
@@ -391,25 +465,28 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
     container = container_factory(Service, rabbit_config)
     queue_consumer = get_extension(container, QueueConsumer)
-    rpc_consumer = get_extension(container, RpcConsumer)
 
-    # an error in rpc_consumer.handle_message will kill the queue_consumer's
-    # greenthread. when the container suicides and kills the queue_consumer,
-    # it should warn instead of re-raising the original exception
-    exc = Exception('error handling message')
-    with patch.object(rpc_consumer, 'handle_message') as handle_message:
-        handle_message.side_effect = exc
+    # an error in the queue_consumer's greenthread will bubble up to the
+    # container that manages the thread. when the container suicides and
+    # kills the queue_consumer, it should warn instead of re-raising the
+    # original exception
+
+    exc = Exception('error cancelling consumers')
+    with patch.object(
+        queue_consumer, '_cancel_consumers_if_requested'
+    ) as cancel_consumers:
+        cancel_consumers.side_effect = exc
 
         container.start()
 
         with ServiceRpcProxy('service', rabbit_config) as service_rpc:
-            # spawn because `echo` will never respond
-            eventlet.spawn(service_rpc.echo, "foo")
+            # async because `echo` will never respond
+            service_rpc.echo.call_async("foo")
 
-    # container will have died with the messaging handling error
+    # container will have died with the messaging ack'ing error
     with pytest.raises(Exception) as exc_info:
         container.wait()
-    assert str(exc_info.value) == "error handling message"
+    assert str(exc_info.value) == str(exc)
 
     # queueconsumer will have warned about the exc raised by its greenthread
     assert logger.warn.call_args_list == [
