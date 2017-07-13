@@ -21,7 +21,7 @@ from nameko.messaging import (
     Consumer, HeaderDecoder, HeaderEncoder, Publisher, QueueConsumer, consume)
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
-    ANY_PARTIAL, DummyProvider, get_extension, wait_for_call)
+    ANY_PARTIAL, DummyProvider, get_extension, wait_for_call, unpack_mock_call)
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
@@ -908,108 +908,28 @@ class TestPublisherDisconnections(object):
             ]
 
 
-class TestPublisherOptionPrecedence(object):
+class TestBackwardsCompatClassAttrs(object):
 
-    @pytest.fixture
-    def routing_key(self):
-        return "routing_key"
-
-    @pytest.fixture
-    def exchange(self, amqp_uri):
-        """ Make a "sniffer" queue bound to the exchange receiving messages
+    @pytest.mark.parametrize("parameter,value", [
+        ('retry', False),
+        ('retry_policy', {'max_retries': 999}),
+        ('use_confirms', False),
+    ])
+    def test_attrs_are_applied(self, parameter, value, mock_container):
+        """ Verify that you can specify some fields by subclassing the
+        EventDispatcher DependencyProvider.
         """
-        exchange = Exchange(name="exchange")
-        with get_connection(amqp_uri) as connection:
-            maybe_declare(exchange, connection)
-        return exchange
-
-    @pytest.fixture
-    def queue(self, amqp_uri, exchange, routing_key):
-        queue = Queue(
-            name="queue", exchange=exchange, routing_key=routing_key
+        publisher_cls = type(
+            "LegacPublisher", (Publisher,), {parameter: value}
         )
+        with patch('nameko.messaging.warnings') as warnings:
+            mock_container.config = {'AMQP_URI': 'amqp://localhost'}
+            mock_container.service_name = "service"
+            publisher = publisher_cls().bind(mock_container, "publish")
+        assert warnings.warn.called
+        call_args = warnings.warn.call_args
+        assert parameter in unpack_mock_call(call_args).positional[0]
 
-        with get_connection(amqp_uri) as connection:
-            maybe_declare(queue, connection)
-        return queue
+        publisher.setup()
+        assert getattr(publisher.publisher, parameter) == value
 
-    @pytest.fixture
-    def service_base(self, exchange):
-
-        class Service(object):
-            name = "service"
-
-            publish = Publisher(exchange=exchange)
-
-            @dummy
-            def proxy(self, *args, **kwargs):
-                self.publish(*args, **kwargs)
-
-        return Service
-
-    def test_subclass(
-        self, container_factory, rabbit_config, get_message_from_queue, queue,
-        service_base, routing_key, exchange
-    ):
-
-        class ExpiringPublisher(Publisher):
-            class Publisher(Publisher.Publisher):
-                expiration = 1
-
-        class Service(service_base):
-            publish = ExpiringPublisher(exchange=exchange)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        with entrypoint_hook(container, "proxy") as publish:
-            publish("payload", routing_key=routing_key)
-
-        message = get_message_from_queue(queue.name)
-        assert message.properties['expiration'] == str(1 * 1000)
-
-    def test_declare_time(
-        self, container_factory, rabbit_config, get_message_from_queue, queue,
-        service_base, routing_key, exchange
-    ):
-
-        class Service(service_base):
-            publish = Publisher(exchange=exchange, expiration=1)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        with entrypoint_hook(container, "proxy") as publish:
-            publish("payload", routing_key=routing_key)
-
-        message = get_message_from_queue(queue.name)
-        assert message.properties['expiration'] == str(1 * 1000)
-
-    def test_publish_time(
-        self, container_factory, rabbit_config, get_message_from_queue, queue,
-        service_base, routing_key
-    ):
-        container = container_factory(service_base, rabbit_config)
-        container.start()
-
-        with entrypoint_hook(container, "proxy") as publish:
-            publish("payload", routing_key=routing_key, expiration=1)
-
-        message = get_message_from_queue(queue.name)
-        assert message.properties['expiration'] == str(1 * 1000)
-
-    def test_publish_time_override(
-        self, container_factory, rabbit_config, get_message_from_queue, queue,
-        service_base, routing_key, exchange
-    ):
-        class Service(service_base):
-            publish = Publisher(exchange=exchange, expiration=1)
-
-        container = container_factory(service_base, rabbit_config)
-        container.start()
-
-        with entrypoint_hook(container, "proxy") as publish:
-            publish("payload", routing_key=routing_key, expiration=2)
-
-        message = get_message_from_queue(queue.name)
-        assert message.properties['expiration'] == str(2 * 1000)

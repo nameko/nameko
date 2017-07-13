@@ -155,7 +155,6 @@ class Publisher(object):
         headers = kwargs.pop('headers', {}).copy()
         headers.update(kwargs.pop('extra_headers', {}))
 
-        # MYB: needs test
         use_confirms = kwargs.pop('use_confirms', self.use_confirms)
 
         delivery_mode = kwargs.pop('delivery_mode', self.delivery_mode)
