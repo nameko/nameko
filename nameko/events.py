@@ -75,8 +75,9 @@ class EventDispatcher(Publisher):
                 self.dispatch_spam('spam.ham', evt_data)
 
     """
+
     def __init__(self, **defaults):
-        super(EventDispatcher, self).__init__(exchange=None, **defaults)  # TODO: test/raise to say cannot provide exchange as default?
+        super(EventDispatcher, self).__init__(exchange=None, **defaults)
 
     def setup(self):
         self.exchange = get_event_exchange(self.container.service_name)
@@ -88,12 +89,11 @@ class EventDispatcher(Publisher):
         """
         propagate_headers = self.get_message_headers(worker_ctx)
 
-        def dispatch(event_type, event_data, **kwargs):
+        def dispatch(event_type, event_data):
             self.publisher.publish(
                 event_data,
                 routing_key=event_type,
-                extra_headers=propagate_headers,
-                **kwargs
+                extra_headers=propagate_headers
             )
 
         return dispatch

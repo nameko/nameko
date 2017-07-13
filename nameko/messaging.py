@@ -118,7 +118,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 "is now deprecated. You can use the `declare` kwarg "
                 "to provide a list of Kombu queues to be declared. "
                 "See CHANGES, version 2.5.2 for more details. This warning "
-                "will be removed in version 2.7.0.",
+                "will be removed in version 2.8.0.",
                 DeprecationWarning
             )
             if exchange is None:
@@ -126,15 +126,17 @@ class Publisher(DependencyProvider, HeaderEncoder):
             self.declare.append(queue)
 
         # backwards compat
-        # TODO: should put serializer here too?
-        for compat_attr in ('retry', 'retry_policy', 'use_confirms'):
-            # TODO: warn
-            if hasattr(self, compat_attr):
-                self.defaults[compat_attr] = getattr(self, compat_attr)
+        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
 
-        # need: tests that just use the publisher core
-        # need: tests for sublassing and overriding attrs here
-        # then: get rid of propagating headers
+        for compat_attr in compat_attrs:
+            if hasattr(self, compat_attr):
+                warnings.warn(
+                    "'{}' should be specified at instantiation time rather "
+                    "than as a class attribute. See CHANGES, version 2.7.0 "
+                    "for more details. This warning will be removed in "
+                    "version 2.9.0.".format(compat_attr), DeprecationWarning
+                )
+                self.defaults[compat_attr] = getattr(self, compat_attr)
 
     @property
     def amqp_uri(self):

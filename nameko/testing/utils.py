@@ -3,11 +3,13 @@ Common testing utilities.
 """
 import socket
 import warnings
+from collections import namedtuple
 from contextlib import contextmanager
 from functools import partial
 
 import eventlet
 
+from nameko.containers import ServiceContainer
 from nameko.extensions import Entrypoint
 from nameko.testing.rabbit import HTTPError
 
@@ -87,6 +89,13 @@ def assert_stops_raising(fn, exception_type=Exception, timeout=10,
             else:
                 return
             eventlet.sleep(interval)
+
+
+MockCallArgs = namedtuple("MockCallArgs", ["positional", "keyword"])
+
+
+def unpack_mock_call(call):
+    return MockCallArgs(*call)
 
 
 class AnyInstanceOf(object):
