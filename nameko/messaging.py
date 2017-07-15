@@ -107,7 +107,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         self.exchange = exchange
         self.defaults = defaults
 
-        self.declare = []
+        self.declare = self.defaults.pop('declare', [])[:]
 
         if self.exchange:
             self.declare.append(self.exchange)
@@ -144,7 +144,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     @property
     def serializer(self):
-        """ Name of the serializer to use when publishing messages.
+        """ Default serializer to use when publishing messages.
 
         Must be registered as a
         `kombu serializer <http://bit.do/kombu_serialization>`_.
@@ -157,9 +157,11 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         verify_amqp_uri(self.amqp_uri)
 
+        serializer = self.defaults.pop('serializer', self.serializer)
+
         self.publisher = self.Publisher(
             self.amqp_uri,
-            serializer=self.serializer,
+            serializer=serializer,
             exchange=self.exchange,
             declare=self.declare,
             **self.defaults
@@ -169,7 +171,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
         propagate_headers = self.get_message_headers(worker_ctx)
 
         def publish(msg, **kwargs):
-
             self.publisher.publish(
                 msg, extra_headers=propagate_headers, **kwargs
             )
