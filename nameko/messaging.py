@@ -11,10 +11,12 @@ import six
 from eventlet.event import Event
 from amqp.exceptions import RecoverableConnectionError
 from kombu import Connection
+from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
 
-from nameko.amqp import verify_amqp_uri
 from nameko.amqp.publish import Publisher as PublisherCore
+from nameko.amqp.publish import get_connection
+from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
     DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
@@ -74,7 +76,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     Publisher = PublisherCore
 
-    def __init__(self, exchange=None, queue=None, **defaults):
+    def __init__(self, exchange=None, queue=None, declare=None, **defaults):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP, messages are published to *exchanges* and routed to bound
@@ -91,6 +93,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
             queue : :class:`kombu.Queue`
                 **Deprecated**: Bound queue. The event will be published to
                 this queue's exchange.
+            declare : list
+                List of :class:`kombu.Exchange` or :class:`kombu.Queue` objects
+                to declare before publishing.
 
         If `exchange` is not provided, the message will be published to the
         default exchange.
@@ -107,7 +112,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         self.exchange = exchange
         self.defaults = defaults
 
-        self.declare = self.defaults.pop('declare', [])[:]
+        self.declare = declare.copy() if declare is not None else []
 
         if self.exchange:
             self.declare.append(self.exchange)
@@ -156,6 +161,10 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def setup(self):
 
         verify_amqp_uri(self.amqp_uri)
+
+        with get_connection(self.amqp_uri) as conn:
+            for entity in self.declare:
+                maybe_declare(entity, conn)
 
         serializer = self.defaults.pop('serializer', self.serializer)
 
