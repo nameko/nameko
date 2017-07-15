@@ -669,10 +669,6 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     dispatcher.setup()
     dispatcher.start()
 
-    # dispatch a message to make declarations
-    service.dispatch = dispatcher.get_dependency(worker_ctx)
-    service.dispatch("eventtype", "msg")
-
     # we should have an exchange but no queues
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
@@ -684,7 +680,6 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     rabbit_manager.create_queue_binding(
         vhost, "srcservice.events", "event-sink", routing_key="eventtype")
 
-    # dispatch another message
     service.dispatch = dispatcher.get_dependency(worker_ctx)
     service.dispatch("eventtype", "msg")
 
