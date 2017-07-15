@@ -112,7 +112,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         self.exchange = exchange
         self.defaults = defaults
 
-        self.declare = declare.copy() if declare is not None else []
+        self.declare = declare[:] if declare is not None else []
 
         if self.exchange:
             self.declare.append(self.exchange)
