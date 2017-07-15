@@ -2,19 +2,14 @@ from __future__ import absolute_import
 
 import socket
 from contextlib import contextmanager
-from datetime import datetime
 from six.moves import queue
 
 import eventlet
 import pytest
-from amqp.exceptions import PreconditionFailed
 from kombu import Exchange, Queue
-from kombu.common import maybe_declare
-from kombu.compression import get_encoder
 from kombu.connection import Connection
-from kombu.serialization import registry
-from mock import Mock, call, patch, ANY
-from nameko.amqp import UndeliverableMessage, get_connection, get_producer
+from mock import Mock, call, patch
+from nameko.amqp import get_producer
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
@@ -298,8 +293,8 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish"
-    )
+        exchange=foobar_ex, queue=foobar_queue
+    ).bind(container, "publish")
 
     publisher.setup()
     publisher.start()

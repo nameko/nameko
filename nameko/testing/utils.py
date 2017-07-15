@@ -9,7 +9,6 @@ from functools import partial
 
 import eventlet
 
-from nameko.containers import ServiceContainer
 from nameko.extensions import Entrypoint
 from nameko.testing.rabbit import HTTPError
 
