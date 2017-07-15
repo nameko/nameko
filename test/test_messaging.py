@@ -28,6 +28,12 @@ foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 CONSUME_TIMEOUT = 1.2  # a bit more than 1 second
 
 
+@pytest.yield_fixture
+def patch_maybe_declare():
+    with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
+        yield patched
+
+
 def test_consume_provider(mock_container):
 
     container = mock_container
@@ -91,17 +97,22 @@ def test_consume_provider(mock_container):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    mock_connection, mock_producer, mock_container, rabbit_config
+    patch_maybe_declare, mock_connection, mock_producer, mock_container
 ):
     container = mock_container
-    container.config = rabbit_config
+    container.config = {'AMQP_URI': 'memory://'}
     container.service_name = "srcservice"
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("publish"))
 
     publisher = Publisher(exchange=foobar_ex).bind(container, "publish")
+
+    # test declarations
     publisher.setup()
+    assert patch_maybe_declare.call_args_list == [
+        call(foobar_ex, mock_connection)
+    ]
 
     # test publish
     msg = "msg"
@@ -134,10 +145,10 @@ def test_publish_to_exchange(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
-    mock_producer, mock_connection, mock_container, rabbit_config
+    patch_maybe_declare, mock_producer, mock_connection, mock_container
 ):
     container = mock_container
-    container.config = rabbit_config
+    container.config = {'AMQP_URI': 'memory://'}
     container.shared_extensions = {}
     container.service_name = "srcservice"
 
@@ -147,7 +158,12 @@ def test_publish_to_queue(
         container, service, DummyProvider("publish"), data=ctx_data)
 
     publisher = Publisher(queue=foobar_queue).bind(container, "publish")
+
+    # test declarations
     publisher.setup()
+    assert patch_maybe_declare.call_args_list == [
+        call(foobar_queue, mock_connection)
+    ]
 
     # test publish
     msg = "msg"
@@ -299,9 +315,6 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     publisher.setup()
     publisher.start()
 
-    service.publish = publisher.get_dependency(worker_ctx)
-    service.publish("msg")
-
     # test queue, exchange and binding created in rabbit
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
@@ -310,6 +323,9 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     assert "foobar_ex" in [exchange['name'] for exchange in exchanges]
     assert "foobar_queue" in [queue['name'] for queue in queues]
     assert "foobar_ex" in [binding['source'] for binding in bindings]
+
+    service.publish = publisher.get_dependency(worker_ctx)
+    service.publish("msg")
 
     # test message published to queue
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
