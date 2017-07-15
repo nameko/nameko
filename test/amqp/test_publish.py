@@ -399,6 +399,21 @@ class TestDefaults(object):
         publisher.publish("payload", **{param: False})
         assert producer.publish.call_args[1][param] is False
 
+    def test_header_precedence(self, producer):
+        """ Verify that headers at publish time extend any provided
+        at instantiation time.
+        """
+        headers1 = {'h1': Mock()}
+        publisher = Publisher("amqp://", headers=headers1)
+
+        headers2 = {'h2': Mock()}
+        publisher.publish("payload", headers=headers2)
+
+        combined_headers = headers1.copy()
+        combined_headers.update(headers2)
+
+        assert producer.publish.call_args[1]["headers"] == combined_headers
+
     def test_declaration_precedence(self, producer):
         """ Verify that declarations at publish time extend any provided
         at instantiation time.
@@ -422,7 +437,7 @@ class TestDefaults(object):
             "payload", reply_to="queue2", correlation_id="1", bogus="bogus"
         )
 
-        # publish-time kwargs override indtantiation-time kwargs
+        # publish-time kwargs override instantiation-time kwargs
         assert producer.publish.call_args[1]["reply_to"] == "queue2"
         # publish-time kwargs augment instantiation-time kwargs
         assert producer.publish.call_args[1]["correlation_id"] == "1"
@@ -434,7 +449,7 @@ class TestDefaults(object):
         instantiation time, which can be overriden by a value specified at
         publish time.
         """
-        publisher = Publisher("amqp://", use_confirms=False)
+        publisher = Publisher("amqp://", use_confirms=False)  # MYB: needs to be "memory://"
 
         publisher.publish("payload")
         (_, use_confirms), _ = get_producer.call_args
