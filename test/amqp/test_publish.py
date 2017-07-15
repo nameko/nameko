@@ -391,7 +391,7 @@ class TestDefaults(object):
         further be overriden by a value specified when used.
         """
         publisher_cls = type("Publisher", (Publisher,), {param: "value"})
-        publisher = publisher_cls("amqp://", **{param: True})
+        publisher = publisher_cls("memory://", **{param: True})
 
         publisher.publish("payload")
         assert producer.publish.call_args[1][param] is True
@@ -404,7 +404,7 @@ class TestDefaults(object):
         at instantiation time.
         """
         headers1 = {'h1': Mock()}
-        publisher = Publisher("amqp://", headers=headers1)
+        publisher = Publisher("memory://", headers=headers1)
 
         headers2 = {'h2': Mock()}
         publisher.publish("payload", headers=headers2)
@@ -419,7 +419,7 @@ class TestDefaults(object):
         at instantiation time.
         """
         queue1 = Mock()
-        publisher = Publisher("amqp://", declare=[queue1])
+        publisher = Publisher("memory://", declare=[queue1])
 
         queue2 = Mock()
         publisher.publish("payload", declare=[queue2])
@@ -432,7 +432,7 @@ class TestDefaults(object):
         override any provided at instantiation time in the case of a clash.
         Verify that any keyword argument is transparently passed to kombu.
         """
-        publisher = Publisher("amqp://", reply_to="queue1")
+        publisher = Publisher("memory://", reply_to="queue1")
         publisher.publish(
             "payload", reply_to="queue2", correlation_id="1", bogus="bogus"
         )
@@ -449,7 +449,7 @@ class TestDefaults(object):
         instantiation time, which can be overriden by a value specified at
         publish time.
         """
-        publisher = Publisher("amqp://", use_confirms=False)  # MYB: needs to be "memory://"
+        publisher = Publisher("memory://", use_confirms=False)
 
         publisher.publish("payload")
         (_, use_confirms), _ = get_producer.call_args
