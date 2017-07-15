@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import socket
 from contextlib import contextmanager
 from datetime import datetime
+from six.moves import queue
 
 import eventlet
 import pytest
@@ -915,7 +916,9 @@ class TestBackwardsCompatClassAttrs(object):
         ('retry_policy', {'max_retries': 999}),
         ('use_confirms', False),
     ])
-    def test_attrs_are_applied(self, parameter, value, mock_container):
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
         """ Verify that you can specify some fields by subclassing the
         EventDispatcher DependencyProvider.
         """
@@ -923,7 +926,7 @@ class TestBackwardsCompatClassAttrs(object):
             "LegacPublisher", (Publisher,), {parameter: value}
         )
         with patch('nameko.messaging.warnings') as warnings:
-            mock_container.config = {'AMQP_URI': 'amqp://localhost'}
+            mock_container.config = {'AMQP_URI': 'memory://'}
             mock_container.service_name = "service"
             publisher = publisher_cls().bind(mock_container, "publish")
         assert warnings.warn.called
@@ -933,3 +936,169 @@ class TestBackwardsCompatClassAttrs(object):
         publisher.setup()
         assert getattr(publisher.publisher, parameter) == value
 
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the Publisher
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # routing
+        'exchange', 'routing_key',
+        # delivery options
+        'delivery_mode', 'mandatory', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'correlation_id', 'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at instantiation time,
+        and overriden at publish time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        instantiation_value = Mock()
+        publish_value = Mock()
+
+        publisher = Publisher(
+            **{parameter: instantiation_value}
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        publish("payload")
+        assert producer.publish.call_args[1][parameter] == instantiation_value
+
+        publish("payload", **{parameter: publish_value})
+        assert producer.publish.call_args[1][parameter] == publish_value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers provided at publish time are merged with any provided
+        at instantiation time. Nameko headers are always present.
+        """
+        mock_container.config = {
+            'AMQP_URI': 'memory://localhost'
+        }
+        mock_container.service_name = "service"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service.method.0'],
+        }
+
+        instantiation_value = {'foo': Mock()}
+        publish_value = {'bar': Mock()}
+
+        publisher = Publisher(
+            **{'headers': instantiation_value}
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        publish("payload")
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, instantiation_value
+        )
+
+        publish("payload", headers=publish_value)
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, instantiation_value, publish_value
+        )
+
+    def test_declare(self, mock_container, producer):
+        """ Declarations provided at publish time are merged with any provided
+        at instantiation time. Any provided exchange and queue are always
+        declared.
+        """
+        mock_container.config = {
+            'AMQP_URI': 'memory://localhost'
+        }
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        exchange = Mock()
+        queue = Mock()
+
+        instantiation_value = [Mock()]
+        publish_value = [Mock()]
+
+        publisher = Publisher(
+            exchange=exchange, queue=queue, **{'declare': instantiation_value}
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        publish("payload")
+        assert producer.publish.call_args[1]['declare'] == (
+            instantiation_value + [exchange, queue]
+        )
+
+        publish("payload", declare=publish_value)
+        assert producer.publish.call_args[1]['declare'] == (
+            instantiation_value + [exchange, queue] + publish_value
+        )
+
+    def test_use_confirms(self, mock_container, get_producer):
+        """ Verify that publish-confirms can be set as a default specified at
+        instantiation time, which can be overriden by a value specified at
+        publish time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        publisher = Publisher(
+            use_confirms=False
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        publish("payload")
+        (_, use_confirms), _ = get_producer.call_args
+        assert use_confirms is False
+
+        publish("payload", use_confirms=True)
+        (_, use_confirms), _ = get_producer.call_args
+        assert use_confirms is True
