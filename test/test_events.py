@@ -1,6 +1,7 @@
 import itertools
 import time
 from collections import defaultdict
+from six.moves import queue
 
 import pytest
 from kombu.common import maybe_declare
@@ -702,7 +703,9 @@ class TestBackwardsCompatClassAttrs(object):
         ('retry_policy', {'max_retries': 999}),
         ('use_confirms', False),
     ])
-    def test_attrs_are_applied(self, parameter, value, mock_container):
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
         """ Verify that you can specify some fields by subclassing the
         EventDispatcher DependencyProvider.
         """
@@ -710,7 +713,7 @@ class TestBackwardsCompatClassAttrs(object):
             "LegacyEventDispatcher", (EventDispatcher,), {parameter: value}
         )
         with patch('nameko.messaging.warnings') as warnings:
-            mock_container.config = {'AMQP_URI': 'amqp://localhost'}
+            mock_container.config = {'AMQP_URI': 'memory://'}
             mock_container.service_name = "service"
             dispatcher = dispatcher_cls().bind(mock_container, "dispatch")
         assert warnings.warn.called
@@ -719,3 +722,85 @@ class TestBackwardsCompatClassAttrs(object):
 
         dispatcher.setup()
         assert getattr(dispatcher.publisher, parameter) == value
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the EventDispatcher
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'mandatory', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'correlation_id', 'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at instantiation time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        value = Mock()
+
+        dispatcher = EventDispatcher(
+            **{parameter: value}
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        dispatch("event-type", "event-data")
+        assert producer.publish.call_args[1][parameter] == value
+
+    def test_restricted_parameters(
+        self, mock_container, producer
+    ):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        exchange = Mock()
+        routing_key = Mock()
+
+        dispatcher = EventDispatcher(
+            exchange=exchange,
+            routing_key=routing_key,
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        event_exchange = get_event_exchange("service")
+        event_type = "event-type"
+
+        dispatch(event_type, "event-data")
+
+        assert producer.publish.call_args[1]['exchange'] == event_exchange
+        assert producer.publish.call_args[1]['routing_key'] == event_type
