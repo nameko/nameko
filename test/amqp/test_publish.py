@@ -411,7 +411,13 @@ class TestDefaults(object):
 
         combined_headers = headers1.copy()
         combined_headers.update(headers2)
+        assert producer.publish.call_args[1]["headers"] == combined_headers
 
+        headers3 = {'h3': Mock()}
+        publisher.publish("payload", headers=headers3)
+
+        combined_headers = headers1.copy()
+        combined_headers.update(headers3)
         assert producer.publish.call_args[1]["headers"] == combined_headers
 
     def test_declaration_precedence(self, producer):
@@ -423,8 +429,11 @@ class TestDefaults(object):
 
         queue2 = Mock()
         publisher.publish("payload", declare=[queue2])
-
         assert producer.publish.call_args[1]["declare"] == [queue1, queue2]
+
+        queue3 = Mock()
+        publisher.publish("payload", declare=[queue3])
+        assert producer.publish.call_args[1]["declare"] == [queue1, queue3]
 
     def test_publish_kwargs(self, producer):
         """ Verify that publish_kwargs at publish time augment any provided

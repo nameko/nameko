@@ -151,9 +151,11 @@ class Publisher(object):
     def publish(self, payload, **kwargs):
         """ Publish a message.
         """
+        publish_kwargs = self.publish_kwargs.copy()
+
         # merge headers from when the publisher was instantiated
         # with any provided now; "extra" headers always win
-        headers = self.publish_kwargs.pop('headers', {}).copy()
+        headers = publish_kwargs.pop('headers', {}).copy()
         headers.update(kwargs.pop('headers', {}))
         headers.update(kwargs.pop('extra_headers', {}))
 
@@ -171,8 +173,7 @@ class Publisher(object):
         declare = self.declare[:]
         declare.extend(kwargs.pop('declare', ()))
 
-        publish_kwargs = self.publish_kwargs.copy()
-        publish_kwargs.update(kwargs)  # publish-time kwargs win
+        publish_kwargs.update(kwargs)  # remaining publish-time kwargs win
 
         with get_producer(self.amqp_uri, use_confirms) as producer:
 
