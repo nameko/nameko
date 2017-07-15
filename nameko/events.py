@@ -76,9 +76,6 @@ class EventDispatcher(Publisher):
 
     """
 
-    def __init__(self, **defaults):
-        super(EventDispatcher, self).__init__(exchange=None, **defaults)
-
     def setup(self):
         self.exchange = get_event_exchange(self.container.service_name)
         self.declare.append(self.exchange)
@@ -92,6 +89,7 @@ class EventDispatcher(Publisher):
         def dispatch(event_type, event_data):
             self.publisher.publish(
                 event_data,
+                exchange=self.exchange,
                 routing_key=event_type,
                 extra_headers=propagate_headers
             )
