@@ -1,11 +1,12 @@
 from mock import Mock, patch
+from six.moves import queue
 import pytest
 
 from amqp.exceptions import NotFound
 
 from nameko.amqp import UndeliverableMessage
 from nameko.events import event_handler
-from nameko.standalone.events import event_dispatcher
+from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 
 
@@ -67,7 +68,7 @@ class TestMandatoryDelivery(object):
         with pytest.raises(NotFound):
             dispatch("bogus", "bogus", "payload")
 
-    @patch('nameko.standalone.events.warnings')
+    @patch('nameko.amqp.publish.warnings')
     def test_confirms_disabled(self, warnings, rabbit_config):
         # no exception will be raised if confirms are disabled,
         # even when mandatory delivery is requested,
@@ -77,3 +78,69 @@ class TestMandatoryDelivery(object):
         )
         dispatch("srcservice", "bogus", "payload")
         assert warnings.warn.called
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the standalone dispatcher
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'mandatory', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'correlation_id', 'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at instantiation time.
+        """
+        config = {'AMQP_URI': 'memory://localhost'}
+
+        value = Mock()
+
+        dispatch = event_dispatcher(config, **{parameter: value})
+
+        dispatch("service-name", "event-type", "event-data")
+        assert producer.publish.call_args[1][parameter] == value
+
+    def test_restricted_parameters(
+        self, mock_container, producer
+    ):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        config = {'AMQP_URI': 'memory://localhost'}
+
+        exchange = Mock()
+        routing_key = Mock()
+
+        dispatch = event_dispatcher(
+            config, exchange=exchange, routing_key=routing_key
+        )
+
+        service_name = "service-name"
+        event_exchange = get_event_exchange(service_name)
+        event_type = "event-type"
+
+        dispatch(service_name, event_type, "event-data")
+
+        assert producer.publish.call_args[1]['exchange'] == event_exchange
+        assert producer.publish.call_args[1]['routing_key'] == event_type
