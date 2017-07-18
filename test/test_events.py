@@ -766,6 +766,47 @@ class TestConfigurability(object):
         dispatch("event-type", "event-data")
         assert producer.publish.call_args[1][parameter] == value
 
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers can be provided at instantiation time, and are merged with
+        Nameko headers.
+        """
+        mock_container.config = {
+            'AMQP_URI': 'memory://localhost'
+        }
+        mock_container.service_name = "service"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service.method.0'],
+        }
+
+        value = {'foo': Mock()}
+
+        dispatcher = EventDispatcher(
+            **{'headers': value}
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        dispatch("event-type", "event-data")
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, value
+        )
+
     def test_restricted_parameters(
         self, mock_container, producer
     ):
