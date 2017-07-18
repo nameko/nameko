@@ -373,9 +373,9 @@ class MethodProxy(HeaderEncoder):
         for compat_attr in compat_attrs:
             if hasattr(self, compat_attr):
                 warnings.warn(
-                    "'{}' should be specified at instantiation time rather "
-                    "than as a class attribute. See CHANGES, version 2.7.0 "
-                    "for more details. This warning will be removed in "
+                    "'{}' should be specified at RpcProxy instantiation time "
+                    "rather than as a class attribute. See CHANGES, version "
+                    "2.7.0 for more details. This warning will be removed in "
                     "version 2.9.0.".format(compat_attr), DeprecationWarning
                 )
                 options[compat_attr] = getattr(self, compat_attr)

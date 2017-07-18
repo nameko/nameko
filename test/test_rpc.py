@@ -6,8 +6,10 @@ from eventlet.event import Event
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
+from six.moves import queue
+
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.containers import ServiceContainer
+from nameko.containers import ServiceContainer, WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
@@ -19,7 +21,7 @@ from nameko.rpc import (
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
     dummy, entrypoint_hook, restrict_entrypoints)
-from nameko.testing.utils import get_extension, wait_for_call
+from nameko.testing.utils import get_extension, wait_for_call, unpack_mock_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
@@ -1005,6 +1007,166 @@ class TestResponderDisconnections(object):
         # call 2 succeeds (after reconnecting via retry policy)
         with patch_wait(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
+
+
+class TestBackwardsCompatClassAttrs(object):
+
+    @pytest.mark.parametrize("parameter,value", [
+        ('retry', False),
+        ('retry_policy', {'max_retries': 999}),
+        ('use_confirms', False),
+    ])
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
+        """ Verify that you can specify some fields by subclassing the
+        MethodProxy class.
+        """
+        method_proxy_cls = type(
+            "LegacyMethodProxy", (MethodProxy,), {parameter: value}
+        )
+        with patch('nameko.rpc.warnings') as warnings:
+            worker_ctx = Mock()
+            worker_ctx.container.config = {'AMQP_URI': 'memory://'}
+            reply_listener = Mock()
+            proxy = method_proxy_cls(
+                worker_ctx, "service", "method", reply_listener
+            )
+
+        assert warnings.warn.called
+        call_args = warnings.warn.call_args
+        assert parameter in unpack_mock_call(call_args).positional[0]
+
+        assert getattr(proxy.publisher, parameter) == value
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the RpcProxy
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at RpcProxy
+        instantiation time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.container = mock_container
+        worker_ctx.context_data = {}
+
+        value = Mock()
+
+        rpc_proxy = RpcProxy(
+            "service-name", **{parameter: value}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        service_rpc.method.call_async()
+        assert producer.publish.call_args[1][parameter] == value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers can be provided at instantiation time, and are merged with
+        Nameko headers.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service-name"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service-name.method.0'],
+        }
+
+        value = {'foo': Mock()}
+
+        rpc_proxy = RpcProxy(
+            "service-name", **{'headers': value}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        service_rpc.method.call_async()
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, value
+        )
+
+    @pytest.mark.parametrize('parameter', [
+        'exchange', 'routing_key', 'mandatory', 'correlation_id', 'reply_to'
+    ])
+    def test_restricted_parameters(
+        self, mock_container, producer, parameter
+    ):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.container = mock_container
+        worker_ctx.context_data = {}
+
+        ignored_value = Mock()
+
+        rpc_proxy = RpcProxy(
+            "service-name", **{parameter: ignored_value}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        service_rpc.method.call_async()
+        assert producer.publish.call_args[1][parameter] != ignored_value
 
 
 def test_prefetch_throughput(container_factory, rabbit_config):
