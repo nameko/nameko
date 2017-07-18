@@ -1137,12 +1137,8 @@ class TestConfigurability(object):
             nameko_headers, value
         )
 
-    @pytest.mark.parametrize('parameter', [
-        'exchange', 'routing_key', 'mandatory', 'correlation_id', 'reply_to'
-    ])
-    def test_restricted_parameters(
-        self, mock_container, producer, parameter
-    ):
+    @patch('nameko.rpc.uuid')
+    def test_restricted_parameters(self, patch_uuid, mock_container, producer):
         """ Verify that providing routing parameters at instantiation
         time has no effect.
         """
@@ -1154,10 +1150,17 @@ class TestConfigurability(object):
         worker_ctx.container = mock_container
         worker_ctx.context_data = {}
 
-        ignored_value = Mock()
+        uuid1 = uuid.uuid4()
+        uuid2 = uuid.uuid4()
+        patch_uuid.uuid4.side_effect = [uuid1, uuid2]
+
+        restricted_params = (
+            'exchange', 'routing_key', 'mandatory',
+            'correlation_id', 'reply_to'
+        )
 
         rpc_proxy = RpcProxy(
-            "service-name", **{parameter: ignored_value}
+            "service", **{param: Mock() for param in restricted_params}
         ).bind(mock_container, "service_rpc")
 
         rpc_proxy.setup()
@@ -1166,7 +1169,13 @@ class TestConfigurability(object):
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
         service_rpc.method.call_async()
-        assert producer.publish.call_args[1][parameter] != ignored_value
+        publish_params = producer.publish.call_args[1]
+
+        assert publish_params['exchange'].name == "nameko-rpc"
+        assert publish_params['routing_key'] == 'service.method'
+        assert publish_params['mandatory'] is True
+        assert publish_params['reply_to'] == str(uuid1)
+        assert publish_params['correlation_id'] == str(uuid2)
 
 
 def test_prefetch_throughput(container_factory, rabbit_config):
