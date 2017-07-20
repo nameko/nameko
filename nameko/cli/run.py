@@ -19,7 +19,7 @@ from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
-
+from nameko.utils import autoreload
 
 logger = logging.getLogger(__name__)
 
@@ -178,4 +178,9 @@ def main(args):
             import_service(path)
         )
 
-    run(services, config, backdoor_port=args.backdoor_port)
+    kwargs = {'backdoor_port': args.backdoor_port}
+    if config.get('AUTORELOAD'):
+        logger.info('autoreload enabled')
+        autoreload.make_autoreload(run, args=(services, config), kwargs=kwargs)
+    else:
+        run(services, config, **kwargs)
