@@ -76,7 +76,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     Publisher = PublisherCore
 
-    def __init__(self, exchange=None, queue=None, declare=None, **defaults):
+    def __init__(self, exchange=None, queue=None, declare=None, **options):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP, messages are published to *exchanges* and routed to bound
@@ -110,7 +110,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     self.publish('spam:' + data)
         """
         self.exchange = exchange
-        self.defaults = defaults
+        self.options = options
 
         self.declare = declare[:] if declare is not None else []
 
@@ -141,7 +141,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     "for more details. This warning will be removed in "
                     "version 2.9.0.".format(compat_attr), DeprecationWarning
                 )
-                self.defaults[compat_attr] = getattr(self, compat_attr)
+                self.options[compat_attr] = getattr(self, compat_attr)
 
     @property
     def amqp_uri(self):
@@ -166,14 +166,14 @@ class Publisher(DependencyProvider, HeaderEncoder):
             for entity in self.declare:
                 maybe_declare(entity, conn)
 
-        serializer = self.defaults.pop('serializer', self.serializer)
+        serializer = self.options.pop('serializer', self.serializer)
 
         self.publisher = self.Publisher(
             self.amqp_uri,
             serializer=serializer,
             exchange=self.exchange,
             declare=self.declare,
-            **self.defaults
+            **self.options
         )
 
     def get_dependency(self, worker_ctx):
