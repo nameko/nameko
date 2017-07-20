@@ -125,6 +125,7 @@ StatsD
 stringified
 subclass
 subclasses
+subclassing
 subcommands
 submodules
 subpackages
