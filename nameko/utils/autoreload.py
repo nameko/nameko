@@ -66,6 +66,8 @@ def _code_has_changed():
 def _clean_python_files(file_paths):
     clean_file_paths = []
     for f_path in file_paths:
+        if not f_path:
+            continue  # pragma: no cover
         if f_path.endswith('.pyc') or f_path.endswith('.pyo'):
             f_path = f_path[:-1]
         if f_path.endswith('$py.class'):
