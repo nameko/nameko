@@ -161,24 +161,23 @@ def test_main_with_logging_file_config(rabbit_config, tmpdir):
         [loggers]
         keys=root
 
-        [handlers]
-        keys=consoleHandler
-
-        [formatters]
-        keys=simpleFormatter
-
         [logger_root]
         level=INFO
-        handlers=consoleHandler
+        handlers=filehandler
 
-        [handler_consoleHandler]
-        level=INFO
-        class=StreamHandler
-        args=(sys.stdout,)
-        filename:{capture_file}
+        [handlers]
+        keys=filehandler
 
-        [formatter_simpleFormatter]
+        [formatters]
+        keys=simpleformatter
+
+        [formatter_simpleformatter]
         format=%(levelname)s - %(name)s - %(message)s
+
+        [handler_filehandler]
+        class=FileHandler
+        formatter=simpleformatter
+        args=('{capture_file}', )
     """
 
     logging_config_file = tmpdir.join('logging.conf')
@@ -205,7 +204,6 @@ def test_main_with_logging_file_config(rabbit_config, tmpdir):
     pid = os.getpid()
     os.kill(pid, signal.SIGTERM)
     gt.wait()
-
     assert "INFO - test.sample - ping!" in capture_file.read()
 
 

@@ -168,7 +168,10 @@ def main(args):
         }
 
     if args.logging_config_file:
-        logging.config.fileConfig(args.logging_config_file)
+        logging.config.fileConfig(
+            args.logging_config_file,
+            disable_existing_loggers=False
+        )
     elif 'LOGGING' in config:
         logging.config.dictConfig(config['LOGGING'])
     else:
