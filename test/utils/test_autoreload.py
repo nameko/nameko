@@ -1,7 +1,5 @@
 import os
 import sys
-import shutil
-import tempfile
 from importlib import import_module
 
 from nameko.utils import autoreload
@@ -20,25 +18,16 @@ def temp_extend_syspath(*paths):
         sys.path = _orig_sys_path
 
 
-@pytest.fixture
-def tempdir_name():
-    tempdir_name = tempfile.mkdtemp()
-    yield tempdir_name
-    shutil.rmtree(tempdir_name)
-
-
 def test_known_filepaths_are_strings():
     for filename in autoreload._generate_known_filenames():
         assert isinstance(filename, str)
 
 
-def test_only_include_new_files_then_only_newly_added_files_returned(
-    tempdir_name
-):
+def test_only_include_new_files_then_only_newly_added_files_returned(tmpdir):
     module = 'test_only_include_new_files.py'
-    filename = os.path.join(tempdir_name, module)
-    with open(filename, 'w'):
-        pass
+    mod = tmpdir.join(module)
+    mod.write('')
+    filename = f'{tmpdir}/{module}'
 
     # uncached access check
     _clear_cache()
@@ -55,7 +44,7 @@ def test_only_include_new_files_then_only_newly_added_files_returned(
     assert set(filenames) == set()
 
     # cached access check: add a module
-    with temp_extend_syspath(tempdir_name):
+    with temp_extend_syspath(tmpdir):
         import_module(module.replace('.py', ''))
     filenames = autoreload._generate_known_filenames(
         only_include_new_files=True
@@ -63,12 +52,13 @@ def test_only_include_new_files_then_only_newly_added_files_returned(
     assert set(filenames) == {filename}
 
 
-def test_when_file_deleted_is_no_longer_returned(tempdir_name):
-    filename = os.path.join(tempdir_name, 'test_deleted_removed_module.py')
-    with open(filename, 'w'):
-        pass
+def test_when_file_deleted_is_no_longer_returned(tmpdir):
+    module = 'test_deleted_removed_module.py'
+    mod = tmpdir.join(module)
+    mod.write('')
+    filename = f'{tmpdir}/{module}'
 
-    with temp_extend_syspath(tempdir_name):
+    with temp_extend_syspath(tmpdir):
         import_module('test_deleted_removed_module')
     _check_file_found(filename)
 
@@ -76,59 +66,62 @@ def test_when_file_deleted_is_no_longer_returned(tempdir_name):
     _check_file_not_found(filename)
 
 
-def test_files_which_raise_are_still_known(tempdir_name):
-    filename = os.path.join(tempdir_name, 'test_syntax_error.py')
-    with open(filename, 'w') as f:
-        f.write("Ceci n'est pas du Python.")
+def test_files_which_raise_are_still_known(tmpdir):
+    module = 'test_error.py'
+    mod = tmpdir.join(module)
+    mod.write('1/0')
+    filename = f'{tmpdir}/{module}'
 
-    with temp_extend_syspath(tempdir_name):
-        with pytest.raises(SyntaxError):
-            autoreload._raise_app_errors(import_module)('test_syntax_error')
+    with temp_extend_syspath(tmpdir):
+        with pytest.raises(ZeroDivisionError):
+            autoreload._raise_app_errors(import_module)('test_error')
     _check_file_found(filename)
 
 
-def test_raise_app_errors_only_include_new_files(tempdir_name):
-    filename = os.path.join(tempdir_name, 'test_syntax_error.py')
-    with open(filename, 'w') as f:
-        f.write("Ceci n'est pas du Python.")
+def test_raise_app_errors_only_include_new_files(tmpdir):
+    module = 'test_error.py'
+    mod = tmpdir.join(module)
+    mod.write('1/0')
+    filename = f'{tmpdir}/{module}'
 
-    with temp_extend_syspath(tempdir_name):
-        with pytest.raises(SyntaxError):
-            autoreload._raise_app_errors(import_module)('test_syntax_error')
+    with temp_extend_syspath(tmpdir):
+        with pytest.raises(ZeroDivisionError):
+            autoreload._raise_app_errors(import_module)('test_error')
     _check_new_file_found(filename)
 
 
-def test_raise_app_errors_catches_all_exceptions(tempdir_name):
-    filename = os.path.join(tempdir_name, 'test_exception.py')
-    with open(filename, 'w') as f:
-        f.write("raise Exception")
+def test_raise_app_errors_catches_all_exceptions(tmpdir):
+    module = 'test_exception.py'
+    mod = tmpdir.join(module)
+    mod.write('raise Exception')
+    filename = f'{tmpdir}/{module}'
 
-    with temp_extend_syspath(tempdir_name):
+    with temp_extend_syspath(tmpdir):
         with pytest.raises(Exception):
             autoreload._raise_app_errors(import_module)('test_exception')
     _check_file_found(filename)
 
 
-def test_clean_python_files(tempdir_name):
+def test_clean_python_files(tmpdir):
     file_paths = [
-        os.path.join(tempdir_name, 'file1.txt'),
-        os.path.join(tempdir_name, 'file2.pyo'),
-        os.path.join(tempdir_name, 'file3.$py.class'),
-        os.path.join(tempdir_name, 'file4.py'),
+        tmpdir.join('file1.txt'),
+        tmpdir.join('file2.pyo'),
+        tmpdir.join('file3.$py.class'),
+        tmpdir.join('file4.py'),
     ]
     for filename in file_paths:
-        with open(filename, 'w'):
-            pass
-    with open(os.path.join(tempdir_name, 'file3.py'), 'w'):
-        pass
-    with open(os.path.join(tempdir_name, 'file2.py'), 'w'):
-        pass
+        filename.write('')
+
+    tmpdir.join('file3.py').write('')
+    tmpdir.join('file2.py').write('')
+
     expected = [
-        os.path.join(tempdir_name, 'file1.txt'),
-        os.path.join(tempdir_name, 'file2.py'),
-        os.path.join(tempdir_name, 'file4.py'),
+        os.path.join(tmpdir, 'file1.txt'),
+        os.path.join(tmpdir, 'file2.py'),
+        os.path.join(tmpdir, 'file4.py'),
     ]
-    assert autoreload._clean_python_files(file_paths=file_paths) == expected
+    paths = [str(p) for p in file_paths]
+    assert autoreload._clean_python_files(file_paths=paths) == expected
 
 
 def test_make_autoreload_exists_when_nameko_run_exists():
