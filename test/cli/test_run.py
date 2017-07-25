@@ -127,6 +127,88 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
     assert "test.sample - INFO - ping!" in capture_file.read()
 
 
+def test_main_with_logging_file_config(rabbit_config, tmpdir):
+    config = """
+        AMQP_URI: {amqp_uri}
+        # this config should be ignored when logging file config is given
+        LOGGING:
+            version: 1
+            disable_existing_loggers: false
+            formatters:
+                simple:
+                    format: "%(name)s - %(levelname)s - %(message)s"
+            handlers:
+                capture:
+                    class: logging.FileHandler
+                    level: INFO
+                    formatter: simple
+                    filename: {capture_file}
+            root:
+                level: INFO
+                handlers: [capture]
+    """
+
+    capture_file = tmpdir.join('capture.log')
+    config_file = tmpdir.join('config.yaml')
+    config_file.write(
+        dedent(config.format(
+            capture_file=capture_file.strpath,
+            amqp_uri=rabbit_config['AMQP_URI']
+        ))
+    )
+
+    logging_config = """
+        [loggers]
+        keys=root
+
+        [handlers]
+        keys=consoleHandler
+
+        [formatters]
+        keys=simpleFormatter
+
+        [logger_root]
+        level=INFO
+        handlers=consoleHandler
+
+        [handler_consoleHandler]
+        level=INFO
+        class=StreamHandler
+        args=(sys.stdout,)
+        filename:{capture_file}
+
+        [formatter_simpleFormatter]
+        format=%(levelname)s - %(name)s - %(message)s
+    """
+
+    logging_config_file = tmpdir.join('logging.conf')
+    logging_config_file.write(
+        dedent(logging_config.format(capture_file=capture_file.strpath))
+    )
+
+    parser = setup_parser()
+    args = parser.parse_args([
+        'run',
+        '--config',
+        config_file.strpath,
+        '--logging-config-file',
+        logging_config_file.strpath,
+        'test.sample',
+    ])
+
+    gt = eventlet.spawn(main, args)
+    eventlet.sleep(1)
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        proxy.service.ping()
+
+    pid = os.getpid()
+    os.kill(pid, signal.SIGTERM)
+    gt.wait()
+
+    assert "INFO - test.sample - ping!" in capture_file.read()
+
+
 def test_import_ok():
     assert import_service('test.sample') == [Service]
     assert import_service('test.sample:Service') == [Service]

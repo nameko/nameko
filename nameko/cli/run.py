@@ -167,7 +167,9 @@ def main(args):
             AMQP_URI_CONFIG_KEY: args.broker
         }
 
-    if "LOGGING" in config:
+    if args.logging_config_file:
+        logging.config.fileConfig(args.logging_config_file)
+    elif 'LOGGING' in config:
         logging.config.dictConfig(config['LOGGING'])
     else:
         logging.basicConfig(level=logging.INFO, format='%(message)s')

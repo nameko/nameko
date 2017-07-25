@@ -68,6 +68,10 @@ class Run(Command):
             help='The YAML configuration file')
 
         parser.add_argument(
+            '--logging-config-file', default='',
+            help='Path to logging configuration file')
+
+        parser.add_argument(
             '--broker', default='pyamqp://guest:guest@localhost',
             help='RabbitMQ broker url')
 
