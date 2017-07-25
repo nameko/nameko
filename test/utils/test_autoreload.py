@@ -27,7 +27,7 @@ def test_only_include_new_files_then_only_newly_added_files_returned(tmpdir):
     module = 'test_only_include_new_files.py'
     mod = tmpdir.join(module)
     mod.write('')
-    filename = f'{tmpdir}/{module}'
+    filename = '{}/{}'.format(tmpdir, module)
 
     # uncached access check
     _clear_cache()
@@ -56,7 +56,7 @@ def test_when_file_deleted_is_no_longer_returned(tmpdir):
     module = 'test_deleted_removed_module.py'
     mod = tmpdir.join(module)
     mod.write('')
-    filename = f'{tmpdir}/{module}'
+    filename = '{}/{}'.format(tmpdir, module)
 
     with temp_extend_syspath(tmpdir):
         import_module('test_deleted_removed_module')
@@ -70,7 +70,7 @@ def test_files_which_raise_are_still_known(tmpdir):
     module = 'test_error.py'
     mod = tmpdir.join(module)
     mod.write('1/0')
-    filename = f'{tmpdir}/{module}'
+    filename = '{}/{}'.format(tmpdir, module)
 
     with temp_extend_syspath(tmpdir):
         with pytest.raises(ZeroDivisionError):
@@ -82,7 +82,7 @@ def test_raise_app_errors_only_include_new_files(tmpdir):
     module = 'test_error.py'
     mod = tmpdir.join(module)
     mod.write('1/0')
-    filename = f'{tmpdir}/{module}'
+    filename = '{}/{}'.format(tmpdir, module)
 
     with temp_extend_syspath(tmpdir):
         with pytest.raises(ZeroDivisionError):
@@ -94,7 +94,7 @@ def test_raise_app_errors_catches_all_exceptions(tmpdir):
     module = 'test_exception.py'
     mod = tmpdir.join(module)
     mod.write('raise Exception')
-    filename = f'{tmpdir}/{module}'
+    filename = '{}/{}'.format(tmpdir, module)
 
     with temp_extend_syspath(tmpdir):
         with pytest.raises(Exception):
