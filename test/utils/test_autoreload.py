@@ -1,11 +1,74 @@
 import os
 import sys
 from importlib import import_module
+from contextlib import contextmanager
 
+import pytest
+from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.cli.run import run
 from nameko.utils import autoreload
 from mock import patch, Mock
-import pytest
-from contextlib import contextmanager
+
+
+config = {AMQP_URI_CONFIG_KEY: 'pyamqp://guest:guest@localhost'}
+
+
+@patch('nameko.utils.autoreload._reloader')
+def test_make_autoreload(mock_reloader):
+    autoreload.make_autoreload(
+        run,
+        args=([Mock()], config),
+        kwargs={'backdoor_port': None}
+    )
+    assert mock_reloader.call_count == 1
+
+
+def test_make_autoreload_exists_when_nameko_run_exists():
+    with pytest.raises(SystemExit):
+        autoreload.make_autoreload(app_run_func=lambda: sys.exit(0))
+
+
+@patch('nameko.utils.autoreload.os')
+@patch('nameko.utils.autoreload.sys')
+class TestReloader:
+
+    @patch('nameko.utils.autoreload._restart_application_with_autoreload')
+    def test_kills_process_if_env_not_true_and_non_zero_exit_code(
+        self, mock_restart, mock_sys, mock_os
+    ):
+        mock_os.environ = {'RUN_MAIN_APP': 'false'}
+        mock_restart.return_value = -1
+        autoreload._reloader(
+            Mock(),
+            args=([Mock()], config),
+            kwargs={'backdoor_port': None}
+        )
+        mock_os.kill.assert_called_once_with(mock_os.getpid(), 1)
+
+    @patch('nameko.utils.autoreload._restart_application_with_autoreload')
+    def test_exits_process_if_env_not_true_and_non_zero_exit_code(
+        self, mock_restart, mock_sys, mock_os
+    ):
+        mock_os.environ = {'RUN_MAIN_APP': 'false'}
+        mock_restart.return_value = 0
+        autoreload._reloader(
+            Mock(),
+            args=([Mock()], config),
+            kwargs={'backdoor_port': None}
+        )
+        mock_sys.exit.assert_called_once_with(0)
+
+    @patch('nameko.utils.autoreload._monitor_needs_reloading')
+    def test_if_env_true_app_is_ran_with_reload_monitor(
+        self, mock_monitor, mock_sys, mock_os
+    ):
+        mock_os.environ = {'RUN_MAIN_APP': 'true'}
+        autoreload._reloader(
+            Mock(),
+            args=([Mock()], config),
+            kwargs={'backdoor_port': None}
+        )
+        assert mock_monitor.call_count == 1
 
 
 @contextmanager
@@ -44,7 +107,7 @@ def test_only_include_new_files_then_only_newly_added_files_returned(tmpdir):
     assert set(filenames) == set()
 
     # cached access check: add a module
-    with temp_extend_syspath(tmpdir):
+    with temp_extend_syspath(str(tmpdir)):
         import_module(module.replace('.py', ''))
     filenames = autoreload._generate_known_filenames(
         only_include_new_files=True
@@ -58,7 +121,7 @@ def test_when_file_deleted_is_no_longer_returned(tmpdir):
     mod.write('')
     filename = '{}/{}'.format(tmpdir, module)
 
-    with temp_extend_syspath(tmpdir):
+    with temp_extend_syspath(str(tmpdir)):
         import_module('test_deleted_removed_module')
     _check_file_found(filename)
 
@@ -72,7 +135,7 @@ def test_files_which_raise_are_still_known(tmpdir):
     mod.write('1/0')
     filename = '{}/{}'.format(tmpdir, module)
 
-    with temp_extend_syspath(tmpdir):
+    with temp_extend_syspath(str(tmpdir)):
         with pytest.raises(ZeroDivisionError):
             autoreload._raise_app_errors(import_module)('test_error')
     _check_file_found(filename)
@@ -84,7 +147,7 @@ def test_raise_app_errors_only_include_new_files(tmpdir):
     mod.write('1/0')
     filename = '{}/{}'.format(tmpdir, module)
 
-    with temp_extend_syspath(tmpdir):
+    with temp_extend_syspath(str(tmpdir)):
         with pytest.raises(ZeroDivisionError):
             autoreload._raise_app_errors(import_module)('test_error')
     _check_new_file_found(filename)
@@ -96,55 +159,56 @@ def test_raise_app_errors_catches_all_exceptions(tmpdir):
     mod.write('raise Exception')
     filename = '{}/{}'.format(tmpdir, module)
 
-    with temp_extend_syspath(tmpdir):
+    with temp_extend_syspath(str(tmpdir)):
         with pytest.raises(Exception):
             autoreload._raise_app_errors(import_module)('test_exception')
     _check_file_found(filename)
 
 
-def test_clean_python_files(tmpdir):
+@patch('nameko.utils.autoreload.os')
+def test_clean_python_files(mock_os):
+    mock_os.path.exists.return_value = True
     file_paths = [
-        tmpdir.join('file1.txt'),
-        tmpdir.join('file2.pyo'),
-        tmpdir.join('file3.$py.class'),
-        tmpdir.join('file4.py'),
+        'file1.txt',
+        'file2.pyo',
+        'file3$py.class',
+        'file4.py',
     ]
-    for filename in file_paths:
-        filename.write('')
-
-    tmpdir.join('file3.py').write('')
-    tmpdir.join('file2.py').write('')
-
     expected = [
-        os.path.join(tmpdir, 'file1.txt'),
-        os.path.join(tmpdir, 'file2.py'),
-        os.path.join(tmpdir, 'file4.py'),
+        'file1.txt',
+        'file2.py',
+        'file3.py',
+        'file4.py',
     ]
     paths = [str(p) for p in file_paths]
     assert autoreload._clean_python_files(file_paths=paths) == expected
 
 
-def test_make_autoreload_exists_when_nameko_run_exists():
-    with pytest.raises(SystemExit):
-        autoreload.make_autoreload(app_run_func=lambda: sys.exit(0))
-
-
 class TestCodeHasChanged:
 
-    def test_when_file_last_modified_changed_returns_true(self):
+    @patch('nameko.utils.autoreload.os')
+    @patch('nameko.utils.autoreload._generate_known_filenames')
+    def test_when_file_last_modified_changed_returns_true(
+        self, mock_generate_known_filenames, mock_os
+    ):
+        # mock os.stat so that file timestamps change for each call
+        mock_os.stat.side_effect = [
+            Mock(st_mtime=9999.8888),
+            Mock(st_mtime=9999.9999),
+        ]
+        mock_generate_known_filenames.return_value = ['file1.py']
         assert autoreload._code_has_changed() is False
         assert len(autoreload.FILES_LAST_MODIFIED_VALUES) > 0
 
-        with patch('nameko.utils.autoreload.os') as mock_os:
-            mock_os.stat().st_mtime = 9999.9999
-            assert autoreload._code_has_changed() is True
+        assert autoreload._code_has_changed() is True
 
 
 class TestMonitorNeedsReloading:
 
+    @patch('nameko.utils.autoreload._ensure_echo_on')
     @patch('nameko.utils.autoreload._code_has_changed')
     def test_exits_with_reload_exit_code_when_code_changed(
-        self, mock_code_has_changed
+        self, mock_code_has_changed, mock_ensure_echo_on
     ):
         mock_code_has_changed.side_effect = [False, True]
         with pytest.raises(SystemExit) as exc:
@@ -154,45 +218,12 @@ class TestMonitorNeedsReloading:
 
 class TestRestartApplication:
     @patch('nameko.utils.autoreload.os')
-    def test_exists_with_process_code_if_exit_code_not_reload_exit_code(
-        self, mock_os
+    @patch('nameko.utils.autoreload.sys')
+    def test_exits_with_process_code_if_exit_code_not_reload_exit_code(
+        self, mock_sys, mock_os
     ):
         mock_os.spawnve.return_value = 1
         assert autoreload._restart_application_with_autoreload() == 1
-
-
-class TestReloader:
-
-    @patch('nameko.utils.autoreload.os')
-    @patch('nameko.utils.autoreload._restart_application_with_autoreload')
-    def test_when_env_var_set_and_negative_exit_code_process_killed(
-        self, mock_restart_application_with_autoreload, mock_os
-    ):
-        mock_os.environ = {'RUN_MAIN_APP': 'false'}
-        mock_restart_application_with_autoreload.return_value = -1
-        autoreload._reloader(Mock(), args=(), kwargs={})
-        assert mock_os.kill.call_count == 1
-
-    @patch('nameko.utils.autoreload.os')
-    @patch('nameko.utils.autoreload._restart_application_with_autoreload')
-    def test_when_env_var_set_and_positive_exit_code_process_exits(
-        self, mock_restart_application_with_autoreload, mock_os
-    ):
-        mock_os.environ = {'RUN_MAIN_APP': 'false'}
-        mock_restart_application_with_autoreload.return_value = 1
-        with pytest.raises(SystemExit) as exc:
-            autoreload._reloader(Mock(), args=(), kwargs={})
-        assert exc.value.code == 1
-
-    @patch('nameko.utils.autoreload._monitor_needs_reloading')
-    @patch('nameko.utils.autoreload.os')
-    @patch('nameko.utils.autoreload.thread')
-    def test_when_env_var_not_set_app_is_ran_in_new_thread(
-        self, mock_thread, mock_os, mock_monitor_needs_reloading
-    ):
-        mock_os.environ = {'RUN_MAIN_APP': 'true'}
-        autoreload._reloader(Mock(), args=(), kwargs={})
-        assert mock_thread.start_new_thread.call_count == 1
 
 
 def _clear_cache():

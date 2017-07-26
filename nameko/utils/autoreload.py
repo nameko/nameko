@@ -18,7 +18,10 @@ CACHED_FILENAMES = []
 
 def make_autoreload(app_run_func, args=(), kwargs=None):
     wrapped_app_run_func = _raise_app_errors(app_run_func)
-    _reloader(wrapped_app_run_func, args, kwargs or {})
+    try:
+        _reloader(wrapped_app_run_func, args, kwargs or {})
+    except KeyboardInterrupt:  # pragma: no cover
+        pass
 
 
 def _generate_known_filenames(only_include_new_files=False):
@@ -117,18 +120,15 @@ def _restart_application_with_autoreload():
 
 
 def _reloader(app_run_func, args, kwargs):
-    try:
-        if os.environ.get('RUN_MAIN_APP') != 'true':
-            exit_code = _restart_application_with_autoreload()
-            if exit_code < 0:
-                os.kill(os.getpid(), -exit_code)
-            else:
-                sys.exit(exit_code)
+    if os.environ.get('RUN_MAIN_APP') != 'true':
+        exit_code = _restart_application_with_autoreload()
+        if exit_code < 0:
+            os.kill(os.getpid(), -exit_code)
         else:
-            thread.start_new_thread(app_run_func, args, kwargs)
-            _monitor_needs_reloading()
-    except KeyboardInterrupt:
-        pass  # pragma: no cover
+            sys.exit(exit_code)
+    else:
+        thread.start_new_thread(app_run_func, args, kwargs)
+        _monitor_needs_reloading()
 
 
 def _raise_app_errors(func):

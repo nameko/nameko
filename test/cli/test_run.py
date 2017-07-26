@@ -14,7 +14,9 @@ from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+    AUTORELOAD_CONFIG_KEY, AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY
+)
 
 from test.sample import Service
 
@@ -52,6 +54,7 @@ def test_main_with_config(rabbit_config, tmpdir):
     config.write("""
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
         AMQP_URI: '{}'
+        AUTORELOAD: false
         serializer: 'json'
     """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
 
@@ -70,6 +73,7 @@ def test_main_with_config(rabbit_config, tmpdir):
 
         assert config == {
             WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+            AUTORELOAD_CONFIG_KEY: False,
             AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
             SERIALIZER_CONFIG_KEY: 'json'
         }
