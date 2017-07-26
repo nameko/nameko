@@ -15,11 +15,11 @@ import sys
 import six
 import yaml
 from eventlet import backdoor
-from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.constants import AMQP_URI_CONFIG_KEY, AUTORELOAD_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
-
+from nameko.utils import autoreload
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,10 @@ def main(args):
             AMQP_URI_CONFIG_KEY: args.broker
         }
 
-    if "LOGGING" in config:
+    if args.logging_config_file:
+        logging.config.fileConfig(
+            args.logging_config_file, disable_existing_loggers=False)
+    elif 'LOGGING' in config:
         logging.config.dictConfig(config['LOGGING'])
     else:
         logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -178,4 +181,9 @@ def main(args):
             import_service(path)
         )
 
-    run(services, config, backdoor_port=args.backdoor_port)
+    kwargs = {'backdoor_port': args.backdoor_port}
+    if config.get(AUTORELOAD_CONFIG_KEY):
+        logger.info('autoreload enabled')
+        autoreload.make_autoreload(run, args=(services, config), kwargs=kwargs)
+    else:
+        run(services, config, **kwargs)

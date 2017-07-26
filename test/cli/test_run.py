@@ -14,7 +14,9 @@ from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+    AUTORELOAD_CONFIG_KEY, AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY
+)
 
 from test.sample import Service
 
@@ -52,6 +54,7 @@ def test_main_with_config(rabbit_config, tmpdir):
     config.write("""
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
         AMQP_URI: '{}'
+        AUTORELOAD: false
         serializer: 'json'
     """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
 
@@ -70,6 +73,7 @@ def test_main_with_config(rabbit_config, tmpdir):
 
         assert config == {
             WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+            AUTORELOAD_CONFIG_KEY: False,
             AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
             SERIALIZER_CONFIG_KEY: 'json'
         }
@@ -125,6 +129,86 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
     gt.wait()
 
     assert "test.sample - INFO - ping!" in capture_file.read()
+
+
+def test_main_with_logging_file_config(rabbit_config, tmpdir):
+    config = """
+        AMQP_URI: {amqp_uri}
+        # this config should be ignored when logging file config is given
+        LOGGING:
+            version: 1
+            disable_existing_loggers: false
+            formatters:
+                simple:
+                    format: "%(name)s - %(levelname)s - %(message)s"
+            handlers:
+                capture:
+                    class: logging.FileHandler
+                    level: INFO
+                    formatter: simple
+                    filename: {capture_file}
+            root:
+                level: INFO
+                handlers: [capture]
+    """
+
+    capture_file = tmpdir.join('capture.log')
+    config_file = tmpdir.join('config.yaml')
+    config_file.write(
+        dedent(config.format(
+            capture_file=capture_file.strpath,
+            amqp_uri=rabbit_config['AMQP_URI']
+        ))
+    )
+
+    logging_config = """
+        [loggers]
+        keys=root
+
+        [logger_root]
+        level=INFO
+        handlers=filehandler
+
+        [handlers]
+        keys=filehandler
+
+        [formatters]
+        keys=simpleformatter
+
+        [formatter_simpleformatter]
+        format=%(levelname)s - %(name)s - %(message)s
+
+        [handler_filehandler]
+        class=FileHandler
+        formatter=simpleformatter
+        args=('{capture_file}', )
+    """
+
+    logging_config_file = tmpdir.join('logging.conf')
+    logging_config_file.write(
+        dedent(logging_config.format(capture_file=capture_file.strpath))
+    )
+
+    parser = setup_parser()
+    args = parser.parse_args([
+        'run',
+        '--config',
+        config_file.strpath,
+        '--logging-config-file',
+        logging_config_file.strpath,
+        'test.sample',
+    ])
+
+    gt = eventlet.spawn(main, args)
+    eventlet.sleep(1)
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        proxy.service.ping()
+
+    pid = os.getpid()
+    os.kill(pid, signal.SIGTERM)
+    gt.wait()
+    assert "INFO - test.sample - ping!" in capture_file.read()
 
 
 def test_import_ok():

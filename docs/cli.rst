@@ -47,6 +47,12 @@ The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should 
 
 Config values can be read via the built-in :ref:`config_dependency_provider` dependency provider.
 
+Logging may also be configured from a file through the ``--logging-config-file`` option.
+
+.. code-block:: shell
+
+    $ nameko run --config ./foobar.yaml --logging-config-file ./logging.conf <module>[:<ServiceClass>]
+
 
 Environment variable substitution
 ---------------------------------
