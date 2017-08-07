@@ -13,7 +13,7 @@ from six.moves import queue
 from nameko.amqp import get_producer
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
-    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY, SSL_CONFIG_KEY)
+    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY, AMQP_SSL_CONFIG_KEY)
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
     UnknownService, UnserializableValueError, deserialize, serialize)
@@ -260,7 +260,7 @@ class Responder(object):
         retry = kwargs.pop('retry', self.retry)
         retry_policy = kwargs.pop('retry_policy', self.retry_policy)
 
-        ssl = self.config.get(SSL_CONFIG_KEY)
+        ssl = self.config.get(AMQP_SSL_CONFIG_KEY)
         with get_producer(self.amqp_uri, self.use_confirms, ssl) as producer:
 
             routing_key = self.message.properties['reply_to']
@@ -480,7 +480,7 @@ class MethodProxy(HeaderEncoder):
 
         exchange = get_rpc_exchange(container.config)
 
-        ssl = container.config.get(SSL_CONFIG_KEY)
+        ssl = container.config.get(AMQP_SSL_CONFIG_KEY)
         with get_producer(self.amqp_uri, self.use_confirms, ssl) as producer:
 
             headers = self.get_message_headers(worker_ctx)

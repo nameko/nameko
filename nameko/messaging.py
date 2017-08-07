@@ -20,7 +20,7 @@ from nameko.amqp import (
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
     DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY,
-    SSL_CONFIG_KEY)
+    AMQP_SSL_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
@@ -153,7 +153,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         exchange = self.exchange
         queue = self.queue
 
-        ssl = self.container.config.get(SSL_CONFIG_KEY)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
         verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
         with get_connection(self.amqp_uri, ssl=ssl) as conn:
@@ -237,7 +237,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self):
-        ssl = self.container.config.get(SSL_CONFIG_KEY)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
         verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
     def start(self):
@@ -356,7 +356,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         heartbeat = self.container.config.get(
             HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
         )
-        ssl = self.container.config.get(SSL_CONFIG_KEY)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
         return Connection(self.amqp_uri, heartbeat=heartbeat, ssl=ssl)
 
     def handle_message(self, provider, body, message):

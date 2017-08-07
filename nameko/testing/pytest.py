@@ -40,6 +40,24 @@ def pytest_addoption(parser):
         help=("URI for RabbitMQ management interface.")
     )
 
+    parser.addoption(
+        '--amqp-ssl-ca-certs',
+        action='store',
+        dest='AMQP_SSL_CA_CERTS',
+        help='CA certificates chain file for SSL connection')
+
+    parser.addoption(
+        '--amqp-ssl-certfile',
+        action='store',
+        dest='AMQP_SSL_CERTFILE',
+        help='Certificate file for SSL connection')
+
+    parser.addoption(
+        '--amqp-ssl-keyfile',
+        action='store',
+        dest='AMQP_SSL_KEYFILE',
+        help='Private key file for SSL connection')
+
 
 def pytest_load_initial_conftests():
     # make sure we monkey_patch before local conftests
@@ -147,6 +165,26 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
         yield conf
 
 
+@pytest.fixture()
+def rabbit_ssl_config(request):
+    from ssl import CERT_REQUIRED # pylint: disable=E0401
+
+    ca_certs = request.config.getoption('AMQP_SSL_CA_CERTS')
+    certfile = request.config.getoption('AMQP_SSL_CERTFILE')
+    keyfile = request.config.getoption('AMQP_SSL_KEYFILE')
+
+    conf = {
+        'AMQP_SSL': {
+            'ca_certs': ca_certs,
+            'certfile': certfile,
+            'keyfile': keyfile,
+            'cert_reqs': CERT_REQUIRED,
+        },
+    }
+
+    return conf
+
+
 @pytest.yield_fixture(autouse=True)
 def fast_teardown(request):
     """
@@ -201,11 +239,7 @@ def fast_teardown(request):
     reorder_fixtures = ('container_factory', 'runner_factory', 'rabbit_config')
     for fixture in reorder_fixtures:
         if fixture in request.funcargnames:
-            # getfuncargvalue is renamed to getfixturevalue in pytest 3.0
-            if hasattr(request, 'getfixturevalue'):
-                request.getfixturevalue(fixture)  # pragma: no cover
-            else:
-                request.getfuncargvalue(fixture)  # pragma: no cover
+            request.getfuncargvalue(fixture)
 
     consumers = []
 
@@ -233,13 +267,22 @@ def fast_teardown(request):
 @pytest.yield_fixture
 def container_factory():
     from nameko.containers import get_container_cls
+    import warnings
 
     all_containers = []
 
-    def make_container(service_cls, config):
+    def make_container(service_cls, config, worker_ctx_cls=None):
 
         container_cls = get_container_cls(config)
-        container = container_cls(service_cls, config)
+
+        if worker_ctx_cls is not None:
+            warnings.warn(
+                "The constructor of `container_factory` has changed. "
+                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
+                "Version 2.4.0 for more details.", DeprecationWarning
+            )
+
+        container = container_cls(service_cls, config, worker_ctx_cls)
         all_containers.append(container)
         return container
 
