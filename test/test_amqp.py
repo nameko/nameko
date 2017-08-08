@@ -67,6 +67,25 @@ def test_get_connection(rabbit_config):
         assert len(set(connection_ids)) == 1
 
 
+def test_ssl_good(rabbit_config, rabbit_ssl_config):
+    amqp_uri = rabbit_config['AMQP_URI']
+    scheme, auth, host, port, path, _, _ = parse_url(amqp_uri)
+    amqp_ssl_uri = Url(scheme, auth, host, 5671, path).url
+
+    verify_amqp_uri(amqp_ssl_uri, ssl=rabbit_ssl_config['AMQP_SSL'])
+
+
+def test_ssl_bad_port(rabbit_config, rabbit_ssl_config):
+    amqp_uri = rabbit_config['AMQP_URI']
+
+    with pytest.raises(IOError) as exc_info:
+        verify_amqp_uri(amqp_uri, ssl=rabbit_ssl_config['AMQP_SSL'])
+
+    message = str(exc_info.value)
+
+    assert 'unknown protocol' in message
+
+
 class TestGetProducer(object):
 
     @pytest.fixture(params=[True, False])

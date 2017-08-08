@@ -5,7 +5,7 @@ from six.moves import queue
 from nameko.amqp import get_connection, get_producer, UndeliverableMessage
 from nameko.constants import (
     DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY,
-    SSL_CONFIG_KEY)
+    AMQP_SSL_CONFIG_KEY)
 from nameko.messaging import AMQP_URI_CONFIG_KEY, PERSISTENT
 
 
@@ -37,7 +37,7 @@ def event_dispatcher(nameko_config, **kwargs):
         """
         serializer = nameko_config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-        ssl = nameko_config.get(SSL_CONFIG_KEY)
+        ssl = nameko_config.get(AMQP_SSL_CONFIG_KEY)
 
         exchange = get_event_exchange(service_name)
 

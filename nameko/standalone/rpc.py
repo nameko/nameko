@@ -11,7 +11,7 @@ from kombu.messaging import Consumer
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY,
-    SSL_CONFIG_KEY)
+    AMQP_SSL_CONFIG_KEY)
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.extensions import Entrypoint
@@ -115,7 +115,7 @@ class PollingQueueConsumer(object):
         self.accept = [self.serializer]
 
         amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
-        ssl = provider.container.config.get(SSL_CONFIG_KEY)
+        ssl = provider.container.config.get(AMQP_SSL_CONFIG_KEY)
         verify_amqp_uri(amqp_uri, ssl=ssl)
         self.connection = Connection(amqp_uri, ssl=ssl)
 
