@@ -150,3 +150,50 @@ def test_config(pystartup, rabbit_config, tmpdir):
         SERIALIZER_CONFIG_KEY: 'json'
     }
     local['n'].disconnect()
+
+
+class TestBanner(object):
+
+    @pytest.yield_fixture(autouse=True)
+    def patch_nameko_helper(self):
+        with patch('nameko.cli.shell.make_nameko_helper'):
+            yield
+
+    def test_broker_as_param(self):
+
+        amqp_uri = "amqp://broker/param"
+
+        parser = setup_parser()
+        args = parser.parse_args(['shell', '--broker', amqp_uri])
+
+        with patch('nameko.cli.shell.ShellRunner') as shell_runner:
+            Shell.main(args)
+
+        expected_message = (
+            "Broker: {}".format(amqp_uri)
+        )
+        (banner, _), _ = shell_runner.call_args
+        assert expected_message in banner
+
+    def test_broker_from_config(self, tmpdir):
+
+        amqp_uri = "amqp://broker/config"
+
+        config = tmpdir.join('config.yaml')
+        config.write("""
+            WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+            AMQP_URI: '{}'
+            serializer: 'json'
+        """.format(amqp_uri))
+
+        parser = setup_parser()
+        args = parser.parse_args(['shell', '--config', config.strpath])
+
+        with patch('nameko.cli.shell.ShellRunner') as shell_runner:
+            Shell.main(args)
+
+        expected_message = (
+            "Broker: {} (from --config)".format(amqp_uri)
+        )
+        (banner, _), _ = shell_runner.call_args
+        assert expected_message in banner

@@ -1,5 +1,4 @@
 import uuid
-import warnings
 
 import eventlet
 import pytest
@@ -7,6 +6,7 @@ from eventlet.event import Event
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
+from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.containers import ServiceContainer
 from nameko.events import event_handler
 from nameko.exceptions import (
@@ -94,10 +94,6 @@ class ExampleService(object):
         res2 = self.example_rpc.task_b.call_async()
         res3 = self.example_rpc.echo.call_async()
         return [res2.result(), res1.result(), res3.result()]
-
-    @rpc
-    def deprecated_async(self):
-        return self.example_rpc.echo.async().result()
 
     @rpc
     def call_unknown(self):
@@ -354,7 +350,9 @@ def test_rpc_headers(container_factory, rabbit_config):
     handle_message = rpc_consumer.handle_message
 
     with patch.object(
-            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
+        rpc_consumer, 'handle_message', autospec=True
+    ) as patched_handler:
+
         def side_effect(body, message):
             headers.update(message.headers)  # extract message headers
             return handle_message(body, message)
@@ -362,11 +360,11 @@ def test_rpc_headers(container_factory, rabbit_config):
         patched_handler.side_effect = side_effect
         container.start()
 
-    # use a standalone rpc proxy to call exampleservice.say_hello()
-    with ServiceRpcProxy(
-        "exampleservice", rabbit_config, context_data
-    ) as proxy:
-        proxy.say_hello()
+        # use a standalone rpc proxy to call exampleservice.say_hello()
+        with ServiceRpcProxy(
+            "exampleservice", rabbit_config, context_data
+        ) as proxy:
+            proxy.say_hello()
 
     # headers as per context data, plus call stack
     assert headers == {
@@ -393,23 +391,6 @@ def test_async_rpc(container_factory, rabbit_config):
 
     with entrypoint_hook(container, 'call_async') as call_async:
         assert call_async() == ["result_b", "result_a", [[], {}]]
-
-
-def test_async_rpc_deprecation_warning(container_factory, rabbit_config):
-
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    with entrypoint_hook(container, 'deprecated_async') as call_async:
-
-        # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
-        # `testdir` plugin is not compatible with eventlet on python3 --
-        # see https://github.com/mattbennett/eventlet-pytest-bug
-        with warnings.catch_warnings(record=True) as ws:
-            assert call_async() == [[], {}]
-            assert len(ws) == 1
-            assert issubclass(ws[-1].category, DeprecationWarning)
-            assert "deprecated" in str(ws[-1].message)
 
 
 def test_rpc_incorrect_signature(container_factory, rabbit_config):
@@ -1019,3 +1000,29 @@ class TestResponderDisconnections(object):
         # call 2 succeeds (after reconnecting via retry policy)
         with patch_wait(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
+
+
+def test_prefetch_throughput(container_factory, rabbit_config):
+    """Make sure even max_workers=1 can consumer faster than 1 msg/second
+
+    Regression test for https://github.com/nameko/nameko/issues/417
+    """
+
+    class Service(object):
+        name = "service"
+
+        @rpc
+        def method(self):
+            pass
+
+    rabbit_config[MAX_WORKERS_CONFIG_KEY] = 1
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    replies = []
+    with ServiceRpcProxy("service", rabbit_config) as proxy:
+        for _ in range(5):
+            replies.append(proxy.method.call_async())
+
+        with eventlet.Timeout(1):
+            [reply.result() for reply in replies]

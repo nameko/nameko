@@ -5,6 +5,39 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.6.0
+-------------
+
+Released: 2017-04-30
+
+* Environment variables are now interpreted as native YAML data types rather
+  than just strings
+* The WSGI Server now uses an explicit logger so it can be controlled using a
+  logging config
+* Drops several backwards-compatibility shims that were marked as being
+  maintained only until this release
+
+
+Version 2.5.4
+-------------
+
+Released: 2017-04-20
+
+* Don't block the QueueConsumer thread on the worker pool, which could cause
+  service deadlock and occasional dropped AMQP connections [fixes #428]
+* Revert prefetch count change from 2.5.3 and ack messages outside of the
+  QueueConsumer thread. [fixes #417 more robustly]
+
+
+Version 2.5.3
+-------------
+
+Released: 2017-03-16
+
+* Bump the amqp `prefetch_count` by 1 to `max_workers + 1` to fix throughput
+  issue. [fixes 417]
+
+
 Version 2.5.2
 -------------
 
@@ -12,7 +45,7 @@ Released 2017-02-28
 
 * Improves teardown speed of the `rabbit_config` pytest fixture
 * Support for providing an alternative reply listener to the standalone
-  RPC proxy 
+  RPC proxy
 
 Version 2.5.1
 -------------

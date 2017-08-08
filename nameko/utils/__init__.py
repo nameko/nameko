@@ -92,7 +92,7 @@ def get_redacted_args(entrypoint, *args, **kwargs):
 
     for variable in sensitive_variables:
         keys = []
-        for dict_key, list_index in re.findall("(\w+)|\[(\d+)\]", variable):
+        for dict_key, list_index in re.findall(r"(\w+)|\[(\d+)\]", variable):
             if dict_key:
                 keys.append(dict_key)
             elif list_index:
