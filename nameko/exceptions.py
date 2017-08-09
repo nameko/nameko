@@ -44,6 +44,29 @@ def remote_error(exc_path):
     to be deserialized to decorated exception instance, rather than
     wrapped in ``RemoteError``.
 
+    If a remote service raises an error during an RPC call this decorator
+    can be used to map the remote exception to a local one and handle it
+    as normal::
+
+        @remote_error('service_two.NotFound')
+        class ItemNotFound(LookupError):
+            pass
+
+        class ServiceOne:
+
+            name = 'service-one'
+
+            service_two = RpcProxy('service-two')
+
+            @rpc
+            def get(self, id_, default=None):
+                try:
+                    item = self.service_two.get(id_)
+                except ItemNotFound as exc:
+                    return default
+                else:
+                    return item
+
     """
 
     def wrapper(exc_type):
