@@ -41,6 +41,13 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+        '--amqp-ssl-port',
+        action='store',
+        dest='AMQP_SSL_PORT',
+        default=5671,
+        help='Port number for SSL connection')
+    
+    parser.addoption(
         '--amqp-ssl-ca-certs',
         action='store',
         dest='AMQP_SSL_CA_CERTS',
