@@ -46,7 +46,7 @@ def pytest_addoption(parser):
         dest='AMQP_SSL_PORT',
         default=5671,
         help='Port number for SSL connection')
-    
+
     parser.addoption(
         '--amqp-ssl-ca-certs',
         action='store',
@@ -174,7 +174,7 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
 
 @pytest.fixture()
 def rabbit_ssl_config(request):
-    from ssl import CERT_REQUIRED # pylint: disable=E0401
+    from ssl import CERT_REQUIRED  # pylint: disable=E0401
 
     ca_certs = request.config.getoption('AMQP_SSL_CA_CERTS')
     certfile = request.config.getoption('AMQP_SSL_CERTFILE')
