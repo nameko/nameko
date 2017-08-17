@@ -179,7 +179,7 @@ class TestSensitiveArguments(object):
 
             @dummy(sensitive_variables=("a", "b.x[0]", "b.x[2]"))
             def method(self, a, b, c):
-                return [a, b, c]
+                pass  # pragma: no cover
 
         container = container_factory(Service, {})
         entrypoint = get_extension(container, Entrypoint)
