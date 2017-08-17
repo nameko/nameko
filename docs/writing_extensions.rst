@@ -49,7 +49,7 @@ The *worker lifecycle* are called in the same thread that executes the service m
 Example
 ^^^^^^^
 
-A simple `DependencyProvider` that sends messages to an SQS queue.
+A simple ``DependencyProvider`` that sends messages to an SQS queue.
 
 .. literalinclude:: examples/sqs_send.py
 
@@ -68,7 +68,7 @@ The minimum requirements for an Entrypoint are:
 Example
 ^^^^^^^
 
-A simple `Entrypoint` that recieves messages from an SQS queue.
+A simple ``Entrypoint`` that recieves messages from an SQS queue.
 
 .. literalinclude:: examples/sqs_receive.py
 
