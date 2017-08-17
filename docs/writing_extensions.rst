@@ -68,7 +68,7 @@ The minimum requirements for an Entrypoint are:
 Example
 ^^^^^^^
 
-A simple ``Entrypoint`` that recieves messages from an SQS queue.
+A simple ``Entrypoint`` that receives messages from an SQS queue.
 
 .. literalinclude:: examples/sqs_receive.py
 
