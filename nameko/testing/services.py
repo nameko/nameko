@@ -477,12 +477,15 @@ class Once(Entrypoint):
     """
     def __init__(self, *args, **kwargs):
         expected_exceptions = kwargs.pop('expected_exceptions', ())
+        sensitive_arguments = kwargs.pop('sensitive_arguments', ())
+        # backwards compat
         sensitive_variables = kwargs.pop('sensitive_variables', ())
 
         self.args = args
         self.kwargs = kwargs
         super(Once, self).__init__(
             expected_exceptions=expected_exceptions,
+            sensitive_arguments=sensitive_arguments,
             sensitive_variables=sensitive_variables
         )
 

@@ -425,11 +425,11 @@ class TestExpectedExceptions:
             assert exc.value.exc_type == 'Unauthorized'
 
 
-class TestSensitiveVariables:
+class TestSensitiveArguments:
 
-    def test_sensitive_variables(self, container_factory, rabbit_config):
+    def test_sensitive_arguments(self, container_factory, rabbit_config):
         from examples.auth import JWT_SECRET
-        from examples.sensitive_variables import Service
+        from examples.sensitive_arguments import Service
 
         container = container_factory(Service, rabbit_config)
         container.start()

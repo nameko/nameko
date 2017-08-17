@@ -46,21 +46,21 @@ def test_fail_fast_imap():
 
 class TestGetRedactedArgs(object):
 
-    @pytest.mark.parametrize("sensitive_variables, expected", [
-        (tuple(), {'a': 'A', 'b': 'B'}),  # no sensitive variables
+    @pytest.mark.parametrize("sensitive_arguments, expected", [
+        (tuple(), {'a': 'A', 'b': 'B'}),  # no sensitive arguments
         ("a", {'a': REDACTED, 'b': 'B'}),
         (("a",), {'a': REDACTED, 'b': 'B'}),
         (("a", "b"), {'a': REDACTED, 'b': REDACTED}),
         (("c"), {'a': 'A', 'b': 'B'}),  # 'c' not a valid argument; ignored
     ])
     def test_get_redacted_args(
-        self, sensitive_variables, expected, rabbit_config
+        self, sensitive_arguments, expected, rabbit_config
     ):
 
         class Service(object):
             name = "service"
 
-            @rpc(sensitive_variables=sensitive_variables)
+            @rpc(sensitive_arguments=sensitive_arguments)
             def method(self, a, b):
                 pass  # pragma: no cover
 
@@ -83,7 +83,7 @@ class TestGetRedactedArgs(object):
         class Service(object):
             name = "service"
 
-            @rpc(sensitive_variables="a")
+            @rpc(sensitive_arguments="a")
             def method(self, a, b=None):
                 pass  # pragma: no cover
 
@@ -95,7 +95,7 @@ class TestGetRedactedArgs(object):
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
 
-    @pytest.mark.parametrize("sensitive_variables, expected", [
+    @pytest.mark.parametrize("sensitive_arguments, expected", [
         (
             ("b.foo",),  # dict key
             {
@@ -140,13 +140,13 @@ class TestGetRedactedArgs(object):
         ),
     ])
     def test_get_redacted_args_partial(
-        self, sensitive_variables, expected, rabbit_config
+        self, sensitive_arguments, expected, rabbit_config
     ):
 
         class Service(object):
             name = "service"
 
-            @rpc(sensitive_variables=sensitive_variables)
+            @rpc(sensitive_arguments=sensitive_arguments)
             def method(self, a, b):
                 pass  # pragma: no cover
 
@@ -171,7 +171,7 @@ class TestGetRedactedArgs(object):
         redacted = {}
 
         class Redactor(DependencyProvider):
-            """ Example DependencyProvider that redacts `sensitive_variables`
+            """ Example DependencyProvider that redacts `sensitive_arguments`
             on entrypoints during the worker lifecycle.
             """
 
@@ -187,7 +187,7 @@ class TestGetRedactedArgs(object):
 
             redactor = Redactor()
 
-            @dummy(sensitive_variables=['b[foo][1]'])
+            @dummy(sensitive_arguments=['b[foo][1]'])
             def method(self, a, b):
                 return {
                     "a": a,

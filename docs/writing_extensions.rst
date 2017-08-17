@@ -87,24 +87,24 @@ The Entrypoint base class constructor will accept a list of classes that should 
 The list of expected exceptions are saved to the Entrypoint instance so they can later be inspected, for example by other extensions that process exceptions, as in `nameko-sentry <https://github.com/mattbennett/nameko-sentry/blob/b254ba99df5856030dfcb1d13b14c1c8a41108b9/nameko_sentry.py#L159-L164>`_.
 
 
-Sensitive Variables
+Sensitive Arguments
 ^^^^^^^^^^^^^^^^^^^
 
-In the same way as *expected exceptions*, the Entrypoint constructor allows you to mark certain parameters or parts of parameters as sensitive. For example:
+In the same way as *expected exceptions*, the Entrypoint constructor allows you to mark certain arguments or parts of arguments as sensitive. For example:
 
-.. literalinclude:: examples/sensitive_variables.py
+.. literalinclude:: examples/sensitive_arguments.py
     :pyobject: Service
 
 This can to be used in combination with the utility function :func:`nameko.utils.get_redacted_args`, which will return an entrypoint's call args (similar to :func:`inspect.getcallargs`) but with sensitive elements redacted.
 
 This is useful in Extensions that log or save information about entrypoint invocations, such as `nameko-tracer <https://github.com/Overseas-Student-Living/nameko-tracer>`_.
 
-For entrypoints that accept sensitive information nested within an otherwise safe parameter, you can specify partial redaction. For example:
+For entrypoints that accept sensitive information nested within an otherwise safe argument, you can specify partial redaction. For example:
 
 .. code-block:: python
 
     # by dictionary key
-    @entrypoint(sensitive_variables="foo.a")
+    @entrypoint(sensitive_arguments="foo.a")
     def method(self, foo):
         pass
 
@@ -112,14 +112,14 @@ For entrypoints that accept sensitive information nested within an otherwise saf
     ... {'foo': {'a': '******', 'b': 2}}
 
     # list index
-    @entrypoint(sensitive_variables="foo.a[1]")
+    @entrypoint(sensitive_arguments="foo.a[1]")
     def method(self, foo):
         pass
 
     >>> get_redacted_args(method, foo=[{'a': [1, 2, 3]}])
     ... {'foo': {'a': [1, '******', 3]}}
 
-Slices and relative list indexes are not supported yet.
+Slices and relative list indexes are not supported.
 
 .. _spawning_background_threads:
 

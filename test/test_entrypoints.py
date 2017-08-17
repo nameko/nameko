@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from mock import Mock, call
+from mock import Mock, call, patch, ANY
 import pytest
 
 from nameko.extensions import DependencyProvider, Entrypoint
@@ -12,6 +12,12 @@ from nameko.utils import get_redacted_args, REDACTED
 @pytest.fixture
 def tracker():
     return Mock()
+
+
+@pytest.yield_fixture
+def warnings():
+    with patch('nameko.extensions.warnings') as patched:
+        yield patched
 
 
 class TestDecorator(object):
@@ -115,15 +121,15 @@ class TestExpectedExceptions(object):
         assert unexpected_exc.value in exceptions['unexpected']
 
 
-class TestSensitiveVariables(object):
+class TestSensitiveArguments(object):
 
-    def test_sensitive_variables(self, container_factory):
+    def test_sensitive_arguments(self, container_factory):
 
         redacted = {}
 
         class Logger(DependencyProvider):
             """ Example DependencyProvider that makes use of
-            ``get_redacted_args`` to redact ``sensitive_variables``
+            ``get_redacted_args`` to redact ``sensitive_arguments``
             on entrypoints.
             """
 
@@ -139,14 +145,14 @@ class TestSensitiveVariables(object):
 
             logger = Logger()
 
-            @dummy(sensitive_variables=("a", "b.x[0]", "b.x[2]"))
+            @dummy(sensitive_arguments=("a", "b.x[0]", "b.x[2]"))
             def method(self, a, b, c):
                 return [a, b, c]
 
         container = container_factory(Service, {})
         entrypoint = get_extension(container, Entrypoint)
 
-        assert entrypoint.sensitive_variables == ("a", "b.x[0]", "b.x[2]")
+        assert entrypoint.sensitive_arguments == ("a", "b.x[0]", "b.x[2]")
 
         a = "A"
         b = {'x': [1, 2, 3], 'y': [4, 5, 6]}
@@ -163,3 +169,20 @@ class TestSensitiveVariables(object):
             },
             'c': 'C'
         }
+
+    def test_sensitive_variables_backwards_compat(
+        self, container_factory, warnings
+    ):
+
+        class Service(object):
+            name = "service"
+
+            @dummy(sensitive_variables=("a", "b.x[0]", "b.x[2]"))
+            def method(self, a, b, c):
+                return [a, b, c]
+
+        container = container_factory(Service, {})
+        entrypoint = get_extension(container, Entrypoint)
+
+        assert entrypoint.sensitive_arguments == ("a", "b.x[0]", "b.x[2]")
+        assert warnings.warn.call_args == call(ANY, DeprecationWarning)

@@ -5,6 +5,7 @@ import inspect
 from logging import getLogger
 import types
 import weakref
+import warnings
 
 from eventlet.event import Event
 
@@ -258,7 +259,7 @@ class Entrypoint(Extension):
     method_name = None
 
     def __init__(
-        self, expected_exceptions=(), sensitive_variables=(), **kwargs
+        self, expected_exceptions=(), sensitive_arguments=(), **kwargs
     ):
         """
         :Parameters:
@@ -267,16 +268,25 @@ class Entrypoint(Extension):
                 providing bad arguments). Saved on the entrypoint instance as
                 ``entrypoint.expected_exceptions`` for later inspection by
                 other extensions, for example a monitoring system.
-            sensitive_variables : string or tuple of strings
+            sensitive_arguments : string or tuple of strings
                 Mark an argument or part of an argument as sensitive. Saved on
-                the entrypoint instance as ``entrypoint.sensitive_variables``
+                the entrypoint instance as ``entrypoint.sensitive_arguments``
                 for later inspection by other extensions, for example a
                 logging system.
 
                 :seealso: :func:`nameko.utils.get_redacted_args`
         """
+        # backwards compat
+        sensitive_variables = kwargs.pop('sensitive_variables', ())
+        if sensitive_variables:
+            sensitive_arguments = sensitive_variables
+            warnings.warn(
+                "The `sensitive_variables` argument has been renamed to "
+                "`sensitive_arguments`. This warning will be removed in "
+                "version 2.9.0.", DeprecationWarning)
+
         self.expected_exceptions = expected_exceptions
-        self.sensitive_variables = sensitive_variables
+        self.sensitive_arguments = sensitive_arguments
         super(Entrypoint, self).__init__(**kwargs)
 
     def bind(self, container, method_name):

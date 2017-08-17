@@ -8,7 +8,7 @@ class Service:
 
     auth = Auth()
 
-    @rpc(sensitive_variables="password", expected_exceptions=Unauthenticated)
+    @rpc(sensitive_arguments="password", expected_exceptions=Unauthenticated)
     def login(self, username, password):
         # raises Unauthenticated if username/password do not match
         return self.auth.authenticate(username, password)
