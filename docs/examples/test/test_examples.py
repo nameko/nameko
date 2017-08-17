@@ -3,11 +3,16 @@
 """
 import os
 
-from mock import call, patch
+from mock import call, patch, Mock
+from moto import mock_sqs
+import boto3
+import jwt
+import pytest
 
+from nameko.exceptions import RemoteError
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.services import entrypoint_waiter, entrypoint_hook
+from nameko.testing.services import dummy, entrypoint_waiter, entrypoint_hook
 
 
 class TestHttp(object):
@@ -312,3 +317,224 @@ class TestConfig:
         res = web_session.get('/foo')
         assert res.status_code == 200
         assert res.text == "foo"
+
+
+class TestAuth:
+
+    @pytest.fixture
+    def db(self):
+        return {
+            'matt': {
+                'password': 'secret',
+                'roles': [
+                    'developer',
+                ]
+            },
+            'susie': {
+                'password': 'supersecret',
+                'roles': [
+                    'developer',
+                    'admin'
+                ]
+            }
+        }
+
+    def test_authenticate(self, db):
+        from examples.auth import Auth, JWT_SECRET
+
+        worker_ctx = Mock(context_data={})
+        dep = Auth.Api(db, worker_ctx)
+        token = dep.authenticate("matt", "secret")
+        jwt.decode(token, key=JWT_SECRET, verify=True)
+        assert worker_ctx.context_data['auth'] == token
+
+    def test_authenticate_bad_username(self, db):
+        from examples.auth import Auth, Unauthenticated
+
+        worker_ctx = Mock(context_data={})
+        dep = Auth.Api(db, worker_ctx)
+        with pytest.raises(Unauthenticated):
+            dep.authenticate("angela", "secret")
+        assert worker_ctx.context_data.get('auth') is None
+
+    def test_authenticate_bad_password(self, db):
+        from examples.auth import Auth, Unauthenticated
+
+        worker_ctx = Mock(context_data={})
+        dep = Auth.Api(db, worker_ctx)
+        with pytest.raises(Unauthenticated):
+            dep.authenticate("matt", "invalid")
+        assert worker_ctx.context_data.get('auth') is None
+
+    def test_authenticated_user_has_role(self, db):
+        from examples.auth import Auth, JWT_SECRET
+
+        token = jwt.encode(
+            {'username': 'matt', 'roles': ['dev']}, key=JWT_SECRET
+        )
+
+        worker_ctx = Mock(context_data={'auth': token})
+        dep = Auth.Api(db, worker_ctx)
+        assert dep.has_role('dev')
+
+    def test_authenticated_user_does_not_have_role(self, db):
+        from examples.auth import Auth, Unauthorized, JWT_SECRET
+
+        token = jwt.encode(
+            {'username': 'matt', 'roles': ['dev']}, key=JWT_SECRET
+        )
+
+        worker_ctx = Mock(context_data={'auth': token})
+        dep = Auth.Api(db, worker_ctx)
+        with pytest.raises(Unauthorized):
+            dep.has_role('admin')
+
+    def test_has_role_unauthenicated_user(self, db):
+        from examples.auth import Auth, Unauthenticated
+
+        worker_ctx = Mock(context_data={})
+        dep = Auth.Api(db, worker_ctx)
+        with pytest.raises(Unauthenticated):
+            dep.has_role('admin')
+
+    def test_has_role_invalid_token(self, db):
+        from examples.auth import Auth, Unauthorized
+
+        worker_ctx = Mock(context_data={'auth': 'invalid-token'})
+        dep = Auth.Api(db, worker_ctx)
+        with pytest.raises(Unauthorized):
+            dep.has_role('admin')
+
+
+class TestExpectedExceptions:
+
+    def test_expected_exceptions(self, container_factory, rabbit_config):
+        from examples.auth import JWT_SECRET
+        from examples.expected_exceptions import Service
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        token = jwt.encode({"roles": []}, key=JWT_SECRET)
+
+        with ServiceRpcProxy(
+            "service", rabbit_config, context_data={"auth": token}
+        ) as proxy:
+            with pytest.raises(RemoteError) as exc:
+                proxy.update(None)
+            assert exc.value.exc_type == 'Unauthorized'
+
+
+class TestSensitiveVariables:
+
+    def test_sensitive_variables(self, container_factory, rabbit_config):
+        from examples.auth import JWT_SECRET
+        from examples.sensitive_variables import Service
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
+            token = proxy.login("matt", "secret")
+            jwt.decode(token, key=JWT_SECRET, verify=True)
+            with pytest.raises(RemoteError) as exc:
+                proxy.login("matt", "incorrect")
+            assert exc.value.exc_type == "Unauthenticated"
+
+
+class TestSqsReceive:
+
+    @pytest.yield_fixture
+    def sqs_client(self):
+        with mock_sqs():
+            client = boto3.client('sqs', region_name="eu-west-1")
+            yield client
+
+    @pytest.yield_fixture
+    def queue(self, sqs_client):
+        queue = sqs_client.create_queue(QueueName="nameko-sqs")
+        url = queue['QueueUrl']
+        yield url
+        sqs_client.delete_queue(QueueUrl=url)
+
+    def test_sqs_receive(self, queue, sqs_client, container_factory):
+
+        from examples.sqs_receive import receive
+
+        class Service:
+            name = "sqs-service"
+
+            @receive(queue)
+            def handle(self, payload):
+                return payload
+
+        container = container_factory(Service, config={})
+        container.start()
+
+        with entrypoint_waiter(container, 'handle') as res:
+            sqs_client.send_message(QueueUrl=queue, MessageBody="hello")
+        assert res.get() == "hello"
+
+
+class TestSqsSend:
+
+    @pytest.yield_fixture
+    def sqs_client(self):
+        with mock_sqs():
+            client = boto3.client('sqs', region_name="eu-west-1")
+            yield client
+
+    @pytest.yield_fixture
+    def queue(self, sqs_client):
+        queue = sqs_client.create_queue(QueueName="nameko-sqs")
+        url = queue['QueueUrl']
+        yield url
+        sqs_client.delete_queue(QueueUrl=url)
+
+    def test_sqs_send(self, queue, sqs_client, container_factory):
+
+        from examples.sqs_send import SqsSend
+
+        class Service:
+            name = "sqs-service"
+
+            send_message = SqsSend(queue)
+
+            @dummy
+            def method(self, payload):
+                self.send_message(payload)
+
+        container = container_factory(Service, config={})
+        container.start()
+
+        with entrypoint_hook(container, 'method') as send:
+            send("hello")
+
+        resp = sqs_client.receive_message(QueueUrl=queue)
+        assert resp['Messages'][0]['Body'] == "hello"
+
+
+class TestSqsService:
+
+    @pytest.yield_fixture
+    def sqs_client(self):
+        with mock_sqs():
+            client = boto3.client('sqs', region_name="eu-west-1")
+            yield client
+
+    @pytest.yield_fixture
+    def queue(self, sqs_client):
+        queue = sqs_client.create_queue(QueueName="nameko-sqs")
+        url = queue['QueueUrl']
+        yield url
+        sqs_client.delete_queue(QueueUrl=url)
+
+    def test_sqs_service(self, queue, sqs_client, container_factory):
+
+        from examples.sqs_service import SqsService
+
+        container = container_factory(SqsService, {})
+        container.start()
+
+        with entrypoint_waiter(container, 'handle_sqs_message') as res:
+            sqs_client.send_message()

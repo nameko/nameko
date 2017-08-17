@@ -52,7 +52,9 @@ setup(
             "sphinx-nameko-theme==0.0.3",
         ],
         'examples': [
-            "nameko-sqlalchemy==0.0.1"
+            "nameko-sqlalchemy==0.0.1",
+            "PyJWT==1.5.2",
+            "moto-1.0.1"
         ]
     },
     entry_points={
