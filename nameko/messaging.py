@@ -122,8 +122,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 "The signature of `Publisher` has changed. The `queue` kwarg "
                 "is now deprecated. You can use the `declare` kwarg "
                 "to provide a list of Kombu queues to be declared. "
-                "See CHANGES, version 2.5.2 for more details. This warning "
-                "will be removed in version 2.8.0.",
+                "See CHANGES, version 2.7.0 for more details. This warning "
+                "will be removed in version 2.9.0.",
                 DeprecationWarning
             )
             if exchange is None:
