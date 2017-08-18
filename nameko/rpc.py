@@ -191,7 +191,7 @@ rpc = Rpc.decorator
 
 class Responder(object):
 
-    Publisher = Publisher
+    publisher_cls = Publisher
 
     def __init__(self, amqp_uri, exchange, serializer, message):
         self.amqp_uri = amqp_uri
@@ -223,7 +223,7 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.Publisher(self.amqp_uri)
+        publisher = self.publisher_cls(self.amqp_uri)
 
         publisher.publish(
             payload,
@@ -352,7 +352,7 @@ class RpcReply(object):
 
 class MethodProxy(HeaderEncoder):
 
-    Publisher = Publisher
+    publisher_cls = Publisher
 
     def __init__(
         self, worker_ctx, service_name, method_name, reply_listener, **options
@@ -382,7 +382,7 @@ class MethodProxy(HeaderEncoder):
 
         serializer = options.pop('serializer', self.serializer)
 
-        self.publisher = self.Publisher(
+        self.publisher = self.publisher_cls(
             self.amqp_uri, serializer=serializer, **options
         )
 

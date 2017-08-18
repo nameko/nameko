@@ -471,13 +471,13 @@ class TestStandaloneProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy.Publisher, 'retry', new=retry):
+        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            MethodProxy.Publisher, 'use_confirms', new=request.param
+            MethodProxy.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
