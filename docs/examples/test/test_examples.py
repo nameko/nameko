@@ -537,4 +537,5 @@ class TestSqsService:
         container.start()
 
         with entrypoint_waiter(container, 'handle_sqs_message') as res:
-            sqs_client.send_message()
+            sqs_client.send_message(QueueUrl=queue, MessageBody="hello")
+        assert res.get() == "hello"
