@@ -325,13 +325,19 @@ class TestAuth:
     def db(self):
         return {
             'matt': {
-                'password': 'secret',
+                'password': (
+                    b'$2b$12$fZXR7Z1Eoyn0pfym8.'
+                    b'LyRuIFabYj00ZzhdaJ0qoTLZs9w4fg3pKlK'
+                ),
                 'roles': [
                     'developer',
                 ]
             },
             'susie': {
-                'password': 'supersecret',
+                'password': (
+                    b'$2b$12$k4MVi9PcbSsOqONoj5vW9.'
+                    b'pcQpB0xSjYkZcc6Ogr5nQ4MD8DRDiUK'
+                ),
                 'roles': [
                     'developer',
                     'admin'

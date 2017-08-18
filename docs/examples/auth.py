@@ -1,3 +1,4 @@
+import bcrypt
 import jwt
 
 from nameko.extensions import DependencyProvider
@@ -22,10 +23,11 @@ class Auth(DependencyProvider):
             self.worker_ctx = worker_ctx
 
         def authenticate(self, username, password):
-            try:
-                assert self.users[username]['password'] == password
-            except (KeyError, AssertionError):
-                raise Unauthenticated()
+            user = self.users.get(username)
+            if not user:
+                raise Unauthenticated("User does not exist")
+            if not bcrypt.checkpw(password.encode('utf-8'), user['password']):
+                raise Unauthenticated("Incorrect password")
 
             payload = {
                 'username': username,
@@ -52,13 +54,19 @@ class Auth(DependencyProvider):
     def setup(self):
         self.db = {
             'matt': {
-                'password': 'secret',
+                'password': (
+                    b'$2b$12$fZXR7Z1Eoyn0pfym8.'
+                    b'LyRuIFabYj00ZzhdaJ0qoTLZs9w4fg3pKlK'
+                ),
                 'roles': [
                     'developer',
                 ]
             },
             'susie': {
-                'password': 'supersecret',
+                'password': (
+                    b'$2b$12$k4MVi9PcbSsOqONoj5vW9.'
+                    b'pcQpB0xSjYkZcc6Ogr5nQ4MD8DRDiUK'
+                ),
                 'roles': [
                     'developer',
                     'admin'

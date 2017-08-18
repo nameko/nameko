@@ -54,7 +54,8 @@ setup(
         'examples': [
             "nameko-sqlalchemy==0.0.1",
             "PyJWT==1.5.2",
-            "moto==1.0.1"
+            "moto==1.0.1",
+            "bcrypt==3.1.3"
         ]
     },
     entry_points={
