@@ -444,7 +444,7 @@ class MethodProxy(HeaderEncoder):
         reply_to = self.reply_listener.routing_key
         correlation_id = str(uuid.uuid4())
 
-        propagate_headers = self.get_message_headers(self.worker_ctx)
+        extra_headers = self.get_message_headers(self.worker_ctx)
 
         reply_event = self.reply_listener.get_reply_event(correlation_id)
 
@@ -456,7 +456,7 @@ class MethodProxy(HeaderEncoder):
                 mandatory=True,
                 reply_to=reply_to,
                 correlation_id=correlation_id,
-                extra_headers=propagate_headers
+                extra_headers=extra_headers
             )
         except UndeliverableMessage:
             raise UnknownService(self.service_name)
