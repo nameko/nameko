@@ -689,13 +689,13 @@ class TestProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy.Publisher, 'retry', new=retry):
+        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            MethodProxy.Publisher, 'use_confirms', new=request.param
+            MethodProxy.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
@@ -824,7 +824,7 @@ class TestResponderDisconnections(object):
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         value = request.param
-        with patch.object(Responder.Publisher, 'use_confirms', new=value):
+        with patch.object(Responder.publisher_cls, 'use_confirms', new=value):
             yield value
 
     @pytest.yield_fixture(autouse=True)
@@ -833,7 +833,7 @@ class TestResponderDisconnections(object):
         if "publish_retry" in request.keywords:
             value = True
 
-        with patch.object(Responder.Publisher, 'retry', new=value):
+        with patch.object(Responder.publisher_cls, 'retry', new=value):
             yield
 
     @pytest.fixture

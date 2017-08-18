@@ -128,13 +128,13 @@ def test_publish_to_exchange(
         'exchange': foobar_ex,
         'headers': headers,
         'declare': publisher.declare,
-        'retry': publisher.Publisher.retry,
-        'retry_policy': publisher.Publisher.retry_policy,
-        'compression': publisher.Publisher.compression,
-        'mandatory': publisher.Publisher.mandatory,
-        'expiration': publisher.Publisher.expiration,
-        'delivery_mode': publisher.Publisher.delivery_mode,
-        'priority': publisher.Publisher.priority,
+        'retry': publisher.publisher_cls.retry,
+        'retry_policy': publisher.publisher_cls.retry_policy,
+        'compression': publisher.publisher_cls.compression,
+        'mandatory': publisher.publisher_cls.mandatory,
+        'expiration': publisher.publisher_cls.expiration,
+        'delivery_mode': publisher.publisher_cls.delivery_mode,
+        'priority': publisher.publisher_cls.priority,
         'serializer': publisher.serializer
     }
 
@@ -180,13 +180,13 @@ def test_publish_to_queue(
         'exchange': foobar_ex,
         'headers': headers,
         'declare': publisher.declare,
-        'retry': publisher.Publisher.retry,
-        'retry_policy': publisher.Publisher.retry_policy,
-        'compression': publisher.Publisher.compression,
-        'mandatory': publisher.Publisher.mandatory,
-        'expiration': publisher.Publisher.expiration,
-        'delivery_mode': publisher.Publisher.delivery_mode,
-        'priority': publisher.Publisher.priority,
+        'retry': publisher.publisher_cls.retry,
+        'retry_policy': publisher.publisher_cls.retry_policy,
+        'compression': publisher.publisher_cls.compression,
+        'mandatory': publisher.publisher_cls.mandatory,
+        'expiration': publisher.publisher_cls.expiration,
+        'delivery_mode': publisher.publisher_cls.delivery_mode,
+        'priority': publisher.publisher_cls.priority,
         'serializer': publisher.serializer
     }
 
@@ -226,13 +226,13 @@ def test_publish_custom_headers(
         'exchange': foobar_ex,
         'headers': headers,
         'declare': publisher.declare,
-        'retry': publisher.Publisher.retry,
-        'retry_policy': publisher.Publisher.retry_policy,
-        'compression': publisher.Publisher.compression,
-        'mandatory': publisher.Publisher.mandatory,
-        'expiration': publisher.Publisher.expiration,
-        'delivery_mode': publisher.Publisher.delivery_mode,
-        'priority': publisher.Publisher.priority,
+        'retry': publisher.publisher_cls.retry,
+        'retry_policy': publisher.publisher_cls.retry_policy,
+        'compression': publisher.publisher_cls.compression,
+        'mandatory': publisher.publisher_cls.mandatory,
+        'expiration': publisher.publisher_cls.expiration,
+        'delivery_mode': publisher.publisher_cls.delivery_mode,
+        'priority': publisher.publisher_cls.priority,
         'serializer': publisher.serializer
     }
 
@@ -679,7 +679,7 @@ class TestPublisherDisconnections(object):
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            Publisher.Publisher, 'use_confirms', new=request.param
+            Publisher.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 

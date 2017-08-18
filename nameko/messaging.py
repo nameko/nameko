@@ -74,7 +74,7 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    Publisher = PublisherCore
+    publisher_cls = PublisherCore
 
     def __init__(self, exchange=None, queue=None, declare=None, **options):
         """ Provides an AMQP message publisher method via dependency injection.
@@ -168,7 +168,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         serializer = self.options.pop('serializer', self.serializer)
 
-        self.publisher = self.Publisher(
+        self.publisher = self.publisher_cls(
             self.amqp_uri,
             serializer=serializer,
             exchange=self.exchange,
