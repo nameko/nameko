@@ -39,6 +39,13 @@ class HeaderEncoder(object):
     def _get_header_name(self, key):
         return "{}.{}".format(self.header_prefix, key)
 
+    def apply_prefix(self, data):
+        return {
+            self._get_header_name(key): value
+            for key, value in data.items()
+            if value is not None
+        }
+
     def get_message_headers(self, worker_ctx):
         data = worker_ctx.context_data
 
@@ -48,10 +55,7 @@ class HeaderEncoder(object):
                 'Headers with a value of `None` will be dropped from '
                 'the payload. %s', data)
 
-        headers = {self._get_header_name(key): value
-                   for key, value in data.items()
-                   if value is not None}
-        return headers
+        return self.apply_prefix(data)
 
 
 class HeaderDecoder(object):
