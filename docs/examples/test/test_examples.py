@@ -442,6 +442,15 @@ class TestExpectedExceptions:
                 proxy.update(None)
             assert exc.value.exc_type == 'Unauthorized'
 
+        admin_token = jwt.encode({"roles": ['admin']}, key=JWT_SECRET)
+
+        with ServiceRpcProxy(
+            "service", rabbit_config, context_data={"auth": admin_token}
+        ) as proxy:
+            with pytest.raises(RemoteError) as exc:
+                proxy.update(None)
+            assert exc.value.exc_type == 'TypeError'
+
 
 class TestSensitiveArguments:
 

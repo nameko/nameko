@@ -14,3 +14,4 @@ class Service:
             raise Unauthorized()
 
         # perform update
+        raise TypeError("Whoops, genuine error.")

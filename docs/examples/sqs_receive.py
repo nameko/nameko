@@ -25,9 +25,9 @@ class SqsReceive(Entrypoint):
                 QueueUrl=self.url,
                 WaitTimeSeconds=5,
             )
-            if "Messages" in response:
-                for message in response['Messages']:
-                    self.handle_message(message)
+            messages = response.get('Messages', ())
+            for message in messages:
+                self.handle_message(message)
 
     def handle_message(self, message):
         handle_result = partial(self.handle_result, message)
