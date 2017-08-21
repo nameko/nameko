@@ -49,6 +49,11 @@ class Auth(DependencyProvider):
             except Exception:
                 pass
 
+            return False
+
+        def check_role(self, role):
+            if self.has_role(role):
+                return
             raise Unauthorized()
 
     def setup(self):

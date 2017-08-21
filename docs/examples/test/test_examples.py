@@ -384,7 +384,7 @@ class TestAuth:
         assert dep.has_role('dev')
 
     def test_authenticated_user_does_not_have_role(self, db):
-        from examples.auth import Auth, Unauthorized, JWT_SECRET
+        from examples.auth import Auth, JWT_SECRET
 
         token = jwt.encode(
             {'username': 'matt', 'roles': ['dev']}, key=JWT_SECRET
@@ -392,8 +392,7 @@ class TestAuth:
 
         worker_ctx = Mock(context_data={'auth': token})
         dep = Auth.Api(db, worker_ctx)
-        with pytest.raises(Unauthorized):
-            dep.has_role('admin')
+        assert not dep.has_role('admin')
 
     def test_has_role_unauthenicated_user(self, db):
         from examples.auth import Auth, Unauthenticated
@@ -404,12 +403,25 @@ class TestAuth:
             dep.has_role('admin')
 
     def test_has_role_invalid_token(self, db):
-        from examples.auth import Auth, Unauthorized
+        from examples.auth import Auth
 
         worker_ctx = Mock(context_data={'auth': 'invalid-token'})
         dep = Auth.Api(db, worker_ctx)
+        assert not dep.has_role('admin')
+
+    def test_check_role(self, db):
+        from examples.auth import Auth, Unauthorized, JWT_SECRET
+
+        token = jwt.encode(
+            {'username': 'matt', 'roles': ['dev']}, key=JWT_SECRET
+        )
+
+        worker_ctx = Mock(context_data={'auth': token})
+        dep = Auth.Api(db, worker_ctx)
+
+        assert dep.check_role('dev') is None
         with pytest.raises(Unauthorized):
-            dep.has_role('admin')
+            dep.check_role('admin')
 
 
 class TestExpectedExceptions:
