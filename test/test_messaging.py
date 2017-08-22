@@ -1,22 +1,23 @@
-from contextlib import contextmanager
+from __future__ import absolute_import
+
 import socket
+from contextlib import contextmanager
+from six.moves import queue
 
 import eventlet
 import pytest
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
-
-from nameko.amqp import get_producer, UndeliverableMessage
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, HEARTBEAT_CONFIG_KEY)
+from nameko.amqp import get_producer
+from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
     Consumer, HeaderDecoder, HeaderEncoder, Publisher, QueueConsumer, consume)
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
-    ANY_PARTIAL, DummyProvider, get_extension, wait_for_call)
+    ANY_PARTIAL, DummyProvider, get_extension, wait_for_call, unpack_mock_call)
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
@@ -28,13 +29,7 @@ CONSUME_TIMEOUT = 1.2  # a bit more than 1 second
 
 
 @pytest.yield_fixture
-def warnings():
-    with patch('nameko.messaging.warnings') as patched:
-        yield patched
-
-
-@pytest.yield_fixture
-def maybe_declare():
+def patch_maybe_declare():
     with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
         yield patched
 
@@ -102,11 +97,10 @@ def test_consume_provider(mock_container):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    maybe_declare, mock_connection, mock_producer, mock_container,
-    rabbit_config
+    patch_maybe_declare, mock_connection, mock_producer, mock_container
 ):
     container = mock_container
-    container.config = rabbit_config
+    container.config = {'AMQP_URI': 'memory://'}
     container.service_name = "srcservice"
 
     service = Mock()
@@ -116,28 +110,45 @@ def test_publish_to_exchange(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_ex, mock_connection)
+    assert patch_maybe_declare.call_args_list == [
+        call(foobar_ex, mock_connection)
+    ]
 
     # test publish
     msg = "msg"
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
+
     headers = {
         'nameko.call_id_stack': ['srcservice.publish.0']
     }
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'declare': publisher.declare,
+        'retry': publisher.publisher_cls.retry,
+        'retry_policy': publisher.publisher_cls.retry_policy,
+        'compression': publisher.publisher_cls.compression,
+        'mandatory': publisher.publisher_cls.mandatory,
+        'expiration': publisher.publisher_cls.expiration,
+        'delivery_mode': publisher.publisher_cls.delivery_mode,
+        'priority': publisher.publisher_cls.priority,
+        'serializer': publisher.serializer
+    }
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
-    maybe_declare, mock_producer, mock_connection, mock_container,
-    rabbit_config
+    patch_maybe_declare, mock_producer, mock_connection, mock_container
 ):
     container = mock_container
-    container.config = rabbit_config
+    container.config = {'AMQP_URI': 'memory://'}
     container.shared_extensions = {}
     container.service_name = "srcservice"
 
@@ -150,7 +161,9 @@ def test_publish_to_queue(
 
     # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
+    assert patch_maybe_declare.call_args_list == [
+        call(foobar_queue, mock_connection)
+    ]
 
     # test publish
     msg = "msg"
@@ -160,18 +173,32 @@ def test_publish_to_queue(
     }
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'declare': publisher.declare,
+        'retry': publisher.publisher_cls.retry,
+        'retry_policy': publisher.publisher_cls.retry_policy,
+        'compression': publisher.publisher_cls.compression,
+        'mandatory': publisher.publisher_cls.mandatory,
+        'expiration': publisher.publisher_cls.expiration,
+        'delivery_mode': publisher.publisher_cls.delivery_mode,
+        'priority': publisher.publisher_cls.priority,
+        'serializer': publisher.serializer
+    }
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
-    mock_container, maybe_declare, mock_producer, mock_connection,
-    rabbit_config
+    mock_container, mock_producer, mock_connection, rabbit_config
 ):
-
     container = mock_container
     container.config = rabbit_config
     container.service_name = "srcservice"
@@ -183,10 +210,7 @@ def test_publish_custom_headers(
     )
 
     publisher = Publisher(queue=foobar_queue).bind(container, "publish")
-
-    # test declarations
     publisher.setup()
-    maybe_declare.assert_called_once_with(foobar_queue, mock_connection)
 
     # test publish
     msg = "msg"
@@ -195,10 +219,26 @@ def test_publish_custom_headers(
                'nameko.call_id_stack': ['srcservice.method.0']}
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish(msg, publish_kwarg="value")
-    mock_producer.publish.assert_called_once_with(
-        msg, headers=headers, exchange=foobar_ex, retry=True,
-        serializer=container.serializer, mandatory=False,
-        retry_policy=DEFAULT_RETRY_POLICY, publish_kwarg="value")
+
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'publish_kwarg': "value",
+        'exchange': foobar_ex,
+        'headers': headers,
+        'declare': publisher.declare,
+        'retry': publisher.publisher_cls.retry,
+        'retry_policy': publisher.publisher_cls.retry_policy,
+        'compression': publisher.publisher_cls.compression,
+        'mandatory': publisher.publisher_cls.mandatory,
+        'expiration': publisher.publisher_cls.expiration,
+        'delivery_mode': publisher.publisher_cls.delivery_mode,
+        'priority': publisher.publisher_cls.priority,
+        'serializer': publisher.serializer
+    }
+
+    assert mock_producer.publish.call_args_list == [
+        call(*expected_args, **expected_kwargs)
+    ]
 
 
 def test_header_encoder(empty_config):
@@ -269,12 +309,13 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
+        exchange=foobar_ex, queue=foobar_queue
+    ).bind(container, "publish")
 
-    # test queue, exchange and binding created in rabbit
     publisher.setup()
     publisher.start()
 
+    # test queue, exchange and binding created in rabbit
     exchanges = rabbit_manager.get_exchanges(vhost)
     queues = rabbit_manager.get_queues(vhost)
     bindings = rabbit_manager.get_queue_bindings(vhost, foobar_queue.name)
@@ -283,9 +324,10 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     assert "foobar_queue" in [queue['name'] for queue in queues]
     assert "foobar_ex" in [binding['source'] for binding in bindings]
 
-    # test message published to queue
     service.publish = publisher.get_dependency(worker_ctx)
     service.publish("msg")
+
+    # test message published to queue
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
     assert ['"msg"'] == [msg['payload'] for msg in messages]
 
@@ -396,69 +438,6 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
         consumer.stop()
 
     consumer.queue_consumer.kill()
-
-
-class TestMandatoryDelivery(object):
-    """ Test and demonstrate the mandatory delivery flag.
-
-    Publishing a message should raise an exception when mandatory delivery
-    is requested and there is no destination queue, as long as publish-confirms
-    are enabled.
-    """
-    @pytest.fixture()
-    def container(self, container_factory, rabbit_config):
-
-        class Service(object):
-            name = "publisher"
-
-            publish = Publisher()
-
-            @dummy
-            def method(self, *args, **kwargs):
-                self.publish(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-        return container
-
-    def test_default(self, container):
-        # messages are not mandatory by default;
-        # no error when routing to a non-existent queue
-        with entrypoint_hook(container, 'method') as publish:
-            publish("payload", routing_key="bogus")
-
-    def test_mandatory_delivery(self, container):
-        # requesting mandatory delivery will result in an exception
-        # if there is no bound queue to receive the message
-        with pytest.raises(UndeliverableMessage):
-            with entrypoint_hook(container, 'method') as publish:
-                publish("payload", routing_key="bogus", mandatory=True)
-
-    def test_confirms_disabled(
-        self, container_factory, rabbit_config, warnings
-    ):
-
-        class UnconfirmedPublisher(Publisher):
-            use_confirms = False
-
-        class Service(object):
-            name = "service"
-
-            publish = UnconfirmedPublisher()
-
-            @dummy
-            def method(self, *args, **kwargs):
-                self.publish(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        # no exception will be raised if confirms are disabled,
-        # even when mandatory delivery is requested,
-        # but there will be a warning raised
-        with entrypoint_hook(container, 'method') as publish:
-            publish("payload", routing_key="bogus", mandatory=True)
-        assert warnings.warn.called
 
 
 @skip_if_no_toxiproxy
@@ -699,7 +678,9 @@ class TestPublisherDisconnections(object):
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
-        with patch.object(Publisher, 'use_confirms', new=request.param):
+        with patch.object(
+            Publisher.publisher_cls, 'use_confirms', new=request.param
+        ):
             yield request.param
 
     @pytest.yield_fixture
@@ -937,3 +918,198 @@ class TestPublisherDisconnections(object):
                 call("send", payload2),
                 call("recv", payload2),
             ]
+
+
+class TestBackwardsCompatClassAttrs(object):
+
+    @pytest.mark.parametrize("parameter,value", [
+        ('retry', False),
+        ('retry_policy', {'max_retries': 999}),
+        ('use_confirms', False),
+    ])
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
+        """ Verify that you can specify some fields by subclassing the
+        EventDispatcher DependencyProvider.
+        """
+        publisher_cls = type(
+            "LegacPublisher", (Publisher,), {parameter: value}
+        )
+        with patch('nameko.messaging.warnings') as warnings:
+            mock_container.config = {'AMQP_URI': 'memory://'}
+            mock_container.service_name = "service"
+            publisher = publisher_cls().bind(mock_container, "publish")
+        assert warnings.warn.called
+        call_args = warnings.warn.call_args
+        assert parameter in unpack_mock_call(call_args).positional[0]
+
+        publisher.setup()
+        assert getattr(publisher.publisher, parameter) == value
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the Publisher
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # routing
+        'exchange', 'routing_key',
+        # delivery options
+        'delivery_mode', 'mandatory', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'correlation_id', 'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at instantiation time,
+        and overriden at publish time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        instantiation_value = Mock()
+        publish_value = Mock()
+
+        publisher = Publisher(
+            **{parameter: instantiation_value}
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        publish("payload")
+        assert producer.publish.call_args[1][parameter] == instantiation_value
+
+        publish("payload", **{parameter: publish_value})
+        assert producer.publish.call_args[1][parameter] == publish_value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers provided at publish time are merged with any provided
+        at instantiation time. Nameko headers are always present.
+        """
+        mock_container.config = {
+            'AMQP_URI': 'memory://localhost'
+        }
+        mock_container.service_name = "service"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service.method.0'],
+        }
+
+        instantiation_value = {'foo': Mock()}
+        publish_value = {'bar': Mock()}
+
+        publisher = Publisher(
+            **{'headers': instantiation_value}
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        publish("payload")
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, instantiation_value
+        )
+
+        publish("payload", headers=publish_value)
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, instantiation_value, publish_value
+        )
+
+    def test_declare(self, mock_container, producer):
+        """ Declarations provided at publish time are merged with any provided
+        at instantiation time. Any provided exchange and queue are always
+        declared.
+        """
+        mock_container.config = {
+            'AMQP_URI': 'memory://localhost'
+        }
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        exchange = Mock()
+        queue = Mock()
+
+        instantiation_value = [Mock()]
+        publish_value = [Mock()]
+
+        publisher = Publisher(
+            exchange=exchange, queue=queue, **{'declare': instantiation_value}
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        publish("payload")
+        assert producer.publish.call_args[1]['declare'] == (
+            instantiation_value + [exchange, queue]
+        )
+
+        publish("payload", declare=publish_value)
+        assert producer.publish.call_args[1]['declare'] == (
+            instantiation_value + [exchange, queue] + publish_value
+        )
+
+    def test_use_confirms(self, mock_container, get_producer):
+        """ Verify that publish-confirms can be set as a default specified at
+        instantiation time, which can be overriden by a value specified at
+        publish time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        publisher = Publisher(
+            use_confirms=False
+        ).bind(mock_container, "publish")
+        publisher.setup()
+
+        publish = publisher.get_dependency(worker_ctx)
+
+        publish("payload")
+        (_, use_confirms), _ = get_producer.call_args
+        assert use_confirms is False
+
+        publish("payload", use_confirms=True)
+        (_, use_confirms), _ = get_producer.call_args
+        assert use_confirms is True

@@ -5,13 +5,21 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
-Version TBD
------------
 
-Release: Pending
+Version 2.7.0
+-------------
+
+Released: Pending
 
 * Set stopped flag in register_provider() to allow PollingQueueConsumer
   object reuse [fixes #462]
+* Refactor of AMQP message publishing logic into `nameko.amqp.publish`
+* Exposes delivery options and other messaging configuration to AMQP-based
+  DependencyProviders. [addresses #374]
+* Class attributes for configuring `use_confirms`, `retry` and `retry_policy`
+  have been deprecated from the Publisher, EventDispatcher, and RPC MethodProxy
+  classes. If you were subclassing these classes to set these options, you
+  should now set them at class instantiation time.
 
 
 Version 2.6.0

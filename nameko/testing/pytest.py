@@ -147,6 +147,13 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
         yield conf
 
 
+@pytest.fixture
+def amqp_uri(rabbit_config):
+    from nameko.constants import AMQP_URI_CONFIG_KEY
+
+    return rabbit_config[AMQP_URI_CONFIG_KEY]
+
+
 @pytest.yield_fixture(autouse=True)
 def fast_teardown(request):
     """
@@ -228,6 +235,30 @@ def fast_teardown(request):
     # explicitly killed when their container stops.
     for consumer in consumers:
         consumer.should_stop = True
+
+
+@pytest.fixture
+def get_message_from_queue(amqp_uri):
+    from nameko.amqp import get_connection
+
+    def get(queue_name, ack=True, block=True, timeout=1, accept=None):
+        with get_connection(amqp_uri) as conn:
+            queue = conn.SimpleQueue(queue_name)
+
+            # queue doesn't allow passing of `accept` to its consumer,
+            # so we patch it on after instantiation
+            if accept is not None:
+                queue.consumer.accept = accept
+
+            message = queue.get(block=block, timeout=timeout)
+            if ack:
+                message.ack()
+            else:
+                message.requeue()
+            queue.close()
+        return message
+
+    return get
 
 
 @pytest.yield_fixture

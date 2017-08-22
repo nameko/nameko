@@ -23,11 +23,15 @@ def pytest_configure(config):
         "markers",
         "publish_retry: distinguish tests that should use retry in publishers"
     )
+    config.addinivalue_line(
+        "markers",
+        "behavioural: distinguish behavioural tests"
+    )
 
 
 @pytest.yield_fixture
 def mock_producer():
-    with patch('nameko.amqp.producers') as patched:
+    with patch('nameko.amqp.publish.producers') as patched:
         with patched[ANY].acquire() as producer:
             # normal behaviour is for no messages to be returned
             producer.channel.returned_messages.get_nowait.side_effect = (
@@ -38,7 +42,7 @@ def mock_producer():
 
 @pytest.yield_fixture
 def mock_connection():
-    with patch('nameko.amqp.connections') as patched:
+    with patch('nameko.amqp.publish.connections') as patched:
         with patched[ANY].acquire() as connection:
             yield connection
 
