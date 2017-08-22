@@ -379,6 +379,18 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
         assert proxy.foobar.spam(ham=1) == 1
 
 
+def test_cluster_proxy_reuse(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    cluster_proxy = ClusterRpcProxy(rabbit_config)
+    with cluster_proxy as proxy:
+        assert proxy.foobar.spam(ham=1) == 1
+
+    with cluster_proxy as second_proxy:
+        assert second_proxy.foobar.spam(ham=1) == 1
+
+
 def test_cluster_proxy_dict_access(
     container_factory, rabbit_manager, rabbit_config
 ):
