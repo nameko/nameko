@@ -6,6 +6,7 @@ from amqp.exceptions import NotAllowed
 from kombu import Connection
 from kombu.transport.pyamqp import Transport
 
+
 BAD_CREDENTIALS = (
     'Error connecting to broker, probably caused by invalid credentials'
 )

@@ -15,6 +15,7 @@ from nameko.testing.utils import (
     assert_stops_raising, get_rabbit_connections, reset_rabbit_connections
 )
 
+
 disconnect_now = Event()
 disconnected = Event()
 method_called = Mock()

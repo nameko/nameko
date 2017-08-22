@@ -11,6 +11,7 @@ from nameko.exceptions import (
     safe_for_serialization, serialize
 )
 
+
 OBJECT_REPR = repr(object)
 
 

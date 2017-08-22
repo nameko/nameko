@@ -10,6 +10,7 @@ from nameko.rpc import Rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_waiter
 
+
 worker_result_called = []
 
 

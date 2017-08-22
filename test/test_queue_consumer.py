@@ -23,6 +23,7 @@ from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections
 )
 
+
 TIMEOUT = 5
 
 exchange = Exchange('spam')

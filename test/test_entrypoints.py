@@ -3,6 +3,7 @@ from mock import Mock, call
 
 from nameko.testing.services import once
 
+
 method_called = Mock()
 
 

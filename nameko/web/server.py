@@ -16,6 +16,7 @@ from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
 
+
 BindAddress = namedtuple("BindAddress", ['address', 'port'])
 
 

@@ -24,6 +24,7 @@ from nameko.extensions import (
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import SpawningSet, import_from_path
 
+
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
 

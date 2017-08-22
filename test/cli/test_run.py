@@ -20,6 +20,7 @@ from nameko.standalone.rpc import ClusterRpcProxy
 
 from test.sample import Service
 
+
 TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
 
 

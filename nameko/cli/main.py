@@ -10,6 +10,7 @@ from nameko.exceptions import CommandError, ConfigurationError
 
 from . import commands
 
+
 ENV_VAR_MATCHER = re.compile(
     r"""
         \$\{       # match characters `${` literally

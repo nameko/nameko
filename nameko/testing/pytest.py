@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import pytest
 
+
 # all imports are inline to make sure they happen after eventlet.monkey_patch
 # which is called in pytest_load_initial_conftests
 # (calling monkey_patch at import time breaks the pytest capturemanager - see

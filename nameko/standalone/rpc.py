@@ -17,6 +17,7 @@ from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.extensions import Entrypoint
 from nameko.rpc import ReplyListener, ServiceProxy
 
+
 _logger = logging.getLogger(__name__)
 
 

@@ -8,6 +8,7 @@ from nameko.events import event_handler
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 
+
 handler_called = Mock()
 
 

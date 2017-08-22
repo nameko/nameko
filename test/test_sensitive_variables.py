@@ -7,6 +7,7 @@ from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_extension
 from nameko.utils import REDACTED, get_redacted_args
 
+
 redacted = {}
 
 

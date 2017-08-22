@@ -7,6 +7,7 @@ from six.moves import queue as Queue
 
 from nameko.constants import DEFAULT_RETRY_POLICY
 
+
 # delivery_mode
 NON_PERSISENT = 1
 PERSISTENT = 2

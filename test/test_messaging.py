@@ -25,6 +25,7 @@ from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
 
+
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 

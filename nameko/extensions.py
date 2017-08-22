@@ -10,6 +10,7 @@ from eventlet.event import Event
 
 from nameko.exceptions import IncorrectSignature
 
+
 _log = getLogger(__name__)
 
 

@@ -11,6 +11,7 @@ from nameko.contextdata import (
 )
 from nameko.testing.utils import get_extension
 
+
 CUSTOM_CONTEXT_KEY = "custom"
 
 

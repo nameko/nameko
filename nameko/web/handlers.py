@@ -10,6 +10,7 @@ from nameko.exceptions import BadRequest, serialize
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
 
+
 _log = getLogger(__name__)
 
 

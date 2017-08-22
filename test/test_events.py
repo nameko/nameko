@@ -17,6 +17,7 @@ from nameko.standalone.events import get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider, unpack_mock_call
 
+
 EVENTS_TIMEOUT = 5
 
 

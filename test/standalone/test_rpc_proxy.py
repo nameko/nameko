@@ -18,6 +18,7 @@ from nameko.utils.retry import retry
 
 from test import skip_if_no_toxiproxy
 
+
 # uses autospec on method; needs newer mock for py3
 try:
     from unittest.mock import patch

@@ -17,6 +17,7 @@ from nameko.extensions import (
 )
 from nameko.web.server import WebServer
 
+
 _log = getLogger(__name__)
 
 

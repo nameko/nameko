@@ -27,6 +27,7 @@ from nameko.extensions import (
 )
 from nameko.utils.retry import retry
 
+
 _log = getLogger(__name__)
 
 # delivery_mode
