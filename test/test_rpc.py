@@ -21,7 +21,9 @@ from nameko.rpc import (
     MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
 )
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import dummy, entrypoint_hook, restrict_entrypoints
+from nameko.testing.services import (
+    dummy, entrypoint_hook, restrict_entrypoints
+)
 from nameko.testing.utils import get_extension, unpack_mock_call, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 

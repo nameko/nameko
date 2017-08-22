@@ -7,8 +7,8 @@ import six
 from mock import patch
 
 from nameko.exceptions import (
-    RemoteError, UnserializableValueError, deserialize, deserialize_to_instance,
-    safe_for_serialization, serialize
+    RemoteError, UnserializableValueError, deserialize,
+    deserialize_to_instance, safe_for_serialization, serialize
 )
 
 
