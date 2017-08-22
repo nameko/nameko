@@ -6,6 +6,7 @@ import pytest
 from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
+from mock import Mock
 
 from test import skip_if_no_toxiproxy
 
@@ -14,7 +15,7 @@ from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, rpc, get_rpc_exchange
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.utils import get_rabbit_connections
+from nameko.testing.utils import get_rabbit_connections, unpack_mock_call
 from nameko.testing.waiting import wait_for_call
 from nameko.utils.retry import retry
 
@@ -67,6 +68,66 @@ class ExampleError(Exception):
 
 class CustomWorkerContext(WorkerContext):
     context_keys = ("custom_header",)
+
+
+class TestCallId(object):
+
+    @pytest.fixture
+    def context_tracker(self):
+        return Mock()
+
+    @pytest.fixture
+    def service_cls(self, context_tracker):
+
+        class ContextTracker(DependencyProvider):
+
+            def worker_setup(self, worker_ctx):
+                context_tracker(worker_ctx)
+
+        class Service(object):
+            name = 'targetservice'
+
+            context_tracker = ContextTracker()
+
+            @rpc
+            def echo(self, msg):
+                return msg
+
+        return Service
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_call_id(
+        self, service_cls, container_factory, rabbit_config, context_tracker
+    ):
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        with ServiceRpcProxy("targetservice", rabbit_config) as proxy:
+            assert proxy.echo("msg") == "msg"
+
+        worker_ctx = unpack_mock_call(context_tracker.call_args).positional[0]
+        assert worker_ctx.context_data['call_id_stack'] == [
+            'standalone_rpc_proxy.call.0',
+            'targetservice.echo.1'
+        ]
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_call_id_custom_prefix(
+        self, service_cls, container_factory, rabbit_config, context_tracker
+    ):
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        with ServiceRpcProxy(
+            "targetservice", rabbit_config, call_id_prefix="custom_prefix"
+        ) as proxy:
+            assert proxy.echo("msg") == "msg"
+
+        worker_ctx = unpack_mock_call(context_tracker.call_args).positional[0]
+        assert worker_ctx.context_data['call_id_stack'] == [
+            'custom_prefix.call.0',
+            'targetservice.echo.1'
+        ]
 
 
 def test_proxy(container_factory, rabbit_config):

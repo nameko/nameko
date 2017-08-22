@@ -1,38 +1,121 @@
-from mock import Mock, patch
+from mock import Mock, patch, call
 from six.moves import queue
+import itertools
 import pytest
 
 from amqp.exceptions import NotFound
+from kombu.common import maybe_declare
 
 from nameko.amqp import UndeliverableMessage
+from nameko.amqp.publish import get_connection
 from nameko.events import event_handler
+from nameko.extensions import DependencyProvider
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
+from nameko.testing.utils import unpack_mock_call
 
 
-handler_called = Mock()
+class TestEventDispatcher(object):
 
+    @pytest.yield_fixture
+    def predictable_call_ids(self, predictable_call_ids):
+        with patch('nameko.standalone.events.uuid') as uuid:
+            uuid.uuid4.side_effect = itertools.count()
+            yield uuid
 
-class Service(object):
-    name = 'destservice'
+    @pytest.fixture
+    def handler_tracker(self):
+        return Mock()
 
-    @event_handler('srcservice', 'testevent')
-    def handler(self, msg):
-        handler_called(msg)
+    @pytest.fixture
+    def context_tracker(self):
+        return Mock()
 
+    @pytest.fixture
+    def service_cls(self, context_tracker, handler_tracker):
 
-def test_dispatch(container_factory, rabbit_config):
-    config = rabbit_config
+        class ContextTracker(DependencyProvider):
 
-    container = container_factory(Service, config)
-    container.start()
+            def worker_setup(self, worker_ctx):
+                context_tracker(worker_ctx)
 
-    msg = "msg"
+        class Service(object):
+            name = 'destservice'
 
-    dispatch = event_dispatcher(config)
-    with entrypoint_waiter(container, 'handler', timeout=1):
-        dispatch('srcservice', 'testevent', msg)
-    handler_called.assert_called_once_with(msg)
+            context_tracker = ContextTracker()
+
+            @event_handler('srcservice', 'testevent')
+            def handler(self, msg):
+                handler_tracker(msg)
+
+        return Service
+
+    def test_dispatch(
+        self, service_cls, container_factory, rabbit_config, handler_tracker
+    ):
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        msg = "msg"
+
+        dispatch = event_dispatcher(rabbit_config)
+
+        with entrypoint_waiter(container, 'handler', timeout=1):
+            dispatch('srcservice', 'testevent', msg)
+        assert handler_tracker.call_args_list == [call(msg)]
+
+    def test_context_data(
+        self, service_cls, container_factory, rabbit_config, context_tracker
+    ):
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        context_data = {'foo': 'bar'}
+
+        dispatch = event_dispatcher(rabbit_config, context_data=context_data)
+
+        with entrypoint_waiter(container, 'handler', timeout=1):
+            dispatch('srcservice', 'testevent', 'msg')
+
+        worker_ctx = unpack_mock_call(context_tracker.call_args).positional[0]
+        assert worker_ctx.context_data['foo'] == 'bar'
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_call_id(
+        self, service_cls, container_factory, rabbit_config, context_tracker
+    ):
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        dispatch = event_dispatcher(rabbit_config)
+
+        with entrypoint_waiter(container, 'handler', timeout=1):
+            dispatch('srcservice', 'testevent', 'msg')
+
+        worker_ctx = unpack_mock_call(context_tracker.call_args).positional[0]
+        assert worker_ctx.context_data['call_id_stack'] == [
+            'standalone_event_dispatcher.srcservice.testevent.0',
+            'destservice.handler.0'
+        ]
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_call_id_custom_prefix(
+        self, service_cls, container_factory, rabbit_config, context_tracker
+    ):
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        dispatch = event_dispatcher(
+            rabbit_config, call_id_prefix="custom_prefix"
+        )
+        with entrypoint_waiter(container, 'handler', timeout=1):
+            dispatch('srcservice', 'testevent', 'msg')
+
+        worker_ctx = unpack_mock_call(context_tracker.call_args).positional[0]
+        assert worker_ctx.context_data['call_id_stack'] == [
+            'custom_prefix.srcservice.testevent.0',
+            'destservice.handler.0'
+        ]
 
 
 class TestMandatoryDelivery(object):
@@ -43,10 +126,10 @@ class TestMandatoryDelivery(object):
     are enabled.
     """
     @pytest.fixture(autouse=True)
-    def event_exchange(self, container_factory, rabbit_config):
-        # use a service-based dispatcher to declare an event exchange
-        container = container_factory(Service, rabbit_config)
-        container.start()
+    def event_exchange(self, rabbit_config):
+        exchange = get_event_exchange('srcservice')
+        with get_connection(rabbit_config['AMQP_URI']) as conn:
+            maybe_declare(exchange, conn)
 
     def test_default(self, rabbit_config):
         # events are not mandatory by default;

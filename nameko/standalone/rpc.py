@@ -19,6 +19,9 @@ from nameko.rpc import ReplyListener, ServiceProxy
 _logger = logging.getLogger(__name__)
 
 
+CALL_ID_PREFIX = "standalone_rpc_proxy"
+
+
 class ConsumeEvent(object):
     """ Event for the RPC consumer with the same interface as eventlet.Event.
     """
@@ -195,10 +198,10 @@ class StandaloneProxyBase(object):
         :class:`~containers.ServiceContainer` to be used by the subclasses
         and rpc imports in this module.
         """
-        service_name = "standalone_rpc_proxy"
 
-        def __init__(self, config):
+        def __init__(self, config, service_name):
             self.config = config
+            self.service_name = service_name
             self.shared_extensions = {}
 
     class Dummy(Entrypoint):
@@ -208,9 +211,10 @@ class StandaloneProxyBase(object):
 
     def __init__(
         self, config, context_data=None, timeout=None,
-        reply_listener_cls=SingleThreadedReplyListener
+        reply_listener_cls=SingleThreadedReplyListener,
+        call_id_prefix=CALL_ID_PREFIX
     ):
-        container = self.ServiceContainer(config)
+        container = self.ServiceContainer(config, call_id_prefix)
 
         self._worker_ctx = WorkerContext(
             container, service=None, entrypoint=self.Dummy,
