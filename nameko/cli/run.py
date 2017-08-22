@@ -23,7 +23,6 @@ from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
 
 
-
 logger = logging.getLogger(__name__)
 
 MISSING_MODULE_TEMPLATE = "^No module named '?{}'?$"
