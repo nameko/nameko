@@ -3,9 +3,9 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
-import warnings
 from functools import partial
 from logging import getLogger
+import warnings
 
 import six
 from eventlet.event import Event
@@ -13,12 +13,12 @@ from amqp.exceptions import RecoverableConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
-from six.moves import queue
 
-from nameko.amqp import (
-    UndeliverableMessage, get_connection, get_producer, verify_amqp_uri)
+from nameko.amqp.publish import Publisher as PublisherCore
+from nameko.amqp.publish import get_connection
+from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_RETRY_POLICY,
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
     DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -74,22 +74,31 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    def __init__(self, exchange=None, queue=None):
+    publisher_cls = PublisherCore
+
+    def __init__(self, exchange=None, queue=None, declare=None, **options):
         """ Provides an AMQP message publisher method via dependency injection.
 
-        In AMQP messages are published to *exchanges* and routed to bound
-        *queues*. This dependency accepts either an `exchange` or a bound
-        `queue`, and will ensure both are declared before publishing.
+        In AMQP, messages are published to *exchanges* and routed to bound
+        *queues*. This dependency accepts the `exchange` to publish to and
+        will ensure that it is declared before publishing.
+
+        Optionally, you may use the `declare` keyword argument to pass a list
+        of other :class:`kombu.Exchange` or :class:`kombu.Queue` objects to
+        declare before publishing.
 
         :Parameters:
             exchange : :class:`kombu.Exchange`
                 Destination exchange
             queue : :class:`kombu.Queue`
-                Bound queue. The event will be published to this queue's
-                exchange.
+                **Deprecated**: Bound queue. The event will be published to
+                this queue's exchange.
+            declare : list
+                List of :class:`kombu.Exchange` or :class:`kombu.Queue` objects
+                to declare before publishing.
 
-        If neither `queue` nor `exchange` are provided, the message will be
-        published to the default exchange.
+        If `exchange` is not provided, the message will be published to the
+        default exchange.
 
         Example::
 
@@ -101,27 +110,46 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     self.publish('spam:' + data)
         """
         self.exchange = exchange
-        self.queue = queue
+        self.options = options
+
+        self.declare = declare[:] if declare is not None else []
+
+        if self.exchange:
+            self.declare.append(self.exchange)
+
+        if queue is not None:
+            warnings.warn(
+                "The signature of `Publisher` has changed. The `queue` kwarg "
+                "is now deprecated. You can use the `declare` kwarg "
+                "to provide a list of Kombu queues to be declared. "
+                "See CHANGES, version 2.7.0 for more details. This warning "
+                "will be removed in version 2.9.0.",
+                DeprecationWarning
+            )
+            if exchange is None:
+                self.exchange = queue.exchange
+            self.declare.append(queue)
+
+        # backwards compat
+        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
+
+        for compat_attr in compat_attrs:
+            if hasattr(self, compat_attr):
+                warnings.warn(
+                    "'{}' should be specified at instantiation time rather "
+                    "than as a class attribute. See CHANGES, version 2.7.0 "
+                    "for more details. This warning will be removed in "
+                    "version 2.9.0.".format(compat_attr), DeprecationWarning
+                )
+                self.options[compat_attr] = getattr(self, compat_attr)
 
     @property
     def amqp_uri(self):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
     @property
-    def use_confirms(self):
-        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
-        for this publisher.
-
-        The publisher will wait for an acknowledgement from the broker that
-        the message was receieved and processed appropriately, and otherwise
-        raise. Confirms have a performance penalty but guarantee that messages
-        aren't lost, for example due to stale connections.
-        """
-        return True
-
-    @property
     def serializer(self):
-        """ Name of the serializer to use when publishing messages.
+        """ Default serializer to use when publishing messages.
 
         Must be registered as a
         `kombu serializer <http://bit.do/kombu_serialization>`_.
@@ -130,71 +158,31 @@ class Publisher(DependencyProvider, HeaderEncoder):
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
 
-    @property
-    def retry(self):
-        """ Enable automatic retries when publishing a message that fails due
-        to a connection error.
-
-        Retries according to :attr:`self.retry_policy`.
-        """
-        return True
-
-    @property
-    def retry_policy(self):
-        """ Policy to apply when retrying message publishes, if enabled.
-
-        See :attr:`self.retry`.
-        """
-        return DEFAULT_RETRY_POLICY
-
     def setup(self):
-
-        exchange = self.exchange
-        queue = self.queue
 
         verify_amqp_uri(self.amqp_uri)
 
         with get_connection(self.amqp_uri) as conn:
-            if queue is not None:
-                maybe_declare(queue, conn)
-            elif exchange is not None:
-                maybe_declare(exchange, conn)
+            for entity in self.declare:
+                maybe_declare(entity, conn)
+
+        serializer = self.options.pop('serializer', self.serializer)
+
+        self.publisher = self.publisher_cls(
+            self.amqp_uri,
+            serializer=serializer,
+            exchange=self.exchange,
+            declare=self.declare,
+            **self.options
+        )
 
     def get_dependency(self, worker_ctx):
+        extra_headers = self.get_message_headers(worker_ctx)
+
         def publish(msg, **kwargs):
-            exchange = self.exchange
-            serializer = self.serializer
-
-            if exchange is None and self.queue is not None:
-                exchange = self.queue.exchange
-
-            retry = kwargs.pop('retry', self.retry)
-            retry_policy = kwargs.pop('retry_policy', self.retry_policy)
-            mandatory = kwargs.pop('mandatory', False)
-
-            with get_producer(self.amqp_uri, self.use_confirms) as producer:
-                headers = self.get_message_headers(worker_ctx)
-                producer.publish(
-                    msg, exchange=exchange, headers=headers,
-                    serializer=serializer, retry=retry,
-                    retry_policy=retry_policy, mandatory=mandatory,
-                    **kwargs
-                )
-
-                if mandatory:
-                    if not self.use_confirms:
-                        warnings.warn(
-                            "Mandatory delivery was requested, but "
-                            "unroutable messages cannot be detected without "
-                            "publish confirms enabled."
-                        )
-                    try:
-                        returned_messages = producer.channel.returned_messages
-                        returned = returned_messages.get_nowait()
-                    except queue.Empty:
-                        pass
-                    else:
-                        raise UndeliverableMessage(returned)
+            self.publisher.publish(
+                msg, extra_headers=extra_headers, **kwargs
+            )
 
         return publish
 

@@ -35,7 +35,7 @@ from logging import getLogger
 
 from kombu import Queue
 from nameko.messaging import Consumer, Publisher
-from nameko.standalone.events import event_dispatcher, get_event_exchange
+from nameko.standalone.events import get_event_exchange
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
@@ -75,25 +75,25 @@ class EventDispatcher(Publisher):
                 self.dispatch_spam('spam.ham', evt_data)
 
     """
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-        super(EventDispatcher, self).__init__()
 
     def setup(self):
-        self.service_name = self.container.service_name
-        self.config = self.container.config
-        self.exchange = get_event_exchange(self.service_name)
+        self.exchange = get_event_exchange(self.container.service_name)
+        self.declare.append(self.exchange)
         super(EventDispatcher, self).setup()
 
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        headers = self.get_message_headers(worker_ctx)
-        kwargs = self.kwargs
-        dispatcher = event_dispatcher(self.config, headers=headers, **kwargs)
+        extra_headers = self.get_message_headers(worker_ctx)
 
         def dispatch(event_type, event_data):
-            dispatcher(self.service_name, event_type, event_data)
+            self.publisher.publish(
+                event_data,
+                exchange=self.exchange,
+                routing_key=event_type,
+                extra_headers=extra_headers
+            )
+
         return dispatch
 
 

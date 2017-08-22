@@ -145,6 +145,7 @@ class DependencyProvider(Extension):
         """
         instance = super(DependencyProvider, self).bind(container)
         instance.attr_name = attr_name
+        self.attr_name = attr_name
         return instance
 
     def get_dependency(self, worker_ctx):

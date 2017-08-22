@@ -79,7 +79,7 @@ class PollingQueueConsumer(object):
     consumer = None
 
     def __init__(self, timeout=None):
-        self.stopped = False
+        self.stopped = True
         self.timeout = timeout
         self.replies = {}
 
@@ -119,6 +119,7 @@ class PollingQueueConsumer(object):
 
         self.queue = provider.queue
         self._setup_consumer()
+        self.stopped = False
 
     def unregister_provider(self, provider):
         self.connection.close()
