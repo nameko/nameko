@@ -1,5 +1,5 @@
-from contextlib import contextmanager
 import warnings
+from contextlib import contextmanager
 
 from kombu import Connection
 from kombu.pools import connections, producers

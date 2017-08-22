@@ -9,7 +9,8 @@ from nameko.containers import ServiceContainer
 from nameko.rpc import Rpc, rpc
 from nameko.testing.services import get_extension
 from nameko.utils import (
-    REDACTED, fail_fast_imap, get_redacted_args, import_from_path)
+    REDACTED, fail_fast_imap, get_redacted_args, import_from_path
+)
 
 
 def test_fail_fast_imap():

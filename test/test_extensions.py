@@ -5,7 +5,8 @@ from mock import Mock
 
 from nameko.extensions import (
     DependencyProvider, Entrypoint, Extension, is_dependency, is_entrypoint,
-    is_extension)
+    is_extension
+)
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_extension
 

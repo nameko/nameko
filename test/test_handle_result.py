@@ -3,6 +3,7 @@ import sys
 
 import pytest
 from mock import ANY
+
 from nameko.exceptions import RemoteError
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc

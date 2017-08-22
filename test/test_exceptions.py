@@ -2,14 +2,14 @@
 
 import json
 
-from mock import patch
 import pytest
 import six
+from mock import patch
 
 from nameko.exceptions import (
-    serialize, safe_for_serialization, deserialize, deserialize_to_instance,
-    RemoteError, UnserializableValueError)
-
+    RemoteError, UnserializableValueError, deserialize, deserialize_to_instance,
+    safe_for_serialization, serialize
+)
 
 OBJECT_REPR = repr(object)
 

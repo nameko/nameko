@@ -1,7 +1,7 @@
 import logging
 
-from mock import patch, Mock, call, ANY
 import pytest
+from mock import ANY, Mock, call, patch
 
 from nameko.log_helpers import make_timing_logger
 

@@ -1,8 +1,5 @@
 from __future__ import print_function
 
-import eventlet
-eventlet.monkey_patch()  # noqa (code before rest of imports)
-
 import errno
 import inspect
 import logging
@@ -12,13 +9,19 @@ import re
 import signal
 import sys
 
+import eventlet
 import six
 import yaml
 from eventlet import backdoor
+
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
+
+eventlet.monkey_patch()  # noqa (code before rest of imports)
+
+
 
 
 logger = logging.getLogger(__name__)

@@ -1,15 +1,14 @@
-from logging import getLogger
 from functools import partial
+from logging import getLogger
 
-from eventlet.event import Event
 import six
-from werkzeug.wrappers import Response
+from eventlet.event import Event
 from werkzeug.routing import Rule
+from werkzeug.wrappers import Response
 
-from nameko.exceptions import serialize, BadRequest
+from nameko.exceptions import BadRequest, serialize
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
-
 
 _log = getLogger(__name__)
 

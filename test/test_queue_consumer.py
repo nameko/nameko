@@ -11,7 +11,8 @@ from kombu.exceptions import TimeoutError
 from mock import ANY, Mock, call, patch
 
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
+)
 from nameko.events import event_handler
 from nameko.messaging import QueueConsumer
 from nameko.rpc import RpcProxy, rpc
@@ -19,7 +20,8 @@ from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import (
-    assert_stops_raising, get_extension, get_rabbit_connections)
+    assert_stops_raising, get_extension, get_rabbit_connections
+)
 
 TIMEOUT = 5
 

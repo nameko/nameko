@@ -2,12 +2,12 @@ import re
 import socket
 from collections import namedtuple
 from functools import partial
+from logging import getLogger
 
 import eventlet
 from eventlet import wsgi
 from eventlet.support import get_errno
 from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
-from logging import getLogger
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request

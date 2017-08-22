@@ -1,9 +1,9 @@
+import os
 import sys
 
-from mock import patch
-import os
 import pytest
 import yaml
+from mock import patch
 
 from nameko.cli.main import main, setup_parser, setup_yaml_parser
 from nameko.exceptions import CommandError, ConfigurationError

@@ -34,6 +34,7 @@ import uuid
 from logging import getLogger
 
 from kombu import Queue
+
 from nameko.messaging import Consumer, Publisher
 from nameko.standalone.events import get_event_exchange
 

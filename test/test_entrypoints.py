@@ -1,8 +1,7 @@
-from mock import Mock, call
 import pytest
+from mock import Mock, call
 
 from nameko.testing.services import once
-
 
 method_called = Mock()
 
