@@ -12,7 +12,6 @@ import re
 import signal
 import sys
 
-import eventlet
 import six
 import yaml
 from eventlet import backdoor
