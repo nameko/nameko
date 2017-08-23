@@ -13,7 +13,8 @@ from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
     AnyInstanceOf, ResourcePipeline, find_free_port, get_container,
     get_extension, get_rabbit_connections, reset_rabbit_connections,
-    wait_for_call, wait_for_worker_idle)
+    wait_for_call, wait_for_worker_idle
+)
 
 
 def test_any_instance_of():

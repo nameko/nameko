@@ -1,9 +1,9 @@
 from collections import defaultdict
 
-from mock import call
 import pytest
+from mock import call
 
-from nameko.extensions import DependencyProvider, SharedExtension, Extension
+from nameko.extensions import DependencyProvider, Extension, SharedExtension
 from nameko.testing.utils import get_extension
 
 

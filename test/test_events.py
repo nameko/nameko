@@ -1,14 +1,16 @@
 import itertools
 import time
 from collections import defaultdict
-from six.moves import queue
 
 import pytest
 from mock import ANY, Mock, create_autospec, patch
+from six.moves import queue
+
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
-    EventHandlerConfigurationError, event_handler)
+    EventHandlerConfigurationError, event_handler
+)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.standalone.events import get_event_exchange

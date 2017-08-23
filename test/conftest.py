@@ -2,13 +2,13 @@ import json
 import subprocess
 import sys
 import uuid
+from types import ModuleType
 
 import pytest
 import requests
 from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
-from types import ModuleType
 
 from nameko.testing.utils import find_free_port
 from nameko.utils.retry import retry

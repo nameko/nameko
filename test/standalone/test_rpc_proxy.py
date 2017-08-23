@@ -7,16 +7,17 @@ from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
 
-from test import skip_if_no_toxiproxy
-
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.rpc import MethodProxy, Responder, rpc, get_rpc_exchange
+from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 from nameko.testing.waiting import wait_for_call
 from nameko.utils.retry import retry
+
+from test import skip_if_no_toxiproxy
+
 
 # uses autospec on method; needs newer mock for py3
 try:

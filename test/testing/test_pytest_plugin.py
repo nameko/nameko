@@ -14,6 +14,7 @@ from nameko.web.handlers import http
 from nameko.web.server import parse_address
 from nameko.web.websocket import rpc as wsrpc
 
+
 pytest_plugins = "pytester"
 
 

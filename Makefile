@@ -1,6 +1,11 @@
 .PHONY: test docs
 
 ENABLE_BRANCH_COVERAGE ?= 0
+AUTO_FIX_IMPORTS ?= 0
+
+ifneq ($(AUTO_FIX_IMPORTS), 1)
+  autofix = --check-only
+endif
 
 test: flake8 pylint test_lib test_examples
 
@@ -9,6 +14,9 @@ flake8:
 
 pylint:
 	pylint --rcfile=pylintrc nameko -E
+
+imports:
+	isort -rc $(autofix) nameko test
 
 test_lib:
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test test --strict --timeout 30 --cov --cov-config=$(CURDIR)/.coveragerc

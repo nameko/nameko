@@ -1,11 +1,11 @@
 import pytest
 
-from nameko.events import event_handler, EventHandler
+from nameko.events import EventHandler, event_handler
 from nameko.extensions import DependencyProvider
-from nameko.rpc import rpc, Rpc
+from nameko.rpc import Rpc, rpc
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_extension
-from nameko.utils import get_redacted_args, REDACTED
+from nameko.utils import REDACTED, get_redacted_args
 
 
 redacted = {}

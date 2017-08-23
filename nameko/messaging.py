@@ -3,13 +3,13 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
+import warnings
 from functools import partial
 from logging import getLogger
-import warnings
 
 import six
-from eventlet.event import Event
 from amqp.exceptions import RecoverableConnectionError
+from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
@@ -18,12 +18,15 @@ from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
-    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER,
+    HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
-    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
+)
 from nameko.utils.retry import retry
+
 
 _log = getLogger(__name__)
 

@@ -1,6 +1,8 @@
 import pytest
 from mock import ANY, Mock
+
 from nameko.rpc import Responder
+
 
 # python version compat
 EXCEPTION_MODULE = Exception.__module__

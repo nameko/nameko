@@ -1,11 +1,10 @@
 from __future__ import absolute_import
 
 import amqp
+import six
 from amqp.exceptions import NotAllowed
-
 from kombu import Connection
 from kombu.transport.pyamqp import Transport
-import six
 
 
 BAD_CREDENTIALS = (

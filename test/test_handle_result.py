@@ -3,11 +3,13 @@ import sys
 
 import pytest
 from mock import ANY
+
 from nameko.exceptions import RemoteError
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_waiter
+
 
 worker_result_called = []
 

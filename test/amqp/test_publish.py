@@ -4,7 +4,8 @@ from datetime import datetime
 
 import pytest
 from amqp.exceptions import (
-    NotFound, PreconditionFailed, RecoverableConnectionError)
+    NotFound, PreconditionFailed, RecoverableConnectionError
+)
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.compression import get_encoder
@@ -14,7 +15,8 @@ from mock import ANY, MagicMock, Mock, call, patch
 from six.moves import queue
 
 from nameko.amqp.publish import (
-    Publisher, UndeliverableMessage, get_connection, get_producer)
+    Publisher, UndeliverableMessage, get_connection, get_producer
+)
 
 
 def test_get_connection(rabbit_config):
