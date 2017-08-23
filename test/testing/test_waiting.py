@@ -168,6 +168,20 @@ class TestPatchWait(object):
         with wait_for_call(echo, 'upper'):
             assert echo.proxy(arg) == "HELLO"
 
+    def test_patch_class(self):
+
+        class Echo(object):
+
+            def upper(self, arg):
+                return arg.upper()
+
+        echo = Echo()
+        arg = "hello"
+
+        with wait_for_call(Echo, 'upper'):
+            res = echo.upper(arg)
+            assert res == "HELLO"
+
     def test_result(self):
 
         class Echo(object):
