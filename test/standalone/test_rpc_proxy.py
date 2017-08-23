@@ -315,7 +315,7 @@ def test_timeout(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=.5) as proxy:
         with pytest.raises(RpcTimeout):
             proxy.sleep(seconds=1)
 
@@ -341,7 +341,7 @@ def test_async_timeout(
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=.5) as proxy:
         result = proxy.sleep.call_async(seconds=1)
         with pytest.raises(RpcTimeout):
             result.result()
