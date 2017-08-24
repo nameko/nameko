@@ -14,11 +14,11 @@ from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 )
 from nameko.events import event_handler
-from nameko.messaging import QueueConsumer
+from nameko.messaging import Consumer, QueueConsumer
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import entrypoint_waiter
+from nameko.testing.services import entrypoint_waiter, dummy
 from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections
 )
@@ -251,71 +251,64 @@ def test_reconnect_on_socket_error(rabbit_config, mock_container):
     queue_consumer.stop()
 
 
-def test_prefetch_count(rabbit_manager, rabbit_config, mock_container):
-    container = mock_container
-    container.shared_extensions = {}
-    container.config = rabbit_config
-    container.max_workers = 1
-    container.spawn_managed_thread = spawn_managed_thread
-    content_type = 'application/data'
-    container.accept = [content_type]
+def test_prefetch_count(rabbit_manager, rabbit_config, container_factory):
 
     class NonShared(QueueConsumer):
         @property
         def sharing_key(self):
             return uuid.uuid4()
 
-    queue_consumer1 = NonShared().bind(container)
-    queue_consumer1.setup()
-    queue_consumer2 = NonShared().bind(container)
-    queue_consumer2.setup()
+    messages = []
 
-    consumer_continue = Event()
-
-    class Handler1(object):
-        queue = ham_queue
+    class SelfishConsumer1(Consumer):
+        queue_consumer = NonShared()
 
         def handle_message(self, body, message):
             consumer_continue.wait()
-            queue_consumer1.ack_message(message)
+            super(SelfishConsumer1, self).handle_message(body, message)
 
-    messages = []
-
-    class Handler2(object):
-        queue = ham_queue
+    class SelfishConsumer2(Consumer):
+        queue_consumer = NonShared()
 
         def handle_message(self, body, message):
             messages.append(body)
-            queue_consumer2.ack_message(message)
+            super(SelfishConsumer2, self).handle_message(body, message)
 
-    handler1 = Handler1()
-    handler2 = Handler2()
+    class Service(object):
+        name = "service"
 
-    queue_consumer1.register_provider(handler1)
-    queue_consumer2.register_provider(handler2)
+        @SelfishConsumer1.decorator(queue=ham_queue)
+        @SelfishConsumer2.decorator(queue=ham_queue)
+        def handle(self, payload):
+            pass
 
-    queue_consumer1.start()
-    queue_consumer2.start()
+    rabbit_config['max_workers'] = 1
+    container = container_factory(Service, rabbit_config)
+    container.start()
 
-    vhost = rabbit_config['vhost']
+    consumer_continue = Event()
+
     # the two handlers would ordinarily take alternating messages, but are
-    # limited to holding 1 un-ACKed message. Since handler 1 never ACKs, it
-    # only ever gets message 'a'; handler 2 gets the others.
-    for message in ('a', 'b', 'c'):
-        rabbit_manager.publish(vhost, 'spam', '', message, properties=dict(
-            content_type=content_type)
-        )
+    # limited to holding one un-ACKed message. Since Handler1 never ACKs, it
+    # only ever gets one message, and Handler2 gets the others.
 
-    # allow the waiting consumer to ack its message
+    def wait_for_expected(worker_ctx, res, exc_info):
+        return {'m3', 'm4', 'm5'}.issubset(set(messages))
+
+    with entrypoint_waiter(container, 'handle', callback=wait_for_expected):
+        vhost = rabbit_config['vhost']
+        properties = {'content_type': 'application/data'}
+        for message in ('m1', 'm2', 'm3', 'm4', 'm5'):
+            rabbit_manager.publish(
+                vhost, 'spam', '', message, properties=properties
+            )
+
+    # we don't know which handler picked up the first message,
+    # but all the others should've been handled by Handler2
+    assert messages[-3:] == ['m3', 'm4', 'm5']
+
+    # release the waiting consumer
     consumer_continue.send(None)
-
-    assert messages == ['b', 'c']
-
-    queue_consumer1.unregister_provider(handler1)
-    queue_consumer2.unregister_provider(handler2)
-
-    queue_consumer1.kill()
-    queue_consumer2.kill()
 
 
 def test_kill_closes_connections(rabbit_manager, rabbit_config,
