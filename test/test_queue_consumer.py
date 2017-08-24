@@ -18,7 +18,7 @@ from nameko.messaging import Consumer, QueueConsumer
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import entrypoint_waiter, dummy
+from nameko.testing.services import dummy, entrypoint_waiter
 from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections
 )
