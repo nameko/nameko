@@ -13,7 +13,8 @@ from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
-    ClusterRpcProxy, ConsumeEvent, ServiceRpcProxy)
+    ClusterRpcProxy, ConsumeEvent, ServiceRpcProxy
+)
 from nameko.testing.waiting import wait_for_call
 
 from test import skip_if_no_toxiproxy
