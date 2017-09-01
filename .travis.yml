@@ -45,12 +45,6 @@ matrix:
       python: 2.7
       env: TOX_ENV=py27-latest-lib
     -
-      python: 2.7
-      env: TOX_ENV=py27-mastereventlet-lib
-    -
-      python: 2.7
-      env: TOX_ENV=py27-examples
-    -
       python: 3.4
       env: TOX_ENV=py34-oldest-lib
     -
@@ -59,9 +53,6 @@ matrix:
     -
       python: 3.4
       env: TOX_ENV=py34-latest-lib
-    -
-      python: 3.4
-      env: TOX_ENV=py34-mastereventlet-lib
     -
       python: 3.5
       env: TOX_ENV=py35-oldest-lib
@@ -72,9 +63,6 @@ matrix:
       python: 3.5
       env: TOX_ENV=py35-latest-lib
     -
-      python: 3.5
-      env: TOX_ENV=py35-mastereventlet-lib
-    -
       python: 3.6
       env: TOX_ENV=py36-oldest-lib
     -
@@ -83,10 +71,19 @@ matrix:
     -
       python: 3.6
       env: TOX_ENV=py36-latest-lib
+    - stage: mastereventlet
+      python: 2.7
+      env: TOX_ENV=py27-mastereventlet-lib
+    -
+      python: 3.4
+      env: TOX_ENV=py34-mastereventlet-lib
+    -
+      python: 3.5
+      env: TOX_ENV=py35-mastereventlet-lib
     -
       python: 3.6
       env: TOX_ENV=py36-mastereventlet-lib
-    -
+    - stage: branchcoverage
       python: 3.6
       env: TOX_ENV=py36-branchcoverage-lib
   fast_finish: true
