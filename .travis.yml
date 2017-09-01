@@ -21,6 +21,7 @@ cache:
   directories:
     - $HOME/.cache/pip
 
+matrix:
   include:
     - stage: static
       python: 2.7
