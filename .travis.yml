@@ -21,48 +21,73 @@ cache:
   directories:
     - $HOME/.cache/pip
 
-matrix:
   include:
-    - python: 2.7
-      env: TOX_ENV=py27-oldest-lib
-    - python: 2.7
-      env: TOX_ENV=py27-pinned-lib
-    - python: 2.7
-      env: TOX_ENV=py27-latest-lib
-    - python: 2.7
-      env: TOX_ENV=py27-mastereventlet-lib
-    - python: 2.7
-      env: TOX_ENV=py27-examples
-    - python: 3.4
-      env: TOX_ENV=py34-oldest-lib
-    - python: 3.4
-      env: TOX_ENV=py34-pinned-lib
-    - python: 3.4
-      env: TOX_ENV=py34-latest-lib
-    - python: 3.4
-      env: TOX_ENV=py34-mastereventlet-lib
-    - python: 3.5
-      env: TOX_ENV=py35-oldest-lib
-    - python: 3.5
-      env: TOX_ENV=py35-pinned-lib
-    - python: 3.5
-      env: TOX_ENV=py35-latest-lib
-    - python: 3.5
-      env: TOX_ENV=py35-mastereventlet-lib
-    - python: 3.6
-      env: TOX_ENV=py36-oldest-lib
-    - python: 3.6
-      env: TOX_ENV=py36-pinned-lib
-    - python: 3.6
-      env: TOX_ENV=py36-latest-lib
-    - python: 3.6
-      env: TOX_ENV=py36-mastereventlet-lib
-    - python: 3.6
-      env: TOX_ENV=py36-branchcoverage-lib
-    - python: 3.6
-      env: TOX_ENV=py36-examples
-    - python: 3.6
+    - stage: static
+      python: 2.7
+      env: TOX_ENV=static
+    - stage: docs
+      python: 2.7
       env: TOX_ENV=docs
+    - stage: examples
+      python: 2.7
+      env: TOX_ENV=py27-examples
+    -
+      python: 3.6
+      env: TOX_ENV=py36-examples
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-oldest-lib
+    -
+      python: 2.7
+      env: TOX_ENV=py27-pinned-lib
+    -
+      python: 2.7
+      env: TOX_ENV=py27-latest-lib
+    -
+      python: 2.7
+      env: TOX_ENV=py27-mastereventlet-lib
+    -
+      python: 2.7
+      env: TOX_ENV=py27-examples
+    -
+      python: 3.4
+      env: TOX_ENV=py34-oldest-lib
+    -
+      python: 3.4
+      env: TOX_ENV=py34-pinned-lib
+    -
+      python: 3.4
+      env: TOX_ENV=py34-latest-lib
+    -
+      python: 3.4
+      env: TOX_ENV=py34-mastereventlet-lib
+    -
+      python: 3.5
+      env: TOX_ENV=py35-oldest-lib
+    -
+      python: 3.5
+      env: TOX_ENV=py35-pinned-lib
+    -
+      python: 3.5
+      env: TOX_ENV=py35-latest-lib
+    -
+      python: 3.5
+      env: TOX_ENV=py35-mastereventlet-lib
+    -
+      python: 3.6
+      env: TOX_ENV=py36-oldest-lib
+    -
+      python: 3.6
+      env: TOX_ENV=py36-pinned-lib
+    -
+      python: 3.6
+      env: TOX_ENV=py36-latest-lib
+    -
+      python: 3.6
+      env: TOX_ENV=py36-mastereventlet-lib
+    -
+      python: 3.6
+      env: TOX_ENV=py36-branchcoverage-lib
   fast_finish: true
   allow_failures:
     - env: TOX_ENV=py27-mastereventlet-lib

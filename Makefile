@@ -7,7 +7,8 @@ ifneq ($(AUTO_FIX_IMPORTS), 1)
   autofix = --check-only
 endif
 
-test: flake8 pylint test_lib test_examples
+static: imports flake8 pylint
+test: static test_lib test_examples
 
 flake8:
 	flake8 nameko test
