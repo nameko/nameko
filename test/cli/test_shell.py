@@ -1,15 +1,16 @@
 import os
 import sys
 
-from mock import patch, Mock
 import pytest
+from mock import Mock, patch
 
-from nameko.standalone.rpc import ClusterProxy
 from nameko.cli.commands import Shell
 from nameko.cli.main import setup_parser
 from nameko.cli.shell import make_nameko_helper
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+)
+from nameko.standalone.rpc import ClusterProxy
 
 
 def test_helper_module(rabbit_config):

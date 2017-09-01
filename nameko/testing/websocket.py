@@ -1,8 +1,7 @@
 from __future__ import absolute_import
 
-import uuid
 import json
-
+import uuid
 from collections import defaultdict
 
 from eventlet.event import Event

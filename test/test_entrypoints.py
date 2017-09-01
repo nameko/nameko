@@ -1,12 +1,12 @@
 from collections import defaultdict
 
-from mock import Mock, call, patch, ANY
 import pytest
+from mock import ANY, Mock, call, patch
 
 from nameko.extensions import DependencyProvider, Entrypoint
-from nameko.testing.services import once, entrypoint_hook, dummy
+from nameko.testing.services import dummy, entrypoint_hook, once
 from nameko.testing.utils import get_extension
-from nameko.utils import get_redacted_args, REDACTED
+from nameko.utils import REDACTED, get_redacted_args
 
 
 @pytest.fixture

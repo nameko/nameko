@@ -2,25 +2,29 @@ from __future__ import absolute_import
 
 import socket
 from contextlib import contextmanager
-from six.moves import queue
 
 import eventlet
 import pytest
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
+from six.moves import queue
+
 from nameko.amqp import get_producer
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
-    Consumer, HeaderDecoder, HeaderEncoder, Publisher, QueueConsumer, consume)
+    Consumer, HeaderDecoder, HeaderEncoder, Publisher, QueueConsumer, consume
+)
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
-    ANY_PARTIAL, DummyProvider, get_extension, wait_for_call, unpack_mock_call)
+    ANY_PARTIAL, DummyProvider, get_extension, unpack_mock_call, wait_for_call
+)
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
+
 
 foobar_ex = Exchange('foobar_ex', durable=False)
 foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)

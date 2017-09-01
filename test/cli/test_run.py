@@ -2,19 +2,21 @@ import errno
 import os
 import signal
 import socket
-from os.path import join, dirname, abspath
-import eventlet
-from mock import patch
+from os.path import abspath, dirname, join
 from textwrap import dedent
+
+import eventlet
 import pytest
+from mock import patch
 
 from nameko.cli.main import setup_parser
-from nameko.cli.run import import_service, setup_backdoor, main, run
+from nameko.cli.run import import_service, main, run, setup_backdoor
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+)
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
 
 from test.sample import Service
 

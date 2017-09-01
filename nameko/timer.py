@@ -8,6 +8,7 @@ from eventlet.event import Event
 
 from nameko.extensions import Entrypoint
 
+
 _log = getLogger(__name__)
 
 

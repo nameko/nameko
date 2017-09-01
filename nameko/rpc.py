@@ -13,13 +13,17 @@ from kombu import Exchange, Queue
 from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY)
+    SERIALIZER_CONFIG_KEY
+)
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
-    UnknownService, UnserializableValueError, deserialize, serialize)
+    UnknownService, UnserializableValueError, deserialize, serialize
+)
 from nameko.extensions import (
-    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
+)
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
+
 
 _log = getLogger(__name__)
 

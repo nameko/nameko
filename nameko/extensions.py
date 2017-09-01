@@ -1,15 +1,16 @@
 from __future__ import absolute_import
 
-from functools import partial
 import inspect
-from logging import getLogger
 import types
-import weakref
 import warnings
+import weakref
+from functools import partial
+from logging import getLogger
 
 from eventlet.event import Event
 
 from nameko.exceptions import IncorrectSignature
+
 
 _log = getLogger(__name__)
 

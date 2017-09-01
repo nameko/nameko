@@ -1,8 +1,7 @@
+import pytest
+from amqp.exceptions import NotFound
 from mock import Mock, patch
 from six.moves import queue
-import pytest
-
-from amqp.exceptions import NotFound
 
 from nameko.amqp import UndeliverableMessage
 from nameko.events import event_handler

@@ -10,11 +10,13 @@ from kombu.messaging import Consumer
 
 from nameko.amqp import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.extensions import Entrypoint
 from nameko.rpc import ReplyListener, ServiceProxy
+
 
 _logger = logging.getLogger(__name__)
 

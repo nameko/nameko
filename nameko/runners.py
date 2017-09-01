@@ -6,6 +6,7 @@ from logging import getLogger
 from nameko.containers import get_container_cls, get_service_name
 from nameko.utils import SpawningProxy
 
+
 _log = getLogger(__name__)
 
 

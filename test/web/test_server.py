@@ -8,7 +8,8 @@ from werkzeug.contrib.fixers import ProxyFix
 from nameko.exceptions import ConfigurationError
 from nameko.web.handlers import HttpRequestHandler, http
 from nameko.web.server import (
-    BaseHTTPServer, HttpOnlyProtocol, WebServer, parse_address)
+    BaseHTTPServer, HttpOnlyProtocol, WebServer, parse_address
+)
 
 
 class ExampleService(object):
