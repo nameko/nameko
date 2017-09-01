@@ -1,4 +1,3 @@
-import itertools
 import socket
 
 import eventlet
@@ -12,9 +11,7 @@ from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.utils import get_rabbit_connections
 from nameko.testing.waiting import wait_for_call
-from nameko.utils.retry import retry
 
 from test import skip_if_no_toxiproxy
 
