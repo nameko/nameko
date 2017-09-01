@@ -9,7 +9,7 @@ from mock import Mock, call, create_autospec, patch
 from six.moves import queue
 
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.containers import ServiceContainer, WorkerContext
+from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
@@ -50,29 +50,9 @@ class Translator(DependencyProvider):
         return translate
 
 
-class WorkerErrorLogger(DependencyProvider):
-
-    expected = {}
-    unexpected = {}
-
-    def worker_result(self, worker_ctx, result=None, exc_info=None):
-        if exc_info is None:
-            return  # nothing to do
-
-        exc = exc_info[1]
-        expected_exceptions = getattr(
-            worker_ctx.entrypoint, 'expected_exceptions', ())
-
-        if isinstance(exc, expected_exceptions):
-            self.expected[worker_ctx.entrypoint.method_name] = type(exc)
-        else:
-            self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
-
-
 class ExampleService(object):
     name = 'exampleservice'
 
-    logger = WorkerErrorLogger()
     translate = Translator()
     example_rpc = RpcProxy('exampleservice')
     unknown_rpc = RpcProxy('unknown_service')
@@ -84,14 +64,6 @@ class ExampleService(object):
     @rpc
     def task_b(self, *args, **kwargs):
         return "result_b"
-
-    @rpc(expected_exceptions=ExampleError)
-    def broken(self):
-        raise ExampleError("broken")
-
-    @rpc(expected_exceptions=(KeyError, ValueError))
-    def very_broken(self):
-        raise AttributeError
 
     @rpc
     def call_async(self):
@@ -115,6 +87,10 @@ class ExampleService(object):
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
         pass  # pragma: no cover
+
+    @rpc
+    def raises(self):
+        raise ExampleError("error")
 
 
 @pytest.yield_fixture
@@ -242,36 +218,9 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
             'Unknown correlation id: %s', correlation_id)
 
 
-def test_expected_exceptions(rabbit_config):
-    container = ServiceContainer(ExampleService, rabbit_config)
-
-    broken = get_extension(container, Rpc, method_name="broken")
-    assert broken.expected_exceptions == ExampleError
-
-    very_broken = get_extension(container, Rpc, method_name="very_broken")
-    assert very_broken.expected_exceptions == (KeyError, ValueError)
-
-
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
-
-def test_expected_exceptions_integration(container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    worker_logger = get_extension(container, WorkerErrorLogger)
-
-    with entrypoint_hook(container, 'broken') as broken:
-        with pytest.raises(ExampleError):
-            broken()
-
-    with entrypoint_hook(container, 'very_broken') as very_broken:
-        with pytest.raises(AttributeError):
-            very_broken()
-
-    assert worker_logger.expected == {'broken': ExampleError}
-    assert worker_logger.unexpected == {'very_broken': AttributeError}
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
@@ -513,14 +462,14 @@ def test_handle_message_raise_other_exception(
                 proxy.task_a()
 
 
-def test_rpc_broken_method(container_factory, rabbit_config):
+def test_rpc_method_that_raises(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
     with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(RemoteError) as exc_info:
-            proxy.broken()
+            proxy.raises()
     assert exc_info.value.exc_type == "ExampleError"
 
 

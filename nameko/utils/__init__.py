@@ -1,6 +1,7 @@
 import inspect
 import re
 import sys
+from copy import deepcopy
 from pydoc import locate
 
 import eventlet
@@ -12,7 +13,7 @@ REDACTED = "********"
 
 def get_redacted_args(entrypoint, *args, **kwargs):
     """ Utility function for use with entrypoints that are marked with
-    ``sensitive_variables`` -- e.g. :class:`nameko.rpc.Rpc` and
+    ``sensitive_arguments`` -- e.g. :class:`nameko.rpc.Rpc` and
     :class:`nameko.events.EventHandler`.
 
     :Parameters:
@@ -23,7 +24,7 @@ def get_redacted_args(entrypoint, *args, **kwargs):
         kwargs : dict
             Keyword arguments for the method call.
 
-    The entrypoint should have a ``sensitive_variables`` attribute, the value
+    The entrypoint should have a ``sensitive_arguments`` attribute, the value
     of which is a string or tuple of strings specifying the arguments or
     partial arguments that should be redacted. To partially redact an argument,
     the following syntax is used::
@@ -36,19 +37,19 @@ def get_redacted_args(entrypoint, *args, **kwargs):
 
     .. note::
 
-        This function does not raise if one of the ``sensitive_variables``
+        This function does not raise if one of the ``sensitive_arguments``
         doesn't match or partially match the calling ``args`` and ``kwargs``.
         This allows "fuzzier" pattern matching (e.g. redact a field if it is
         present, and otherwise do nothing).
 
-        To avoid exposing sensitive variables through a typo, it is recommend
+        To avoid exposing sensitive arguments through a typo, it is recommend
         to test the configuration of each entrypoint with
-        ``sensitive_variables`` individually. For example:
+        ``sensitive_arguments`` individually. For example:
 
         .. code-block:: python
 
             class Service(object):
-                @rpc(sensitive_variables="foo.bar")
+                @rpc(sensitive_arguments="foo.bar")
                 def method(self, foo):
                     pass
 
@@ -71,13 +72,17 @@ def get_redacted_args(entrypoint, *args, **kwargs):
         :class:`test.test_utils.TestGetRedactedArgs`
 
     """
-    sensitive_variables = entrypoint.sensitive_variables
-    if isinstance(sensitive_variables, six.string_types):
-        sensitive_variables = (sensitive_variables,)
+    sensitive_arguments = entrypoint.sensitive_arguments
+    if isinstance(sensitive_arguments, six.string_types):
+        sensitive_arguments = (sensitive_arguments,)
 
     method = getattr(entrypoint.container.service_cls, entrypoint.method_name)
     callargs = inspect.getcallargs(method, None, *args, **kwargs)
     del callargs['self']
+
+    # make a deepcopy before redacting so that "partial" redacations aren't
+    # applied to a referenced object
+    callargs = deepcopy(callargs)
 
     def redact(data, keys):
         key = keys[0]
@@ -90,7 +95,7 @@ def get_redacted_args(entrypoint, *args, **kwargs):
             if key in data:
                 redact(data[key], keys[1:])
 
-    for variable in sensitive_variables:
+    for variable in sensitive_arguments:
         keys = []
         for dict_key, list_index in re.findall(r"(\w+)|\[(\d+)\]", variable):
             if dict_key:
