@@ -142,7 +142,7 @@ class PollingQueueConsumer(object):
 
         try:
             while correlation_id not in self.replies:
-                self.consumer.channel.connection.client.drain_events(
+                self.consumer.connection.drain_events(
                     timeout=self.timeout
                 )
 
