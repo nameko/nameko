@@ -6,12 +6,14 @@ from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
+from mock import Mock, call
 
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
-from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
+from nameko.standalone.rpc import (
+    ClusterRpcProxy, ConsumeEvent, ServiceRpcProxy)
 from nameko.testing.waiting import wait_for_call
 
 from test import skip_if_no_toxiproxy
@@ -263,6 +265,76 @@ class TestDisconnectWithPendingReply(object):
         # proxy should work again afterwards
         block.send()
         assert rpc_proxy.service.method("msg3") == "msg3"
+
+
+class TestConsumeEvent(object):
+
+    @pytest.fixture
+    def queue_consumer(self):
+        queue_consumer = Mock()
+        queue_consumer.stopped = False
+        queue_consumer.connection.connected = True
+        return queue_consumer
+
+    def test_wait(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        result = "result"
+
+        def get_message(correlation_id):
+            event.send(result)
+        queue_consumer.get_message.side_effect = get_message
+
+        assert event.wait() == result
+        assert queue_consumer.get_message.call_args == call(correlation_id)
+
+    def test_wait_disconnected_while_waiting(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        exc = RpcConnectionError()
+
+        def get_message(correlation_id):
+            event.send_exception(exc)
+        queue_consumer.get_message.side_effect = get_message
+
+        with pytest.raises(RpcConnectionError):
+            event.wait()
+        assert queue_consumer.get_message.call_args == call(correlation_id)
+
+    def test_wait_already_disconnected(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        exc = RpcConnectionError()
+
+        event.send_exception(exc)
+        with pytest.raises(RpcConnectionError):
+            event.wait()
+        assert not queue_consumer.get_message.called
+
+    def test_wait_queue_consumer_stopped(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        queue_consumer.stopped = True
+
+        with pytest.raises(RuntimeError) as raised:
+            event.wait()
+        assert "stopped" in str(raised.value)
+        assert not queue_consumer.get_message.called
+
+    def test_wait_queue_consumer_disconnected(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        queue_consumer.connection.connected = False
+
+        with pytest.raises(RuntimeError) as raised:
+            event.wait()
+        assert "disconnected" in str(raised.value)
+        assert not queue_consumer.get_message.called
 
 
 def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):
