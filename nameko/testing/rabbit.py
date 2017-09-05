@@ -3,7 +3,7 @@ import json
 import six
 from requests import ConnectionError, HTTPError, Session
 from requests.auth import HTTPBasicAuth
-from requests.utils import urldefragauth, get_auth_from_url
+from requests.utils import get_auth_from_url, urldefragauth
 from six.moves.urllib.parse import quote  # pylint: disable=E0401
 
 
