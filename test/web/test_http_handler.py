@@ -42,10 +42,6 @@ class ExampleService(object):
     def fail_expected(self, request):
         raise ValueError('oops')
 
-    @http(['GET', 'POST'], '/multiple')
-    def method(self, request):
-        return 200, request.method
-
 
 class SimpleService(object):
     name = "simpleservice"
@@ -111,20 +107,6 @@ def test_bad_payload(web_session):
     rv = web_session.post('/post', data=json.dumps({'value': 23}))
     assert rv.status_code == 500
     assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text
-
-
-def test_multiple_method(web_session):
-    resp = web_session.get('/multiple')
-    assert resp.status_code == 200
-    assert resp.text == 'GET'
-
-    resp = web_session.post('/multiple')
-    assert resp.status_code == 200
-    assert resp.text == 'POST'
-
-    resp = web_session.post('/multiple')
-    assert resp.status_code == 200
-    assert resp.text != 'GET'
 
 
 def test_lifecycle(container_factory, web_config):
