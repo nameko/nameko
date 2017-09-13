@@ -23,7 +23,17 @@ class HttpRequestHandler(Entrypoint):
         super(HttpRequestHandler, self).__init__(**kwargs)
 
     def get_url_rule(self):
-        return Rule(self.url, methods=[self.method])
+        methods = self.method
+        if isinstance(self.method, str):
+            methods = [self.method]
+        elif not isinstance(self.method, list):
+            raise TypeError(
+                "http methods must be a string or list. Got `{!r}`".format(
+                    type(methods)
+                )
+            )
+
+        return Rule(self.url, methods=methods)
 
     def setup(self):
         self.server.register_provider(self)
