@@ -10,9 +10,12 @@ from eventlet.support import get_errno
 from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
-from werkzeug.wrappers import Request
+from werkzeug.wrappers import Request, Response
 
-from nameko.constants import WEB_SERVER_CONFIG_KEY
+from nameko.constants import (
+    WEB_SERVER_CONFIG_KEY, WEB_SERVER_ALLOW_CORS_CONFIG_KEY,
+    WEB_SERVER_CORS_HEADERS_CONFIG_KEY, DEFAULT_WEB_SERVER_CORS_HEADERS
+)
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
 
@@ -158,7 +161,20 @@ class WsgiApp(object):
         # time.
         request = Request(environ, shallow=True)
         adapter = self.url_map.bind_to_environ(environ)
+        config = self.server.container.config
+        allow_cors = config.get(
+            WEB_SERVER_ALLOW_CORS_CONFIG_KEY
+        )
         try:
+            if request.method == 'OPTIONS' and allow_cors:
+                headers = config.get(
+                    WEB_SERVER_CORS_HEADERS_CONFIG_KEY,
+                    DEFAULT_WEB_SERVER_CORS_HEADERS
+                )
+                return Response({}, status=200, headers=headers)(
+                    environ, start_response
+                )
+
             provider, values = adapter.match()
             request.path_values = values
             rv = provider.handle_request(request)

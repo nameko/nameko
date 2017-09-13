@@ -5,6 +5,10 @@ from eventlet import wsgi
 from mock import patch
 from werkzeug.contrib.fixers import ProxyFix
 
+from nameko.constants import (
+    WEB_SERVER_ALLOW_CORS_CONFIG_KEY, WEB_SERVER_CORS_HEADERS_CONFIG_KEY,
+    DEFAULT_WEB_SERVER_CORS_HEADERS
+)
 from nameko.exceptions import ConfigurationError
 from nameko.web.handlers import HttpRequestHandler, http
 from nameko.web.server import (
@@ -186,3 +190,50 @@ def test_custom_wsgi_server_is_used(
     container.start()
 
     assert web_session.get('/').text == 'Override'
+
+
+def test_server_support_cors(
+    container_factory, web_config, web_config_port, web_session
+):
+    web_config.update({
+        WEB_SERVER_ALLOW_CORS_CONFIG_KEY: True
+    })
+
+    class CustomWebServer(WebServer):
+        def get_wsgi_app(self):
+            # get the original WSGI app that processes http requests
+            app = super(CustomWebServer, self).get_wsgi_app()
+            # apply the ProxyFix middleware as an example
+            return ProxyFix(app, num_proxies=1)
+
+    class CustomHttpRequestHandler(HttpRequestHandler):
+        server = CustomWebServer()
+
+    http = CustomHttpRequestHandler.decorator
+
+    class CustomServerExampleService(object):
+        name = 'customserverservice'
+
+        @http('GET', '/')
+        def do_index(self, request):
+            return ''  # pragma: no cover
+
+    container = container_factory(CustomServerExampleService, web_config)
+    container.start()
+
+    resp = web_session.options('/')
+    assert resp.text == ''
+    assert resp.headers.get('Access-Control-Allow-Origin') == '*'
+    container.stop()
+
+    web_config.update({
+        WEB_SERVER_CORS_HEADERS_CONFIG_KEY: {
+            'cros': True
+        }
+    })
+    container2 = container_factory(CustomServerExampleService, web_config)
+    container2.start()
+
+    resp = web_session.options('/')
+    assert resp.text == ''
+    assert resp.headers.get('cros') == 'True'
