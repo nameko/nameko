@@ -1,7 +1,8 @@
 import pytest
 from mock import ANY, Mock
-from nameko.constants import AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+
 from nameko.rpc import Responder
+
 
 # python version compat
 EXCEPTION_MODULE = Exception.__module__
@@ -19,8 +20,9 @@ def test_responder(mock_producer):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    config = {AMQP_URI_CONFIG_KEY: ''}
-    responder = Responder(config, message)
+    exchange = Mock()
+
+    responder = Responder('amqp://localhost', exchange, 'json', message)
 
     # serialisable result
     result, exc_info = responder.send_response(True, None)
@@ -40,8 +42,9 @@ def test_responder_worker_exc(mock_producer):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    config = {AMQP_URI_CONFIG_KEY: ''}
-    responder = Responder(config, message)
+    exchange = Mock()
+
+    responder = Responder('amqp://localhost', exchange, 'json', message)
 
     # serialisable exception
     worker_exc = Exception('error')
@@ -73,9 +76,9 @@ def test_responder_unserializable_result(
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    config = {AMQP_URI_CONFIG_KEY: '',
-              SERIALIZER_CONFIG_KEY: serializer}
-    responder = Responder(config, message)
+    exchange = Mock()
+
+    responder = Responder('amqp://localhost', exchange, serializer, message)
 
     # unserialisable result
     worker_result = unserializable
@@ -108,8 +111,9 @@ def test_responder_cannot_unicode_exc(mock_producer):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    config = {AMQP_URI_CONFIG_KEY: ''}
-    responder = Responder(config, message)
+    exchange = Mock()
+
+    responder = Responder('amqp://localhost', exchange, 'json', message)
 
     class CannotUnicode(object):
         def __str__(self):
@@ -127,8 +131,9 @@ def test_responder_cannot_repr_exc(mock_producer):
     message = Mock()
     message.properties = {'reply_to': ''}
 
-    config = {AMQP_URI_CONFIG_KEY: ''}
-    responder = Responder(config, message)
+    exchange = Mock()
+
+    responder = Responder('amqp://localhost', exchange, 'json', message)
 
     class CannotRepr(object):
         def __repr__(self):

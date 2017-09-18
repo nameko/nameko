@@ -6,20 +6,25 @@ from eventlet.event import Event
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
+from six.moves import queue
+
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
-from nameko.containers import ServiceContainer
+from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    UnknownService)
+    UnknownService
+)
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc)
+    MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+)
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    dummy, entrypoint_hook, restrict_entrypoints)
-from nameko.testing.utils import get_extension, wait_for_call
+    dummy, entrypoint_hook, restrict_entrypoints
+)
+from nameko.testing.utils import get_extension, unpack_mock_call, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
@@ -45,29 +50,9 @@ class Translator(DependencyProvider):
         return translate
 
 
-class WorkerErrorLogger(DependencyProvider):
-
-    expected = {}
-    unexpected = {}
-
-    def worker_result(self, worker_ctx, result=None, exc_info=None):
-        if exc_info is None:
-            return  # nothing to do
-
-        exc = exc_info[1]
-        expected_exceptions = getattr(
-            worker_ctx.entrypoint, 'expected_exceptions', ())
-
-        if isinstance(exc, expected_exceptions):
-            self.expected[worker_ctx.entrypoint.method_name] = type(exc)
-        else:
-            self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
-
-
 class ExampleService(object):
     name = 'exampleservice'
 
-    logger = WorkerErrorLogger()
     translate = Translator()
     example_rpc = RpcProxy('exampleservice')
     unknown_rpc = RpcProxy('unknown_service')
@@ -79,14 +64,6 @@ class ExampleService(object):
     @rpc
     def task_b(self, *args, **kwargs):
         return "result_b"
-
-    @rpc(expected_exceptions=ExampleError)
-    def broken(self):
-        raise ExampleError("broken")
-
-    @rpc(expected_exceptions=(KeyError, ValueError))
-    def very_broken(self):
-        raise AttributeError
 
     @rpc
     def call_async(self):
@@ -110,6 +87,10 @@ class ExampleService(object):
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
         pass  # pragma: no cover
+
+    @rpc
+    def raises(self):
+        raise ExampleError("error")
 
 
 @pytest.yield_fixture
@@ -237,36 +218,9 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
             'Unknown correlation id: %s', correlation_id)
 
 
-def test_expected_exceptions(rabbit_config):
-    container = ServiceContainer(ExampleService, rabbit_config)
-
-    broken = get_extension(container, Rpc, method_name="broken")
-    assert broken.expected_exceptions == ExampleError
-
-    very_broken = get_extension(container, Rpc, method_name="very_broken")
-    assert very_broken.expected_exceptions == (KeyError, ValueError)
-
-
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
-
-def test_expected_exceptions_integration(container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    worker_logger = get_extension(container, WorkerErrorLogger)
-
-    with entrypoint_hook(container, 'broken') as broken:
-        with pytest.raises(ExampleError):
-            broken()
-
-    with entrypoint_hook(container, 'very_broken') as very_broken:
-        with pytest.raises(AttributeError):
-            very_broken()
-
-    assert worker_logger.expected == {'broken': ExampleError}
-    assert worker_logger.unexpected == {'very_broken': AttributeError}
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
@@ -508,14 +462,14 @@ def test_handle_message_raise_other_exception(
                 proxy.task_a()
 
 
-def test_rpc_broken_method(container_factory, rabbit_config):
+def test_rpc_method_that_raises(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
     with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(RemoteError) as exc_info:
-            proxy.broken()
+            proxy.raises()
     assert exc_info.value.exc_type == "ExampleError"
 
 
@@ -687,12 +641,14 @@ class TestProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy, 'retry', new=retry):
+        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
-        with patch.object(MethodProxy, 'use_confirms', new=request.param):
+        with patch.object(
+            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+        ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
@@ -812,21 +768,24 @@ class TestResponderDisconnections(object):
 
     @pytest.yield_fixture(autouse=True)
     def toxic_responder(self, toxiproxy):
-        with patch.object(Responder, 'amqp_uri', new=toxiproxy.uri):
+        def replacement_constructor(amqp_uri, *args):
+            return Responder(toxiproxy.uri, *args)
+        with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
-        with patch.object(Responder, 'use_confirms', new=request.param):
-            yield request.param
+        value = request.param
+        with patch.object(Responder.publisher_cls, 'use_confirms', new=value):
+            yield value
 
     @pytest.yield_fixture(autouse=True)
     def retry(self, request):
-        retry = False
+        value = False
         if "publish_retry" in request.keywords:
-            retry = True
+            value = True
 
-        with patch.object(Responder, 'retry', new=retry):
+        with patch.object(Responder.publisher_cls, 'retry', new=value):
             yield
 
     @pytest.fixture
@@ -1000,6 +959,175 @@ class TestResponderDisconnections(object):
         # call 2 succeeds (after reconnecting via retry policy)
         with patch_wait(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
+
+
+class TestBackwardsCompatClassAttrs(object):
+
+    @pytest.mark.parametrize("parameter,value", [
+        ('retry', False),
+        ('retry_policy', {'max_retries': 999}),
+        ('use_confirms', False),
+    ])
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
+        """ Verify that you can specify some fields by subclassing the
+        MethodProxy class.
+        """
+        method_proxy_cls = type(
+            "LegacyMethodProxy", (MethodProxy,), {parameter: value}
+        )
+        with patch('nameko.rpc.warnings') as warnings:
+            worker_ctx = Mock()
+            worker_ctx.container.config = {'AMQP_URI': 'memory://'}
+            reply_listener = Mock()
+            proxy = method_proxy_cls(
+                worker_ctx, "service", "method", reply_listener
+            )
+
+        assert warnings.warn.called
+        call_args = warnings.warn.call_args
+        assert parameter in unpack_mock_call(call_args).positional[0]
+
+        assert getattr(proxy.publisher, parameter) == value
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the RpcProxy
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at RpcProxy
+        instantiation time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.container = mock_container
+        worker_ctx.context_data = {}
+
+        value = Mock()
+
+        rpc_proxy = RpcProxy(
+            "service-name", **{parameter: value}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        service_rpc.method.call_async()
+        assert producer.publish.call_args[1][parameter] == value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers can be provided at instantiation time, and are merged with
+        Nameko headers.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service-name"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service-name.method.0'],
+        }
+
+        value = {'foo': Mock()}
+
+        rpc_proxy = RpcProxy(
+            "service-name", **{'headers': value}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        service_rpc.method.call_async()
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, value
+        )
+
+    @patch('nameko.rpc.uuid')
+    def test_restricted_parameters(self, patch_uuid, mock_container, producer):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.container = mock_container
+        worker_ctx.context_data = {}
+
+        uuid1 = uuid.uuid4()
+        uuid2 = uuid.uuid4()
+        patch_uuid.uuid4.side_effect = [uuid1, uuid2]
+
+        restricted_params = (
+            'exchange', 'routing_key', 'mandatory',
+            'correlation_id', 'reply_to'
+        )
+
+        rpc_proxy = RpcProxy(
+            "service", **{param: Mock() for param in restricted_params}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        service_rpc.method.call_async()
+        publish_params = producer.publish.call_args[1]
+
+        assert publish_params['exchange'].name == "nameko-rpc"
+        assert publish_params['routing_key'] == 'service.method'
+        assert publish_params['mandatory'] is True
+        assert publish_params['reply_to'] == str(uuid1)
+        assert publish_params['correlation_id'] == str(uuid2)
 
 
 def test_prefetch_throughput(container_factory, rabbit_config):

@@ -2,6 +2,7 @@ import logging
 
 from nameko.rpc import rpc
 
+
 log = logging.getLogger('test.sample')
 
 

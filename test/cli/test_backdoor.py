@@ -1,6 +1,6 @@
 import eventlet
-from mock import patch, DEFAULT
 import pytest
+from mock import DEFAULT, patch
 
 from nameko.cli.commands import Backdoor
 from nameko.cli.main import setup_parser

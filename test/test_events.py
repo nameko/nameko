@@ -4,16 +4,18 @@ from collections import defaultdict
 
 import pytest
 from mock import ANY, Mock, create_autospec, patch
+from six.moves import queue
 
-from nameko.amqp import UndeliverableMessage
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
-    EventHandlerConfigurationError, event_handler)
+    EventHandlerConfigurationError, event_handler
+)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
-from nameko.testing.services import entrypoint_waiter, dummy, entrypoint_hook
-from nameko.testing.utils import DummyProvider
+from nameko.standalone.events import get_event_exchange
+from nameko.testing.services import entrypoint_waiter
+from nameko.testing.utils import DummyProvider, unpack_mock_call
 
 
 EVENTS_TIMEOUT = 5
@@ -36,7 +38,9 @@ def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
 
-    event_dispatcher = EventDispatcher(retry_policy={'max_retries': 5}).bind(
+    custom_retry_policy = {'max_retries': 5}
+
+    event_dispatcher = EventDispatcher(retry_policy=custom_retry_policy).bind(
         container, attr_name="dispatch")
     event_dispatcher.setup()
 
@@ -45,15 +49,27 @@ def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
 
     headers = event_dispatcher.get_message_headers(worker_ctx)
 
-    mock_producer.publish.assert_called_once_with(
-        'msg', exchange=ANY, headers=headers,
-        serializer=container.serializer,
-        routing_key='eventtype', retry=True, mandatory=False,
-        retry_policy={'max_retries': 5})
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'exchange': ANY,
+        'routing_key': 'eventtype',
+        'headers': headers,
+        'declare': event_dispatcher.declare,
+        'retry': event_dispatcher.publisher_cls.retry,
+        'retry_policy': custom_retry_policy,
+        'compression': event_dispatcher.publisher_cls.compression,
+        'mandatory': event_dispatcher.publisher_cls.mandatory,
+        'expiration': event_dispatcher.publisher_cls.expiration,
+        'delivery_mode': event_dispatcher.publisher_cls.delivery_mode,
+        'priority': event_dispatcher.publisher_cls.priority,
+        'serializer': event_dispatcher.serializer,
+    }
 
-    _, call_kwargs = mock_producer.publish.call_args
-    exchange = call_kwargs['exchange']
-    assert exchange.name == 'srcservice.events'
+    assert mock_producer.publish.call_count == 1
+    args, kwargs = mock_producer.publish.call_args
+    assert args == expected_args
+    assert kwargs == expected_kwargs
+    assert kwargs['exchange'].name == 'srcservice.events'
 
 
 def test_event_handler(queue_consumer, mock_container):
@@ -674,72 +690,152 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     assert ['"msg"'] == [msg['payload'] for msg in messages]
 
 
-class TestMandatoryDelivery(object):
-    """ Test and demonstrate the mandatory delivery flag.
+class TestBackwardsCompatClassAttrs(object):
 
-    Dispatching an event should raise an exception when mandatory delivery
-    is requested and there is no destination queue, as long as publish-confirms
-    are enabled.
+    @pytest.mark.parametrize("parameter,value", [
+        ('retry', False),
+        ('retry_policy', {'max_retries': 999}),
+        ('use_confirms', False),
+    ])
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
+        """ Verify that you can specify some fields by subclassing the
+        EventDispatcher DependencyProvider.
+        """
+        dispatcher_cls = type(
+            "LegacyEventDispatcher", (EventDispatcher,), {parameter: value}
+        )
+        with patch('nameko.messaging.warnings') as warnings:
+            mock_container.config = {'AMQP_URI': 'memory://'}
+            mock_container.service_name = "service"
+            dispatcher = dispatcher_cls().bind(mock_container, "dispatch")
+        assert warnings.warn.called
+        call_args = warnings.warn.call_args
+        assert parameter in unpack_mock_call(call_args).positional[0]
+
+        dispatcher.setup()
+        assert getattr(dispatcher.publisher, parameter) == value
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the EventDispatcher
     """
 
-    def test_default(self, container_factory, rabbit_config):
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
 
-        class Service(object):
-            name = "dispatcher"
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
 
-            dispatch = EventDispatcher()
-
-            @dummy
-            def method(self, *args, **kwargs):
-                self.dispatch(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        # events are not mandatory by default;
-        # no error when routing to a non-existent handler
-        with entrypoint_hook(container, 'method') as dispatch:
-            dispatch("event", "payload")
-
-    def test_mandatory_delivery(self, container_factory, rabbit_config):
-
-        class Service(object):
-            name = "dispatcher"
-
-            dispatch = EventDispatcher(mandatory=True)
-
-            @dummy
-            def method(self, *args, **kwargs):
-                self.dispatch(*args, **kwargs)
-
-        container = container_factory(Service, rabbit_config)
-        container.start()
-
-        # requesting mandatory delivery will result in an exception
-        # if there is no bound queue to receive the message
-        with pytest.raises(UndeliverableMessage):
-            with entrypoint_hook(container, 'method') as publish:
-                publish("event", "payload")
-
-    @patch('nameko.standalone.events.warnings')
-    def test_confirms_disabled(
-        self, warnings, container_factory, rabbit_config
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'mandatory', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'correlation_id', 'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
     ):
-        class Service(object):
-            name = "dispatcher"
+        """ Verify that most parameters can be specified at instantiation time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
 
-            dispatch = EventDispatcher(mandatory=True, use_confirms=False)
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
 
-            @dummy
-            def method(self, *args, **kwargs):
-                self.dispatch(*args, **kwargs)
+        value = Mock()
 
-        container = container_factory(Service, rabbit_config)
-        container.start()
+        dispatcher = EventDispatcher(
+            **{parameter: value}
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
 
-        # no exception will be raised if confirms are disabled,
-        # even when mandatory delivery is requested,
-        # but there will be a warning raised
-        with entrypoint_hook(container, 'method') as dispatch:
-            dispatch("event", "payload")
-        assert warnings.warn.called
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        dispatch("event-type", "event-data")
+        assert producer.publish.call_args[1][parameter] == value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers can be provided at instantiation time, and are merged with
+        Nameko headers.
+        """
+        mock_container.config = {
+            'AMQP_URI': 'memory://localhost'
+        }
+        mock_container.service_name = "service"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service.method.0'],
+        }
+
+        value = {'foo': Mock()}
+
+        dispatcher = EventDispatcher(
+            **{'headers': value}
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        dispatch("event-type", "event-data")
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, value
+        )
+
+    def test_restricted_parameters(
+        self, mock_container, producer
+    ):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        exchange = Mock()
+        routing_key = Mock()
+
+        dispatcher = EventDispatcher(
+            exchange=exchange,
+            routing_key=routing_key,
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        event_exchange = get_event_exchange("service")
+        event_type = "event-type"
+
+        dispatch(event_type, "event-data")
+
+        assert producer.publish.call_args[1]['exchange'] == event_exchange
+        assert producer.publish.call_args[1]['routing_key'] == event_type

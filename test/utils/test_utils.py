@@ -6,10 +6,12 @@ from eventlet.event import Event
 
 import nameko.rpc
 from nameko.containers import ServiceContainer
+from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc, rpc
-from nameko.testing.services import get_extension
+from nameko.testing.services import dummy, entrypoint_hook, get_extension
 from nameko.utils import (
-    REDACTED, fail_fast_imap, get_redacted_args, import_from_path)
+    REDACTED, fail_fast_imap, get_redacted_args, import_from_path
+)
 
 
 def test_fail_fast_imap():
@@ -45,21 +47,21 @@ def test_fail_fast_imap():
 
 class TestGetRedactedArgs(object):
 
-    @pytest.mark.parametrize("sensitive_variables, expected", [
-        (tuple(), {'a': 'A', 'b': 'B'}),  # no sensitive variables
+    @pytest.mark.parametrize("sensitive_arguments, expected", [
+        (tuple(), {'a': 'A', 'b': 'B'}),  # no sensitive arguments
         ("a", {'a': REDACTED, 'b': 'B'}),
         (("a",), {'a': REDACTED, 'b': 'B'}),
         (("a", "b"), {'a': REDACTED, 'b': REDACTED}),
         (("c"), {'a': 'A', 'b': 'B'}),  # 'c' not a valid argument; ignored
     ])
     def test_get_redacted_args(
-        self, sensitive_variables, expected, rabbit_config
+        self, sensitive_arguments, expected, rabbit_config
     ):
 
         class Service(object):
             name = "service"
 
-            @rpc(sensitive_variables=sensitive_variables)
+            @rpc(sensitive_arguments=sensitive_arguments)
             def method(self, a, b):
                 pass  # pragma: no cover
 
@@ -82,7 +84,7 @@ class TestGetRedactedArgs(object):
         class Service(object):
             name = "service"
 
-            @rpc(sensitive_variables="a")
+            @rpc(sensitive_arguments="a")
             def method(self, a, b=None):
                 pass  # pragma: no cover
 
@@ -94,7 +96,7 @@ class TestGetRedactedArgs(object):
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
 
-    @pytest.mark.parametrize("sensitive_variables, expected", [
+    @pytest.mark.parametrize("sensitive_arguments, expected", [
         (
             ("b.foo",),  # dict key
             {
@@ -139,13 +141,13 @@ class TestGetRedactedArgs(object):
         ),
     ])
     def test_get_redacted_args_partial(
-        self, sensitive_variables, expected, rabbit_config
+        self, sensitive_arguments, expected, rabbit_config
     ):
 
         class Service(object):
             name = "service"
 
-            @rpc(sensitive_variables=sensitive_variables)
+            @rpc(sensitive_arguments=sensitive_arguments)
             def method(self, a, b):
                 pass  # pragma: no cover
 
@@ -162,6 +164,61 @@ class TestGetRedactedArgs(object):
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
+
+    def test_get_redacted_args_partial_no_mutation(self, container_factory):
+        """ Calling `get_redacted_args` should not mutate anything received by
+        the entrypoint.
+        """
+        redacted = {}
+
+        class Redactor(DependencyProvider):
+            """ Example DependencyProvider that redacts `sensitive_arguments`
+            on entrypoints during the worker lifecycle.
+            """
+
+            def worker_setup(self, worker_ctx):
+                entrypoint = worker_ctx.entrypoint
+                args = worker_ctx.args
+                kwargs = worker_ctx.kwargs
+
+                redacted.update(get_redacted_args(entrypoint, *args, **kwargs))
+
+        class Service(object):
+            name = "service"
+
+            redactor = Redactor()
+
+            @dummy(sensitive_arguments=['b[foo][1]'])
+            def method(self, a, b):
+                return {
+                    "a": a,
+                    "b": b
+                }
+
+        container = container_factory(Service, {})
+
+        complex_arg = {
+            'foo': [1, 2, 3],
+            'bar': "BAR"
+        }
+
+        with entrypoint_hook(container, 'method') as hook:
+            result = hook("A", complex_arg)
+
+        assert redacted == {
+            'a': 'A',
+            'b': {
+                'foo': [1, REDACTED, 3],
+                'bar': "BAR"
+            }
+        }
+        assert result == {
+            'a': 'A',
+            'b': {
+                'foo': [1, 2, 3],
+                'bar': "BAR"
+            }
+        }
 
 
 class TestImportFromPath(object):

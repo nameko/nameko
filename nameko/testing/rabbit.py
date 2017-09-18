@@ -1,8 +1,9 @@
 import json
 
-from requests import HTTPError, Session, ConnectionError
-from six.moves.urllib.parse import quote  # pylint: disable=E0401
 import six
+from requests import ConnectionError, HTTPError, Session
+from six.moves.urllib.parse import quote  # pylint: disable=E0401
+
 
 __all__ = ['Client', 'HTTPError']
 

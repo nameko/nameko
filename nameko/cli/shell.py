@@ -1,12 +1,13 @@
 import code
 import os
 import sys
-import yaml
 from types import ModuleType
 
+import yaml
+
 from nameko.constants import AMQP_URI_CONFIG_KEY
-from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.standalone.events import event_dispatcher
+from nameko.standalone.rpc import ClusterRpcProxy
 
 from .commands import Shell
 

@@ -1,12 +1,12 @@
-from logging import getLogger
 from functools import partial
+from logging import getLogger
 
-from eventlet.event import Event
 import six
-from werkzeug.wrappers import Response
+from eventlet.event import Event
 from werkzeug.routing import Rule
+from werkzeug.wrappers import Response
 
-from nameko.exceptions import serialize, BadRequest
+from nameko.exceptions import BadRequest, serialize
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer
 
@@ -17,10 +17,10 @@ _log = getLogger(__name__)
 class HttpRequestHandler(Entrypoint):
     server = WebServer()
 
-    def __init__(self, method, url, expected_exceptions=()):
+    def __init__(self, method, url, **kwargs):
         self.method = method
         self.url = url
-        self.expected_exceptions = expected_exceptions
+        super(HttpRequestHandler, self).__init__(**kwargs)
 
     def get_url_rule(self):
         return Rule(self.url, methods=[self.method])

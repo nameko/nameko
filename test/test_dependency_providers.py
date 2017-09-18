@@ -1,4 +1,5 @@
 import pytest
+
 from nameko.dependency_providers import Config
 from nameko.rpc import rpc
 from nameko.testing.services import entrypoint_hook

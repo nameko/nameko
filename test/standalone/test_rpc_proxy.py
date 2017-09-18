@@ -7,16 +7,17 @@ from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
 
-from test import skip_if_no_toxiproxy
-
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.rpc import MethodProxy, Responder, rpc
+from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
 from nameko.testing.utils import get_rabbit_connections
 from nameko.testing.waiting import wait_for_call
 from nameko.utils.retry import retry
+
+from test import skip_if_no_toxiproxy
+
 
 # uses autospec on method; needs newer mock for py3
 try:
@@ -169,7 +170,10 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
             'reply_to': proxy.reply_listener.routing_key,
             'correlation_id': 'invalid',
         })
-        responder = Responder(container.config, message)
+        amqp_uri = container.config['AMQP_URI']
+        exchange = get_rpc_exchange(container.config)
+
+        responder = Responder(amqp_uri, exchange, "json", message)
         with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
             responder.send_response(None, None)
             assert proxy.spam(ham='eggs') == 'eggs'
@@ -376,6 +380,18 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
         assert proxy.foobar.spam(ham=1) == 1
 
 
+def test_cluster_proxy_reuse(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    cluster_proxy = ClusterRpcProxy(rabbit_config)
+    with cluster_proxy as proxy:
+        assert proxy.foobar.spam(ham=1) == 1
+
+    with cluster_proxy as second_proxy:
+        assert second_proxy.foobar.spam(ham=1) == 1
+
+
 def test_cluster_proxy_dict_access(
     container_factory, rabbit_manager, rabbit_config
 ):
@@ -468,12 +484,14 @@ class TestStandaloneProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy, 'retry', new=retry):
+        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
-        with patch.object(MethodProxy, 'use_confirms', new=request.param):
+        with patch.object(
+            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+        ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)

@@ -1,13 +1,11 @@
 from __future__ import absolute_import
 
-from contextlib import contextmanager
-
 import amqp
 import six
 from amqp.exceptions import NotAllowed
 from kombu import Connection
-from kombu.pools import connections, producers
 from kombu.transport.pyamqp import Transport
+
 
 BAD_CREDENTIALS = (
     'Error connecting to broker, probably caused by invalid credentials'
@@ -50,27 +48,3 @@ def verify_amqp_uri(amqp_uri, ssl=None):
     transport = TestTransport(connection.transport.client)
     with transport.establish_connection():
         pass
-
-
-class UndeliverableMessage(Exception):
-    """ Raised when publisher confirms are enabled and a message could not
-    be routed or persisted """
-    pass
-
-
-@contextmanager
-def get_connection(amqp_uri, ssl=None):
-    conn = Connection(amqp_uri, ssl=ssl)
-    with connections[conn].acquire(block=True) as connection:
-        yield connection
-
-
-@contextmanager
-def get_producer(amqp_uri, confirms=True, ssl=None):
-    transport_options = {
-        'confirm_publish': confirms
-    }
-    conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
-
-    with producers[conn].acquire(block=True) as producer:
-        yield producer

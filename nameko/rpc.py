@@ -2,24 +2,28 @@ from __future__ import absolute_import, unicode_literals
 
 import sys
 import uuid
+import warnings
 from functools import partial
 from logging import getLogger
 
 import kombu.serialization
 from eventlet.event import Event
 from kombu import Exchange, Queue
-from six.moves import queue
 
-from nameko.amqp import get_producer
+from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
-    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY, AMQP_SSL_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY
+)
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
-    UnknownService, UnserializableValueError, deserialize, serialize)
+    UnknownService, UnserializableValueError, deserialize, serialize
+)
 from nameko.extensions import (
-    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
+)
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
+
 
 _log = getLogger(__name__)
 
@@ -113,7 +117,14 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             self.handle_result(message, None, exc_info)
 
     def handle_result(self, message, result, exc_info):
-        responder = Responder(self.container.config, message)
+
+        amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+        serializer = self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+        exchange = get_rpc_exchange(self.container.config)
+
+        responder = Responder(amqp_uri, exchange, serializer, message)
         result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
@@ -126,27 +137,6 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 class Rpc(Entrypoint, HeaderDecoder):
 
     rpc_consumer = RpcConsumer()
-
-    def __init__(self, expected_exceptions=(), sensitive_variables=()):
-        """ Mark a method to be exposed over rpc
-
-        :Parameters:
-            expected_exceptions : exception class or tuple of exception classes
-                Specify exceptions that may be caused by the caller (e.g. by
-                providing bad arguments). Saved on the entrypoint instance as
-                ``entrypoint.expected_exceptions`` for later inspection by
-                other extensions, for example a monitoring system.
-            sensitive_variables : string or tuple of strings
-                Mark an argument or part of an argument as sensitive. Saved on
-                the entrypoint instance as ``entrypoint.sensitive_variables``
-                for later inspection by other extensions, for example a
-                logging system.
-
-                :seealso: :func:`nameko.utils.get_redacted_args`
-
-        """
-        self.expected_exceptions = expected_exceptions
-        self.sensitive_variables = sensitive_variables
 
     def setup(self):
         self.rpc_consumer.register_provider(self)
@@ -184,59 +174,15 @@ rpc = Rpc.decorator
 
 class Responder(object):
 
-    def __init__(self, config, message):
-        self.config = config
+    publisher_cls = Publisher
+
+    def __init__(self, amqp_uri, exchange, serializer, message):
+        self.amqp_uri = amqp_uri
+        self.serializer = serializer
         self.message = message
+        self.exchange = exchange
 
-    @property
-    def amqp_uri(self):
-        return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def use_confirms(self):
-        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
-        for this responder's publisher.
-
-        The responder will wait for an acknowledgement from the broker that
-        the message was receieved and processed appropriately, and otherwise
-        raise. Confirms have a performance penalty but guarantee that messages
-        aren't lost, for example due to stale connections.
-
-        It is strongly recommended to use publish confirms in RPC Responders.
-        Without them, replies in an unstable network environment may be lost,
-        leaving the caller waiting indefinitely for a response.
-        """
-        return True
-
-    @property
-    def serializer(self):
-        """ Name of the serializer to use when publishing response payloads.
-
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
-
-    @property
-    def retry(self):
-        """ Enable automatic retries when publishing a message that fails due
-        to a connection error.
-
-        Retries according to :attr:`self.retry_policy`.
-        """
-        return True
-
-    @property
-    def retry_policy(self):
-        """ Policy to apply when retrying message publishes, if enabled.
-
-        See :attr:`self.retry`.
-        """
-        return DEFAULT_RETRY_POLICY
-
-    def send_response(self, result, exc_info, **kwargs):
+    def send_response(self, result, exc_info):
 
         error = None
         if exc_info is not None:
@@ -255,25 +201,20 @@ class Responder(object):
             error = serialize(UnserializableValueError(result))
             result = None
 
-        exchange = get_rpc_exchange(self.config)
+        payload = {'result': result, 'error': error}
 
-        retry = kwargs.pop('retry', self.retry)
-        retry_policy = kwargs.pop('retry_policy', self.retry_policy)
+        routing_key = self.message.properties['reply_to']
+        correlation_id = self.message.properties.get('correlation_id')
 
-        ssl = self.config.get(AMQP_SSL_CONFIG_KEY)
-        with get_producer(self.amqp_uri, self.use_confirms, ssl) as producer:
+        publisher = self.publisher_cls(self.amqp_uri)
 
-            routing_key = self.message.properties['reply_to']
-            correlation_id = self.message.properties.get('correlation_id')
-
-            msg = {'result': result, 'error': error}
-
-            _log.debug('publish response %s:%s', routing_key, correlation_id)
-            producer.publish(
-                msg, retry=retry, retry_policy=retry_policy,
-                exchange=exchange, routing_key=routing_key,
-                serializer=self.serializer,
-                correlation_id=correlation_id, **kwargs)
+        publisher.publish(
+            payload,
+            serializer=self.serializer,
+            exchange=self.exchange,
+            routing_key=routing_key,
+            correlation_id=correlation_id
+        )
 
         return result, exc_info
 
@@ -343,23 +284,34 @@ class RpcProxy(DependencyProvider):
 
     rpc_reply_listener = ReplyListener()
 
-    def __init__(self, target_service):
+    def __init__(self, target_service, **options):
         self.target_service = target_service
+        self.options = options
 
     def get_dependency(self, worker_ctx):
-        return ServiceProxy(worker_ctx, self.target_service,
-                            self.rpc_reply_listener)
+        return ServiceProxy(
+            worker_ctx,
+            self.target_service,
+            self.rpc_reply_listener,
+            **self.options
+        )
 
 
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name, reply_listener):
+    def __init__(self, worker_ctx, service_name, reply_listener, **options):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.reply_listener = reply_listener
+        self.options = options
 
     def __getattr__(self, name):
         return MethodProxy(
-            self.worker_ctx, self.service_name, name, self.reply_listener)
+            self.worker_ctx,
+            self.service_name,
+            name,
+            self.reply_listener,
+            **self.options
+        )
 
 
 class RpcReply(object):
@@ -383,11 +335,39 @@ class RpcReply(object):
 
 class MethodProxy(HeaderEncoder):
 
-    def __init__(self, worker_ctx, service_name, method_name, reply_listener):
+    publisher_cls = Publisher
+
+    def __init__(
+        self, worker_ctx, service_name, method_name, reply_listener, **options
+    ):
+        """
+            Note that mechanism which raises :class:`UnknownService` exceptions
+            relies on publish confirms being enabled in the proxy.
+        """
+
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
         self.reply_listener = reply_listener
+
+        # backwards compat
+        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
+
+        for compat_attr in compat_attrs:
+            if hasattr(self, compat_attr):
+                warnings.warn(
+                    "'{}' should be specified at RpcProxy instantiation time "
+                    "rather than as a class attribute. See CHANGES, version "
+                    "2.7.0 for more details. This warning will be removed in "
+                    "version 2.9.0.".format(compat_attr), DeprecationWarning
+                )
+                options[compat_attr] = getattr(self, compat_attr)
+
+        serializer = options.pop('serializer', self.serializer)
+
+        self.publisher = self.publisher_cls(
+            self.amqp_uri, serializer=serializer, **options
+        )
 
     def __call__(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
@@ -403,23 +383,8 @@ class MethodProxy(HeaderEncoder):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
     @property
-    def use_confirms(self):
-        """ Enable `confirms <http://www.rabbitmq.com/confirms.html>`_
-        for this proxy's publisher.
-
-        The proxy will wait for an acknowledgement from the broker that
-        the message was receieved and processed appropriately, and otherwise
-        raise. Confirms have a performance penalty but guarantee that messages
-        aren't lost, for example due to stale connections.
-
-        Note that mechanism which raises :class:`UnknownService` exceptions
-        relies on publish confirms being enabled in the proxy.
-        """
-        return True
-
-    @property
     def serializer(self):
-        """ Name of the serializer to use when publishing message payloads.
+        """ Default serializer to use when publishing message payloads.
 
         Must be registered as a
         `kombu serializer <http://bit.do/kombu_serialization>`_.
@@ -428,32 +393,12 @@ class MethodProxy(HeaderEncoder):
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
 
-    @property
-    def retry(self):
-        """ Enable automatic retries when publishing a message that fails due
-        to a connection error.
-
-        Retries according to :attr:`self.retry_policy`.
-        """
-        return True
-
-    @property
-    def retry_policy(self):
-        """ Policy to apply when retrying message publishes, if enabled.
-
-        See :attr:`self.retry`.
-        """
-        return DEFAULT_RETRY_POLICY
-
     def call_async(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
         return reply
 
     def _call(self, *args, **kwargs):
         _log.debug('invoking %s', self)
-
-        worker_ctx = self.worker_ctx
-        container = worker_ctx.container
 
         msg = {'args': args, 'kwargs': kwargs}
 
@@ -472,43 +417,32 @@ class MethodProxy(HeaderEncoder):
         # first, so by the time kombu returns (after waiting for the confim)
         # we can reliably check for returned messages.
 
-        # Note that overriding :attr:`self.use_confirms` may disable this
-        # functionality and therefore :class:`UnknownService` will never
+        # Note that deactivating publish-confirms in the RpcProxy will disable
+        # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
+        exchange = get_rpc_exchange(self.container.config)
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
-        exchange = get_rpc_exchange(container.config)
+        reply_to = self.reply_listener.routing_key
+        correlation_id = str(uuid.uuid4())
 
-        ssl = container.config.get(AMQP_SSL_CONFIG_KEY)
-        with get_producer(self.amqp_uri, self.use_confirms, ssl) as producer:
+        extra_headers = self.get_message_headers(self.worker_ctx)
 
-            headers = self.get_message_headers(worker_ctx)
-            correlation_id = str(uuid.uuid4())
+        reply_event = self.reply_listener.get_reply_event(correlation_id)
 
-            reply_listener = self.reply_listener
-            reply_to_routing_key = reply_listener.routing_key
-            reply_event = reply_listener.get_reply_event(correlation_id)
-
-            producer.publish(
+        try:
+            self.publisher.publish(
                 msg,
                 exchange=exchange,
                 routing_key=routing_key,
                 mandatory=True,
-                serializer=self.serializer,
-                reply_to=reply_to_routing_key,
-                headers=headers,
+                reply_to=reply_to,
                 correlation_id=correlation_id,
-                retry=self.retry,
-                retry_policy=self.retry_policy
+                extra_headers=extra_headers
             )
-
-            try:
-                producer.channel.returned_messages.get_nowait()
-            except queue.Empty:
-                pass
-            else:
-                raise UnknownService(self.service_name)
+        except UndeliverableMessage:
+            raise UnknownService(self.service_name)
 
         return RpcReply(reply_event)
 

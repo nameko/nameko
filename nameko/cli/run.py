@@ -15,6 +15,7 @@ import sys
 import six
 import yaml
 from eventlet import backdoor
+
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR

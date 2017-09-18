@@ -1,14 +1,16 @@
 from __future__ import absolute_import
 
-from functools import partial
 import inspect
-from logging import getLogger
 import types
+import warnings
 import weakref
+from functools import partial
+from logging import getLogger
 
 from eventlet.event import Event
 
 from nameko.exceptions import IncorrectSignature
+
 
 _log = getLogger(__name__)
 
@@ -257,6 +259,37 @@ def register_entrypoint(fn, entrypoint):
 class Entrypoint(Extension):
 
     method_name = None
+
+    def __init__(
+        self, expected_exceptions=(), sensitive_arguments=(), **kwargs
+    ):
+        """
+        :Parameters:
+            expected_exceptions : exception class or tuple of exception classes
+                Specify exceptions that may be caused by the caller (e.g. by
+                providing bad arguments). Saved on the entrypoint instance as
+                ``entrypoint.expected_exceptions`` for later inspection by
+                other extensions, for example a monitoring system.
+            sensitive_arguments : string or tuple of strings
+                Mark an argument or part of an argument as sensitive. Saved on
+                the entrypoint instance as ``entrypoint.sensitive_arguments``
+                for later inspection by other extensions, for example a
+                logging system.
+
+                :seealso: :func:`nameko.utils.get_redacted_args`
+        """
+        # backwards compat
+        sensitive_variables = kwargs.pop('sensitive_variables', ())
+        if sensitive_variables:
+            sensitive_arguments = sensitive_variables
+            warnings.warn(
+                "The `sensitive_variables` argument has been renamed to "
+                "`sensitive_arguments`. This warning will be removed in "
+                "version 2.9.0.", DeprecationWarning)
+
+        self.expected_exceptions = expected_exceptions
+        self.sensitive_arguments = sensitive_arguments
+        super(Entrypoint, self).__init__(**kwargs)
 
     def bind(self, container, method_name):
         """ Get an instance of this Entrypoint to bind to `container` with

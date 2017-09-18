@@ -12,7 +12,9 @@ from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import dummy, entrypoint_hook
 from nameko.testing.utils import (
-    assert_stops_raising, get_rabbit_connections, reset_rabbit_connections)
+    assert_stops_raising, get_rabbit_connections, reset_rabbit_connections
+)
+
 
 disconnect_now = Event()
 disconnected = Event()

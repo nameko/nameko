@@ -35,6 +35,7 @@ setup(
         'dev': [
             "coverage==4.4.1",
             "flake8==3.3.0",
+            "isort==4.2.15",
             "mccabe==0.6.1",
             "pycodestyle==2.3.1",
             "pyflakes==1.5.0",
@@ -53,7 +54,10 @@ setup(
             "sphinx-nameko-theme==0.0.3",
         ],
         'examples': [
-            "nameko-sqlalchemy==0.0.1"
+            "nameko-sqlalchemy==0.0.1",
+            "PyJWT==1.5.2",
+            "moto==1.0.1",
+            "bcrypt==3.1.3"
         ]
     },
     entry_points={

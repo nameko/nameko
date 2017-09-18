@@ -4,6 +4,7 @@ import time
 import eventlet
 import pytest
 from mock import Mock, call
+
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.extensions import DependencyProvider
@@ -12,7 +13,8 @@ from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
     entrypoint_hook, entrypoint_waiter, once, replace_dependencies,
-    restrict_entrypoints, worker_factory)
+    restrict_entrypoints, worker_factory
+)
 from nameko.testing.utils import get_container
 from nameko.testing.waiting import wait_for_call
 
