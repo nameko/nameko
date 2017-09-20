@@ -167,7 +167,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
-        with get_connection(self.amqp_uri) as conn:
+        with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
                 maybe_declare(entity, conn)
 
