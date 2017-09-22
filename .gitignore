@@ -2,6 +2,7 @@
 .codeintel
 .coverage
 .DS_Store
+.idea
 *.pyc
 *.sublime-*
 _py_cache
