@@ -138,27 +138,6 @@ class Rpc(Entrypoint, HeaderDecoder):
 
     rpc_consumer = RpcConsumer()
 
-    def __init__(self, expected_exceptions=(), sensitive_variables=()):
-        """ Mark a method to be exposed over rpc
-
-        :Parameters:
-            expected_exceptions : exception class or tuple of exception classes
-                Specify exceptions that may be caused by the caller (e.g. by
-                providing bad arguments). Saved on the entrypoint instance as
-                ``entrypoint.expected_exceptions`` for later inspection by
-                other extensions, for example a monitoring system.
-            sensitive_variables : string or tuple of strings
-                Mark an argument or part of an argument as sensitive. Saved on
-                the entrypoint instance as ``entrypoint.sensitive_variables``
-                for later inspection by other extensions, for example a
-                logging system.
-
-                :seealso: :func:`nameko.utils.get_redacted_args`
-
-        """
-        self.expected_exceptions = expected_exceptions
-        self.sensitive_variables = sensitive_variables
-
     def setup(self):
         self.rpc_consumer.register_provider(self)
 

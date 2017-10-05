@@ -102,8 +102,7 @@ class EventDispatcher(Publisher):
 class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=True, requeue_on_error=False,
-                 sensitive_variables=()):
+                 reliable_delivery=True, requeue_on_error=False, **kwargs):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``source_service``.
@@ -153,21 +152,15 @@ class EventHandler(Consumer):
             reliable_delivery : bool
                 If true, events will be held in the queue until there is a
                 handler to consume them. Defaults to True.
-            sensitive_variables : string or tuple of strings
-                Mark an argument or part of an argument as sensitive. Saved
-                on the entrypoint instance as
-                ``entrypoint.sensitive_variables`` for later inspection by
-                other extensions, for example a logging system.
-                :seealso: :func:`nameko.utils.get_redacted_args`
         """
         self.source_service = source_service
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
-        self.sensitive_variables = sensitive_variables
 
         super(EventHandler, self).__init__(
-            queue=None, requeue_on_error=requeue_on_error)
+            queue=None, requeue_on_error=requeue_on_error, **kwargs
+        )
 
     @property
     def broadcast_identifier(self):

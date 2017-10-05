@@ -410,7 +410,7 @@ class Consumer(Entrypoint, HeaderDecoder):
 
     queue_consumer = QueueConsumer()
 
-    def __init__(self, queue, requeue_on_error=False):
+    def __init__(self, queue, requeue_on_error=False, **kwargs):
         """
         Decorates a method as a message consumer.
 
@@ -439,6 +439,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
+        super(Consumer, self).__init__(**kwargs)
 
     def setup(self):
         self.queue_consumer.register_provider(self)
