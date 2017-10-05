@@ -30,7 +30,10 @@ matrix:
   include:
     - stage: static
       python: 2.7
-      env: TOX_ENV=static
+      env: TOX_ENV=py27-static
+    -
+      python: 3.6
+      env: TOX_ENV=py36-static
     - stage: docs
       python: 2.7
       env: TOX_ENV=docs
