@@ -5,12 +5,7 @@ from kombu import Connection
 from kombu.pools import connections, producers
 from six.moves import queue as Queue
 
-from nameko.constants import DEFAULT_RETRY_POLICY
-
-
-# delivery_mode
-NON_PERSISENT = 1
-PERSISTENT = 2
+from nameko.constants import DEFAULT_RETRY_POLICY, PERSISTENT
 
 
 class UndeliverableMessage(Exception):
