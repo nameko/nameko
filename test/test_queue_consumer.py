@@ -22,6 +22,7 @@ from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import (
     assert_stops_raising, get_extension, get_rabbit_connections
 )
+from nameko.utils.retry import retry
 
 
 TIMEOUT = 5
@@ -344,10 +345,15 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config,
 
     # no connections should remain for our vhost
     vhost = rabbit_config['vhost']
-    connections = get_rabbit_connections(vhost, rabbit_manager)
-    if connections:  # pragma: no cover
-        for connection in connections:
-            assert connection['vhost'] != vhost
+
+    @retry
+    def check_connections_closed():
+        connections = get_rabbit_connections(vhost, rabbit_manager)
+        if connections:  # pragma: no cover
+            for connection in connections:
+                assert connection['vhost'] != vhost
+
+    check_connections_closed()
 
 
 class TestHeartbeats(object):
