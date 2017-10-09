@@ -19,3 +19,8 @@ AUTH_TOKEN_CONTEXT_KEY = 'auth_token'
 LANGUAGE_CONTEXT_KEY = 'language'
 USER_ID_CONTEXT_KEY = 'user_id'
 USER_AGENT_CONTEXT_KEY = 'user_agent'
+
+# delivery_mode
+HEADER_PREFIX = "nameko"
+NON_PERSISTENT = 1
+PERSISTENT = 2

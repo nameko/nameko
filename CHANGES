@@ -9,7 +9,7 @@ increment the minor version number only.
 Version 2.7.0
 -------------
 
-Released: Pending
+Released: 2017-10-07
 
 * Set stopped flag in register_provider() to allow PollingQueueConsumer
   object reuse [fixes #462]

@@ -2,13 +2,18 @@ sudo: false
 language: python
 
 services:
-    - rabbitmq
+  - docker
 
 before_install:
+    # start rabbitmq
+    - docker run -d --hostname rabbitmq --name rabbitmq -p 15672:15672 -p 5672:5672 -e RABBITMQ_DEFAULT_USER=guest -e RABBITMQ_DEFAULT_PASS=guest rabbitmq:3.6.6-management
+    # install toxiproxy
     - mkdir $PWD/bin
     - wget -O $PWD/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
     - chmod +x $PWD/bin/toxiproxy-server
     - export PATH=$PATH:$PWD/bin/
+    # work around https://github.com/travis-ci/travis-ci/issues/7940
+    - sudo rm -f /etc/boto.cfg
 
 addons:
   apt_packages:
@@ -23,46 +28,72 @@ cache:
 
 matrix:
   include:
-    - python: 2.7
-      env: TOX_ENV=py27-oldest-lib
-    - python: 2.7
-      env: TOX_ENV=py27-pinned-lib
-    - python: 2.7
-      env: TOX_ENV=py27-latest-lib
-    - python: 2.7
-      env: TOX_ENV=py27-mastereventlet-lib
-    - python: 2.7
-      env: TOX_ENV=py27-examples
-    - python: 3.4
-      env: TOX_ENV=py34-oldest-lib
-    - python: 3.4
-      env: TOX_ENV=py34-pinned-lib
-    - python: 3.4
-      env: TOX_ENV=py34-latest-lib
-    - python: 3.4
-      env: TOX_ENV=py34-mastereventlet-lib
-    - python: 3.5
-      env: TOX_ENV=py35-oldest-lib
-    - python: 3.5
-      env: TOX_ENV=py35-pinned-lib
-    - python: 3.5
-      env: TOX_ENV=py35-latest-lib
-    - python: 3.5
-      env: TOX_ENV=py35-mastereventlet-lib
-    - python: 3.6
-      env: TOX_ENV=py36-oldest-lib
-    - python: 3.6
-      env: TOX_ENV=py36-pinned-lib
-    - python: 3.6
-      env: TOX_ENV=py36-latest-lib
-    - python: 3.6
-      env: TOX_ENV=py36-mastereventlet-lib
-    - python: 3.6
-      env: TOX_ENV=py36-branchcoverage-lib
-    - python: 3.6
-      env: TOX_ENV=py36-examples
-    - python: 3.6
+    - stage: static
+      python: 2.7
+      env: TOX_ENV=py27-static
+    - stage: static
+      python: 3.6
+      env: TOX_ENV=py36-static
+    - stage: docs
+      python: 2.7
       env: TOX_ENV=docs
+    - stage: examples
+      python: 2.7
+      env: TOX_ENV=py27-examples
+    - stage: examples
+      python: 3.6
+      env: TOX_ENV=py36-examples
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-oldest-lib
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-pinned-lib
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-latest-lib
+    - stage: test
+      python: 3.4
+      env: TOX_ENV=py34-oldest-lib
+    - stage: test
+      python: 3.4
+      env: TOX_ENV=py34-pinned-lib
+    - stage: test
+      python: 3.4
+      env: TOX_ENV=py34-latest-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-oldest-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-pinned-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-latest-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-oldest-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-pinned-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-latest-lib
+    - stage: mastereventlet
+      python: 2.7
+      env: TOX_ENV=py27-mastereventlet-lib
+    - stage: mastereventlet
+      python: 3.4
+      env: TOX_ENV=py34-mastereventlet-lib
+    - stage: mastereventlet
+      python: 3.5
+      env: TOX_ENV=py35-mastereventlet-lib
+    - stage: mastereventlet
+      python: 3.6
+      env: TOX_ENV=py36-mastereventlet-lib
+    - stage: branchcoverage
+      python: 3.6
+      env: TOX_ENV=py36-branchcoverage-lib
   fast_finish: true
   allow_failures:
     - env: TOX_ENV=py27-mastereventlet-lib

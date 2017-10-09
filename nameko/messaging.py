@@ -18,8 +18,9 @@ from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER,
-    HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY, AMQP_SSL_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
+    DEFAULT_SERIALIZER, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -29,10 +30,6 @@ from nameko.utils.retry import retry
 
 
 _log = getLogger(__name__)
-
-# delivery_mode
-PERSISTENT = 2
-HEADER_PREFIX = "nameko"
 
 
 class HeaderEncoder(object):
