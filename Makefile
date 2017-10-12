@@ -38,7 +38,7 @@ test_lib: rabbitmq
 
 test_examples: rabbitmq
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc $(call rabbitmq_options)
-	py.test docs/examples/testing
+	py.test docs/examples/testing $(call rabbitmq_options)
 
 test_docs: docs spelling #linkcheck
 
