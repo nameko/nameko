@@ -1,5 +1,3 @@
-import socket
-
 import pytest
 from urllib3.util import Url, parse_url
 
