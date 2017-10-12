@@ -47,5 +47,5 @@ def test_bad_vhost(uris):
 def test_other_error(uris):
     # other errors bubble
     amqp_uri = uris['bad_port']
-    with pytest.raises(socket.error):
+    with pytest.raises(IOError):
         verify_amqp_uri(amqp_uri)
