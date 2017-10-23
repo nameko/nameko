@@ -27,8 +27,13 @@ rabbitmq: rabbitmq-container
 	done; \
 	printf "\n"
 else
+  system_version = $(shell curl -s http://guest:guest@localhost:15672/api/overview | sed -n 's/.*"management_version":"\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p')
 rabbitmq:
 	@echo "Using system-installed RabbitMQ"
+	@if [ "$(call system_version)" != "$(RABBITMQ_VERSION)" ]; then\
+		echo "System RabbitMQ does not match requested version ($(RABBITMQ_VERSION))"; \
+		false; \
+	fi
 endif
 
 static: imports flake8 pylint
