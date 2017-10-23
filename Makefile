@@ -6,16 +6,26 @@ USE_SYSTEM_RABBITMQ ?= 0
 RABBITMQ_VERSION ?= 3.6.6
 
 ifneq ($(AUTO_FIX_IMPORTS), 1)
- autofix = --check-only
+  autofix = --check-only
 endif
 
 ifneq ($(USE_SYSTEM_RABBITMQ), 1)
   find_port = $(shell docker port nameko-rabbitmq | grep $(1) | awk -F":" '{print $$2}')
   rabbitmq_options = --amqp-uri "pyamqp://guest:guest@localhost:$(call find_port, ^5672)" --rabbit-api-uri "http://guest:guest@localhost:$(call find_port, ^15672)"
-rabbitmq:
+rabbitmq-container:
 	docker stop nameko-rabbitmq || true
 	docker run -d --rm -v nameko-rabbitmq-certs:/mnt/certs -P --name nameko-rabbitmq nameko/nameko-rabbitmq:$(RABBITMQ_VERSION)
-	sleep 3
+
+rabbitmq: rabbitmq-container
+	@printf "Waiting for container to be ready"
+	@booting=1; \
+	while [ $${booting} -ne 0 ] ; do \
+		curl -s http://localhost:$(call find_port, ^15672)/api/overview > /dev/null; \
+		booting=`expr $$?`; \
+		sleep 2; \
+		printf "."; \
+	done; \
+	printf "\n"
 else
 rabbitmq:
 	@echo "Using system-installed RabbitMQ"
