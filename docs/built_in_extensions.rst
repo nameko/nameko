@@ -128,7 +128,14 @@ You can control formatting of errors returned from your service by overriding :m
 
     {"message": "Argument `foo` is required.", "error": "INVALID_ARGUMENTS"}
 
+You can change the HTTP port and IP using the `WEB_SERVER_ADDRESS` config setting:
 
+.. code-block:: yaml
+
+    # foobar.yaml
+
+    AMQP_URI: 'pyamqp://guest:guest@localhost'
+    WEB_SERVER_ADDRESS: '0.0.0.0:8000'
 
 Timer
 -----
