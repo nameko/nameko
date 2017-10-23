@@ -21,7 +21,7 @@ rabbitmq: rabbitmq-container
 	@booting=1; \
 	while [ $${booting} -ne 0 ] ; do \
 		curl -s http://localhost:$(call find_port, ^15672)/api/overview > /dev/null; \
-		booting=`expr $$?`; \
+		booting=$$?; \
 		sleep 2; \
 		printf "."; \
 	done; \
