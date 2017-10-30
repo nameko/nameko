@@ -168,7 +168,7 @@ class TestConfigEnvironmentVariables(object):
                 - 2
                 - 3
             """,
-            {"LIST": "[1,2,3]"},
+            {},
             {'FOO': [1, 2, 3], 'BAR': [1, 2, 3]}
         ),
         # inline list containing list
