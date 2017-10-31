@@ -73,6 +73,18 @@ If you need to quote the values in your YAML file, the explicit ``!env_var`` res
     # foobar.yaml
     AMQP_URI: !env_var "pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
 
+The environment variable value is interpreted as YAML, so it is possible to use rich types:
+
+.. code-block:: yaml
+
+    # foobar.yaml
+    ...
+    THINGS: ${A_LIST_OF_THINGS}
+
+.. code-block:: shell
+
+    $ A_LIST_OF_THINGS=[A,B,C] nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
+
 Interacting with running services
 ---------------------------------
 
