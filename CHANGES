@@ -6,6 +6,15 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.8.0
+-------------
+
+Released: 2017-10-31
+
+* Environment variables substituted into config files are now interpreted
+  as YAML rather than bare values, allowing use of rich data types.
+
+
 Version 2.7.0
 -------------
 
