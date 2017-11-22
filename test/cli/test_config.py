@@ -2,7 +2,7 @@ from textwrap import dedent
 
 from mock import patch
 
-from nameko.cli.config import Config
+from nameko.cli.commands import Config
 from nameko.cli.main import setup_parser, setup_yaml_parser
 
 
