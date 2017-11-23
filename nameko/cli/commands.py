@@ -67,7 +67,7 @@ class ShowConfig(Command):
 
     @staticmethod
     def main(args):
-        from .config import main
+        from .show_config import main
         main(args)
 
 
