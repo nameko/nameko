@@ -2,7 +2,7 @@ from textwrap import dedent
 
 from mock import patch
 
-from nameko.cli.commands import Config
+from nameko.cli.commands import ShowConfig
 from nameko.cli.main import setup_parser, setup_yaml_parser
 
 
@@ -27,7 +27,7 @@ def test_main(mock_os, tmpdir, capsys):
         'BAR': '[1,2,3]'
     }
 
-    Config.main(args)
+    ShowConfig.main(args)
     out, _ = capsys.readouterr()
 
     expected = dedent("""

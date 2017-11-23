@@ -46,7 +46,7 @@ class Backdoor(Command):
         main(args)
 
 
-class Config(Command):
+class ShowConfig(Command):
     """ Output as YAML string the configuration that would be passed to a
     service.
 
@@ -54,7 +54,7 @@ class Config(Command):
     variables.
     """
 
-    name = 'config'
+    name = 'show-config'
 
     @staticmethod
     def init_parser(parser):
