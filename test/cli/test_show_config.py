@@ -18,7 +18,7 @@ def test_main(mock_os, tmpdir, capsys):
     parser = setup_parser()
     setup_yaml_parser()
     args = parser.parse_args([
-        'config',
+        'show-config',
         '--config',
         config.strpath,
     ])
