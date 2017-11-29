@@ -6,6 +6,15 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.8.1
+-------------
+
+Released: 2017-11-29
+
+* Added the 'show-config' command which will print the service configuration
+  to the console, after environment variable substitution.
+  
+
 Version 2.8.0
 -------------
 
