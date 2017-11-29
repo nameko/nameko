@@ -46,6 +46,31 @@ class Backdoor(Command):
         main(args)
 
 
+class ShowConfig(Command):
+    """ Output as YAML string the configuration that would be passed to a
+    service.
+
+    Useful for viewing config files that load values from environement
+    variables.
+    """
+
+    name = 'show-config'
+
+    @staticmethod
+    def init_parser(parser):
+
+        parser.add_argument(
+            '--config', default='config.yaml',
+            help='The YAML configuration file')
+
+        return parser
+
+    @staticmethod
+    def main(args):
+        from .show_config import main
+        main(args)
+
+
 class Run(Command):
     """Run nameko services.  Given a python path to a module containing one or
     more nameko services, will host and run them. By default this will try to
