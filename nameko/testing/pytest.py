@@ -18,11 +18,6 @@ def pytest_addoption(parser):
         help='turn on eventlet hub blocking detection')
 
     parser.addoption(
-        "--log-level", action="store",
-        default='DEBUG',
-        help=("The logging-level for the test run."))
-
-    parser.addoption(
         "--amqp-uri", "--rabbit-amqp-uri",
         action="store",
         dest='RABBIT_AMQP_URI',
@@ -48,17 +43,9 @@ def pytest_load_initial_conftests():
 
 
 def pytest_configure(config):
-    import logging
-    import sys
-
     if config.option.blocking_detection:  # pragma: no cover
         from eventlet import debug
         debug.hub_blocking_detection(True)
-
-    log_level = config.getoption('log_level')
-    if log_level is not None:
-        log_level = getattr(logging, log_level)
-        logging.basicConfig(level=log_level, stream=sys.stderr)
 
 
 @pytest.fixture(autouse=True)
