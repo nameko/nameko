@@ -6,6 +6,16 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.8.2
+-------------
+
+Released: 2017-12-11
+
+* Remove the pytest `--log-level` argument added by the pytest plugin since
+  this conflicts with newer versions of `pytest` (`>= 3.3.0`). For older
+  versions this can be restored by installing the `pytest-catchlog` package.
+
+
 Version 2.8.1
 -------------
 
@@ -13,7 +23,7 @@ Released: 2017-11-29
 
 * Added the 'show-config' command which will print the service configuration
   to the console, after environment variable substitution.
-  
+
 
 Version 2.8.0
 -------------
