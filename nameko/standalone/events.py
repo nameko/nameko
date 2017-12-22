@@ -1,8 +1,9 @@
 from kombu import Exchange
 
 from nameko.amqp.publish import Publisher
-from nameko.constants import DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY
-from nameko.messaging import AMQP_URI_CONFIG_KEY, PERSISTENT
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, PERSISTENT, SERIALIZER_CONFIG_KEY
+)
 
 
 def get_event_exchange(service_name):

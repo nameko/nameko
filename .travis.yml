@@ -28,46 +28,83 @@ cache:
 
 matrix:
   include:
-    - python: 2.7
-      env: TOX_ENV=py27-oldest-lib
-    - python: 2.7
-      env: TOX_ENV=py27-pinned-lib
-    - python: 2.7
-      env: TOX_ENV=py27-latest-lib
-    - python: 2.7
-      env: TOX_ENV=py27-mastereventlet-lib
-    - python: 2.7
-      env: TOX_ENV=py27-examples
-    - python: 3.4
-      env: TOX_ENV=py34-oldest-lib
-    - python: 3.4
-      env: TOX_ENV=py34-pinned-lib
-    - python: 3.4
-      env: TOX_ENV=py34-latest-lib
-    - python: 3.4
-      env: TOX_ENV=py34-mastereventlet-lib
-    - python: 3.5
-      env: TOX_ENV=py35-oldest-lib
-    - python: 3.5
-      env: TOX_ENV=py35-pinned-lib
-    - python: 3.5
-      env: TOX_ENV=py35-latest-lib
-    - python: 3.5
-      env: TOX_ENV=py35-mastereventlet-lib
-    - python: 3.6
-      env: TOX_ENV=py36-oldest-lib
-    - python: 3.6
-      env: TOX_ENV=py36-pinned-lib
-    - python: 3.6
-      env: TOX_ENV=py36-latest-lib
-    - python: 3.6
-      env: TOX_ENV=py36-mastereventlet-lib
-    - python: 3.6
-      env: TOX_ENV=py36-branchcoverage-lib
-    - python: 3.6
-      env: TOX_ENV=py36-examples
-    - python: 3.6
+    - stage: static
+      python: 2.7
+      env: TOX_ENV=py27-static
+    - stage: static
+      python: 3.6
+      env: TOX_ENV=py36-static
+    - stage: docs
+      python: 2.7
       env: TOX_ENV=docs
+    - stage: examples
+      python: 2.7
+      env: TOX_ENV=py27-examples
+    - stage: examples
+      python: 3.6
+      env: TOX_ENV=py36-examples
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-oldest-lib
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-pinned-lib
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-latest-lib
+    - stage: test
+      python: 3.4
+      env: TOX_ENV=py34-oldest-lib
+    - stage: test
+      python: 3.4
+      env: TOX_ENV=py34-pinned-lib
+    - stage: test
+      python: 3.4
+      env: TOX_ENV=py34-latest-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-oldest-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-pinned-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-latest-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-oldest-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-pinned-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-latest-lib
+    - stage: deploy
+      script: skip
+      deploy:
+        provider: pypi
+        user: onefinestay
+        password:
+          secure: Mwinp9cxGaGe/KjGFcO+T7MAgLvy5yFNeYCq9zpGniuSXsp/AFH3JIS1kWBv71tMC8S2N5kwRMVXoHNMqJt+Iq/EmYIY6vbMK8GijAUqLo8KsbxgmigWTXTn6IHKDO4gwYmQt8BDYJmbq6CNeVVCHMxWyP0Y24S25y7N35oIroU=
+        on:
+          tags: true
+          repo: nameko/nameko
+        distributions: "sdist bdist_wheel"
+    - stage: mastereventlet
+      python: 2.7
+      env: TOX_ENV=py27-mastereventlet-lib
+    - stage: mastereventlet
+      python: 3.4
+      env: TOX_ENV=py34-mastereventlet-lib
+    - stage: mastereventlet
+      python: 3.5
+      env: TOX_ENV=py35-mastereventlet-lib
+    - stage: mastereventlet
+      python: 3.6
+      env: TOX_ENV=py36-mastereventlet-lib
+    - stage: branchcoverage
+      python: 3.6
+      env: TOX_ENV=py36-branchcoverage-lib
   fast_finish: true
   allow_failures:
     - env: TOX_ENV=py27-mastereventlet-lib
@@ -79,12 +116,4 @@ matrix:
 script:
   - tox -e $TOX_ENV
 
-deploy:
-  provider: pypi
-  user: onefinestay
-  password:
-    secure: Mwinp9cxGaGe/KjGFcO+T7MAgLvy5yFNeYCq9zpGniuSXsp/AFH3JIS1kWBv71tMC8S2N5kwRMVXoHNMqJt+Iq/EmYIY6vbMK8GijAUqLo8KsbxgmigWTXTn6IHKDO4gwYmQt8BDYJmbq6CNeVVCHMxWyP0Y24S25y7N35oIroU=
-  on:
-    tags: true
-    repo: nameko/nameko
-  distributions: "sdist bdist_wheel"
+
