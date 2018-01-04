@@ -23,7 +23,7 @@ class HttpRequestHandler(Entrypoint):
         super(HttpRequestHandler, self).__init__(**kwargs)
 
     def get_url_rule(self):
-        return Rule(self.url, methods=self.method.split(',')
+        return Rule(self.url, methods=self.method.split(','))
 
     def setup(self):
         self.server.register_provider(self)
