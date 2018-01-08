@@ -223,15 +223,18 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
         res.result()
 
 
+@skip_if_no_toxiproxy
 class TestDisconnectWithPendingReply(object):
 
     @pytest.yield_fixture
-    def rpc_proxy(self, rabbit_config):
+    def toxic_rpc_proxy(self, rabbit_config, toxiproxy):
+        rabbit_config['AMQP_URI'] = toxiproxy.uri
         with ClusterRpcProxy(rabbit_config) as proxy:
             yield proxy
 
     def test_disconnect_with_pending_reply(
-        self, container_factory, rabbit_manager, rabbit_config, rpc_proxy
+        self, container_factory, rabbit_manager, rabbit_config,
+        toxic_rpc_proxy, toxiproxy
     ):
         block = Event()
 
@@ -249,23 +252,25 @@ class TestDisconnectWithPendingReply(object):
         # make an async call that will block,
         # wait for the worker to have spawned
         with wait_for_call(container, 'spawn_worker'):
-            res = rpc_proxy.service.method.call_async('msg1')
+            res = toxic_rpc_proxy.service.method.call_async('msg1')
 
-        # fake a socket error that causes the proxy to reconnect
-        queue_consumer = rpc_proxy._reply_listener.queue_consumer
-        connection = queue_consumer.consumer.connection
+        try:
+            # disconnect
+            toxiproxy.disable()
 
-        with patch.object(connection, 'drain_events') as drain_events:
-            drain_events.side_effect = ConnectionError
+            # rpc proxy should return an error for the request in flight.
+            # it also attempts to reconnect and throws on failure
+            with pytest.raises(socket.error):
+                with pytest.raises(RpcConnectionError):
+                    res.result()
 
-            # rpc proxy should attempt to reconnect
-            # and return an error for the request in flight
-            with pytest.raises(RpcConnectionError):
-                res.result()
+        finally:
+            # reconnect
+            toxiproxy.enable()
 
-        # proxy should work again afterwards
-        block.send()
-        assert rpc_proxy.service.method("msg3") == "msg3"
+        # proxy will not work afterwards
+        with pytest.raises(RuntimeError):
+            assert toxic_rpc_proxy.service.method("msg3")
 
 
 class TestConsumeEvent(object):
