@@ -2,7 +2,6 @@ import socket
 
 import eventlet
 import pytest
-from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
