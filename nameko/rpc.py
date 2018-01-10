@@ -16,8 +16,8 @@ from nameko.constants import (
     SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
-    ContainerBeingKilled, MalformedRequest, MethodNotFound,
-    UnknownService, UnserializableValueError, deserialize, serialize
+    ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
+    UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
