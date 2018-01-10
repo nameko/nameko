@@ -30,7 +30,7 @@ _log = getLogger(__name__)
 
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
-RPC_REPLY_QUEUE_TTL = 300  # seconds
+RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
 
 
 def get_rpc_exchange(config):
@@ -244,7 +244,9 @@ class ReplyListener(SharedExtension):
             queue_name,
             exchange=exchange,
             routing_key=self.routing_key,
-            expire=RPC_REPLY_QUEUE_TTL
+            queue_arguments={
+                'x-expires': RPC_REPLY_QUEUE_TTL
+            }
         )
 
         self.queue_consumer.register_provider(self)

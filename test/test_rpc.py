@@ -572,8 +572,8 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
 
 def test_rpc_consumer_cannot_exit_with_providers(
-        container_factory, rabbit_config):
-
+    container_factory, rabbit_config
+):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -590,6 +590,48 @@ def test_rpc_consumer_cannot_exit_with_providers(
 
     # kill off task_a's misbehaving rpc provider
     container.kill()
+
+
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+def test_reply_queue_removed_on_expiry(
+    container_factory, rabbit_config, rabbit_manager
+):
+    def list_queues():
+        vhost = rabbit_config['vhost']
+        return [
+            queue['name']
+            for queue in rabbit_manager.get_queues(vhost=vhost)
+        ]
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def method(self, arg):
+            return self.delegate_rpc.method(arg)
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def method(self, arg):
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    reply_queue = [
+        queue for queue in list_queues() if "rpc.reply" in queue
+    ][0]
+
+    container.stop()
+    eventlet.sleep(0.15)  # sleep for >TTL
+    assert reply_queue not in list_queues()
 
 
 @skip_if_no_toxiproxy
