@@ -131,7 +131,8 @@ def test_proxy_connection_error(container_factory, rabbit_config):
                 proxy.spam("")
 
 
-def test_reply_queue_autodelete(
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+def test_reply_queue_removed_on_expiry(
     rabbit_manager, rabbit_config, container_factory
 ):
     def list_queues():
@@ -147,9 +148,13 @@ def test_reply_queue_autodelete(
     queues_before = list_queues()
 
     with ServiceRpcProxy('foobar', rabbit_config) as foo:
+        queues_during = list_queues()
         assert foo.spam(ham='eggs') == 'eggs'
 
+    eventlet.sleep(0.15)  # sleep for >TTL
     queues_after = list_queues()
+
+    assert queues_before != queues_during
     assert queues_after == queues_before
 
     # check proxy re-use
@@ -157,8 +162,35 @@ def test_reply_queue_autodelete(
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'
 
+    eventlet.sleep(0.15)  # sleep for >TTL
     queues_after = list_queues()
     assert queues_after == queues_before
+
+
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+def test_reply_queue_not_removed_while_in_use(
+    rabbit_manager, rabbit_config, container_factory
+):
+    def list_queues():
+        vhost = rabbit_config['vhost']
+        return [
+            queue['name']
+            for queue in rabbit_manager.get_queues(vhost=vhost)
+        ]
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    # check proxy re-use
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
+        queues_before = list_queues()
+        # sleep for 2x TTL
+        assert foo.sleep(0.2) == 0.2
+        queues_between = list_queues()
+        assert foo.spam(ham='eggs') == 'eggs'
+        queues_after = list_queues()
+
+    assert queues_before == queues_between == queues_after
 
 
 def test_unexpected_correlation_id(container_factory, rabbit_config):
@@ -261,8 +293,7 @@ class TestDisconnectWithPendingReply(object):
             # rpc proxy should return an error for the request in flight.
             # it also attempts to reconnect and throws on failure
             with pytest.raises(socket.error):
-                with pytest.raises(RpcConnectionError):
-                    res.result()
+                res.result()
 
         finally:
             # reconnect
@@ -270,7 +301,7 @@ class TestDisconnectWithPendingReply(object):
 
         # proxy will not work afterwards
         with pytest.raises(RuntimeError):
-            assert toxic_rpc_proxy.service.method("msg3")
+            toxic_rpc_proxy.service.method("msg2")
 
 
 class TestConsumeEvent(object):
@@ -404,11 +435,13 @@ def test_use_after_close(container_factory, rabbit_manager, rabbit_config):
     assert 'can no longer be used' in str(exc)
 
 
-def test_proxy_deletes_queue_even_if_unused(rabbit_manager, rabbit_config):
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+def test_proxy_queue_expired_even_if_unused(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     with ServiceRpcProxy('exampleservice', rabbit_config):
         assert len(rabbit_manager.get_queues(vhost)) == 1
 
+    eventlet.sleep(.15)  # sleep for >TTL
     assert len(rabbit_manager.get_queues(vhost)) == 0
 
 

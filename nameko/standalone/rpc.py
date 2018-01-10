@@ -160,11 +160,6 @@ class PollingQueueConsumer(object):
             self._setup_consumer()
 
         except (IOError, ConnectionError) as exc:
-            for event in self.provider._reply_events.values():
-                rpc_connection_error = RpcConnectionError(
-                    'Disconnected while waiting for reply: %s', exc)
-                event.send_exception(rpc_connection_error)
-            self.provider._reply_events.clear()
             # In case this was a temporary error, attempt to reconnect. If
             # we fail, the connection error will bubble.
             self._setup_consumer()
