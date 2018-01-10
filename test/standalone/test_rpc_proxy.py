@@ -2,14 +2,13 @@ import socket
 
 import eventlet
 import pytest
-from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
 from mock import Mock, call
 
 from nameko.containers import WorkerContext
-from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
+from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
@@ -326,28 +325,28 @@ class TestConsumeEvent(object):
         assert event.wait() == result
         assert queue_consumer.get_message.call_args == call(correlation_id)
 
-    def test_wait_disconnected_while_waiting(self, queue_consumer):
+    def test_wait_exception_while_waiting(self, queue_consumer):
         correlation_id = 1
         event = ConsumeEvent(queue_consumer, correlation_id)
 
-        exc = RpcConnectionError()
+        exc = ExampleError()
 
         def get_message(correlation_id):
             event.send_exception(exc)
         queue_consumer.get_message.side_effect = get_message
 
-        with pytest.raises(RpcConnectionError):
+        with pytest.raises(ExampleError):
             event.wait()
         assert queue_consumer.get_message.call_args == call(correlation_id)
 
-    def test_wait_already_disconnected(self, queue_consumer):
+    def test_wait_exception_before_wait(self, queue_consumer):
         correlation_id = 1
         event = ConsumeEvent(queue_consumer, correlation_id)
 
-        exc = RpcConnectionError()
+        exc = ExampleError()
 
         event.send_exception(exc)
-        with pytest.raises(RpcConnectionError):
+        with pytest.raises(ExampleError):
             event.wait()
         assert not queue_consumer.get_message.called
 

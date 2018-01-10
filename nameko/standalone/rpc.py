@@ -13,7 +13,7 @@ from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY
 )
 from nameko.containers import WorkerContext
-from nameko.exceptions import RpcConnectionError, RpcTimeout
+from nameko.exceptions import RpcTimeout
 from nameko.extensions import Entrypoint
 from nameko.rpc import ReplyListener, ServiceProxy
 
