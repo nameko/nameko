@@ -6,7 +6,6 @@ from eventlet.event import Event
 from mock import ANY, Mock, call, patch
 
 from nameko.events import event_handler
-from nameko.exceptions import RpcConnectionError
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -135,16 +134,13 @@ def test_proxy_disconnect_with_active_worker(
     connections = get_rabbit_connections(vhost, rabbit_manager)
     assert len(connections) == 2
 
-    # disconnect proxyservice's queue consumer while its request is in-flight
+    # disconnect proxyservice's queue consumer while its request is in-flight;
+    # result will be returned on reconnection
     eventlet.spawn(disconnect_on_event, rabbit_manager, proxy_consumer_conn)
     with entrypoint_hook(proxy_container, 'retry') as retry:
-        # if disconnecting while waiting for a reply, call fails
-        # fail, then success
-        assert retry('hello') == [
-            (RpcConnectionError, 'Disconnected while waiting for reply'),
-            'duplicate-call-result',
-        ]
+        assert retry('hello') == ['hello']
 
+    # assert original connection no longer exists
     connections = get_rabbit_connections(vhost, rabbit_manager)
     assert proxy_consumer_conn not in [conn['name'] for conn in connections]
 
