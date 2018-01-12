@@ -53,8 +53,7 @@ def toxiproxy_server():
     host = TOXIPROXY_HOST
     port = TOXIPROXY_PORT
     server = subprocess.Popen(
-        ['toxiproxy-server', '-port', str(port), '-host', host],
-        stdout=subprocess.PIPE
+        ['toxiproxy-server', '-port', str(port), '-host', host]
     )
 
     class NotReady(Exception):
@@ -160,6 +159,11 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     controller = Controller(proxy_uri)
     yield controller
     controller.reset()
+
+    # delete proxy
+    requests.delete(
+        'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
+    )
 
 
 @pytest.yield_fixture
