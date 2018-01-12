@@ -150,7 +150,7 @@ def test_reply_queue_removed_on_expiry(
         queues_during = list_queues()
         assert foo.spam(ham='eggs') == 'eggs'
 
-    eventlet.sleep(0.15)  # sleep for >TTL
+    eventlet.sleep(0.2)  # sleep for >TTL
     queues_after = list_queues()
 
     assert queues_before != queues_during
