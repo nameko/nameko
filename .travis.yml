@@ -92,25 +92,25 @@ matrix:
         distributions: "sdist bdist_wheel"
     - stage: mastereventlet
       python: 2.7
-      env: TOX_ENV=py27-mastereventlet-lib
+      env: TOX_ENV=py27-mastereventlet
     - stage: mastereventlet
       python: 3.4
-      env: TOX_ENV=py34-mastereventlet-lib
+      env: TOX_ENV=py34-mastereventlet
     - stage: mastereventlet
       python: 3.5
-      env: TOX_ENV=py35-mastereventlet-lib
+      env: TOX_ENV=py35-mastereventlet
     - stage: mastereventlet
       python: 3.6
-      env: TOX_ENV=py36-mastereventlet-lib
+      env: TOX_ENV=py36-mastereventlet
     - stage: branchcoverage
       python: 3.6
       env: TOX_ENV=py36-branchcoverage-lib
   fast_finish: true
   allow_failures:
-    - env: TOX_ENV=py27-mastereventlet-lib
-    - env: TOX_ENV=py34-mastereventlet-lib
-    - env: TOX_ENV=py35-mastereventlet-lib
-    - env: TOX_ENV=py36-mastereventlet-lib
+    - env: TOX_ENV=py27-mastereventlet
+    - env: TOX_ENV=py34-mastereventlet
+    - env: TOX_ENV=py35-mastereventlet
+    - env: TOX_ENV=py36-mastereventlet
     - env: TOX_ENV=py36-branchcoverage-lib
 
 script:
