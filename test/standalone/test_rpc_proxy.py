@@ -2,7 +2,6 @@ import socket
 
 import eventlet
 import pytest
-from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
@@ -266,11 +265,12 @@ class TestDisconnectWithPendingReply(object):
 
         finally:
             # reconnect
+            block.send(True)
             toxiproxy.enable()
 
         # proxy will not work afterwards
         with pytest.raises(RuntimeError):
-            assert toxic_rpc_proxy.service.method("msg3")
+            toxic_rpc_proxy.service.method("msg3")
 
 
 class TestConsumeEvent(object):
