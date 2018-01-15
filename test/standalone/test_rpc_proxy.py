@@ -161,7 +161,7 @@ def test_reply_queue_removed_on_expiry(
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'
 
-    eventlet.sleep(0.15)  # sleep for >TTL
+    eventlet.sleep(0.2)  # sleep for >TTL
     queues_after = list_queues()
     assert queues_after == queues_before
 
@@ -285,10 +285,10 @@ class TestDisconnectWithPendingReply(object):
         with wait_for_call(container, 'spawn_worker'):
             res = toxic_rpc_proxy.service.method.call_async('msg1')
 
-        # disconnect toxiproxy
+        # disable toxiproxy to kill connections
         toxiproxy.disable()
 
-        # reconnect toxiproxy just before the consumer attempts to reconnect;
+        # re-enable toxiproxy just before the consumer attempts to reconnect;
         # (consumer.cancel is the only hook we have)
         def reconnect(args, kwargs, res, exc_info):
             block.send(True)
@@ -299,12 +299,11 @@ class TestDisconnectWithPendingReply(object):
             toxic_rpc_proxy._reply_listener.queue_consumer.consumer, 'cancel',
             callback=reconnect
         ):
-            # rpc proxy should return an error for the request in flight.
-            with pytest.raises(RpcConnectionError):
-                res.result()
+            # rpc proxy should recover the message in flight
+            res.result() == "msg1"
 
-        # proxy should work again after reconnection
-        assert toxic_rpc_proxy.service.method("msg3") == "msg3"
+            # proxy should work again after reconnection
+            assert toxic_rpc_proxy.service.method("msg2") == "msg2"
 
     def test_disconnect_and_fail_to_reconnect(
         self, container_factory, rabbit_manager, rabbit_config,
@@ -329,17 +328,16 @@ class TestDisconnectWithPendingReply(object):
             res = toxic_rpc_proxy.service.method.call_async('msg1')
 
         try:
-            # disconnect
+            # disable toxiproxy to kill connections
             toxiproxy.disable()
 
-            # rpc proxy should return an error for the request in flight.
-            # it will also attempt to reconnect and throw on failure
-            # because toxiproxy is still disconnected
+            # toxiproxy remains disabled when the proxy attempts to reconnect,
+            # so we should return an error for the request in flight
             with pytest.raises(socket.error):
                 res.result()
 
         finally:
-            # reconnect toxiproxy
+            # re-enable toxiproxy
             block.send(True)
             toxiproxy.enable()
 
