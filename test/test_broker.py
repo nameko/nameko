@@ -76,16 +76,6 @@ class ProxyService(object):
     def entrypoint(self, arg):
         return self.example_rpc.method(arg)
 
-    @dummy
-    def retry(self, arg):
-        results = []
-        while True:
-            try:
-                results.append(self.example_rpc.method(arg))
-                return results
-            except Exception as ex:
-                results.append((type(ex), str(ex)))
-
 
 def disconnect_on_event(rabbit_manager, connection_name):
     disconnect_now.wait()
@@ -137,8 +127,8 @@ def test_proxy_disconnect_with_active_worker(
     # disconnect proxyservice's queue consumer while its request is in-flight;
     # result will be returned on reconnection
     eventlet.spawn(disconnect_on_event, rabbit_manager, proxy_consumer_conn)
-    with entrypoint_hook(proxy_container, 'retry') as retry:
-        assert retry('hello') == ['hello']
+    with entrypoint_hook(proxy_container, 'entrypoint') as entrypoint:
+        assert entrypoint('hello') == 'hello'
 
     # assert original connection no longer exists
     connections = get_rabbit_connections(vhost, rabbit_manager)
