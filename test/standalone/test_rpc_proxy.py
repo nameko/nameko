@@ -231,7 +231,50 @@ class TestDisconnectWithPendingReply(object):
         with ClusterRpcProxy(rabbit_config) as proxy:
             yield proxy
 
-    def test_disconnect_with_pending_reply(
+    def test_disconnect_and_successfully_reconnect(
+        self, container_factory, rabbit_manager, rabbit_config,
+        toxic_rpc_proxy, toxiproxy
+    ):
+        block = Event()
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def method(self, arg):
+                block.wait()
+                return arg
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # make an async call that will block,
+        # wait for the worker to have spawned
+        with wait_for_call(container, 'spawn_worker'):
+            res = toxic_rpc_proxy.service.method.call_async('msg1')
+
+        # disconnect toxiproxy
+        toxiproxy.disable()
+
+        # reconnect toxiproxy just before the consumer attempts to reconnect;
+        # (consumer.cancel is the only hook we have)
+        def reconnect(args, kwargs, res, exc_info):
+            block.send(True)
+            toxiproxy.enable()
+            return True
+
+        with wait_for_call(
+            toxic_rpc_proxy._reply_listener.queue_consumer.consumer, 'cancel',
+            callback=reconnect
+        ):
+            # rpc proxy should return an error for the request in flight.
+            with pytest.raises(RpcConnectionError):
+                res.result()
+
+        # proxy should work again after reconnection
+        assert toxic_rpc_proxy.service.method("msg3") == "msg3"
+
+    def test_disconnect_and_fail_to_reconnect(
         self, container_factory, rabbit_manager, rabbit_config,
         toxic_rpc_proxy, toxiproxy
     ):
@@ -258,17 +301,19 @@ class TestDisconnectWithPendingReply(object):
             toxiproxy.disable()
 
             # rpc proxy should return an error for the request in flight.
-            # it also attempts to reconnect and throws on failure
+            # it will also attempt to reconnect and throw on failure
+            # because toxiproxy is still disconnected
             with pytest.raises(socket.error):
                 with pytest.raises(RpcConnectionError):
                     res.result()
 
         finally:
-            # reconnect
+            # reconnect toxiproxy
             block.send(True)
             toxiproxy.enable()
 
-        # proxy will not work afterwards
+        # proxy will not work afterwards because the queueconsumer connection
+        # was not recovered on the second attempt
         with pytest.raises(RuntimeError):
             toxic_rpc_proxy.service.method("msg3")
 
