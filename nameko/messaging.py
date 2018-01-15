@@ -393,14 +393,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             _log.debug('consumer started %s', self)
             self._consumers_ready.send(None)
 
-        for provider in self._providers:
-            try:
-                callback = provider.on_consume_ready
-            except AttributeError:
-                pass
-            else:
-                callback()
-
 
 class Consumer(Entrypoint, HeaderDecoder):
 
