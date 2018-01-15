@@ -829,7 +829,7 @@ class TestReplyListenerDisconnections(object):
         ):
             yield
 
-    @pytest.fixture(autouse=True)
+    @pytest.yield_fixture(autouse=True)
     def container(
         self, container_factory, rabbit_config, toxiproxy
     ):
@@ -869,7 +869,13 @@ class TestReplyListenerDisconnections(object):
         delegate_container = container_factory(DelegateService, config)
         delegate_container.start()
 
-        return container
+        yield container
+
+        # stop containers before teardown of toxiproxy. the
+        # reply listener consumer races with deletion of the proxy
+        # and will hang if it loses
+        container.stop()
+        delegate_container.stop()
 
     def test_normal(self, container):
         msg = "foo"

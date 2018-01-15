@@ -161,9 +161,9 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     controller.reset()
 
     # delete proxy
-    # requests.delete(
-    #     'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
-    # )
+    requests.delete(
+        'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
+    )
 
 
 @pytest.yield_fixture
