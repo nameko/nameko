@@ -610,20 +610,10 @@ def test_reply_queue_removed_on_expiry(
 
         @dummy
         def method(self, arg):
-            return self.delegate_rpc.method(arg)
-
-    class DelegateService(object):
-        name = "delegate"
-
-        @rpc
-        def method(self, arg):
-            return arg
+            pass  # pragma: no-cover
 
     container = container_factory(Service, rabbit_config)
     container.start()
-
-    delegate_container = container_factory(DelegateService, rabbit_config)
-    delegate_container.start()
 
     reply_queue = [
         queue for queue in list_queues() if "rpc.reply" in queue
