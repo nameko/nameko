@@ -64,7 +64,10 @@ class ConsumeEvent(object):
                 "be used"
             )
 
-        self.queue_consumer.get_message(self.correlation_id)
+        try:
+            self.queue_consumer.get_message(self.correlation_id)
+        except socket.error as exc:
+            self.exception = exc
 
         # disconnected while waiting
         if self.exception:
@@ -150,19 +153,22 @@ class PollingQueueConsumer(object):
             self.provider.handle_message(body, message)
 
         except socket.timeout:
+            # TODO: this conflates an rpc timeout with a socket read timeout.
+            # a better rpc proxy implementation would recover from a socket
+            # timeout if the rpc timeout had not yet been reached
             timeout_error = RpcTimeout(self.timeout)
             event = self.provider._reply_events.pop(correlation_id)
             event.send_exception(timeout_error)
 
             # timeout is implemented using socket timeout, so when it
-            # fires the connection is closed, causing the reply queue
-            # to be deleted
+            # fires the connection is closed and must be re-established
             self._setup_consumer()
 
         except (IOError, ConnectionError) as exc:
-            # In case this was a temporary error, attempt to reconnect. If
-            # we fail, the connection error will bubble.
+            # in case this was a temporary error, attempt to reconnect
+            # and try again. if we fail to reconnect, the error will bubble
             self._setup_consumer()
+            self.get_message(correlation_id)
 
         except KeyboardInterrupt as exc:
             event = self.provider._reply_events.pop(correlation_id)
