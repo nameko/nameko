@@ -296,6 +296,7 @@ class TestDisconnectWithPendingReply(object):
 
         finally:
             # reconnect
+            block.send(True)
             toxiproxy.enable()
 
         # proxy will not work afterwards
