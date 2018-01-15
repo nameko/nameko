@@ -610,7 +610,7 @@ def test_reply_queue_removed_on_expiry(
 
         @dummy
         def method(self, arg):
-            pass  # pragma: no-cover
+            pass  # pragma: no cover
 
     container = container_factory(Service, rabbit_config)
     container.start()
