@@ -15,8 +15,7 @@ from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
 
 from nameko.amqp.publish import Publisher as PublisherCore
-from nameko.amqp.publish import get_connection
-from nameko.amqp.utils import verify_amqp_uri
+from nameko.amqp.utils import get_connection, verify_amqp_uri
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER, HEADER_PREFIX,
     HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
@@ -454,7 +453,6 @@ class Consumer(Entrypoint, HeaderDecoder):
         return result, exc_info
 
     def handle_message_processed(self, message, result=None, exc_info=None):
-
         if exc_info is not None and self.requeue_on_error:
             self.queue_consumer.requeue_message(message)
         else:

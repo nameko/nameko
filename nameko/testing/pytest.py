@@ -240,25 +240,26 @@ def fast_teardown(request):
 
 @pytest.fixture
 def get_message_from_queue(amqp_uri):
-    from nameko.amqp import get_connection
+    from kombu.connection import Connection
 
     def get(queue_name, ack=True, block=True, timeout=1, accept=None):
-        with get_connection(amqp_uri) as conn:
-            queue = conn.SimpleQueue(queue_name)
 
-            # queue doesn't allow passing of `accept` to its consumer,
-            # so we patch it on after instantiation
-            if accept is not None:
-                queue.consumer.accept = accept
+        # can't use the connection pool here because requeued messages
+        # are not actually released until the owning channel closes
+        with Connection(amqp_uri) as conn:
+            with conn.SimpleQueue(queue_name) as queue:
 
-            message = queue.get(block=block, timeout=timeout)
-            if ack:
-                message.ack()
-            else:
-                message.requeue()
-            queue.close()
-        return message
+                # queue doesn't allow passing of `accept` to its consumer,
+                # so we patch it on after instantiation
+                if accept is not None:
+                    queue.consumer.accept = accept
 
+                message = queue.get(block=block, timeout=timeout)
+                if ack:
+                    message.ack()
+                else:
+                    message.requeue()
+            return message
     return get
 
 

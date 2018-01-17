@@ -15,8 +15,9 @@ from mock import ANY, MagicMock, Mock, call, patch
 from six.moves import queue
 
 from nameko.amqp.publish import (
-    Publisher, UndeliverableMessage, get_connection, get_producer
+    Publisher, UndeliverableMessage, get_producer
 )
+from nameko.amqp.utils import get_connection
 
 
 def test_get_connection(rabbit_config):

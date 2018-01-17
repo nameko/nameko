@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import pytest
 from mock import ANY, Mock, create_autospec, patch
-from six.moves import queue
+from six.moves import map, queue
 
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -16,6 +16,7 @@ from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.standalone.events import get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider, unpack_mock_call
+from nameko.amqp import get_queue_info
 
 
 EVENTS_TIMEOUT = 5
@@ -342,14 +343,16 @@ def test_service_pooled_events(rabbit_manager, rabbit_config,
     start_containers(ServicePoolHandler, ("foo", "foo", "bar"))
 
     # foo service pool queue should have two consumers
-    foo_queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--foo.handle")
-    assert len(foo_queue['consumer_details']) == 2
+    foo_queue_info = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--foo.handle"
+    )
+    assert foo_queue_info.consumer_count == 2
 
     # bar service pool queue should have one consumer
-    bar_queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--bar.handle")
-    assert len(bar_queue['consumer_details']) == 1
+    bar_queue_info = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--bar.handle"
+    )
+    assert bar_queue_info.consumer_count == 1
 
     exchange_name = "srcservice.events"
     rabbit_manager.publish(
@@ -382,13 +385,15 @@ def test_service_pooled_events_multiple_handlers(
     (container,) = start_containers(DoubleServicePoolHandler, ("double",))
 
     # we should have two queues with a consumer each
-    foo_queue_1 = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--double.handle_1")
-    assert len(foo_queue_1['consumer_details']) == 1
+    foo_queue_1_info = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--double.handle_1"
+    )
+    assert foo_queue_1_info.consumer_count == 1
 
-    foo_queue_2 = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--double.handle_2")
-    assert len(foo_queue_2['consumer_details']) == 1
+    foo_queue_2_info = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--double.handle_2"
+    )
+    assert foo_queue_2_info.consumer_count == 1
 
     exchange_name = "srcservice.events"
 
@@ -414,8 +419,10 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
     start_containers(SingletonHandler, ("foo", "foo", "bar"))
 
     # the singleton queue should have three consumers
-    queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype")
-    assert len(queue['consumer_details']) == 3
+    queue_info = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype"
+    )
+    assert queue_info.consumer_count == 3
 
     exchange_name = "srcservice.events"
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
@@ -437,19 +444,34 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
     assert services[lucky_service][0].events == ["msg"]
 
 
-def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
+@patch('nameko.events.uuid')
+def test_broadcast_events(
+    patched_uuid, rabbit_manager, rabbit_config, start_containers
+):
+    # return consequtive Mock(hex=<call-count>) objects
+    patched_uuid.uuid4.side_effect = map(
+        lambda hex: Mock(hex=hex), itertools.count(start=1)
+    )
+
     vhost = rabbit_config['vhost']
     (c1, c2, c3) = start_containers(BroadcastHandler, ("foo", "foo", "bar"))
 
-    # each broadcast queue should have one consumer
-    queues = rabbit_manager.get_queues(vhost)
-    queue_names = [queue['name'] for queue in queues
-                   if queue['name'].startswith("evt-srcservice-eventtype-")]
-
-    assert len(queue_names) == 3
-    for name in queue_names:
-        queue = rabbit_manager.get_queue(vhost, name)
-        assert len(queue['consumer_details']) == 1
+    # each broadcast queue should have one consumer.
+    # broadcast_identifier is generated three times per service (twice during
+    # inspection/bind and once during setup) so queue names will contain
+    # multiples of three
+    queue_1 = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--foo.handle-3"
+    )
+    assert queue_1.consumer_count == 1
+    queue_2 = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--foo.handle-6"
+    )
+    assert queue_2.consumer_count == 1
+    queue_3 = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--bar.handle-9"
+    )
+    assert queue_3.consumer_count == 1
 
     exchange_name = "srcservice.events"
 
@@ -490,9 +512,10 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
     (container,) = start_containers(RequeueingHandler, ('requeue',))
 
     # the queue should been created and have one consumer
-    queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--requeue.handle")
-    assert len(queue['consumer_details']) == 1
+    queue_info = get_queue_info(
+        rabbit_config['AMQP_URI'], "evt-srcservice-eventtype--requeue.handle"
+    )
+    assert queue_info.consumer_count == 1
 
     counter = itertools.count(start=1)
 
@@ -536,8 +559,8 @@ def test_reliable_delivery(
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--service-pool.handle"
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 1
+    queue_info = get_queue_info(rabbit_config['AMQP_URI'], queue_name)
+    assert queue_info.consumer_count == 1
 
     # publish an event
     exchange_name = "srcservice.events"
@@ -552,18 +575,17 @@ def test_reliable_delivery(
 
     # stop container, check queue still exists, without consumers
     container.stop()
-    queues = rabbit_manager.get_queues(vhost)
-    assert queue_name in [q['name'] for q in queues]
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 0
+    queue_info = get_queue_info(rabbit_config['AMQP_URI'], queue_name)
+    assert queue_info.consumer_count == 0
+    assert queue_info.message_count == 0
 
     # publish another event while nobody is listening
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_2"',
                            properties=dict(content_type='application/json'))
 
     # verify the message gets queued
-    messages = rabbit_manager.get_messages(vhost, queue_name, requeue=True)
-    assert ['"msg_2"'] == [msg['payload'] for msg in messages]
+    queue_info = get_queue_info(rabbit_config['AMQP_URI'], queue_name)
+    assert queue_info.message_count == 1
 
     # start another container
     class ServicePool(ServicePoolHandler):
@@ -592,8 +614,8 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--unreliable.handle"
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 1
+    queue_info = get_queue_info(rabbit_config['AMQP_URI'], queue_name)
+    assert queue_info.consumer_count == 1
 
     # publish an event
     exchange_name = "srcservice.events"
@@ -613,8 +635,8 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 
     # stop container, test queue deleted
     c1.stop()
-    queues = rabbit_manager.get_queues(vhost)
-    assert queue_name not in [q['name'] for q in queues]
+    with pytest.raises(Exception):  # TODO: does not exist?
+        get_queue_info(rabbit_config['AMQP_URI'], queue_name)
 
     # publish a second event while nobody is listening
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_2"',
@@ -624,8 +646,8 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     (c3,) = start_containers(UnreliableHandler, ('unreliable',))
 
     # verify the queue is recreated, with one consumer
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 1
+    queue_info = get_queue_info(rabbit_config['AMQP_URI'], queue_name)
+    assert queue_info.consumer_count == 1
 
     # publish a third event
     with entrypoint_waiter(c3, 'handle'):

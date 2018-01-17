@@ -1,9 +1,11 @@
 import socket
-import time
 
 import pytest
+from kombu.messaging import Queue
 from six.moves import queue
 
+
+from nameko.amqp import get_connection, get_queue_info
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
 from nameko.rpc import RpcProxy, rpc
@@ -77,10 +79,15 @@ class TestGetMessageFromQueue(object):
     def queue_name(self):
         return "queue"
 
+    @pytest.fixture(autouse=True)
+    def queue(self, rabbit_config, queue_name):
+        with get_connection(rabbit_config['AMQP_URI']) as conn:
+            queue = Queue(name=queue_name).bind(conn)
+            queue.declare()
+
     @pytest.fixture
     def publish_message(self, rabbit_manager, rabbit_config, queue_name):
         vhost = rabbit_config['vhost']
-        rabbit_manager.create_queue(vhost, queue_name, durable=True)
 
         def publish(payload, **properties):
             rabbit_manager.publish(
@@ -91,7 +98,7 @@ class TestGetMessageFromQueue(object):
 
     def test_get_message(
         self, publish_message, get_message_from_queue, queue_name,
-        rabbit_manager, rabbit_config
+        rabbit_config
     ):
         payload = "payload"
         publish_message(payload)
@@ -99,12 +106,13 @@ class TestGetMessageFromQueue(object):
         message = get_message_from_queue(queue_name)
         assert message.payload == payload
 
-        vhost = rabbit_config['vhost']
-        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
+        amqp_uri = rabbit_config['AMQP_URI']
+        queue_info = get_queue_info(amqp_uri, queue_name)
+        assert queue_info.message_count == 0
 
     def test_requeue(
         self, publish_message, get_message_from_queue, queue_name,
-        rabbit_manager, rabbit_config
+        rabbit_config
     ):
         payload = "payload"
         publish_message(payload)
@@ -112,9 +120,9 @@ class TestGetMessageFromQueue(object):
         message = get_message_from_queue(queue_name, ack=False)
         assert message.payload == payload
 
-        time.sleep(1)  # TODO: use retry decorator rather than sleep
-        vhost = rabbit_config['vhost']
-        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 1
+        amqp_uri = rabbit_config['AMQP_URI']
+        queue_info = get_queue_info(amqp_uri, queue_name)
+        assert queue_info.message_count == 1
 
     def test_non_blocking(
         self, publish_message, get_message_from_queue, queue_name
