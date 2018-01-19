@@ -48,6 +48,8 @@ HTTP
 
 The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_, and supports all the standard HTTP methods (GET/POST/DELETE/PUT etc)
 
+The HTTP entrypoint can specify multiple HTTP methods for a single URL as a comma-separated list. See example below.
+
 Service methods must return one of:
 
 - a string, which becomes the response body
