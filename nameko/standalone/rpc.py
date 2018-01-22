@@ -237,7 +237,7 @@ class StandaloneProxyBase(object):
             serializer=serializer
         )
         import functools
-        self.publish = functools.partial(publisher.publish, exchange=exchange, extra_headers=extra_headers)
+        self._publish = functools.partial(publisher.publish, exchange=exchange, extra_headers=extra_headers)
 
     @property
     def amqp_uri(self):
@@ -291,7 +291,7 @@ class ServiceRpcProxy(StandaloneProxyBase):
     def __init__(self, service_name, *args, **kwargs):
         super(ServiceRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ServiceProxy(
-            service_name, self.publish, self._reply_listener
+            service_name, self._publish, self._reply_listener
         )
 
 
@@ -330,8 +330,7 @@ class ClusterProxy(object):
     connection to the broker.
 
     You may also supply ``context_data``, a dictionary of data to be
-    serialised into the AMQP message headers, and specify custom worker
-    context class to serialise them.
+    serialised into the AMQP message headers.
 
     When the name of the service is not legal in Python, you can also
     use a dict-like syntax::
@@ -346,14 +345,10 @@ class ClusterProxy(object):
         self._publish = publish
         self._reply_listener = reply_listener
 
-        self._proxies = {}
-
     def __getattr__(self, name):
-        if name not in self._proxies:
-            self._proxies[name] = ServiceProxy(
-                name, self._publish, self._reply_listener
-            )
-        return self._proxies[name]
+        return ServiceProxy(
+            name, self._publish, self._reply_listener
+        )
 
     def __getitem__(self, name):
         """Enable dict-like access on the proxy. """
@@ -363,4 +358,4 @@ class ClusterProxy(object):
 class ClusterRpcProxy(StandaloneProxyBase):
     def __init__(self, *args, **kwargs):
         super(ClusterRpcProxy, self).__init__(*args, **kwargs)
-        self._proxy = ClusterProxy(self.publish, self._reply_listener)
+        self._proxy = ClusterProxy(self._publish, self._reply_listener)
