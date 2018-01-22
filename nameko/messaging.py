@@ -32,9 +32,9 @@ _log = getLogger(__name__)
 
 def encode_to_headers(context_data, prefix=HEADER_PREFIX):
     return {
-        "{}.{}".format(prefix, key): value
-        for key, value in context_data.items()
-        if value is not None
+         "{}.{}".format(prefix, key): value
+         for key, value in context_data.items()
+         if value is not None
     }
 
 
