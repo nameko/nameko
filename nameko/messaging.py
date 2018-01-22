@@ -3,12 +3,13 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
+import re
 import warnings
 from functools import partial
 from logging import getLogger
 
-import six
 from amqp.exceptions import ConnectionError
+from amqp.exceptions import RecoverableConnectionError
 from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
@@ -30,12 +31,24 @@ from nameko.extensions import (
 _log = getLogger(__name__)
 
 
+def encode_to_headers(context_data, prefix=HEADER_PREFIX):
+    return {
+         "{}.{}".format(prefix, key): value
+         for key, value in context_data.items()
+         if value is not None
+    }
+
+
+def decode_from_headers(headers, prefix=HEADER_PREFIX):
+    return {
+        re.sub("^{}\.".format(prefix), "", key): value
+        for key, value in headers.items()
+    }
+
+
 class HeaderEncoder(object):
 
     header_prefix = HEADER_PREFIX
-
-    def _get_header_name(self, key):
-        return "{}.{}".format(self.header_prefix, key)
 
     def get_message_headers(self, worker_ctx):
         data = worker_ctx.context_data
@@ -46,28 +59,15 @@ class HeaderEncoder(object):
                 'Headers with a value of `None` will be dropped from '
                 'the payload. %s', data)
 
-        headers = {self._get_header_name(key): value
-                   for key, value in data.items()
-                   if value is not None}
-        return headers
+        return encode_to_headers(data, prefix=self.header_prefix)
 
 
 class HeaderDecoder(object):
 
     header_prefix = HEADER_PREFIX
 
-    def _strip_header_name(self, key):
-        full_prefix = "{}.".format(self.header_prefix)
-        if key.startswith(full_prefix):
-            return key[len(full_prefix):]
-        return key
-
     def unpack_message_headers(self, message):
-        stripped = {
-            self._strip_header_name(k): v
-            for k, v in six.iteritems(message.headers)
-        }
-        return stripped
+        return decode_from_headers(message.headers, prefix=self.header_prefix)
 
 
 class Publisher(DependencyProvider, HeaderEncoder):
