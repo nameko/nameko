@@ -12,7 +12,7 @@ from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.extensions import DependencyProvider
 from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
-    ClusterRpcProxy, ConsumeEvent, ServiceRpcProxy
+    ClusterRpcProxy, ConsumeEvent, ServiceRpcProxy, StandaloneProxyBase
 )
 from nameko.testing.waiting import wait_for_call
 
@@ -616,19 +616,22 @@ class TestStandaloneProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
+        with patch.object(
+            StandaloneProxyBase.publisher_cls, 'retry', new=retry
+        ):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+            StandaloneProxyBase.publisher_cls, 'use_confirms',
+            new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(StandaloneProxyBase, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.yield_fixture
@@ -749,7 +752,7 @@ class TestStandaloneProxyConsumerDisconnections(object):
         the effect of the broken connection on the consumer.
         """
         amqp_uri = rabbit_config['AMQP_URI']
-        with patch.object(MethodProxy, 'amqp_uri', new=amqp_uri):
+        with patch.object(StandaloneProxyBase, 'amqp_uri', new=amqp_uri):
             yield
 
     @pytest.yield_fixture

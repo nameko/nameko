@@ -9,13 +9,15 @@ from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
 from nameko.amqp import verify_amqp_uri
+from nameko.amqp.publish import Publisher
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY
 )
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcTimeout
 from nameko.extensions import Entrypoint
-from nameko.rpc import ReplyListener, ServiceProxy
+from nameko.messaging import encode_to_headers
+from nameko.rpc import ReplyListener, ServiceProxy, get_rpc_exchange
 
 
 _logger = logging.getLogger(__name__)
@@ -208,11 +210,14 @@ class StandaloneProxyBase(object):
         method_name = "call"
 
     _proxy = None
+    publisher_cls = Publisher
 
     def __init__(
         self, config, context_data=None, timeout=None,
         reply_listener_cls=SingleThreadedReplyListener
     ):
+        self.config = config
+
         container = self.ServiceContainer(config)
 
         self._worker_ctx = WorkerContext(
@@ -220,6 +225,22 @@ class StandaloneProxyBase(object):
             data=context_data)
         self._reply_listener = reply_listener_cls(
             timeout=timeout).bind(container)
+
+        # TODO: fix this so we're not passing it in everywhere
+        self.exchange = get_rpc_exchange(config)
+        self.extra_headers = encode_to_headers(self._worker_ctx.context_data)
+
+        serializer = config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+        # options?
+
+        self.publisher = Publisher(
+            self.amqp_uri,
+            serializer=serializer
+        )
+
+    @property
+    def amqp_uri(self):
+        return self.config[AMQP_URI_CONFIG_KEY]
 
     def __enter__(self):
         return self.start()
@@ -269,7 +290,8 @@ class ServiceRpcProxy(StandaloneProxyBase):
     def __init__(self, service_name, *args, **kwargs):
         super(ServiceRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ServiceProxy(
-            self._worker_ctx, service_name, self._reply_listener)
+            service_name, self.publisher, self._reply_listener, self.exchange, self.extra_headers
+        )
 
 
 class ClusterProxy(object):
@@ -318,16 +340,20 @@ class ClusterProxy(object):
             proxy['other-service'].method()
 
     """
-    def __init__(self, worker_ctx, reply_listener):
-        self._worker_ctx = worker_ctx
+
+    def __init__(self, publisher, reply_listener, exchange, extra_headers):
+        self._publisher = publisher
         self._reply_listener = reply_listener
+        self.exchange = exchange
+        self.extra_headers = extra_headers
 
         self._proxies = {}
 
     def __getattr__(self, name):
         if name not in self._proxies:
             self._proxies[name] = ServiceProxy(
-                self._worker_ctx, name, self._reply_listener)
+                name, self._publisher, self._reply_listener, self.exchange, self.extra_headers
+            )
         return self._proxies[name]
 
     def __getitem__(self, name):
@@ -338,4 +364,4 @@ class ClusterProxy(object):
 class ClusterRpcProxy(StandaloneProxyBase):
     def __init__(self, *args, **kwargs):
         super(ClusterRpcProxy, self).__init__(*args, **kwargs)
-        self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener)
+        self._proxy = ClusterProxy(self.publisher, self._reply_listener, self.exchange, self.extra_headers)

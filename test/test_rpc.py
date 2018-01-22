@@ -1183,7 +1183,9 @@ class TestProxyDisconnections(object):
         container.start()
 
     @pytest.fixture(autouse=True)
-    def client_container(self, container_factory, rabbit_config):
+    def client_container(
+        self, container_factory, rabbit_config, toxic_rpc_proxy
+    ):
 
         class Service(object):
             name = "client"
@@ -1204,19 +1206,19 @@ class TestProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
+        with patch.object(RpcProxy.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+            RpcProxy.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(RpcProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.mark.usefixtures('use_confirms')
@@ -1518,37 +1520,6 @@ class TestResponderDisconnections(object):
         # call 2 succeeds (after reconnecting via retry policy)
         with patch_wait(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
-
-
-class TestBackwardsCompatClassAttrs(object):
-
-    @pytest.mark.parametrize("parameter,value", [
-        ('retry', False),
-        ('retry_policy', {'max_retries': 999}),
-        ('use_confirms', False),
-    ])
-    def test_attrs_are_applied_as_defaults(
-        self, parameter, value, mock_container
-    ):
-        """ Verify that you can specify some fields by subclassing the
-        MethodProxy class.
-        """
-        method_proxy_cls = type(
-            "LegacyMethodProxy", (MethodProxy,), {parameter: value}
-        )
-        with patch('nameko.rpc.warnings') as warnings:
-            worker_ctx = Mock()
-            worker_ctx.container.config = {'AMQP_URI': 'memory://'}
-            reply_listener = Mock()
-            proxy = method_proxy_cls(
-                worker_ctx, "service", "method", reply_listener
-            )
-
-        assert warnings.warn.called
-        call_args = warnings.warn.call_args
-        assert parameter in unpack_mock_call(call_args).positional[0]
-
-        assert getattr(proxy.publisher, parameter) == value
 
 
 class TestConfigurability(object):
