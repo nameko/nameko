@@ -226,17 +226,18 @@ class StandaloneProxyBase(object):
         self._reply_listener = reply_listener_cls(
             timeout=timeout).bind(container)
 
-        # TODO: fix this so we're not passing it in everywhere
-        self.exchange = get_rpc_exchange(config)
-        self.extra_headers = encode_to_headers(self._worker_ctx.context_data)
+        exchange = get_rpc_exchange(config)
+        extra_headers = encode_to_headers(self._worker_ctx.context_data)
 
         serializer = config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
         # options?
 
-        self.publisher = Publisher(
+        publisher = Publisher(
             self.amqp_uri,
             serializer=serializer
         )
+        import functools
+        self.publish = functools.partial(publisher.publish, exchange=exchange, extra_headers=extra_headers)
 
     @property
     def amqp_uri(self):
@@ -290,7 +291,7 @@ class ServiceRpcProxy(StandaloneProxyBase):
     def __init__(self, service_name, *args, **kwargs):
         super(ServiceRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ServiceProxy(
-            service_name, self.publisher, self._reply_listener, self.exchange, self.extra_headers
+            service_name, self.publish, self._reply_listener
         )
 
 
@@ -341,18 +342,16 @@ class ClusterProxy(object):
 
     """
 
-    def __init__(self, publisher, reply_listener, exchange, extra_headers):
-        self._publisher = publisher
+    def __init__(self, publish, reply_listener):
+        self._publish = publish
         self._reply_listener = reply_listener
-        self.exchange = exchange
-        self.extra_headers = extra_headers
 
         self._proxies = {}
 
     def __getattr__(self, name):
         if name not in self._proxies:
             self._proxies[name] = ServiceProxy(
-                name, self._publisher, self._reply_listener, self.exchange, self.extra_headers
+                name, self._publish, self._reply_listener
             )
         return self._proxies[name]
 
@@ -364,4 +363,4 @@ class ClusterProxy(object):
 class ClusterRpcProxy(StandaloneProxyBase):
     def __init__(self, *args, **kwargs):
         super(ClusterRpcProxy, self).__init__(*args, **kwargs)
-        self._proxy = ClusterProxy(self.publisher, self._reply_listener, self.exchange, self.extra_headers)
+        self._proxy = ClusterProxy(self.publish, self._reply_listener)

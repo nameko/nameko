@@ -297,31 +297,30 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
         extra_headers = self.get_message_headers(worker_ctx)
 
+        import functools
+        publish = functools.partial(
+            self.publisher.publish, exchange=self.exchange, extra_headers=extra_headers
+        )
+
         return ServiceProxy(
             self.target_service,
-            self.publisher,
-            self.rpc_reply_listener,
-            self.exchange,
-            extra_headers
+            publish,
+            self.rpc_reply_listener
         )
 
 
 class ServiceProxy(object):
-    def __init__(self, service_name, publisher, reply_listener, exchange, extra_headers):
+    def __init__(self, service_name, publish, reply_listener):
         self.service_name = service_name
-        self.publisher = publisher
+        self.publish = publish
         self.reply_listener = reply_listener
-        self.exchange = exchange
-        self.extra_headers = extra_headers
 
     def __getattr__(self, name):
         return MethodProxy(
             self.service_name,
             name,
-            self.publisher,
-            self.reply_listener,
-            self.exchange,
-            self.extra_headers
+            self.publish,
+            self.reply_listener
         )
 
 
@@ -347,8 +346,7 @@ class RpcReply(object):
 class MethodProxy(object):
 
     def __init__(
-        self, service_name, method_name, publisher, reply_listener,
-        exchange, extra_headers
+        self, service_name, method_name, publish, reply_listener
     ):
         """
             Note that mechanism which raises :class:`UnknownService` exceptions
@@ -356,10 +354,8 @@ class MethodProxy(object):
         """
         self.service_name = service_name
         self.method_name = method_name
-        self.publisher = publisher
+        self.publish = publish
         self.reply_listener = reply_listener
-        self.exchange = exchange
-        self.extra_headers = extra_headers
 
     def __call__(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
@@ -401,14 +397,12 @@ class MethodProxy(object):
         reply_event = self.reply_listener.get_reply_event(correlation_id)
 
         try:
-            self.publisher.publish(
+            self.publish(
                 msg,
                 routing_key=routing_key,
-                exchange=self.exchange,
                 mandatory=True,
                 reply_to=reply_to,
-                correlation_id=correlation_id,
-                extra_headers=self.extra_headers
+                correlation_id=correlation_id
             )
         except UndeliverableMessage:
             raise UnknownService(self.service_name)
