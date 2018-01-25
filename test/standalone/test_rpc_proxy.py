@@ -117,19 +117,6 @@ def test_proxy_remote_error(container_factory, rabbit_config):
         assert exc_info.value.exc_type == "ExampleError"
 
 
-# def test_proxy_connection_error(container_factory, rabbit_config):
-
-#     container = container_factory(FooService, rabbit_config)
-#     container.start()
-
-#     with ServiceRpcProxy("foobar", rabbit_config) as proxy:
-#         queue_consumer = proxy.reply_listener.queue_consumer
-#         with patch.object(queue_consumer, 'get_message', autospec=True) as get:
-#             get.side_effect = socket.error
-#             with pytest.raises(socket.error):
-#                 proxy.spam("")
-
-
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=100)
 def test_reply_queue_removed_on_expiry(
     rabbit_manager, rabbit_config, container_factory
