@@ -310,9 +310,10 @@ def predictable_call_ids(request):
     import itertools
     from mock import patch
 
-    with patch('nameko.containers.new_call_id', autospec=True) as get_id:
-        get_id.side_effect = (str(i) for i in itertools.count())
-        yield get_id
+    # TODO: better to patch something more specific
+    with patch('nameko.containers.uuid', autospec=True) as uuid:
+        uuid.uuid4.side_effect = (str(i) for i in itertools.count())
+        yield uuid.uuid4
 
 
 @pytest.fixture()

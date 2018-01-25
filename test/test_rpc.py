@@ -20,13 +20,13 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+    ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
     dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints
 )
-from nameko.testing.utils import get_extension, unpack_mock_call, wait_for_call
+from nameko.testing.utils import get_extension, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
@@ -326,7 +326,7 @@ def test_rpc_headers(container_factory, rabbit_config):
     assert headers == {
         'nameko.language': 'en',
         'nameko.otherheader': 'othervalue',
-        # 'nameko.call_id_stack': ['standalone_rpc_proxy.call.0'],  # TODO
+        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0']
     }
 
 

@@ -16,6 +16,7 @@ from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY,
     HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
 )
+from nameko.containers import new_call_id
 from nameko.exceptions import RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
@@ -25,162 +26,6 @@ from nameko.rpc import (
 
 
 _logger = logging.getLogger(__name__)
-
-
-# class ConsumeEvent(object):
-#     """ Event for the RPC consumer with the same interface as eventlet.Event.
-#     """
-#     exception = None
-
-#     def __init__(self, queue_consumer, correlation_id):
-#         self.correlation_id = correlation_id
-#         self.queue_consumer = queue_consumer  # do we need to pass this in?
-
-#     def send(self, body):
-#         self.body = body
-
-#     def send_exception(self, exc):
-#         self.exception = exc
-
-#     def wait(self):
-#         """ Makes a blocking call to its queue_consumer until the message
-#         with the given correlation_id has been processed.
-
-#         By the time the blocking call exits, self.send() will have been called
-#         with the body of the received message
-#         (see :meth:`~nameko.rpc.ReplyListener.handle_message`).
-
-#         Exceptions are raised directly.
-#         """
-#         # disconnected before starting to wait
-#         if self.exception:
-#             raise self.exception
-
-#         if self.queue_consumer.stopped:
-#             raise RuntimeError(
-#                 "This consumer has been stopped, and can no longer be used"
-#             )
-#         if self.queue_consumer.connection.connected is False:
-#             # we can't just reconnect here. the consumer (and its exclusive,
-#             # auto-delete reply queue) must be re-established _before_ sending
-#             # any request, otherwise the reply queue may not exist when the
-#             # response is published.
-#             raise RuntimeError(
-#                 "This consumer has been disconnected, and can no longer "
-#                 "be used"
-#             )
-
-#         try:
-#             self.queue_consumer.get_message(self.correlation_id)
-#         except socket.error as exc:
-#             self.exception = exc
-
-#         # disconnected while waiting
-#         if self.exception:
-#             raise self.exception
-#         return self.body
-
-
-# class PollingQueueConsumer(object):
-#     """ Implements a minimum interface of the
-#     :class:`~messaging.QueueConsumer`. Instead of processing messages in a
-#     separate thread it provides a polling method to block until a message with
-#     the same correlation ID of the RPC-proxy call arrives.
-#     """
-#     consumer = None
-
-#     def __init__(self, timeout=None):
-#         self.stopped = True
-#         self.timeout = timeout
-#         self.replies = {}
-
-#     def _setup_consumer(self):
-#         if self.consumer is not None:
-#             try:
-#                 self.consumer.cancel()
-#             except (socket.error, IOError):  # pragma: no cover
-#                 # On some systems (e.g. os x) we need to explicitly cancel the
-#                 # consumer here. However, e.g. on ubuntu 14.04, the
-#                 # disconnection has already closed the socket. We try to
-#                 # cancel, and ignore any socket errors.
-#                 # If the socket has been closed, an IOError is raised, ignore
-#                 # it and assume the consumer is already cancelled.
-#                 pass
-
-#         channel = self.connection.channel()
-#         # queue.bind returns a bound copy
-#         self.queue = self.queue.bind(channel)
-#         maybe_declare(self.queue, channel)
-#         consumer = Consumer(
-#             channel, queues=[self.queue], accept=self.accept, no_ack=False)
-#         consumer.callbacks = [self.on_message]
-#         consumer.consume()
-#         self.consumer = consumer
-
-#     def register_provider(self, provider):
-#         self.provider = provider
-
-#         self.serializer = provider.container.config.get(
-#             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-#         self.accept = [self.serializer]
-
-#         amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
-#         verify_amqp_uri(amqp_uri)
-#         self.connection = Connection(amqp_uri)
-
-#         self.queue = provider.queue
-#         self._setup_consumer()
-#         self.stopped = False
-
-#     def unregister_provider(self, provider):
-#         self.connection.close()
-#         self.stopped = True
-
-#     def ack_message(self, msg):
-#         msg.ack()
-
-#     def on_message(self, body, message):
-#         msg_correlation_id = message.properties.get('correlation_id')
-#         if msg_correlation_id not in self.provider._reply_events:
-#             _logger.debug(
-#                 "Unknown correlation id: %s", msg_correlation_id)
-
-#         self.replies[msg_correlation_id] = (body, message)
-
-#     def get_message(self, correlation_id):
-
-#         try:
-#             while correlation_id not in self.replies:
-#                 self.consumer.connection.drain_events(
-#                     timeout=self.timeout
-#                 )
-
-#             body, message = self.replies.pop(correlation_id)
-#             self.provider.handle_message(body, message)
-
-#         except socket.timeout:
-#             # TODO: this conflates an rpc timeout with a socket read timeout.
-#             # a better rpc proxy implementation would recover from a socket
-#             # timeout if the rpc timeout had not yet been reached
-#             timeout_error = RpcTimeout(self.timeout)
-#             event = self.provider._reply_events.pop(correlation_id)
-#             event.send_exception(timeout_error)
-
-#             # timeout is implemented using socket timeout, so when it
-#             # fires the connection is closed and must be re-established
-#             self._setup_consumer()
-
-#         except (IOError, ConnectionError) as exc:
-#             # in case this was a temporary error, attempt to reconnect
-#             # and try again. if we fail to reconnect, the error will bubble
-#             self._setup_consumer()
-#             self.get_message(correlation_id)
-
-#         except KeyboardInterrupt as exc:
-#             event = self.provider._reply_events.pop(correlation_id)
-#             event.send_exception(exc)
-#             # exception may have killed the connection
-#             self._setup_consumer()
 
 
 class ReplyEvent(object):
@@ -281,8 +126,12 @@ class ReplyListener(ConsumerMixin):
             raise RuntimeError("Stopped and can no longer be used")
 
         while not self.pending.get(correlation_id):
-            next(self.consume(timout=self.timeout))
-        return self.pending.pop(correlation_id)
+            try:
+                next(self.consume(timeout=self.timeout))
+            except socket.timeout:
+                raise RpcTimeout()
+        res = self.pending.pop(correlation_id)
+        return res
 
     def handle_message(self, body, message):
         message.ack()
@@ -305,8 +154,7 @@ class StandaloneProxyBase(object):
         self.reply_listener = ReplyListener(config, timeout=timeout)
 
         exchange = get_rpc_exchange(config)
-        extra_headers = encode_to_headers(context_data) if context_data else {}
-        # call id stack? we don't know the target method name at this point
+        data = context_data
 
         serializer = config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
         # options?
@@ -315,9 +163,24 @@ class StandaloneProxyBase(object):
             self.amqp_uri,
             serializer=serializer
         )
-        import functools
-        # can we get a nicer api than passing in a publish function? e.g. an "invoke" func?
-        self._publish = functools.partial(publisher.publish, exchange=exchange, extra_headers=extra_headers)
+
+        def publish(*args, **kwargs):
+            # can we get a nicer api than passing in a publish function?\
+            # e.g. an "invoke" func?
+
+            context_data = data or {}
+            context_data['call_id_stack'] = [
+                # TODO: replace "call" with uuid of proxy
+                'standalone_rpc_proxy.call.{}'.format(new_call_id())
+            ]
+
+            extra_headers = encode_to_headers(context_data)
+
+            publisher.publish(
+                *args, exchange=exchange, extra_headers=extra_headers, **kwargs
+            )
+
+        self._publish = publish
 
     @property
     def amqp_uri(self):
@@ -330,12 +193,10 @@ class StandaloneProxyBase(object):
         self.stop()
 
     def start(self):
-        # start listening for replies (declare queue, register with queue consumer)
         self.reply_listener.start()
         return self._proxy  # set in subclass __init__
 
     def stop(self):
-        # stop listening for replies (unregister from queue consumer, "stops" qc)
         self.reply_listener.stop()
 
 
