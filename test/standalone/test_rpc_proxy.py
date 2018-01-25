@@ -313,46 +313,6 @@ class TestDisconnectWithPendingReply(object):
         # stop container before we stop toxiproxy
         container.stop()
 
-    # we now try to reconnect forever and don't throw exceptions
-    # def test_disconnect_and_fail_to_reconnect(
-    #     self, container_factory, rabbit_manager, rabbit_config,
-    #     toxic_rpc_proxy, toxiproxy
-    # ):
-    #     block = Event()
-
-    #     class Service(object):
-    #         name = "service"
-
-    #         @rpc
-    #         def method(self, arg):
-    #             block.wait()
-    #             return arg
-
-    #     container = container_factory(Service, rabbit_config)
-    #     container.start()
-
-    #     # make an async call that will block,
-    #     # wait for the worker to have spawned
-    #     with wait_for_call(container, 'spawn_worker'):
-    #         res = toxic_rpc_proxy.service.method.call_async('msg1')
-
-    #     try:
-    #         # disable toxiproxy to kill connections
-    #         toxiproxy.disable()
-
-    #         # toxiproxy remains disabled when the proxy attempts to reconnect,
-    #         # so we should return an error for the request in flight
-    #         with pytest.raises(socket.error):
-    #             res.result()
-
-    #     finally:
-    #         # re-enable toxiproxy
-    #         block.send(True)
-    #         toxiproxy.enable()
-
-    #     # proxy works again afterwards
-    #     assert toxic_rpc_proxy.service.method("msg2") == "msg2"
-
 
 # class TestConsumeEvent(object):
 
