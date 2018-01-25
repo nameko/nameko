@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import socket
 
 import eventlet
@@ -5,14 +6,14 @@ import pytest
 from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
-from mock import Mock, call
 
+from nameko.constants import HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
+from nameko.rpc import Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
-    ClusterRpcProxy, ServiceRpcProxy, StandaloneProxyBase
+    ClusterRpcProxy, ReplyListener, ServiceRpcProxy, StandaloneProxyBase
 )
 from nameko.testing.waiting import wait_for_call
 
@@ -567,84 +568,199 @@ class TestStandaloneProxyDisconnections(object):
             assert service_rpc.echo(2) == 2
 
 
-# no different to rpc consumer disconnections now
-# TODO: copy over from rpc.py
+@skip_if_no_toxiproxy
+class TestStandaloneProxyReplyListenerDisconnections(object):
 
-# @skip_if_no_toxiproxy
-# class TestStandaloneProxyReplyListenerDisconnections(object):
+    @pytest.yield_fixture(autouse=True)
+    def fast_reconnects(self):
 
-#     @pytest.fixture(autouse=True)
-#     def container(self, container_factory, rabbit_config):
+        @contextmanager
+        def establish_connection(self):
+            with self.create_connection() as conn:
+                conn.ensure_connection(
+                    self.on_connection_error,
+                    self.connect_max_retries,
+                    interval_start=0.1,
+                    interval_step=0.1)
+                yield conn
 
-#         class Service(object):
-#             name = "service"
+        with patch.object(
+            ReplyListener, 'establish_connection', new=establish_connection
+        ):
+            yield
 
-#             @rpc
-#             def echo(self, arg):
-#                 print("ECHO!", arg)
-#                 return arg
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, rabbit_config):
 
-#         config = rabbit_config
+        class Service(object):
+            name = "service"
 
-#         container = container_factory(Service, config)
-#         container.start()
+            @rpc
+            def echo(self, arg):
+                return arg
 
-#     @pytest.yield_fixture(autouse=True)
-#     def non_toxic_rpc_proxy(self, rabbit_config):
-#         """ Fix the AMQP URI passes to the publisher so we're only testing
-#         the effect of the broken connection on the consumer.
-#         """
-#         amqp_uri = rabbit_config['AMQP_URI']
-#         with patch.object(StandaloneProxyBase, 'amqp_uri', new=amqp_uri):
-#             yield
+        config = rabbit_config
 
-#     @pytest.yield_fixture
-#     def service_rpc(self, toxiproxy, rabbit_config):
+        # very fast heartbeat
+        config = rabbit_config
+        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
 
-#         config = rabbit_config.copy()
-#         config['AMQP_URI'] = toxiproxy.uri
+        container = container_factory(Service, config)
+        container.start()
 
-#         with ServiceRpcProxy("service", config) as proxy:
-#             yield proxy
+    @pytest.yield_fixture(autouse=True)
+    def toxic_reply_listener(self, toxiproxy):
+        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
+            yield
 
-#     def test_normal(self, service_rpc):
-#         assert service_rpc.echo(1) == 1
-#         assert service_rpc.echo(2) == 2
+    @pytest.fixture
+    def rpc_proxy(self, rabbit_config):
+        return ServiceRpcProxy('service', rabbit_config)
 
-#     def test_down(self, service_rpc, toxiproxy):
-#         toxiproxy.disable()
+    @pytest.fixture
+    def reply_listener(self, rpc_proxy):
+        return rpc_proxy.reply_listener
 
-#         # fails to set up initial consumer
-#         with pytest.raises(socket.error) as exc_info:
-#             service_rpc.echo(1)
-#         assert "ECONNREFUSED" in str(exc_info.value)
+    @pytest.yield_fixture
+    def service_rpc(self, rpc_proxy):
+        with rpc_proxy as proxy:
+            yield proxy
 
-#     def test_timeout(self, service_rpc, toxiproxy):
-#         toxiproxy.set_timeout(stream="downstream")
+    def test_normal(self, container, service_rpc):
+        assert service_rpc.echo("foo") == "foo"
 
-#         with pytest.raises(IOError) as exc_info:
-#             service_rpc.echo(1)
-#         assert "Socket closed" in str(exc_info.value)
+    def test_down(self, reply_listener, service_rpc, toxiproxy):
+        """ Verify we detect and recover from closed sockets.
 
-#     def test_reuse_when_down(self, service_rpc, toxiproxy):
-#         assert service_rpc.echo(1) == 1
+        This failure mode closes the socket between the consumer and the
+        rabbit broker.
 
-#         toxiproxy.disable()
+        Attempting to read from the closed socket raises a socket.error
+        and the connection is re-established.
+        """
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset()
+            return True
 
-#         with pytest.raises(socket.error) as exc_info:
-#             service_rpc.echo(2)
-#         assert "ECONNREFUSED" in str(exc_info.value)
+        with wait_for_call(
+            reply_listener, 'on_connection_error', callback=reset
+        ):
+            toxiproxy.disable()
 
-#     def test_reuse_when_recovered(self, service_rpc, toxiproxy):
-#         assert service_rpc.echo(1) == 1
+            # connection re-established after one error;
+            # make the request _inside_ the context block because the reply
+            # listener doesn't establish a connection until consuming a result
+            assert service_rpc.echo("foo") == "foo"
 
-#         toxiproxy.disable()
+    def test_upstream_timeout(self, reply_listener, service_rpc, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
 
-#         with pytest.raises(socket.error) as exc_info:
-#             service_rpc.echo(2)
-#         assert "ECONNREFUSED" in str(exc_info.value)
+        This failure mode means that the socket between the consumer and the
+        rabbit broker times for out `timeout` milliseconds and then closes.
 
-#         toxiproxy.enable()
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_upstream_blackhole` below.
+        """
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
 
-#         # works again
-#         assert service_rpc.echo(3) == 3
+        with wait_for_call(
+            reply_listener, 'on_connection_error', callback=reset
+        ):
+            toxiproxy.set_timeout(timeout=100)
+
+            # connection re-established after one error;
+            # make the request _inside_ the context block because the reply
+            # listener doesn't establish a connection until consuming a result
+            assert service_rpc.echo("foo") == "foo"
+
+    def test_upstream_blackhole(self, reply_listener, service_rpc, toxiproxy):
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the consumer to the
+        rabbit broker is lost, but the socket remains open.
+
+        Heartbeats sent from the consumer are not received by the broker. After
+        two beats are missed the broker closes the connection, and subsequent
+        reads from the socket raise a socket.error, so the connection is
+        re-established.
+        """
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with wait_for_call(
+            reply_listener, 'on_connection_error', callback=reset
+        ):
+            toxiproxy.set_timeout(timeout=0)
+
+            # connection re-established after one error;
+            # make the request _inside_ the context block because the reply
+            # listener doesn't establish a connection until consuming a result
+            assert service_rpc.echo("foo") == "foo"
+
+    def test_downstream_timeout(self, reply_listener, service_rpc, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
+
+        This failure mode means that the socket between the rabbit broker and
+        the consumer times for out `timeout` milliseconds and then closes.
+
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_downstream_blackhole` below, except that the consumer
+        cancel will eventually (`timeout` milliseconds) raise a socket.error,
+        which is ignored, allowing the teardown to continue.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with wait_for_call(
+            reply_listener, 'on_connection_error', callback=reset
+        ):
+            toxiproxy.set_timeout(stream="downstream", timeout=100)
+
+            # connection re-established after one error;
+            # make the request _inside_ the context block because the reply
+            # listener doesn't establish a connection until consuming a result
+            assert service_rpc.echo("foo") == "foo"
+
+    def test_downstream_blackhole(
+        self, reply_listener, service_rpc, toxiproxy
+    ):  # pragma: no cover
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the rabbit broker to
+        the consumer is lost, but the socket remains open.
+
+        Heartbeat acknowledgements from the broker are not received by the
+        consumer. After two beats are missed the consumer raises a "too many
+        heartbeats missed" error.
+
+        Cancelling the consumer requests an acknowledgement from the broker,
+        which is swallowed by the socket. There is no timeout when reading
+        the acknowledgement so this hangs forever.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        pytest.skip("skip until kombu supports recovery in this scenario")
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with wait_for_call(
+            reply_listener, 'on_connection_error', callback=reset
+        ):
+            toxiproxy.set_timeout(stream="downstream", timeout=0)
+
+            # connection re-established after one error;
+            # make the request _inside_ the context block because the reply
+            # listener doesn't establish a connection until consuming a result
+            assert service_rpc.echo("foo") == "foo"
