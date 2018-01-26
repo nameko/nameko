@@ -1,5 +1,5 @@
-from contextlib import contextmanager
 import socket
+from contextlib import contextmanager
 
 import eventlet
 import pytest
@@ -118,7 +118,7 @@ def test_proxy_remote_error(container_factory, rabbit_config):
         assert exc_info.value.exc_type == "ExampleError"
 
 
-@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_removed_on_expiry(
     rabbit_manager, rabbit_config, container_factory
 ):
@@ -138,7 +138,7 @@ def test_reply_queue_removed_on_expiry(
         queues_during = list_queues()
         assert foo.spam(ham='eggs') == 'eggs'
 
-    eventlet.sleep(0.2)  # sleep for >TTL
+    eventlet.sleep(.3)  # sleep for >TTL
     queues_after = list_queues()
 
     assert queues_before != queues_during
@@ -149,12 +149,12 @@ def test_reply_queue_removed_on_expiry(
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'
 
-    eventlet.sleep(0.2)  # sleep for >TTL
+    eventlet.sleep(.3)  # sleep for >TTL
     queues_after = list_queues()
     assert queues_after == queues_before
 
 
-@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_not_removed_while_in_use(
     rabbit_manager, rabbit_config, container_factory
 ):
@@ -172,7 +172,7 @@ def test_reply_queue_not_removed_while_in_use(
     with ServiceRpcProxy('foobar', rabbit_config) as foo:
         queues_before = list_queues()
         # sleep for 2x TTL
-        assert foo.sleep(0.2) == 0.2
+        assert foo.sleep(0.4) == 0.4
         queues_between = list_queues()
         assert foo.spam(ham='eggs') == 'eggs'
         queues_after = list_queues()
