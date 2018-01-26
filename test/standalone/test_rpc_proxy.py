@@ -154,7 +154,7 @@ def test_reply_queue_removed_on_expiry(
     assert queues_after == queues_before
 
 
-@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_not_removed_while_in_use(
     rabbit_manager, rabbit_config, container_factory
 ):
@@ -197,6 +197,32 @@ class TestDisconnectedWhileWaitingForReply(object):
         to test/test_rpc.py::TestDisconnectedWhileWaitingForReply.
         """
         pytest.skip("Not possible to test with current implementation")
+
+
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
+    """ Replies to async requests will be lost if the reply queue expiry is
+    shorter than the period waited before consuming the result.
+    """
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=0.6) as foo:
+        res = foo.sleep.call_async(0.4)
+        eventlet.sleep(0.4)
+
+        with pytest.raises(RpcTimeout):
+            res.result()
+
+
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_request_longer_than_expiry(container_factory, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
+        assert foo.sleep(0.4) == 0.4
 
 
 def test_unexpected_correlation_id(container_factory, rabbit_config):

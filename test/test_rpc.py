@@ -625,6 +625,71 @@ def test_reply_queue_removed_on_expiry(
     assert reply_queue not in list_queues()
 
 
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
+    """ RpcProxy ReplyListener consumer runs in a thread and prevents the
+    reply queue from expiring. Contrast to the single-threaded equivalent
+    in nameko.standalone.rpc.
+    """
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def echo(self, arg):
+            res = self.delegate_rpc.echo.call_async(arg)
+            eventlet.sleep(0.4)  # sleep for 2x TTL
+            return res.result()
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_request_longer_than_expiry(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def echo(self, arg):
+            return self.delegate_rpc.echo(arg)
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            eventlet.sleep(0.4)  # sleep for 2x TTL
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
