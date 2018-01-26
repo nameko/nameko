@@ -210,6 +210,7 @@ def test_reply_queue_not_removed_while_in_use(
     assert queues_before == queues_between == queues_after
 
 
+<<<<<<< HEAD
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):
 
