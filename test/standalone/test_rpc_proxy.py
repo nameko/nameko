@@ -93,6 +93,21 @@ def test_proxy_manual_start_stop(container_factory, rabbit_config):
     foobar_proxy.stop()
 
 
+def test_proxy_stop_start_again(container_factory, rabbit_config):
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    foobar_proxy = ServiceRpcProxy('foobar', rabbit_config)
+    foo1 = foobar_proxy.start()
+    assert foo1.spam(ham='eggs') == 'eggs'
+    foobar_proxy.stop()
+
+    foo2 = foobar_proxy.start()
+    assert foo2.spam(ham='eggs') == 'eggs'  # test re-use
+    foobar_proxy.stop()
+
+
 def test_proxy_context_data(container_factory, rabbit_config):
 
     container = container_factory(FooService, rabbit_config)

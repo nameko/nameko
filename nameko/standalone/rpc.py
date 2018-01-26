@@ -86,7 +86,6 @@ class ReplyListener(ConsumerMixin):
         return ReplyEvent(self, correlation_id)
 
     def start(self):
-        # TODO: do we need to do this here?
         self.should_stop = False
         with self.connection as conn:
             maybe_declare(self.queue, conn)
