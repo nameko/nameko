@@ -2,7 +2,6 @@ from __future__ import absolute_import, unicode_literals
 
 import sys
 import uuid
-import warnings
 from functools import partial
 from logging import getLogger
 
@@ -297,9 +296,10 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
         extra_headers = self.get_message_headers(worker_ctx)
 
-        import functools
-        publish = functools.partial(
-            self.publisher.publish, exchange=self.exchange, extra_headers=extra_headers
+        publish = partial(
+            self.publisher.publish,
+            exchange=self.exchange,
+            extra_headers=extra_headers
         )
 
         return ServiceProxy(

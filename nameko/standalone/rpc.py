@@ -4,24 +4,23 @@ import logging
 import socket
 import uuid
 
-from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
-from kombu.messaging import Consumer, Queue
+from kombu.messaging import Queue
 from kombu.mixins import ConsumerMixin
 
 from nameko.amqp import verify_amqp_uri
 from nameko.amqp.publish import Publisher
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY,
-    HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER,
+    HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.containers import new_call_id
 from nameko.exceptions import RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
-    ServiceProxy, get_rpc_exchange,
-    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL
+    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, ServiceProxy,
+    get_rpc_exchange
 )
 
 
