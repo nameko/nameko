@@ -44,24 +44,11 @@ class ReplyEvent(object):
 
 class ReplyListener(ConsumerMixin):
 
-    def __init__(self, config, uuid, timeout=None):
+    def __init__(self, config, queue, timeout=None):
         self.config = config
-        self.uuid = uuid
+        self.queue = queue
         self.timeout = timeout
 
-        queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
-            "standalone_rpc_proxy", self.uuid
-        )
-        exchange = get_rpc_exchange(config)
-
-        self.queue = Queue(
-            queue_name,
-            exchange=exchange,
-            routing_key=self.routing_key,
-            queue_arguments={
-                'x-expires': RPC_REPLY_QUEUE_TTL
-            }
-        )
         self.pending = {}
         verify_amqp_uri(self.amqp_uri)
 
@@ -78,7 +65,7 @@ class ReplyListener(ConsumerMixin):
     @property
     def routing_key(self):
         # needed by methodproxy
-        return self.uuid
+        return self.queue.routing_key
 
     def get_reply_event(self, correlation_id):
         # needed by methodproxy
@@ -151,9 +138,21 @@ class StandaloneProxyBase(object):
         self.config = config
         self.uuid = str(uuid.uuid4())
 
-        self.reply_listener = ReplyListener(config, self.uuid, timeout=timeout)
-
         exchange = get_rpc_exchange(config)
+        queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
+            "standalone_rpc_proxy", self.uuid
+        )
+        queue = Queue(
+            queue_name,
+            exchange=exchange,
+            routing_key=self.uuid,
+            queue_arguments={
+                'x-expires': RPC_REPLY_QUEUE_TTL
+            }
+        )
+
+        self.reply_listener = ReplyListener(config, queue, timeout=timeout)
+
         data = context_data
 
         serializer = config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
