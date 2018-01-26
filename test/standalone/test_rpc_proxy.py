@@ -36,7 +36,7 @@ class ContextReader(DependencyProvider):
 
     def get_dependency(self, worker_ctx):
         def get_context_value(key):
-            return worker_ctx.data.get(key)
+            return worker_ctx.context_data.get(key)
         return get_context_value
 
 
@@ -120,6 +120,19 @@ def test_proxy_context_data(container_factory, rabbit_config):
     context_data = {'language': 'fr'}
     with ServiceRpcProxy('foobar', rabbit_config, context_data) as foo:
         assert foo.get_context_data('language') == 'fr'
+
+
+@pytest.mark.usefixtures('predictable_call_ids')
+def test_call_id(container_factory, rabbit_config):
+
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
+        assert foo.get_context_data('call_id_stack') == [
+            'standalone_rpc_proxy.0.0',
+            'foobar.get_context_data.1'
+        ]
 
 
 def test_proxy_remote_error(container_factory, rabbit_config):

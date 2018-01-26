@@ -44,10 +44,10 @@ class ReplyEvent(object):
 
 class ReplyListener(ConsumerMixin):
 
-    def __init__(self, config, timeout=None):
+    def __init__(self, config, uuid, timeout=None):
         self.config = config
+        self.uuid = uuid
         self.timeout = timeout
-        self.uuid = str(uuid.uuid4())
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
             "standalone_rpc_proxy", self.uuid
@@ -149,7 +149,9 @@ class StandaloneProxyBase(object):
 
     def __init__(self, config, context_data=None, timeout=None):
         self.config = config
-        self.reply_listener = ReplyListener(config, timeout=timeout)
+        self.uuid = str(uuid.uuid4())
+
+        self.reply_listener = ReplyListener(config, self.uuid, timeout=timeout)
 
         exchange = get_rpc_exchange(config)
         data = context_data
@@ -168,8 +170,7 @@ class StandaloneProxyBase(object):
 
             context_data = data or {}
             context_data['call_id_stack'] = [
-                # TODO: replace "call" with uuid of proxy
-                'standalone_rpc_proxy.call.{}'.format(new_call_id())
+                'standalone_rpc_proxy.{}.{}'.format(self.uuid, new_call_id())
             ]
 
             extra_headers = encode_to_headers(context_data)
