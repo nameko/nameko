@@ -245,3 +245,40 @@ class TestImmediateParentCallId(object):
         )
 
         assert worker_ctx.immediate_parent_call_id is None
+
+
+class TestOriginCallId(object):
+
+    def test_with_origin(self, mock_container):
+
+        mock_container.service_name = "foo"
+
+        service = Mock()
+        entrypoint = DummyProvider("bar")
+        context_data = {
+            'call_id_stack': [
+                'parent.method.1',
+                'parent.method.2',
+                'parent.method.3'
+            ]
+        }
+
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data=context_data
+        )
+
+        assert worker_ctx.origin_call_id == "parent.method.1"
+
+    def test_without_origin(self, mock_container):
+
+        mock_container.service_name = "foo"
+
+        service = Mock()
+        entrypoint = DummyProvider("bar")
+        context_data = {}
+
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data=context_data
+        )
+
+        assert worker_ctx.origin_call_id is None
