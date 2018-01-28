@@ -110,7 +110,7 @@ class WorkerContext(object):
     @property
     def immediate_parent_call_id(self):
         if self._parent_call_id_stack:
-            return self._parent_call_id_stack[0]
+            return self._parent_call_id_stack[-1]
 
     def __repr__(self):
         cls_name = type(self).__name__
