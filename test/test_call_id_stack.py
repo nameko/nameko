@@ -219,14 +219,18 @@ class TestImmediateParentCallId(object):
         service = Mock()
         entrypoint = DummyProvider("bar")
         context_data = {
-            'call_id_stack': ['parent.method.1']
+            'call_id_stack': [
+                'parent.method.1',
+                'parent.method.2',
+                'parent.method.3'
+            ]
         }
 
         worker_ctx = WorkerContext(
             mock_container, service, entrypoint, data=context_data
         )
 
-        assert worker_ctx.immediate_parent_call_id == "parent.method.1"
+        assert worker_ctx.immediate_parent_call_id == "parent.method.3"
 
     def test_without_parent(self, mock_container):
 
