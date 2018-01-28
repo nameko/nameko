@@ -108,6 +108,11 @@ class WorkerContext(object):
         return data
 
     @property
+    def origin_call_id(self):
+        if self._parent_call_id_stack:
+            return self._parent_call_id_stack[0]
+
+    @property
     def immediate_parent_call_id(self):
         if self._parent_call_id_stack:
             return self._parent_call_id_stack[-1]
