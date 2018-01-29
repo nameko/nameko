@@ -327,19 +327,16 @@ class TestDisconnectWithPendingReply(object):
         with wait_for_call(container, 'spawn_worker'):
             res = toxic_rpc_proxy.service.method.call_async('msg1')
 
-        try:
-            # disable toxiproxy to kill connections
-            toxiproxy.disable()
+        # disable toxiproxy to kill connections
+        with toxiproxy.disabled():
 
             # toxiproxy remains disabled when the proxy attempts to reconnect,
             # so we should return an error for the request in flight
             with pytest.raises(socket.error):
                 res.result()
 
-        finally:
-            # re-enable toxiproxy
-            block.send(True)
-            toxiproxy.enable()
+        # unblock worker
+        block.send(True)
 
         # proxy will not work afterwards because the queueconsumer connection
         # was not recovered on the second attempt
@@ -750,39 +747,37 @@ class TestStandaloneProxyConsumerDisconnections(object):
         assert service_rpc.echo(2) == 2
 
     def test_down(self, service_rpc, toxiproxy):
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        # fails to set up initial consumer
-        with pytest.raises(socket.error) as exc_info:
-            service_rpc.echo(1)
-        assert "ECONNREFUSED" in str(exc_info.value)
+            # fails to set up initial consumer
+            with pytest.raises(socket.error) as exc_info:
+                service_rpc.echo(1)
+            assert "ECONNREFUSED" in str(exc_info.value)
 
     def test_timeout(self, service_rpc, toxiproxy):
-        toxiproxy.set_timeout(stream="downstream")
+        with toxiproxy.timeout(stream="downstream"):
 
-        with pytest.raises(IOError) as exc_info:
-            service_rpc.echo(1)
-        assert "Socket closed" in str(exc_info.value)
+            with pytest.raises(IOError) as exc_info:
+                service_rpc.echo(1)
+            assert "Socket closed" in str(exc_info.value)
 
     def test_reuse_when_down(self, service_rpc, toxiproxy):
         assert service_rpc.echo(1) == 1
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        with pytest.raises(socket.error) as exc_info:
-            service_rpc.echo(2)
-        assert "ECONNREFUSED" in str(exc_info.value)
+            with pytest.raises(socket.error) as exc_info:
+                service_rpc.echo(2)
+            assert "ECONNREFUSED" in str(exc_info.value)
 
     def test_reuse_when_recovered(self, service_rpc, toxiproxy):
         assert service_rpc.echo(1) == 1
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        with pytest.raises(socket.error) as exc_info:
-            service_rpc.echo(2)
-        assert "ECONNREFUSED" in str(exc_info.value)
-
-        toxiproxy.enable()
+            with pytest.raises(socket.error) as exc_info:
+                service_rpc.echo(2)
+            assert "ECONNREFUSED" in str(exc_info.value)
 
         # can't reuse it
         with pytest.raises(RuntimeError) as raised:

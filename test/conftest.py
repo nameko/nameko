@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 import uuid
+from contextlib import contextmanager
 from types import ModuleType
 
 import pytest
@@ -150,15 +151,20 @@ def toxiproxy(toxiproxy_server, rabbit_config):
             )
             requests.delete(resource)
 
-        def reset(self):
-            # ensure the proxy passes traffic healthily again, so test cleanup
-            # doesn't get stuck trying to reconnect
+        @contextmanager
+        def disabled(self):
+            self.disable()
+            yield
             self.enable()
+
+        @contextmanager
+        def timeout(self, timeout=500, stream="upstream"):
+            self.set_timeout(timeout=timeout, stream=stream)
+            yield
             self.reset_timeout()
 
     controller = Controller(proxy_uri)
     yield controller
-    controller.reset()
 
     # delete proxy
     requests.delete(
