@@ -20,8 +20,7 @@ from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
-    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, ServiceProxy,
-    get_rpc_exchange
+    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy, get_rpc_exchange
 )
 
 
@@ -141,9 +140,54 @@ class ReplyListener(ConsumerMixin):
         self.pending[correlation_id] = body
 
 
-class StandaloneProxyBase(object):
+class RpcProxy(object):
+    """
+    A single-threaded RPC proxy to a cluster of services. Individual services
+    are accessed via attributes, which return service proxies. Method calls on
+    the proxies are converted into RPC calls to the service, with responses
+    returned directly.
 
-    _proxy = None
+    Enables services not hosted by nameko to make RPC requests to a nameko
+    cluster. It is commonly used as a context manager but may also be manually
+    started and stopped.
+
+    This is similar to the service proxy, but may be uses a single reply queue
+    for calls to all services, where a collection of service proxies would have
+    one reply queue per proxy.
+
+    *Usage*
+
+    As a context manager::
+
+        with RpcProxy(config) as proxy:
+            proxy.service.method()
+            proxy.other_service.method()
+
+    The equivalent call, manually starting and stopping::
+
+        proxy = RpcProxy(config)
+        proxy = proxy.start()
+        try:
+            proxy.targetservice.method()
+            proxy.other_service.method()
+        finally:
+            proxy.stop()
+
+    If you call ``start()`` you must eventually call ``stop()`` to close the
+    connection to the broker.
+
+    You may also supply ``context_data``, a dictionary of data to be
+    serialised into the AMQP message headers.
+
+    When the name of the service is not legal in Python, you can also
+    use a dict-like syntax::
+
+        with RpcProxy(config) as proxy:
+            proxy['service-name'].method()
+            proxy['other-service'].method()
+
+    """
+
     publisher_cls = Publisher
 
     def __init__(self, config, context_data=None, timeout=None):
@@ -190,7 +234,8 @@ class StandaloneProxyBase(object):
                 *args, exchange=exchange, extra_headers=extra_headers, **kwargs
             )
 
-        self._publish = publish
+        self.publish = publish
+        self.proxy = Proxy(self.publish, self.reply_listener)
 
     @property
     def amqp_uri(self):
@@ -204,111 +249,21 @@ class StandaloneProxyBase(object):
 
     def start(self):
         self.reply_listener.start()
-        return self._proxy  # set in subclass __init__
+        return self.proxy
 
     def stop(self):
         self.reply_listener.stop()
 
 
-class ServiceRpcProxy(StandaloneProxyBase):
+class ServiceRpcProxy(RpcProxy):
     """
-    A single-threaded RPC proxy to a named service. Method calls on the
-    proxy are converted into RPC calls to the service, with responses
-    returned directly.
-
-    Enables services not hosted by nameko to make RPC requests to a nameko
-    cluster. It is commonly used as a context manager but may also be manually
-    started and stopped.
-
-    *Usage*
-
-    As a context manager::
-
-        with ServiceRpcProxy('targetservice', config) as proxy:
-            proxy.method()
-
-    The equivalent call, manually starting and stopping::
-
-        targetservice_proxy = ServiceRpcProxy('targetservice', config)
-        proxy = targetservice_proxy.start()
-        proxy.method()
-        targetservice_proxy.stop()
-
-    If you call ``start()`` you must eventually call ``stop()`` to close the
-    connection to the broker.
-
-    You may also supply ``context_data``, a dictionary of data to be
-    serialised into the AMQP message headers, and specify custom worker
-    context class to serialise them.
+    A single-threaded RPC proxy to a named service. As per
+    `~nameko.standalone.rpc.RpcProxy` but with a pre-specified target service.
     """
+
     def __init__(self, service_name, *args, **kwargs):
         super(ServiceRpcProxy, self).__init__(*args, **kwargs)
-        self._proxy = ServiceProxy(
-            service_name, self._publish, self.reply_listener
-        )
+        self.proxy = getattr(self.proxy, service_name)
 
 
-class ClusterProxy(object):
-    """
-    A single-threaded RPC proxy to a cluster of services. Individual services
-    are accessed via attributes, which return service proxies. Method calls on
-    the proxies are converted into RPC calls to the service, with responses
-    returned directly.
-
-    Enables services not hosted by nameko to make RPC requests to a nameko
-    cluster. It is commonly used as a context manager but may also be manually
-    started and stopped.
-
-    This is similar to the service proxy, but may be uses a single reply queue
-    for calls to all services, where a collection of service proxies would have
-    one reply queue per proxy.
-
-    *Usage*
-
-    As a context manager::
-
-        with ClusterRpcProxy(config) as proxy:
-            proxy.service.method()
-            proxy.other_service.method()
-
-    The equivalent call, manually starting and stopping::
-
-        proxy = ClusterRpcProxy(config)
-        proxy = proxy.start()
-        proxy.targetservice.method()
-        proxy.other_service.method()
-        proxy.stop()
-
-    If you call ``start()`` you must eventually call ``stop()`` to close the
-    connection to the broker.
-
-    You may also supply ``context_data``, a dictionary of data to be
-    serialised into the AMQP message headers.
-
-    When the name of the service is not legal in Python, you can also
-    use a dict-like syntax::
-
-        with ClusterRpcProxy(config) as proxy:
-            proxy['service-name'].method()
-            proxy['other-service'].method()
-
-    """
-
-    def __init__(self, publish, reply_listener):
-        self._publish = publish
-        self._reply_listener = reply_listener
-
-    def __getattr__(self, name):
-        return ServiceProxy(
-            name, self._publish, self._reply_listener
-        )
-
-    def __getitem__(self, name):
-        """Enable dict-like access on the proxy. """
-        return getattr(self, name)
-
-
-class ClusterRpcProxy(StandaloneProxyBase):
-    def __init__(self, *args, **kwargs):
-        super(ClusterRpcProxy, self).__init__(*args, **kwargs)
-        self._proxy = ClusterProxy(self._publish, self.reply_listener)
+ClusterRpcProxy = RpcProxy  # backwards compat

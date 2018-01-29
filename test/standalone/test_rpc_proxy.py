@@ -15,7 +15,7 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
-    ClusterRpcProxy, ReplyListener, ServiceRpcProxy, StandaloneProxyBase
+    ClusterRpcProxy, ReplyListener, ServiceRpcProxy, RpcProxy
 )
 from nameko.testing.waiting import wait_for_call
 
@@ -405,7 +405,7 @@ class TestDisconnectWithPendingReply(object):
             return True
 
         with wait_for_call(
-            toxic_rpc_proxy._reply_listener, 'on_connection_error',
+            toxic_rpc_proxy.reply_listener, 'on_connection_error',
             callback=reconnect
         ):
             # rpc proxy should recover the message in flight
@@ -561,21 +561,21 @@ class TestStandaloneProxyDisconnections(object):
             retry = True
 
         with patch.object(
-            StandaloneProxyBase.publisher_cls, 'retry', new=retry
+            RpcProxy.publisher_cls, 'retry', new=retry
         ):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            StandaloneProxyBase.publisher_cls, 'use_confirms',
+            RpcProxy.publisher_cls, 'use_confirms',
             new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(StandaloneProxyBase, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(RpcProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.yield_fixture

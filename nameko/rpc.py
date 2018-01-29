@@ -302,60 +302,63 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
             extra_headers=extra_headers
         )
 
-        return ServiceProxy(
-            self.target_service,
+        proxy = Proxy(
             publish,
             self.rpc_reply_listener
         )
+        return getattr(proxy, self.target_service)
 
 
-class ServiceProxy(object):
-    def __init__(self, service_name, publish, reply_listener):
-        self.service_name = service_name
-        self.publish = publish
+class Proxy(object):
+
+    class Target(object):
+        def __init__(self):
+            self.service_name = None
+            self.method_name = None
+
+        def copy(self, target):
+            self.service_name = target.service_name
+            self.method_name = target.method_name
+
+        def push(self, name):
+            if self.service_name is None:
+                self.service_name = name
+            elif self.method_name is None:
+                self.method_name = name
+            else:
+                raise Exception("fully_specified")
+
+        @property
+        def fully_specified(self):
+            return self.service_name and self.method_name
+
+        @property
+        def identifier(self):
+            return "{}.{}".format(
+                self.service_name or "*",
+                self.method_name or "*"
+            )
+
+    def __init__(self, publish, reply_listener):
+        self.publish = publish  # TODO: pass in full publisher
         self.reply_listener = reply_listener
+        self.target = Proxy.Target()
 
     def __getattr__(self, name):
-        return MethodProxy(
-            self.service_name,
-            name,
+        if self.target.fully_specified:
+            raise AttributeError(name)
+
+        clone = Proxy(
             self.publish,
             self.reply_listener
         )
+        clone.target.copy(self.target)
+        clone.target.push(name)
+        return clone
 
-
-class RpcReply(object):
-    resp_body = None
-
-    def __init__(self, reply_event):
-        self.reply_event = reply_event
-
-    def result(self):
-        _log.debug('Waiting for RPC reply event %s', self)
-
-        if self.resp_body is None:
-            self.resp_body = self.reply_event.wait()
-            _log.debug('RPC reply event complete %s %s', self, self.resp_body)
-
-        error = self.resp_body.get('error')
-        if error:
-            raise deserialize(error)
-        return self.resp_body['result']
-
-
-class MethodProxy(object):
-
-    def __init__(
-        self, service_name, method_name, publish, reply_listener
-    ):
-        """
-            Note that mechanism which raises :class:`UnknownService` exceptions
-            relies on publish confirms being enabled in the proxy.
-        """
-        self.service_name = service_name
-        self.method_name = method_name
-        self.publish = publish
-        self.reply_listener = reply_listener
+    def __getitem__(self, name):
+        """Enable dict-like access on the proxy. """
+        return getattr(self, name)
 
     def __call__(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
@@ -366,6 +369,9 @@ class MethodProxy(object):
         return reply
 
     def _call(self, *args, **kwargs):
+        if not self.target.fully_specified:
+            raise TypeError("Not callable")
+
         _log.debug('invoking %s', self)
 
         msg = {'args': args, 'kwargs': kwargs}
@@ -389,8 +395,7 @@ class MethodProxy(object):
         # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
-        routing_key = '{}.{}'.format(self.service_name, self.method_name)
-
+        routing_key = self.target.identifier
         reply_to = self.reply_listener.routing_key
         correlation_id = str(uuid.uuid4())
 
@@ -405,11 +410,29 @@ class MethodProxy(object):
                 correlation_id=correlation_id
             )
         except UndeliverableMessage:
-            raise UnknownService(self.service_name)
+            raise UnknownService(self.target.service_name)
 
         return RpcReply(reply_event)
 
     def __repr__(self):
-        service_name = self.service_name
-        method_name = self.method_name
-        return '<proxy method: {}.{}>'.format(service_name, method_name)
+        return '<RpcProxy: {}>'.format(self.target.identifier)
+
+
+class RpcReply(object):
+    resp_body = None
+
+    def __init__(self, reply_event):
+        self.reply_event = reply_event
+
+    def result(self):
+        _log.debug('Waiting for RPC reply event %s', self)
+
+        if self.resp_body is None:
+            self.resp_body = self.reply_event.wait()
+            _log.debug('RPC reply event complete %s %s', self, self.resp_body)
+
+        error = self.resp_body.get('error')
+        if error:
+            raise deserialize(error)
+        return self.resp_body['result']
+
