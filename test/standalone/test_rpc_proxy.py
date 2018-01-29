@@ -693,7 +693,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
         and the connection is re-established.
         """
         def reset(args, kwargs, result, exc_info):
-            toxiproxy.reset()
+            toxiproxy.enable()
             return True
 
         with wait_for_call(
