@@ -4,6 +4,7 @@ import sys
 import uuid
 from types import ModuleType
 
+import eventlet
 import pytest
 import requests
 from mock import ANY, patch
@@ -161,9 +162,10 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     controller.reset()
 
     # delete proxy
-    requests.delete(
-        'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
-    )
+    # allow some grace period to ensure we don't remove the proxy before
+    # other fixtures have torn down
+    resource = 'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
+    eventlet.spawn_after(10, requests.delete, resource)
 
 
 @pytest.yield_fixture
