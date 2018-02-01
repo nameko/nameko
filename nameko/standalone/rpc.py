@@ -20,26 +20,12 @@ from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
-    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy, get_rpc_exchange
+    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy, RpcReply,
+    get_rpc_exchange
 )
 
 
 _logger = logging.getLogger(__name__)
-
-
-class ReplyEvent(object):
-    """ Same interface as eventlet.Event but actually fetches the message
-
-    Pretty pointless since it relies on the same ReplyListener that
-    generates it. Only exists because MethodProxy expects this interface.
-    """
-
-    def __init__(self, reply_listener, correlation_id):
-        self.reply_listener = reply_listener
-        self.correlation_id = correlation_id
-
-    def wait(self):
-        return self.reply_listener.get_reply(self.correlation_id)
 
 
 class ReplyListener(ConsumerMixin):
@@ -64,13 +50,7 @@ class ReplyListener(ConsumerMixin):
 
     @property
     def routing_key(self):
-        # needed by methodproxy
         return self.queue.routing_key
-
-    def get_reply_event(self, correlation_id):
-        # needed by methodproxy
-        self.pending[correlation_id] = None
-        return ReplyEvent(self, correlation_id)
 
     def start(self):
         self.should_stop = False
@@ -116,7 +96,15 @@ class ReplyListener(ConsumerMixin):
         )
         return [consumer]
 
-    def get_reply(self, correlation_id):
+    def register_for_reply(self, correlation_id=None):
+        if correlation_id is None:
+            correlation_id = str(uuid.uuid4())
+        self.pending[correlation_id] = None
+        return RpcReply(
+            lambda: self.consume_reply(correlation_id), correlation_id
+        )
+
+    def consume_reply(self, correlation_id):
         # return error if correlation_id not pending? (new feature)
         if self.should_stop:
             raise RuntimeError("Stopped and can no longer be used")
@@ -126,8 +114,7 @@ class ReplyListener(ConsumerMixin):
                 next(self.consume(timeout=self.timeout))
             except socket.timeout:
                 raise RpcTimeout()
-        res = self.pending.pop(correlation_id)
-        return res
+        return self.pending.pop(correlation_id)
 
     def handle_message(self, body, message):
         message.ack()

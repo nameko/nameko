@@ -225,7 +225,7 @@ class ReplyListener(SharedExtension):
     queue_consumer = QueueConsumer()
 
     def __init__(self, **kwargs):
-        self._reply_events = {}
+        self.pending = {}
         super(ReplyListener, self).__init__(**kwargs)
 
     def setup(self):
@@ -255,18 +255,22 @@ class ReplyListener(SharedExtension):
         self.queue_consumer.unregister_provider(self)
         super(ReplyListener, self).stop()
 
-    def get_reply_event(self, correlation_id):
+    def register_for_reply(self, correlation_id=None):
+        if correlation_id is None:
+            correlation_id = str(uuid.uuid4())
+
         reply_event = Event()
-        self._reply_events[correlation_id] = reply_event
-        return reply_event
+        self.pending[correlation_id] = reply_event
+
+        return RpcReply(reply_event.wait, correlation_id)
 
     def handle_message(self, body, message):
         self.queue_consumer.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
-        client_event = self._reply_events.pop(correlation_id, None)
-        if client_event is not None:
-            client_event.send(body)
+        reply_event = self.pending.pop(correlation_id, None)
+        if reply_event is not None:
+            reply_event.send(body)
         else:
             _log.debug("Unknown correlation id: %s", correlation_id)
 
@@ -275,7 +279,7 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
     publisher_cls = Publisher
 
-    rpc_reply_listener = ReplyListener()
+    reply_listener = ReplyListener()
 
     def __init__(self, target_service, **options):
         self.target_service = target_service
@@ -296,65 +300,48 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
         extra_headers = self.get_message_headers(worker_ctx)
 
+        # TODO refactor so this can be a whole publisher
         publish = partial(
             self.publisher.publish,
             exchange=self.exchange,
             extra_headers=extra_headers
         )
 
-        proxy = Proxy(
-            publish,
-            self.rpc_reply_listener
-        )
+        proxy = Proxy(publish, self.reply_listener)
         return getattr(proxy, self.target_service)
 
 
 class Proxy(object):
 
-    class Target(object):
-        def __init__(self):
-            self.service_name = None
-            self.method_name = None
-
-        def copy(self, target):
-            self.service_name = target.service_name
-            self.method_name = target.method_name
-
-        def push(self, name):
-            if self.service_name is None:
-                self.service_name = name
-            elif self.method_name is None:
-                self.method_name = name
-            else:
-                raise Exception("fully_specified")
-
-        @property
-        def fully_specified(self):
-            return self.service_name and self.method_name
-
-        @property
-        def identifier(self):
-            return "{}.{}".format(
-                self.service_name or "*",
-                self.method_name or "*"
-            )
-
-    def __init__(self, publish, reply_listener):
+    def __init__(
+        self, publish, reply_listener, service_name=None, method_name=None
+    ):
         self.publish = publish  # TODO: pass in full publisher
         self.reply_listener = reply_listener
-        self.target = Proxy.Target()
+        self.service_name = service_name
+        self.method_name = method_name
 
     def __getattr__(self, name):
-        if self.target.fully_specified:
-            raise AttributeError(name)
-
         clone = Proxy(
             self.publish,
-            self.reply_listener
+            self.reply_listener,
+            self.service_name or name,
+            self.service_name and name
         )
-        clone.target.copy(self.target)
-        clone.target.push(name)
         return clone
+
+    @property
+    def fully_specified(self):
+        return (
+            self.service_name is not None and self.method_name is not None
+        )
+
+    @property
+    def identifier(self):
+        return "{}.{}".format(
+            self.service_name or "*",
+            self.method_name or "*"
+        )
 
     def __getitem__(self, name):
         """Enable dict-like access on the proxy. """
@@ -369,8 +356,10 @@ class Proxy(object):
         return reply
 
     def _call(self, *args, **kwargs):
-        if not self.target.fully_specified:
-            raise TypeError("Not callable")
+        if not self.fully_specified:
+            raise ValueError(
+                "Cannot call unspecified method {}".format(self.identifier)
+            )
 
         _log.debug('invoking %s', self)
 
@@ -395,11 +384,9 @@ class Proxy(object):
         # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
-        routing_key = self.target.identifier
+        routing_key = self.identifier
         reply_to = self.reply_listener.routing_key
-        correlation_id = str(uuid.uuid4())
-
-        reply_event = self.reply_listener.get_reply_event(correlation_id)
+        reply = self.reply_listener.register_for_reply()
 
         try:
             self.publish(
@@ -407,32 +394,27 @@ class Proxy(object):
                 routing_key=routing_key,
                 mandatory=True,
                 reply_to=reply_to,
-                correlation_id=correlation_id
+                correlation_id=reply.correlation_id
             )
         except UndeliverableMessage:
             raise UnknownService(self.target.service_name)
 
-        return RpcReply(reply_event)
+        return reply
 
     def __repr__(self):
         return '<RpcProxy: {}>'.format(self.target.identifier)
 
 
 class RpcReply(object):
-    resp_body = None
-
-    def __init__(self, reply_event):
-        self.reply_event = reply_event
+    def __init__(self, wait, correlation_id):
+        self.response = None
+        self.wait = wait
+        self.correlation_id = correlation_id
 
     def result(self):
-        _log.debug('Waiting for RPC reply event %s', self)
-
-        if self.resp_body is None:
-            self.resp_body = self.reply_event.wait()
-            _log.debug('RPC reply event complete %s %s', self, self.resp_body)
-
-        error = self.resp_body.get('error')
+        if self.response is None:
+            self.response = self.wait()
+        error = self.response.get('error')
         if error:
             raise deserialize(error)
-        return self.resp_body['result']
-
+        return self.response['result']

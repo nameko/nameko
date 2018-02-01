@@ -15,7 +15,7 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
-    ClusterRpcProxy, ReplyListener, ServiceRpcProxy, RpcProxy
+    ClusterRpcProxy, ReplyListener, RpcProxy, ServiceRpcProxy
 )
 from nameko.testing.waiting import wait_for_call
 

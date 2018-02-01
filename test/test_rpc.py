@@ -200,19 +200,23 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
     queue_consumer.register_provider.assert_called_once_with(reply_listener)
 
     correlation_id = 1
-    reply_event = reply_listener.get_reply_event(correlation_id)
+    rpc_reply = reply_listener.register_for_reply(correlation_id)
+    assert rpc_reply.correlation_id == correlation_id
+    assert correlation_id in reply_listener.pending
 
-    assert reply_listener._reply_events == {1: reply_event}
+    reply_event = reply_listener.pending[correlation_id]
 
+    payload = {"result": "msg", "error": None}
     message = Mock()
     message.properties.get.return_value = correlation_id
-    reply_listener.handle_message("msg", message)
+    reply_listener.handle_message(payload, message)
 
     queue_consumer.ack_message.assert_called_once_with(message)
-    assert reply_event.ready()
-    assert reply_event.wait() == "msg"
+    assert reply_listener.pending == {}
 
-    assert reply_listener._reply_events == {}
+    assert reply_event.ready()
+    assert reply_event.wait() == payload
+    assert rpc_reply.result() == "msg"
 
     with patch('nameko.rpc._log', autospec=True) as log:
         reply_listener.handle_message("msg", message)
@@ -1637,7 +1641,7 @@ class TestConfigurability(object):
         ).bind(mock_container, "service_rpc")
 
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
+        rpc_proxy.reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1672,7 +1676,7 @@ class TestConfigurability(object):
         ).bind(mock_container, "service_rpc")
 
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
+        rpc_proxy.reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1713,7 +1717,7 @@ class TestConfigurability(object):
         ).bind(mock_container, "service_rpc")
 
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
+        rpc_proxy.reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
