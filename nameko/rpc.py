@@ -322,6 +322,9 @@ class Proxy(object):
         self.method_name = method_name
 
     def __getattr__(self, name):
+        if self.method_name is not None:
+            raise AttributeError(name)
+
         clone = Proxy(
             self.publish,
             self.reply_listener,
@@ -397,12 +400,12 @@ class Proxy(object):
                 correlation_id=reply.correlation_id
             )
         except UndeliverableMessage:
-            raise UnknownService(self.target.service_name)
+            raise UnknownService(self.service_name)
 
         return reply
 
     def __repr__(self):
-        return '<RpcProxy: {}>'.format(self.target.identifier)
+        return '<RpcProxy: {}>'.format(self.identifier)
 
 
 class RpcReply(object):

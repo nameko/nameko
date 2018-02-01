@@ -20,7 +20,7 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+    Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
@@ -222,6 +222,85 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
         reply_listener.handle_message("msg", message)
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
+
+
+class TestProxy(object):
+
+    def test_getattr(self):
+        publish = Mock()
+        reply_listener = Mock()
+
+        proxy = Proxy(publish, reply_listener)
+        service_proxy = proxy.service
+        assert proxy != service_proxy
+        assert proxy.publish == service_proxy.publish
+        assert proxy.reply_listener == service_proxy.reply_listener
+        assert proxy.service_name is None
+        assert proxy.method_name is None
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+
+        method1_proxy = service_proxy.method1
+        assert service_proxy != method1_proxy
+        assert service_proxy.publish == method1_proxy.publish
+        assert service_proxy.reply_listener == method1_proxy.reply_listener
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+        assert method1_proxy.service_name == "service"
+        assert method1_proxy.method_name == "method1"
+
+        method2_proxy = service_proxy.method2
+
+        method2_proxy = service_proxy.method2
+        assert service_proxy != method2_proxy
+        assert service_proxy.publish == method2_proxy.publish
+        assert service_proxy.reply_listener == method2_proxy.reply_listener
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+        assert method2_proxy.service_name == "service"
+        assert method2_proxy.method_name == "method2"
+
+        assert method1_proxy != method2_proxy
+
+        with pytest.raises(AttributeError):
+            method1_proxy.attr
+        with pytest.raises(AttributeError):
+            method2_proxy.attr
+
+    def test_identifier(self):
+        publish = Mock()
+        reply_listener = Mock()
+
+        proxy = Proxy(publish, reply_listener)
+        service_proxy = proxy.service
+        method1_proxy = service_proxy.method1
+        method2_proxy = service_proxy.method2
+
+        assert proxy.identifier == "*.*"
+        assert service_proxy.identifier == "service.*"
+        assert method1_proxy.identifier == "service.method1"
+        assert method2_proxy.identifier == "service.method2"
+
+    def test_dict_access(self):
+        publish = Mock()
+        reply_listener = Mock()
+
+        proxy = Proxy(publish, reply_listener)
+
+        assert proxy['service'].identifier == "service.*"
+        assert proxy['service']['method'].identifier == "service.method"
+
+    def test_cannot_invoke_unspecified_proxy(self):
+        publish = Mock()
+        reply_listener = Mock()
+
+        proxy = Proxy(publish, reply_listener)
+
+        with pytest.raises(ValueError):
+            proxy()
+
+        with pytest.raises(ValueError):
+            proxy.service()
 
 
 # =============================================================================
