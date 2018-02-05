@@ -131,9 +131,15 @@ def test_call_id(container_factory, rabbit_config):
     container.start()
 
     with ServiceRpcProxy('foobar', rabbit_config) as foo:
-        assert foo.get_context_data('call_id_stack') == [
+        stack1 = foo.get_context_data('call_id_stack')
+        assert stack1 == [
             'standalone_rpc_proxy.0.0',
             'foobar.get_context_data.1'
+        ]
+        stack2 = foo.get_context_data('call_id_stack')
+        assert stack2 == [
+            'standalone_rpc_proxy.0.2',
+            'foobar.get_context_data.3'
         ]
 
 
@@ -306,10 +312,11 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy("foobar", rabbit_config) as proxy:
+    service_rpc_proxy = ServiceRpcProxy("foobar", rabbit_config)
+    with service_rpc_proxy as proxy:
 
         message = Message(channel=None, properties={
-            'reply_to': proxy.reply_listener.routing_key,
+            'reply_to': service_rpc_proxy.reply_listener.routing_key,
             'correlation_id': 'invalid',
         })
         amqp_uri = container.config['AMQP_URI']
@@ -367,11 +374,10 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
 @skip_if_no_toxiproxy
 class TestDisconnectWithPendingReply(object):
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def toxic_rpc_proxy(self, rabbit_config, toxiproxy):
         rabbit_config['AMQP_URI'] = toxiproxy.uri
-        with ClusterRpcProxy(rabbit_config) as proxy:
-            yield proxy
+        return ClusterRpcProxy(rabbit_config)
 
     def test_disconnect_and_successfully_reconnect(
         self, container_factory, rabbit_manager, rabbit_config,
@@ -390,32 +396,34 @@ class TestDisconnectWithPendingReply(object):
         container = container_factory(Service, rabbit_config)
         container.start()
 
-        # make an async call that will block,
-        # wait for the worker to have spawned
-        with wait_for_call(container, 'spawn_worker'):
-            res = toxic_rpc_proxy.service.method.call_async('msg1')
+        with toxic_rpc_proxy as proxy:
 
-        # disable toxiproxy to kill connections
-        toxiproxy.disable()
+            # make an async call that will block,
+            # wait for the worker to have spawned
+            with wait_for_call(container, 'spawn_worker'):
+                res = proxy.service.method.call_async('msg1')
 
-        # re-enable toxiproxy when the connection error is detected
-        def reconnect(args, kwargs, res, exc_info):
-            block.send(True)
-            toxiproxy.enable()
-            return True
+            # disable toxiproxy to kill connections
+            toxiproxy.disable()
 
-        with wait_for_call(
-            toxic_rpc_proxy.reply_listener, 'on_connection_error',
-            callback=reconnect
-        ):
-            # rpc proxy should recover the message in flight
-            res.result() == "msg1"
+            # re-enable toxiproxy when the connection error is detected
+            def reconnect(args, kwargs, res, exc_info):
+                block.send(True)
+                toxiproxy.enable()
+                return True
 
-            # proxy should work again after reconnection
-            assert toxic_rpc_proxy.service.method("msg2") == "msg2"
+            with wait_for_call(
+                toxic_rpc_proxy.reply_listener, 'on_connection_error',
+                callback=reconnect
+            ):
+                # rpc proxy should recover the message in flight
+                res.result() == "msg1"
 
-        # stop container before we stop toxiproxy
-        container.stop()
+                # proxy should work again after reconnection
+                assert proxy.service.method("msg2") == "msg2"
+
+            # stop container before we stop toxiproxy
+            container.stop()
 
 
 def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):

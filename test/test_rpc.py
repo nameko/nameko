@@ -234,7 +234,7 @@ class TestProxy(object):
         service_proxy = proxy.service
         assert proxy != service_proxy
         assert proxy.publish == service_proxy.publish
-        assert proxy.reply_listener == service_proxy.reply_listener
+        assert proxy.get_reply == service_proxy.get_reply
         assert proxy.service_name is None
         assert proxy.method_name is None
         assert service_proxy.service_name == "service"
@@ -243,7 +243,7 @@ class TestProxy(object):
         method1_proxy = service_proxy.method1
         assert service_proxy != method1_proxy
         assert service_proxy.publish == method1_proxy.publish
-        assert service_proxy.reply_listener == method1_proxy.reply_listener
+        assert service_proxy.get_reply == method1_proxy.get_reply
         assert service_proxy.service_name == "service"
         assert service_proxy.method_name is None
         assert method1_proxy.service_name == "service"
@@ -254,7 +254,7 @@ class TestProxy(object):
         method2_proxy = service_proxy.method2
         assert service_proxy != method2_proxy
         assert service_proxy.publish == method2_proxy.publish
-        assert service_proxy.reply_listener == method2_proxy.reply_listener
+        assert service_proxy.get_reply == method2_proxy.get_reply
         assert service_proxy.service_name == "service"
         assert service_proxy.method_name is None
         assert method2_proxy.service_name == "service"
@@ -269,9 +269,9 @@ class TestProxy(object):
 
     def test_identifier(self):
         publish = Mock()
-        reply_listener = Mock()
+        get_reply = Mock()
 
-        proxy = Proxy(publish, reply_listener)
+        proxy = Proxy(publish, get_reply)
         service_proxy = proxy.service
         method1_proxy = service_proxy.method1
         method2_proxy = service_proxy.method2
@@ -283,18 +283,18 @@ class TestProxy(object):
 
     def test_dict_access(self):
         publish = Mock()
-        reply_listener = Mock()
+        get_reply = Mock()
 
-        proxy = Proxy(publish, reply_listener)
+        proxy = Proxy(publish, get_reply)
 
         assert proxy['service'].identifier == "service.*"
         assert proxy['service']['method'].identifier == "service.method"
 
     def test_cannot_invoke_unspecified_proxy(self):
         publish = Mock()
-        reply_listener = Mock()
+        get_reply = Mock()
 
-        proxy = Proxy(publish, reply_listener)
+        proxy = Proxy(publish, get_reply)
 
         with pytest.raises(ValueError):
             proxy()

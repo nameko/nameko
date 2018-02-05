@@ -300,24 +300,26 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
         extra_headers = self.get_message_headers(worker_ctx)
 
-        # TODO refactor so this can be a whole publisher
         publish = partial(
             self.publisher.publish,
             exchange=self.exchange,
+            reply_to=self.reply_listener.routing_key,
             extra_headers=extra_headers
         )
 
-        proxy = Proxy(publish, self.reply_listener)
+        get_reply = self.reply_listener.register_for_reply
+
+        proxy = Proxy(publish, get_reply)
         return getattr(proxy, self.target_service)
 
 
 class Proxy(object):
 
     def __init__(
-        self, publish, reply_listener, service_name=None, method_name=None
+        self, publish, get_reply, service_name=None, method_name=None
     ):
-        self.publish = publish  # TODO: pass in full publisher
-        self.reply_listener = reply_listener
+        self.publish = publish
+        self.get_reply = get_reply
         self.service_name = service_name
         self.method_name = method_name
 
@@ -327,7 +329,7 @@ class Proxy(object):
 
         clone = Proxy(
             self.publish,
-            self.reply_listener,
+            self.get_reply,
             self.service_name or name,
             self.service_name and name
         )
@@ -388,15 +390,14 @@ class Proxy(object):
         # be raised (and the caller will hang).
 
         routing_key = self.identifier
-        reply_to = self.reply_listener.routing_key
-        reply = self.reply_listener.register_for_reply()
+
+        reply = self.get_reply()
 
         try:
             self.publish(
                 msg,
                 routing_key=routing_key,
                 mandatory=True,
-                reply_to=reply_to,
                 correlation_id=reply.correlation_id
             )
         except UndeliverableMessage:

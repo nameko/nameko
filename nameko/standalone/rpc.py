@@ -203,12 +203,12 @@ class RpcProxy(object):
 
         publisher = Publisher(
             self.amqp_uri,
+            exchange=exchange,
+            reply_to=self.reply_listener.routing_key,
             serializer=serializer
         )
 
         def publish(*args, **kwargs):
-            # can we get a nicer api than passing in a publish function?\
-            # e.g. an "invoke" func?
 
             context_data = data or {}
             context_data['call_id_stack'] = [
@@ -218,11 +218,12 @@ class RpcProxy(object):
             extra_headers = encode_to_headers(context_data)
 
             publisher.publish(
-                *args, exchange=exchange, extra_headers=extra_headers, **kwargs
+                *args, extra_headers=extra_headers, **kwargs
             )
 
-        self.publish = publish
-        self.proxy = Proxy(self.publish, self.reply_listener)
+        get_reply = self.reply_listener.register_for_reply
+
+        self.proxy = Proxy(publish, get_reply)
 
     @property
     def amqp_uri(self):
