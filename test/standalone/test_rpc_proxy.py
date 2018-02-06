@@ -1,4 +1,5 @@
 import socket
+import uuid
 from contextlib import contextmanager
 
 import eventlet
@@ -6,6 +7,8 @@ import pytest
 from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.message import Message
+from mock import Mock, patch
+from six.moves import queue
 
 from nameko.constants import HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
@@ -20,13 +23,6 @@ from nameko.standalone.rpc import (
 from nameko.testing.waiting import wait_for_call
 
 from test import skip_if_no_toxiproxy
-
-
-# uses autospec on method; needs newer mock for py3
-try:
-    from unittest.mock import patch
-except ImportError:  # pragma: no cover
-    from mock import patch
 
 
 class ContextReader(DependencyProvider):
@@ -542,6 +538,116 @@ def test_recover_from_keyboardinterrupt(
 
         # proxy should still work
         assert proxy.spam(ham=1) == 1
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the standalone RPC proxy
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at RpcProxy
+        instantiation time.
+        """
+        config = {'AMQP_URI': 'memory://localhost'}
+
+        value = Mock()
+
+        rpc_proxy = RpcProxy(
+            config, **{parameter: value}
+        )
+        with rpc_proxy as proxy:
+            proxy.service.method.call_async()
+        assert producer.publish.call_args[1][parameter] == value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers can be provided at instantiation time, and are merged with
+        Nameko headers.
+        """
+        config = {'AMQP_URI': 'memory://localhost'}
+
+        data = {'context': 'data'}
+
+        value = {'foo': Mock()}
+
+        rpc_proxy = RpcProxy(
+            config, context_data=data, **{'headers': value}
+        )
+
+        with rpc_proxy as proxy:
+            proxy['service-name'].method.call_async()
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['standalone_rpc_proxy.0.0'],
+        }
+
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, value
+        )
+
+    @patch('nameko.standalone.rpc.uuid')
+    def test_restricted_parameters(
+        self, patch_uuid, mock_container, producer
+    ):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        config = {'AMQP_URI': 'memory://localhost'}
+
+        uuid1 = uuid.uuid4()
+        uuid2 = uuid.uuid4()
+        patch_uuid.uuid4.side_effect = [uuid1, uuid2]
+
+        restricted_params = (
+            'exchange', 'routing_key', 'mandatory',
+            'correlation_id', 'reply_to'
+        )
+
+        rpc_proxy = RpcProxy(
+            config, **{param: Mock() for param in restricted_params}
+        )
+
+        with rpc_proxy as proxy:
+            proxy.service.method.call_async()
+
+        publish_params = producer.publish.call_args[1]
+
+        assert publish_params['exchange'].name == "nameko-rpc"
+        assert publish_params['routing_key'] == 'service.method'
+        assert publish_params['mandatory'] is True
+        assert publish_params['reply_to'] == str(uuid1)
+        assert publish_params['correlation_id'] == str(uuid2)
 
 
 @skip_if_no_toxiproxy

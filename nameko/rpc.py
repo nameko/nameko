@@ -289,10 +289,24 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
     def amqp_uri(self):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
+    @property
+    def serializer(self):
+        """ Default serializer to use when publishing messages.
+
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
+        return self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+
     def setup(self):
         self.exchange = get_rpc_exchange(self.container.config)
+        serializer = self.options.pop('serializer', self.serializer)
+
         self.publisher = self.publisher_cls(
             self.amqp_uri,
+            serializer=serializer,
             **self.options
         )
 

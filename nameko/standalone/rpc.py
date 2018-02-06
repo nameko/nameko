@@ -177,11 +177,12 @@ class RpcProxy(object):
 
     publisher_cls = Publisher
 
-    def __init__(self, config, context_data=None, timeout=None):
+    def __init__(self, config, context_data=None, timeout=None, **options):
         self.config = config
         self.uuid = str(uuid.uuid4())
 
         exchange = get_rpc_exchange(config)
+
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
             "standalone_rpc_proxy", self.uuid
         )
@@ -196,17 +197,15 @@ class RpcProxy(object):
 
         self.reply_listener = ReplyListener(config, queue, timeout=timeout)
 
-        data = context_data
-
-        serializer = config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-        # options?
+        serializer = options.pop('serializer', self.serializer)
 
         publisher = Publisher(
             self.amqp_uri,
-            exchange=exchange,
-            reply_to=self.reply_listener.routing_key,
-            serializer=serializer
+            serializer=serializer,
+            **options
         )
+
+        data = context_data
 
         def publish(*args, **kwargs):
 
@@ -218,7 +217,11 @@ class RpcProxy(object):
             extra_headers = encode_to_headers(context_data)
 
             publisher.publish(
-                *args, extra_headers=extra_headers, **kwargs
+                *args,
+                exchange=exchange,
+                reply_to=self.reply_listener.routing_key,
+                extra_headers=extra_headers,
+                **kwargs
             )
 
         get_reply = self.reply_listener.register_for_reply
@@ -228,6 +231,17 @@ class RpcProxy(object):
     @property
     def amqp_uri(self):
         return self.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def serializer(self):
+        """ Default serializer to use when publishing messages.
+
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
+        return self.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
 
     def __enter__(self):
         return self.start()
