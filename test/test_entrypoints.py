@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 import pytest
-from mock import Mock, call, patch
+from mock import Mock, call
 
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.services import dummy, entrypoint_hook, once
@@ -12,12 +12,6 @@ from nameko.utils import REDACTED, get_redacted_args
 @pytest.fixture
 def tracker():
     return Mock()
-
-
-@pytest.yield_fixture
-def warnings():
-    with patch('nameko.extensions.warnings') as patched:
-        yield patched
 
 
 class TestDecorator(object):

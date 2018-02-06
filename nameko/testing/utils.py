@@ -90,13 +90,6 @@ def assert_stops_raising(fn, exception_type=Exception, timeout=10,
             eventlet.sleep(interval)
 
 
-MockCallArgs = namedtuple("MockCallArgs", ["positional", "keyword"])
-
-
-def unpack_mock_call(call):
-    return MockCallArgs(*call)
-
-
 class AnyInstanceOf(object):
 
     def __init__(self, cls):
