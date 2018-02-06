@@ -56,20 +56,6 @@ def wait_for_call(timeout, mock_method):
     yield mock_method
 
 
-def wait_for_worker_idle(container, timeout=10):
-    """ Blocks until ``container`` has no running workers.
-
-    Raises an :class:`eventlet.Timeout` if the method was not called
-    within ``timeout`` seconds.
-    """
-    warnings.warn(
-        "`wait_for_worker_idle` is deprecated. Use the `entrypoint_waiter` "
-        "to wait for specific entrypoints instead.", DeprecationWarning
-    )
-    with eventlet.Timeout(timeout):
-        container._worker_pool.waitall()
-
-
 def assert_stops_raising(fn, exception_type=Exception, timeout=10,
                          interval=0.1):
     """Assert that ``fn`` returns successfully within ``timeout``
