@@ -86,9 +86,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
         :Parameters:
             exchange : :class:`kombu.Exchange`
                 Destination exchange
-            queue : :class:`kombu.Queue`
-                **Deprecated**: Bound queue. The event will be published to
-                this queue's exchange.
             declare : list
                 List of :class:`kombu.Exchange` or :class:`kombu.Queue` objects
                 to declare before publishing.
