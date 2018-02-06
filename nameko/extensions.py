@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import inspect
 import types
-import warnings
 import weakref
 from functools import partial
 from logging import getLogger
@@ -278,15 +277,6 @@ class Entrypoint(Extension):
 
                 :seealso: :func:`nameko.utils.get_redacted_args`
         """
-        # backwards compat
-        sensitive_variables = kwargs.pop('sensitive_variables', ())
-        if sensitive_variables:
-            sensitive_arguments = sensitive_variables
-            warnings.warn(
-                "The `sensitive_variables` argument has been renamed to "
-                "`sensitive_arguments`. This warning will be removed in "
-                "version 2.9.0.", DeprecationWarning)
-
         self.expected_exceptions = expected_exceptions
         self.sensitive_arguments = sensitive_arguments
         super(Entrypoint, self).__init__(**kwargs)

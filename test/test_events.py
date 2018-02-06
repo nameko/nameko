@@ -15,7 +15,7 @@ from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.standalone.events import get_event_exchange
 from nameko.testing.services import entrypoint_waiter
-from nameko.testing.utils import DummyProvider, unpack_mock_call
+from nameko.testing.utils import DummyProvider
 
 
 EVENTS_TIMEOUT = 5
@@ -688,34 +688,6 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     # test event receieved on manually added queue
     messages = rabbit_manager.get_messages(vhost, "event-sink")
     assert ['"msg"'] == [msg['payload'] for msg in messages]
-
-
-class TestBackwardsCompatClassAttrs(object):
-
-    @pytest.mark.parametrize("parameter,value", [
-        ('retry', False),
-        ('retry_policy', {'max_retries': 999}),
-        ('use_confirms', False),
-    ])
-    def test_attrs_are_applied_as_defaults(
-        self, parameter, value, mock_container
-    ):
-        """ Verify that you can specify some fields by subclassing the
-        EventDispatcher DependencyProvider.
-        """
-        dispatcher_cls = type(
-            "LegacyEventDispatcher", (EventDispatcher,), {parameter: value}
-        )
-        with patch('nameko.messaging.warnings') as warnings:
-            mock_container.config = {'AMQP_URI': 'memory://'}
-            mock_container.service_name = "service"
-            dispatcher = dispatcher_cls().bind(mock_container, "dispatch")
-        assert warnings.warn.called
-        call_args = warnings.warn.call_args
-        assert parameter in unpack_mock_call(call_args).positional[0]
-
-        dispatcher.setup()
-        assert getattr(dispatcher.publisher, parameter) == value
 
 
 class TestConfigurability(object):

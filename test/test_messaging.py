@@ -20,7 +20,7 @@ from nameko.messaging import (
 )
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
-    ANY_PARTIAL, DummyProvider, get_extension, unpack_mock_call, wait_for_call
+    ANY_PARTIAL, DummyProvider, get_extension, wait_for_call
 )
 from nameko.testing.waiting import wait_for_call as patch_wait
 
@@ -149,58 +149,6 @@ def test_publish_to_exchange(
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_queue(
-    patch_maybe_declare, mock_producer, mock_connection, mock_container
-):
-    container = mock_container
-    container.config = {'AMQP_URI': 'memory://'}
-    container.shared_extensions = {}
-    container.service_name = "srcservice"
-
-    ctx_data = {'language': 'en'}
-    service = Mock()
-    worker_ctx = WorkerContext(
-        container, service, DummyProvider("publish"), data=ctx_data)
-
-    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
-
-    # test declarations
-    publisher.setup()
-    assert patch_maybe_declare.call_args_list == [
-        call(foobar_queue, mock_connection)
-    ]
-
-    # test publish
-    msg = "msg"
-    headers = {
-        'nameko.language': 'en',
-        'nameko.call_id_stack': ['srcservice.publish.0'],
-    }
-    service.publish = publisher.get_dependency(worker_ctx)
-    service.publish(msg, publish_kwarg="value")
-
-    expected_args = ('msg',)
-    expected_kwargs = {
-        'publish_kwarg': "value",
-        'exchange': foobar_ex,
-        'headers': headers,
-        'declare': publisher.declare,
-        'retry': publisher.publisher_cls.retry,
-        'retry_policy': publisher.publisher_cls.retry_policy,
-        'compression': publisher.publisher_cls.compression,
-        'mandatory': publisher.publisher_cls.mandatory,
-        'expiration': publisher.publisher_cls.expiration,
-        'delivery_mode': publisher.publisher_cls.delivery_mode,
-        'priority': publisher.publisher_cls.priority,
-        'serializer': publisher.serializer
-    }
-
-    assert mock_producer.publish.call_args_list == [
-        call(*expected_args, **expected_kwargs)
-    ]
-
-
-@pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
     mock_container, mock_producer, mock_connection, rabbit_config
 ):
@@ -214,7 +162,8 @@ def test_publish_custom_headers(
         container, service, DummyProvider('method'), data=ctx_data
     )
 
-    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
+    publisher = Publisher(
+        exchange=foobar_ex, declare=[foobar_queue]).bind(container, "publish")
     publisher.setup()
 
     # test publish
@@ -314,7 +263,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue
+        exchange=foobar_ex, declare=[foobar_queue]
     ).bind(container, "publish")
 
     publisher.setup()
@@ -361,7 +310,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
+        exchange=foobar_ex, declare=[foobar_queue]).bind(container, "publish")
 
     publisher.setup()
     publisher.start()
@@ -1017,34 +966,6 @@ class TestPublisherDisconnections(object):
             ]
 
 
-class TestBackwardsCompatClassAttrs(object):
-
-    @pytest.mark.parametrize("parameter,value", [
-        ('retry', False),
-        ('retry_policy', {'max_retries': 999}),
-        ('use_confirms', False),
-    ])
-    def test_attrs_are_applied_as_defaults(
-        self, parameter, value, mock_container
-    ):
-        """ Verify that you can specify some fields by subclassing the
-        EventDispatcher DependencyProvider.
-        """
-        publisher_cls = type(
-            "LegacPublisher", (Publisher,), {parameter: value}
-        )
-        with patch('nameko.messaging.warnings') as warnings:
-            mock_container.config = {'AMQP_URI': 'memory://'}
-            mock_container.service_name = "service"
-            publisher = publisher_cls().bind(mock_container, "publish")
-        assert warnings.warn.called
-        call_args = warnings.warn.call_args
-        assert parameter in unpack_mock_call(call_args).positional[0]
-
-        publisher.setup()
-        assert getattr(publisher.publisher, parameter) == value
-
-
 class TestConfigurability(object):
     """
     Test and demonstrate configuration options for the Publisher
@@ -1163,13 +1084,12 @@ class TestConfigurability(object):
         worker_ctx.context_data = {}
 
         exchange = Mock()
-        queue = Mock()
 
         instantiation_value = [Mock()]
         publish_value = [Mock()]
 
         publisher = Publisher(
-            exchange=exchange, queue=queue, **{'declare': instantiation_value}
+            exchange=exchange, **{'declare': instantiation_value}
         ).bind(mock_container, "publish")
         publisher.setup()
 
@@ -1177,12 +1097,12 @@ class TestConfigurability(object):
 
         publish("payload")
         assert producer.publish.call_args[1]['declare'] == (
-            instantiation_value + [exchange, queue]
+            instantiation_value + [exchange]
         )
 
         publish("payload", declare=publish_value)
         assert producer.publish.call_args[1]['declare'] == (
-            instantiation_value + [exchange, queue] + publish_value
+            instantiation_value + [exchange] + publish_value
         )
 
     def test_use_confirms(self, mock_container, get_producer):

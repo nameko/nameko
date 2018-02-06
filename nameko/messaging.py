@@ -4,7 +4,6 @@ Provides core messaging decorators and dependency providers.
 from __future__ import absolute_import
 
 import re
-import warnings
 from functools import partial
 from logging import getLogger
 
@@ -73,7 +72,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     publisher_cls = PublisherCore
 
-    def __init__(self, exchange=None, queue=None, declare=None, **options):
+    def __init__(self, exchange=None, declare=None, **options):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP, messages are published to *exchanges* and routed to bound
@@ -113,32 +112,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         if self.exchange:
             self.declare.append(self.exchange)
-
-        if queue is not None:
-            warnings.warn(
-                "The signature of `Publisher` has changed. The `queue` kwarg "
-                "is now deprecated. You can use the `declare` kwarg "
-                "to provide a list of Kombu queues to be declared. "
-                "See CHANGES, version 2.7.0 for more details. This warning "
-                "will be removed in version 2.9.0.",
-                DeprecationWarning
-            )
-            if exchange is None:
-                self.exchange = queue.exchange
-            self.declare.append(queue)
-
-        # backwards compat
-        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
-
-        for compat_attr in compat_attrs:
-            if hasattr(self, compat_attr):
-                warnings.warn(
-                    "'{}' should be specified at instantiation time rather "
-                    "than as a class attribute. See CHANGES, version 2.7.0 "
-                    "for more details. This warning will be removed in "
-                    "version 2.9.0.".format(compat_attr), DeprecationWarning
-                )
-                self.options[compat_attr] = getattr(self, compat_attr)
 
     @property
     def amqp_uri(self):
