@@ -14,9 +14,7 @@ from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
 from six.moves import queue
 
-from nameko.amqp.publish import (
-    Publisher, UndeliverableMessage, get_producer
-)
+from nameko.amqp.publish import Publisher, UndeliverableMessage, get_producer
 from nameko.amqp.utils import get_connection
 
 

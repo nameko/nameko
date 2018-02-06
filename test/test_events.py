@@ -6,6 +6,7 @@ import pytest
 from mock import ANY, Mock, create_autospec, patch
 from six.moves import map, queue
 
+from nameko.amqp import get_queue_info
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
@@ -16,7 +17,6 @@ from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.standalone.events import get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider, unpack_mock_call
-from nameko.amqp import get_queue_info
 
 
 EVENTS_TIMEOUT = 5

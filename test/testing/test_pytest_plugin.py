@@ -4,7 +4,6 @@ import pytest
 from kombu.messaging import Queue
 from six.moves import queue
 
-
 from nameko.amqp import get_connection, get_queue_info
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
