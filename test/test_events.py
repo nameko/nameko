@@ -98,7 +98,6 @@ def test_event_handler(queue_consumer, mock_container):
 
     assert event_handler.queue.name == (
         "evt-srcservice-eventtype--destservice.foobar")
-    assert event_handler.queue.exclusive is False
 
     # test broadcast handler with default identifier
     with patch('nameko.events.uuid') as mock_uuid:
@@ -113,7 +112,6 @@ def test_event_handler(queue_consumer, mock_container):
 
     assert event_handler.queue.name == (
         "evt-srcservice-eventtype--destservice.foobar-{}".format("uuid-value"))
-    assert event_handler.queue.exclusive is True
 
     # test broadcast handler with custom identifier
     class BroadcastEventHandler(EventHandler):
@@ -128,7 +126,6 @@ def test_event_handler(queue_consumer, mock_container):
 
     assert event_handler.queue.name == (
         "evt-srcservice-eventtype--destservice.foobar-{}".format("testbox"))
-    assert event_handler.queue.exclusive is False
 
     # test singleton handler
     event_handler = EventHandler(
@@ -139,7 +136,6 @@ def test_event_handler(queue_consumer, mock_container):
     event_handler.setup()
 
     assert event_handler.queue.name == "evt-srcservice-eventtype"
-    assert event_handler.queue.exclusive is False
 
     # test reliable delivery
     event_handler = EventHandler(
