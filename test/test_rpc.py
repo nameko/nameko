@@ -624,9 +624,18 @@ class TestRpcConsumerDisconnections(object):
         with ServiceRpcProxy('service', rabbit_config) as proxy:
             yield proxy
 
+    @pytest.fixture
+    def lock(self):
+        return eventlet.Semaphore()
+
+    @pytest.fixture
+    def tracker(self):
+        return Mock()
+
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_queue_consumer
+        self, container_factory, rabbit_config, toxic_queue_consumer, lock,
+        tracker
     ):
 
         class Service(object):
@@ -634,6 +643,9 @@ class TestRpcConsumerDisconnections(object):
 
             @rpc
             def echo(self, arg):
+                lock.acquire()
+                lock.release()
+                tracker(arg)
                 return arg
 
         # very fast heartbeat
@@ -774,9 +786,28 @@ class TestRpcConsumerDisconnections(object):
         # connection re-established
         assert service_rpc.echo("foo") == "foo"
 
+    def test_message_ack_regression(
+        self, container, service_rpc, toxiproxy, lock, tracker
+    ):
+        """ Regression for https://github.com/nameko/nameko/issues/511
+        """
+        # prevent workers from completing
+        lock.acquire()
 
-class TestReplyListenerDisconnections(object):
-    pass
+        # fire entrypoint and block the worker;
+        # break connection while the worker is active, then release
+        res = service_rpc.echo.call_async("foo")
+        while not lock._waiters:
+            eventlet.sleep()
+        toxiproxy.disable()
+        lock.release()
+        toxiproxy.enable()
+
+        # reply will be received after the consumer reconnects
+        assert res.result() == "foo"
+
+        # connection re-established, container should work again
+        assert service_rpc.echo("foo") == "foo"
 
 
 @skip_if_no_toxiproxy
