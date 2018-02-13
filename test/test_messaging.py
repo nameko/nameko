@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import itertools
 import socket
 from contextlib import contextmanager
 
@@ -489,9 +490,18 @@ class TestConsumerDisconnections(object):
                 )
         return publish
 
+    @pytest.fixture
+    def lock(self):
+        return eventlet.Semaphore()
+
+    @pytest.fixture
+    def tracker(self):
+        return Mock()
+
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_queue_consumer, queue
+        self, container_factory, rabbit_config, toxic_queue_consumer, queue,
+        lock, tracker
     ):
 
         class Service(object):
@@ -499,6 +509,9 @@ class TestConsumerDisconnections(object):
 
             @consume(queue)
             def echo(self, arg):
+                lock.acquire()
+                lock.release()
+                tracker(arg)
                 return arg
 
         # very fast heartbeat
@@ -656,6 +669,28 @@ class TestConsumerDisconnections(object):
         with entrypoint_waiter(container, 'echo') as result:
             publish(msg)
         assert result.get() == msg
+
+    def test_message_ack_regression(
+        self, container, publish, toxiproxy, lock, tracker
+    ):
+        """ Regression for https://github.com/nameko/nameko/issues/511
+        """
+        # prevent workers from completing
+        lock.acquire()
+
+        # fire entrypoint and block the worker;
+        # break connection while the worker is active, then release
+        publish('foo')
+        while not lock._waiters:
+            eventlet.sleep()
+        toxiproxy.disable()
+        lock.release()
+        toxiproxy.enable()
+
+        # connection re-established, container should work again
+        with entrypoint_waiter(container, 'echo', timeout=1) as result:
+            publish('foo')
+        assert result.get() == 'foo'
 
 
 @skip_if_no_toxiproxy
