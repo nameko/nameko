@@ -310,12 +310,18 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
         super(QueueConsumer, self).unregister_provider(provider)
 
-    @retry(for_exceptions=RecoverableConnectionError, max_attempts=3)
     def ack_message(self, message):
+        if not message.channel.connection:
+            # don't attempt to ack if the message connection is gone;
+            # the message will already have been reclaimed by the broker
+            return
         message.ack()
 
-    @retry(for_exceptions=RecoverableConnectionError, max_attempts=3)
     def requeue_message(self, message):
+        if not message.channel.connection:
+            # don't attempt to requeue if the message connection is gone;
+            # the message will already have been reclaimed by the broker
+            return
         message.requeue()
 
     def _cancel_consumers_if_requested(self):
@@ -466,7 +472,8 @@ class Consumer(Entrypoint, HeaderDecoder):
         if exc_info is not None and self.requeue_on_error:
             self.queue_consumer.requeue_message(message)
         else:
-            self.queue_consumer.ack_message(message)
+            import eventlet
+            eventlet.spawn(self.queue_consumer.ack_message, message)
 
 
 consume = Consumer.decorator
