@@ -472,8 +472,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         if exc_info is not None and self.requeue_on_error:
             self.queue_consumer.requeue_message(message)
         else:
-            import eventlet
-            eventlet.spawn(self.queue_consumer.ack_message, message)
+            self.queue_consumer.ack_message(message)
 
 
 consume = Consumer.decorator
