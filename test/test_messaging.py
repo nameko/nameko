@@ -682,7 +682,7 @@ class TestConsumerDisconnections(object):
         # break connection while the worker is active, then release
         publish('foo')
         while not lock._waiters:
-            eventlet.sleep()
+            eventlet.sleep()  # pragma: no cover
         toxiproxy.disable()
         lock.release()
         toxiproxy.enable()

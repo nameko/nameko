@@ -799,7 +799,7 @@ class TestRpcConsumerDisconnections(object):
         # break connection while the worker is active, then release
         res = service_rpc.echo.call_async("foo")
         while not lock._waiters:
-            eventlet.sleep()
+            eventlet.sleep()  # pragma: no cover
         toxiproxy.disable()
         lock.release()
         toxiproxy.enable()
