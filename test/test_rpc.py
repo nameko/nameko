@@ -802,6 +802,8 @@ class TestRpcConsumerDisconnections(object):
             while not lock._waiters:
                 eventlet.sleep()  # pragma: no cover
             toxiproxy.disable()
+            # allow connection to close before releasing worker
+            eventlet.sleep(.1)
             lock.release()
 
         # entrypoint will return and reply will be received,
