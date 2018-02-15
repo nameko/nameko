@@ -692,6 +692,49 @@ class TestConsumerDisconnections(object):
             publish('foo')
         assert result.get() == 'foo'
 
+    def test_message_requeue_regression(
+        self, container, publish, toxiproxy, lock, tracker
+    ):
+        """ Regression for https://github.com/nameko/nameko/issues/511
+        """
+        # turn on requeue_on_error
+        consumer = get_extension(container, Consumer)
+        consumer.requeue_on_error = True
+
+        # make entrypoint raise the first time it's called
+        class Boom(Exception):
+            pass
+
+        def error_once():
+            yield Boom("error")
+            while True:
+                yield
+        tracker.side_effect = error_once()
+
+        # prevent workers from completing
+        lock.acquire()
+
+        # fire entrypoint and block the worker;
+        # break connection while the worker is active, then release
+        with entrypoint_waiter(container, 'echo') as result:
+            publish('msg1')
+            while not lock._waiters:
+                eventlet.sleep()  # pragma: no cover
+            toxiproxy.disable()
+            lock.release()
+        with pytest.raises(Boom):
+            result.get()
+
+        # when connection is re-established, message will be handled again
+        with entrypoint_waiter(container, 'echo', timeout=1) as result:
+            toxiproxy.enable()
+        assert result.get() == 'msg1'
+
+        # container should work normally again
+        with entrypoint_waiter(container, 'echo', timeout=1) as result:
+            publish('msg2')
+        assert result.get() == 'msg2'
+
 
 @skip_if_no_toxiproxy
 class TestPublisherDisconnections(object):
