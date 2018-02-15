@@ -24,7 +24,7 @@ from nameko.rpc import (
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
-    dummy, entrypoint_hook, restrict_entrypoints
+    dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints
 )
 from nameko.testing.utils import get_extension, unpack_mock_call, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
@@ -796,19 +796,27 @@ class TestRpcConsumerDisconnections(object):
         lock.acquire()
 
         # fire entrypoint and block the worker;
-        # break connection while the worker is active, then release
-        res = service_rpc.echo.call_async("foo")
-        while not lock._waiters:
-            eventlet.sleep()  # pragma: no cover
-        toxiproxy.disable()
-        lock.release()
-        toxiproxy.enable()
+        # break connection while the worker is active, then release worker
+        with entrypoint_waiter(container, 'echo') as result:
+            res = service_rpc.echo.call_async("msg1")
+            while not lock._waiters:
+                eventlet.sleep()  # pragma: no cover
+            toxiproxy.disable()
+            lock.release()
 
-        # reply will be received after the consumer reconnects
-        assert res.result() == "foo"
+        # entrypoint will return and reply will be received,
+        # but the initiating message will not be ack'd
+        assert result.get() == "msg1"
+        assert res.result() == "msg1"
+
+        # enabling connection will re-deliver the initiating message
+        # and it will be processed again
+        with entrypoint_waiter(container, 'echo') as result:
+            toxiproxy.enable()
+        assert result.get() == "msg1"
 
         # connection re-established, container should work again
-        assert service_rpc.echo("foo") == "foo"
+        assert service_rpc.echo("msg2") == "msg2"
 
 
 @skip_if_no_toxiproxy

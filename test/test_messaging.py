@@ -679,18 +679,27 @@ class TestConsumerDisconnections(object):
         lock.acquire()
 
         # fire entrypoint and block the worker;
-        # break connection while the worker is active, then release
-        publish('foo')
-        while not lock._waiters:
-            eventlet.sleep()  # pragma: no cover
-        toxiproxy.disable()
-        lock.release()
-        toxiproxy.enable()
+        # break connection while the worker is active, then release worker
+        with entrypoint_waiter(container, 'echo') as result:
+            publish('msg1')
+            while not lock._waiters:
+                eventlet.sleep()  # pragma: no cover
+            toxiproxy.disable()
+            lock.release()
+
+        # entrypoint will return and attempt to ack initiating message
+        assert result.get() == "msg1"
+
+        # enabling connection will re-deliver the initiating message
+        # and it will be processed again
+        with entrypoint_waiter(container, 'echo') as result:
+            toxiproxy.enable()
+        assert result.get() == "msg1"
 
         # connection re-established, container should work again
         with entrypoint_waiter(container, 'echo', timeout=1) as result:
-            publish('foo')
-        assert result.get() == 'foo'
+            publish('msg2')
+        assert result.get() == 'msg2'
 
     def test_message_requeue_regression(
         self, container, publish, toxiproxy, lock, tracker
@@ -701,7 +710,8 @@ class TestConsumerDisconnections(object):
         consumer = get_extension(container, Consumer)
         consumer.requeue_on_error = True
 
-        # make entrypoint raise the first time it's called
+        # make entrypoint raise the first time it's called so that
+        # we attempt to requeue it
         class Boom(Exception):
             pass
 
@@ -715,22 +725,25 @@ class TestConsumerDisconnections(object):
         lock.acquire()
 
         # fire entrypoint and block the worker;
-        # break connection while the worker is active, then release
+        # break connection while the worker is active, then release worker
         with entrypoint_waiter(container, 'echo') as result:
             publish('msg1')
             while not lock._waiters:
                 eventlet.sleep()  # pragma: no cover
             toxiproxy.disable()
             lock.release()
+
+        # entrypoint will return and attempt to requeue initiating message
         with pytest.raises(Boom):
             result.get()
 
-        # when connection is re-established, message will be handled again
+        # enabling connection will re-deliver the initiating message
+        # and it will be processed again
         with entrypoint_waiter(container, 'echo', timeout=1) as result:
             toxiproxy.enable()
         assert result.get() == 'msg1'
 
-        # container should work normally again
+        # connection re-established, container should work again
         with entrypoint_waiter(container, 'echo', timeout=1) as result:
             publish('msg2')
         assert result.get() == 'msg2'
