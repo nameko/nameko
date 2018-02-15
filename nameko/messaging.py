@@ -8,7 +8,6 @@ from functools import partial
 from logging import getLogger
 
 import six
-from amqp.exceptions import RecoverableConnectionError
 from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
@@ -25,7 +24,6 @@ from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
 )
-from nameko.utils.retry import retry
 
 
 _log = getLogger(__name__)
