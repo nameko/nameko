@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import eventlet
 import pytest
+from eventlet.semaphore import Semaphore
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
@@ -491,7 +492,7 @@ class TestConsumerDisconnections(object):
 
     @pytest.fixture
     def lock(self):
-        return eventlet.Semaphore()
+        return Semaphore()
 
     @pytest.fixture
     def tracker(self):

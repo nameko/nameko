@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import eventlet
 import pytest
 from eventlet.event import Event
+from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
@@ -626,7 +627,7 @@ class TestRpcConsumerDisconnections(object):
 
     @pytest.fixture
     def lock(self):
-        return eventlet.Semaphore()
+        return Semaphore()
 
     @pytest.fixture
     def tracker(self):
