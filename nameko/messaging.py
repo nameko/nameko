@@ -8,6 +8,7 @@ from functools import partial
 from logging import getLogger
 
 import six
+from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
@@ -309,18 +310,22 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         super(QueueConsumer, self).unregister_provider(provider)
 
     def ack_message(self, message):
-        if not message.channel.connection:
-            # don't attempt to ack if the message connection is gone;
-            # the message will already have been reclaimed by the broker
-            return
-        message.ack()
+        # only attempt to ack if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.ack()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
 
     def requeue_message(self, message):
-        if not message.channel.connection:
-            # don't attempt to requeue if the message connection is gone;
-            # the message will already have been reclaimed by the broker
-            return
-        message.requeue()
+        # only attempt to requeue if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.requeue()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
 
     def _cancel_consumers_if_requested(self):
         provider_remove_events = self._pending_remove_providers.items()
