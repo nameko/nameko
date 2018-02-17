@@ -4,7 +4,6 @@ import sys
 import uuid
 from types import ModuleType
 
-import eventlet
 import pytest
 import requests
 from mock import ANY, patch
@@ -161,7 +160,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     yield controller
     controller.reset()
 
-    
+
 @pytest.yield_fixture
 def fake_module():
     module = ModuleType("fake_module")
