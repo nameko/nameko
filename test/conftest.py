@@ -161,13 +161,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     yield controller
     controller.reset()
 
-    # delete proxy
-    # allow some grace period to ensure we don't remove the proxy before
-    # other fixtures have torn down
-    resource = 'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
-    eventlet.spawn_after(10, requests.delete, resource)
-
-
+    
 @pytest.yield_fixture
 def fake_module():
     module = ModuleType("fake_module")
