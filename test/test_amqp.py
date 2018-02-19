@@ -7,7 +7,7 @@ from kombu.messaging import Queue
 from nameko.constants import DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 from nameko.events import event_handler, EventHandler
 from nameko.messaging import consume, Consumer
-from nameko.rpc import RpcConsumer, RpcProxy, rpc
+from nameko.rpc import ReplyListener, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import get_extension
@@ -93,6 +93,8 @@ class TestHeartbeats(object):
         class Service(object):
             name = "service"
 
+            upstream_rpc = RpcProxy("upstream")
+
             @consume(queue=Queue(name="queue"))
             @event_handler("service", "event")
             @rpc
@@ -102,7 +104,7 @@ class TestHeartbeats(object):
         return Service
 
     @pytest.mark.parametrize(
-        'extension_cls', [Consumer, EventHandler, RpcConsumer]
+        'extension_cls', [Consumer, EventHandler, RpcConsumer, ReplyListener]
     )
     def test_default(
         self, extension_cls, service_cls, container_factory, rabbit_config
@@ -116,7 +118,7 @@ class TestHeartbeats(object):
 
     @pytest.mark.parametrize("heartbeat", [30, None])
     @pytest.mark.parametrize(
-        'extension_cls', [Consumer, EventHandler, RpcConsumer]
+        'extension_cls', [Consumer, EventHandler, RpcConsumer, ReplyListener]
     )
     def test_config_value(
         self, extension_cls, heartbeat, service_cls, container_factory,
