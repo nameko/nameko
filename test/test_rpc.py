@@ -10,7 +10,9 @@ from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
 from six.moves import queue
 
-from nameko.constants import HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+from nameko.constants import (
+    DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
@@ -23,9 +25,7 @@ from nameko.rpc import (
     Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
 )
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import (
-    dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints
-)
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import get_extension, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 
@@ -1821,6 +1821,40 @@ class TestConfigurability(object):
         assert publish_params['mandatory'] is True
         assert publish_params['reply_to'] == str(uuid1)
         assert publish_params['correlation_id'] == str(uuid2)
+
+
+class TestHeartbeats(object):
+
+    @pytest.fixture
+    def service_cls(self):
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                return arg  # pragma: no cover
+
+        return Service
+
+    def test_default(self, service_cls, container_factory, rabbit_config):
+
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        rpc_consumer = get_extension(container, RpcConsumer)
+        assert rpc_consumer.connection.heartbeat == DEFAULT_HEARTBEAT
+
+    @pytest.mark.parametrize("heartbeat", [30, None])
+    def test_config_value(
+        self, heartbeat, service_cls, container_factory, rabbit_config
+    ):
+        rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
+
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        rpc_consumer = get_extension(container, RpcConsumer)
+        assert rpc_consumer.connection.heartbeat == heartbeat
 
 
 def test_prefetch_throughput(container_factory, rabbit_config):

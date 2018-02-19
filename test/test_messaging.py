@@ -13,7 +13,9 @@ from mock import Mock, call, patch
 from six.moves import queue
 
 from nameko.amqp import get_producer
-from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.messaging import (
     Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume
@@ -1130,3 +1132,37 @@ class TestPrefetchCount(object):
 
         # release the waiting consumer
         consumer_continue.send(None)
+
+
+class TestHeartbeats(object):
+
+    @pytest.fixture
+    def service_cls(self):
+        class Service(object):
+            name = "service"
+
+            @consume(queue=Queue(name="queue"))
+            def echo(self, arg):
+                return arg  # pragma: no cover
+
+        return Service
+
+    def test_default(self, service_cls, container_factory, rabbit_config):
+
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        consumer = get_extension(container, Consumer)
+        assert consumer.connection.heartbeat == DEFAULT_HEARTBEAT
+
+    @pytest.mark.parametrize("heartbeat", [30, None])
+    def test_config_value(
+        self, heartbeat, service_cls, container_factory, rabbit_config
+    ):
+        rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
+
+        container = container_factory(service_cls, rabbit_config)
+        container.start()
+
+        rpc_consumer = get_extension(container, Consumer)
+        assert rpc_consumer.connection.heartbeat == heartbeat
