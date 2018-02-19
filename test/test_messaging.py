@@ -1132,37 +1132,3 @@ class TestPrefetchCount(object):
 
         # release the waiting consumer
         consumer_continue.send(None)
-
-
-class TestHeartbeats(object):
-
-    @pytest.fixture
-    def service_cls(self):
-        class Service(object):
-            name = "service"
-
-            @consume(queue=Queue(name="queue"))
-            def echo(self, arg):
-                return arg  # pragma: no cover
-
-        return Service
-
-    def test_default(self, service_cls, container_factory, rabbit_config):
-
-        container = container_factory(service_cls, rabbit_config)
-        container.start()
-
-        consumer = get_extension(container, Consumer)
-        assert consumer.connection.heartbeat == DEFAULT_HEARTBEAT
-
-    @pytest.mark.parametrize("heartbeat", [30, None])
-    def test_config_value(
-        self, heartbeat, service_cls, container_factory, rabbit_config
-    ):
-        rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
-
-        container = container_factory(service_cls, rabbit_config)
-        container.start()
-
-        rpc_consumer = get_extension(container, Consumer)
-        assert rpc_consumer.connection.heartbeat == heartbeat
