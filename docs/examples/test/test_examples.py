@@ -32,6 +32,22 @@ class TestHttp(object):
         assert res.status_code == 200
         assert res.text == u'received: 你好'
 
+        res = web_session.get("/multi")
+        assert res.status_code == 200
+        assert res.text == 'GET'
+
+        res = web_session.put("/multi")
+        assert res.status_code == 200
+        assert res.text == 'PUT'
+
+        res = web_session.post("/multi")
+        assert res.status_code == 200
+        assert res.text == 'POST'
+
+        res = web_session.delete("/multi")
+        assert res.status_code == 200
+        assert res.text == 'DELETE'
+
     def test_advanced(self, container_factory, web_config, web_session):
 
         from examples.advanced_http import Service

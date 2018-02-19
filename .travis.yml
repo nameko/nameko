@@ -79,38 +79,41 @@ matrix:
     - stage: test
       python: 3.6
       env: TOX_ENV=py36-latest-lib
+    - stage: deploy
+      script: skip
+      deploy:
+        provider: pypi
+        user: onefinestay
+        password:
+          secure: Mwinp9cxGaGe/KjGFcO+T7MAgLvy5yFNeYCq9zpGniuSXsp/AFH3JIS1kWBv71tMC8S2N5kwRMVXoHNMqJt+Iq/EmYIY6vbMK8GijAUqLo8KsbxgmigWTXTn6IHKDO4gwYmQt8BDYJmbq6CNeVVCHMxWyP0Y24S25y7N35oIroU=
+        on:
+          tags: true
+          repo: nameko/nameko
+        distributions: "sdist bdist_wheel"
     - stage: mastereventlet
       python: 2.7
-      env: TOX_ENV=py27-mastereventlet-lib
+      env: TOX_ENV=py27-mastereventlet
     - stage: mastereventlet
       python: 3.4
-      env: TOX_ENV=py34-mastereventlet-lib
+      env: TOX_ENV=py34-mastereventlet
     - stage: mastereventlet
       python: 3.5
-      env: TOX_ENV=py35-mastereventlet-lib
+      env: TOX_ENV=py35-mastereventlet
     - stage: mastereventlet
       python: 3.6
-      env: TOX_ENV=py36-mastereventlet-lib
+      env: TOX_ENV=py36-mastereventlet
     - stage: branchcoverage
       python: 3.6
       env: TOX_ENV=py36-branchcoverage-lib
   fast_finish: true
   allow_failures:
-    - env: TOX_ENV=py27-mastereventlet-lib
-    - env: TOX_ENV=py34-mastereventlet-lib
-    - env: TOX_ENV=py35-mastereventlet-lib
-    - env: TOX_ENV=py36-mastereventlet-lib
+    - env: TOX_ENV=py27-mastereventlet
+    - env: TOX_ENV=py34-mastereventlet
+    - env: TOX_ENV=py35-mastereventlet
+    - env: TOX_ENV=py36-mastereventlet
     - env: TOX_ENV=py36-branchcoverage-lib
 
 script:
   - tox -e $TOX_ENV
 
-deploy:
-  provider: pypi
-  user: onefinestay
-  password:
-    secure: Mwinp9cxGaGe/KjGFcO+T7MAgLvy5yFNeYCq9zpGniuSXsp/AFH3JIS1kWBv71tMC8S2N5kwRMVXoHNMqJt+Iq/EmYIY6vbMK8GijAUqLo8KsbxgmigWTXTn6IHKDO4gwYmQt8BDYJmbq6CNeVVCHMxWyP0Y24S25y7N35oIroU=
-  on:
-    tags: true
-    repo: nameko/nameko
-  distributions: "sdist bdist_wheel"
+

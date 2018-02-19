@@ -17,6 +17,7 @@ from nameko.constants import (
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
+from nameko.testing.waiting import wait_for_call
 
 from test.sample import Service
 
@@ -35,8 +36,10 @@ def test_run(rabbit_config):
         0,
         'test.sample:Service',
     ])
-    gt = eventlet.spawn(main, args)
-    eventlet.sleep(1)
+
+    # start runner and wait for it to come up
+    with wait_for_call(ServiceRunner, 'start'):
+        gt = eventlet.spawn(main, args)
 
     # make sure service launches ok
     with ClusterRpcProxy(rabbit_config) as proxy:
@@ -116,8 +119,9 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
         'test.sample',
     ])
 
-    gt = eventlet.spawn(main, args)
-    eventlet.sleep(1)
+    # start runner and wait for it to come up
+    with wait_for_call(ServiceRunner, 'start'):
+        gt = eventlet.spawn(main, args)
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         proxy.service.ping()

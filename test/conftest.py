@@ -53,8 +53,7 @@ def toxiproxy_server():
     host = TOXIPROXY_HOST
     port = TOXIPROXY_PORT
     server = subprocess.Popen(
-        ['toxiproxy-server', '-port', str(port), '-host', host],
-        stdout=subprocess.PIPE
+        ['toxiproxy-server', '-port', str(port), '-host', host]
     )
 
     class NotReady(Exception):

@@ -6,6 +6,52 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.8.4
+-------------
+
+Released: 2018-02-18
+
+* Fixes a bug where the container crashed if the connection to RabbitMQ
+  was lost while an AMQP entrypoint was running (#511)
+* Correction to WorkerContext.immediate_call_id which actually referred
+  to the id of original call. Adds WorkerContext.origin_call_id to
+  replicate the previous behaviour.
+
+Version 2.8.3
+-------------
+
+Released: 2018-01-12
+
+* Restrict eventlet to <0.22.0 until we're compatible.
+
+Version 2.8.2
+-------------
+
+Released: 2017-12-11
+
+* Remove the pytest `--log-level` argument added by the pytest plugin since
+  this conflicts with newer versions of `pytest` (`>= 3.3.0`). For older
+  versions this can be restored by installing the `pytest-catchlog` package.
+
+
+Version 2.8.1
+-------------
+
+Released: 2017-11-29
+
+* Added the 'show-config' command which will print the service configuration
+  to the console, after environment variable substitution.
+
+
+Version 2.8.0
+-------------
+
+Released: 2017-10-31
+
+* Environment variables substituted into config files are now interpreted
+  as YAML rather than bare values, allowing use of rich data types.
+
+
 Version 2.7.0
 -------------
 

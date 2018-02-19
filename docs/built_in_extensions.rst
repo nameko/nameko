@@ -43,10 +43,19 @@ An example of using the ``BROADCAST`` mode:
 
 Events are serialized into JSON for transport over the wire.
 
-HTTP GET & POST
+HTTP
 ---------------
 
-Nameko's HTTP entrypoint supports simple GET and POST:
+The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_, and supports all the standard HTTP methods (GET/POST/DELETE/PUT etc)
+
+The HTTP entrypoint can specify multiple HTTP methods for a single URL as a comma-separated list. See example below.
+
+Service methods must return one of:
+
+- a string, which becomes the response body
+- a 2-tuple ``(status code, response body)``
+- a 3-tuple ``(status_code, headers dict, response body)``
+- an instance of :class:`werkzeug.wrappers.Response`
 
 .. literalinclude:: examples/http.py
 
@@ -75,13 +84,7 @@ Nameko's HTTP entrypoint supports simple GET and POST:
 
     received: post body
 
-
-The HTTP entrypoint is built on top of `werkzeug <http://werkzeug.pocoo.org/>`_. Service methods must return one of:
-
-- a string, which becomes the response body
-- a 2-tuple ``(status code, response body)``
-- a 3-tuple ``(status_code, headers dict, response body)``
-- an instance of :class:`werkzeug.wrappers.Response`
+A more advanced example:
 
 .. literalinclude:: examples/advanced_http.py
 
@@ -127,7 +130,14 @@ You can control formatting of errors returned from your service by overriding :m
 
     {"message": "Argument `foo` is required.", "error": "INVALID_ARGUMENTS"}
 
+You can change the HTTP port and IP using the `WEB_SERVER_ADDRESS` config setting:
 
+.. code-block:: yaml
+
+    # foobar.yaml
+
+    AMQP_URI: 'pyamqp://guest:guest@localhost'
+    WEB_SERVER_ADDRESS: '0.0.0.0:8000'
 
 Timer
 -----

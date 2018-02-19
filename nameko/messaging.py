@@ -8,7 +8,7 @@ from functools import partial
 from logging import getLogger
 
 import six
-from amqp.exceptions import RecoverableConnectionError
+from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
@@ -26,7 +26,6 @@ from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
 )
-from nameko.utils.retry import retry
 
 
 _log = getLogger(__name__)
@@ -314,13 +313,23 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
         super(QueueConsumer, self).unregister_provider(provider)
 
-    @retry(for_exceptions=RecoverableConnectionError, max_attempts=3)
     def ack_message(self, message):
-        message.ack()
+        # only attempt to ack if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.ack()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
 
-    @retry(for_exceptions=RecoverableConnectionError, max_attempts=3)
     def requeue_message(self, message):
-        message.requeue()
+        # only attempt to requeue if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.requeue()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
 
     def _cancel_consumers_if_requested(self):
         provider_remove_events = self._pending_remove_providers.items()
