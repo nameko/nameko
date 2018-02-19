@@ -125,15 +125,12 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
 
     entrypoint.setup()
     consumer.setup()
-    # queue_consumer.setup()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
     assert queue.routing_key == "exampleservice.*"
     assert queue.exchange == exchange
     assert queue.durable
-
-    # queue_consumer.register_provider.assert_called_once_with(consumer)
 
     consumer.register_provider(entrypoint)
     assert consumer._providers == set([entrypoint])
@@ -147,27 +144,6 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
 
     consumer.unregister_provider(entrypoint)
     assert consumer._providers == set()
-
-
-# def test_rpc_consumer_unregisters_if_no_providers(
-#     container_factory, rabbit_config
-# ):
-#     class Service(object):
-#         name = "service"
-
-#         @rpc
-#         def method(self):
-#             pass  # pragma: no cover
-
-#     container = container_factory(Service, rabbit_config)
-#     restrict_entrypoints(container)  # disable 'method' entrypoint
-
-#     rpc_consumer = get_extension(container, RpcConsumer)
-#     with patch.object(rpc_consumer, 'queue_consumer') as queue_consumer:
-#         rpc_consumer.stop()
-
-#     assert queue_consumer.unregister_provider.called
-#     assert rpc_consumer._unregistered_from_queue_consumer.ready()
 
 
 def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
@@ -306,8 +282,9 @@ class TestProxy(object):
 # =============================================================================
 
 
-def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
-                                              rabbit_manager):
+def test_rpc_consumer_connections(
+    container_factory, rabbit_config, rabbit_manager
+):
 
     class ExampleService(object):
         name = 'exampleservice'
@@ -339,12 +316,13 @@ def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
     reply_queue = rabbit_manager.get_queue(vhost, reply_queue_name)
     assert len(reply_queue['consumer_details']) == 1
 
-    # and share a single connection -- NO: reply listener uses queue consumer still,  rpcconsumer does not
-    # consumer_connection_names = set(
-    #     queue['consumer_details'][0]['channel_details']['connection_name']
-    #     for queue in [rpc_queue, reply_queue]
-    # )
-    # assert len(consumer_connection_names) == 1
+    # with one connection each
+    # (connection sharing not supported until we migrate away from kombu)
+    consumer_connection_names = set(
+        queue['consumer_details'][0]['channel_details']['connection_name']
+        for queue in [rpc_queue, reply_queue]
+    )
+    assert len(consumer_connection_names) == 2
 
 
 def test_rpc_args_kwargs(container_factory, rabbit_config):
@@ -614,7 +592,6 @@ def test_rpc_container_being_killed_retries(
     assert waiter.wait() == 'result_a'  # now completed
 
 
-# TODO: this just fails now, and should not.
 def test_rpc_consumer_sharing(container_factory, rabbit_config,
                               rabbit_manager):
     """ Verify that the RpcConsumer stops when the first provider unregisters

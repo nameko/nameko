@@ -1110,8 +1110,8 @@ class TestPrefetchCount(object):
         consumer_continue = Event()
 
         # the two handlers would ordinarily take alternating messages, but are
-        # limited to holding one un-ACKed message. Since Handler1 never ACKs, it
-        # only ever gets one message, and Handler2 gets the others.
+        # limited to holding one un-ACKed message. Since Handler1 never ACKs,
+        # it only ever gets one message, and Handler2 gets the others.
 
         def wait_for_expected(worker_ctx, res, exc_info):
             return {'m3', 'm4', 'm5'}.issubset(set(messages))
