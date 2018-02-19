@@ -62,11 +62,14 @@ def empty_config():
 @pytest.fixture
 def mock_container(request, empty_config):
     from mock import create_autospec
-    from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+    from nameko.constants import (
+        AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+    )
     from nameko.containers import ServiceContainer
 
     container = create_autospec(ServiceContainer)
     container.config = empty_config
+    container.config[AMQP_URI_CONFIG_KEY] = 'memory://localhost'
     container.config[SERIALIZER_CONFIG_KEY] = DEFAULT_SERIALIZER
     container.serializer = container.config[SERIALIZER_CONFIG_KEY]
     container.accept = [DEFAULT_SERIALIZER]

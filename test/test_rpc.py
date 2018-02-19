@@ -310,23 +310,29 @@ class TestProxy(object):
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
                                               rabbit_manager):
+
+    class ExampleService(object):
+        name = 'exampleservice'
+
+        other_rpc = RpcProxy('other')
+
+        @rpc
+        def echo(self, arg):
+            return arg
+
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    # we should have 3 queues:
+    # we should have 2 queues:
     #   * RPC requests
     #   * RPC replies
-    #   * events
     vhost = rabbit_config['vhost']
     queues = rabbit_manager.get_queues(vhost)
-    assert len(queues) == 3
+    assert len(queues) == 2
 
     # each one should have one consumer
     rpc_queue = rabbit_manager.get_queue(vhost, "rpc-exampleservice")
     assert len(rpc_queue['consumer_details']) == 1
-    evt_queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--exampleservice.async_task")
-    assert len(evt_queue['consumer_details']) == 1
 
     queue_names = [queue['name'] for queue in queues]
     reply_queue_names = [name for name in queue_names if 'rpc.reply' in name]
@@ -338,7 +344,7 @@ def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
     # and share a single connection
     consumer_connection_names = set(
         queue['consumer_details'][0]['channel_details']['connection_name']
-        for queue in [rpc_queue, evt_queue, reply_queue]
+        for queue in [rpc_queue, reply_queue]
     )
     assert len(consumer_connection_names) == 1
 

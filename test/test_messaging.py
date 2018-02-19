@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import eventlet
 import pytest
 from eventlet.semaphore import Semaphore
+from eventlet.event import Event
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
@@ -14,9 +15,8 @@ from six.moves import queue
 from nameko.amqp import get_producer
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
-from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
-    Consumer, HeaderDecoder, HeaderEncoder, Publisher, QueueConsumer, consume
+    Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume
 )
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
@@ -37,67 +37,6 @@ CONSUME_TIMEOUT = 1.2  # a bit more than 1 second
 def patch_maybe_declare():
     with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
         yield patched
-
-
-def test_consume_provider(mock_container):
-
-    container = mock_container
-    container.shared_extensions = {}
-    container.service_name = "service"
-
-    worker_ctx = WorkerContext(container, None, DummyProvider())
-
-    spawn_worker = container.spawn_worker
-    spawn_worker.return_value = worker_ctx
-
-    queue_consumer = Mock()
-
-    consume_provider = Consumer(
-        queue=foobar_queue, requeue_on_error=False).bind(container, "consume")
-    consume_provider.queue_consumer = queue_consumer
-
-    message = Mock(headers={})
-
-    # test lifecycle
-    consume_provider.setup()
-    queue_consumer.register_provider.assert_called_once_with(
-        consume_provider)
-
-    consume_provider.stop()
-    queue_consumer.unregister_provider.assert_called_once_with(
-        consume_provider)
-
-    # test handling successful call
-    queue_consumer.reset_mock()
-    consume_provider.handle_message("body", message)
-    handle_result = spawn_worker.call_args[1]['handle_result']
-    handle_result(worker_ctx, 'result')
-    queue_consumer.ack_message.assert_called_once_with(message)
-
-    # test handling failed call without requeue
-    queue_consumer.reset_mock()
-    consume_provider.requeue_on_error = False
-    consume_provider.handle_message("body", message)
-    handle_result = spawn_worker.call_args[1]['handle_result']
-    handle_result(worker_ctx, None, (Exception, Exception('Error'), "tb"))
-    queue_consumer.ack_message.assert_called_once_with(message)
-
-    # test handling failed call with requeue
-    queue_consumer.reset_mock()
-    consume_provider.requeue_on_error = True
-    consume_provider.handle_message("body", message)
-    handle_result = spawn_worker.call_args[1]['handle_result']
-    handle_result(worker_ctx, None, (Exception, Exception('Error'), "tb"))
-    assert not queue_consumer.ack_message.called
-    queue_consumer.requeue_message.assert_called_once_with(message)
-
-    # test requeueing on ContainerBeingKilled (even without requeue_on_error)
-    queue_consumer.reset_mock()
-    consume_provider.requeue_on_error = False
-    spawn_worker.side_effect = ContainerBeingKilled()
-    consume_provider.handle_message("body", message)
-    assert not queue_consumer.ack_message.called
-    queue_consumer.requeue_message.assert_called_once_with(message)
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
@@ -350,11 +289,8 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     consumer = Consumer(
         queue=foobar_queue, requeue_on_error=False).bind(container, "publish")
 
-    # prepare and start extensions
     consumer.setup()
-    consumer.queue_consumer.setup()
     consumer.start()
-    consumer.queue_consumer.start()
 
     # test queue, exchange and binding created in rabbit
     exchanges = rabbit_manager.get_exchanges(vhost)
@@ -387,11 +323,7 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     # ack message
     handle_result(worker_ctx, 'result')
 
-    # stop will hang if the consumer hasn't acked or requeued messages
-    with eventlet.timeout.Timeout(CONSUME_TIMEOUT):
-        consumer.stop()
-
-    consumer.queue_consumer.kill()
+    consumer.stop()
 
 
 @skip_if_no_toxiproxy
@@ -412,13 +344,13 @@ class TestConsumerDisconnections(object):
                 yield conn
 
         with patch.object(
-            QueueConsumer, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
     @pytest.yield_fixture
-    def toxic_queue_consumer(self, toxiproxy):
-        with patch.object(QueueConsumer, 'amqp_uri', new=toxiproxy.uri):
+    def toxic_consumer(self, toxiproxy):
+        with patch.object(Consumer, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.fixture
@@ -470,6 +402,12 @@ class TestConsumerDisconnections(object):
         container = container_factory(Service, config)
         container.start()
 
+        # we have to let the container connect before disconnecting
+        # otherwise we end up in retry_over_time trying to make the
+        # initial connection; we get stuck there because it has a
+        # function-local copy of "on_connection_error" that is never patched
+        eventlet.sleep(.05)
+
         return container
 
     def test_normal(self, container, publish):
@@ -487,13 +425,13 @@ class TestConsumerDisconnections(object):
         Attempting to read from the closed socket raises a socket.error
         and the connection is re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        consumer = get_extension(container, Consumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.enable()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(consumer, 'on_connection_error', callback=reset):
             toxiproxy.disable()
 
         # connection re-established
@@ -513,13 +451,13 @@ class TestConsumerDisconnections(object):
         is longer than twice the heartbeat interval, the behaviour is the same
         as in `test_upstream_blackhole` below.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        consumer = get_extension(container, Consumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -539,13 +477,13 @@ class TestConsumerDisconnections(object):
         reads from the socket raise a socket.error, so the connection is
         re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        consumer = get_extension(container, Consumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -569,13 +507,13 @@ class TestConsumerDisconnections(object):
 
         See :meth:`kombu.messsaging.Consumer.__exit__`
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        consumer = get_extension(container, Consumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -604,13 +542,13 @@ class TestConsumerDisconnections(object):
         """
         pytest.skip("skip until kombu supports recovery in this scenario")
 
-        queue_consumer = get_extension(container, QueueConsumer)
+        consumer = get_extension(container, Consumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established
@@ -1130,3 +1068,65 @@ class TestConfigurability(object):
         publish("payload", use_confirms=True)
         (_, use_confirms), _ = get_producer.call_args
         assert use_confirms is True
+
+
+class TestPrefetchCount(object):
+
+    def test_prefetch_count(
+        self, rabbit_manager, rabbit_config, container_factory
+    ):
+
+        messages = []
+
+        exchange = Exchange('exchange')
+        queue = Queue('queue', exchange=exchange, auto_delete=False)
+
+        class SelfishConsumer1(Consumer):
+
+            def handle_message(self, body, message):
+                consumer_continue.wait()
+                super(SelfishConsumer1, self).handle_message(body, message)
+
+        class SelfishConsumer2(Consumer):
+
+            def handle_message(self, body, message):
+                messages.append(body)
+                super(SelfishConsumer2, self).handle_message(body, message)
+
+        class Service(object):
+            name = "service"
+
+            @SelfishConsumer1.decorator(queue=queue)
+            @SelfishConsumer2.decorator(queue=queue)
+            def handle(self, payload):
+                pass
+
+        rabbit_config['max_workers'] = 1
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        consumer_continue = Event()
+
+        # the two handlers would ordinarily take alternating messages, but are
+        # limited to holding one un-ACKed message. Since Handler1 never ACKs, it
+        # only ever gets one message, and Handler2 gets the others.
+
+        def wait_for_expected(worker_ctx, res, exc_info):
+            return {'m3', 'm4', 'm5'}.issubset(set(messages))
+
+        with entrypoint_waiter(
+            container, 'handle', callback=wait_for_expected
+        ):
+            vhost = rabbit_config['vhost']
+            properties = {'content_type': 'application/data'}
+            for message in ('m1', 'm2', 'm3', 'm4', 'm5'):
+                rabbit_manager.publish(
+                    vhost, 'exchange', '', message, properties=properties
+                )
+
+        # we don't know which handler picked up the first message,
+        # but all the others should've been handled by Handler2
+        assert messages[-3:] == ['m3', 'm4', 'm5']
+
+        # release the waiting consumer
+        consumer_continue.send(None)

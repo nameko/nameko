@@ -1,7 +1,6 @@
 import itertools
 import socket
 import time
-import uuid
 
 import eventlet
 import pytest
@@ -14,7 +13,7 @@ from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 )
 from nameko.events import event_handler
-from nameko.messaging import Consumer, QueueConsumer
+from nameko.messaging import QueueConsumer
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -250,66 +249,6 @@ def test_reconnect_on_socket_error(rabbit_config, mock_container):
 
     queue_consumer.unregister_provider(handler)
     queue_consumer.stop()
-
-
-def test_prefetch_count(rabbit_manager, rabbit_config, container_factory):
-
-    class NonShared(QueueConsumer):
-        @property
-        def sharing_key(self):
-            return uuid.uuid4()
-
-    messages = []
-
-    class SelfishConsumer1(Consumer):
-        queue_consumer = NonShared()
-
-        def handle_message(self, body, message):
-            consumer_continue.wait()
-            super(SelfishConsumer1, self).handle_message(body, message)
-
-    class SelfishConsumer2(Consumer):
-        queue_consumer = NonShared()
-
-        def handle_message(self, body, message):
-            messages.append(body)
-            super(SelfishConsumer2, self).handle_message(body, message)
-
-    class Service(object):
-        name = "service"
-
-        @SelfishConsumer1.decorator(queue=ham_queue)
-        @SelfishConsumer2.decorator(queue=ham_queue)
-        def handle(self, payload):
-            pass
-
-    rabbit_config['max_workers'] = 1
-    container = container_factory(Service, rabbit_config)
-    container.start()
-
-    consumer_continue = Event()
-
-    # the two handlers would ordinarily take alternating messages, but are
-    # limited to holding one un-ACKed message. Since Handler1 never ACKs, it
-    # only ever gets one message, and Handler2 gets the others.
-
-    def wait_for_expected(worker_ctx, res, exc_info):
-        return {'m3', 'm4', 'm5'}.issubset(set(messages))
-
-    with entrypoint_waiter(container, 'handle', callback=wait_for_expected):
-        vhost = rabbit_config['vhost']
-        properties = {'content_type': 'application/data'}
-        for message in ('m1', 'm2', 'm3', 'm4', 'm5'):
-            rabbit_manager.publish(
-                vhost, 'spam', '', message, properties=properties
-            )
-
-    # we don't know which handler picked up the first message,
-    # but all the others should've been handled by Handler2
-    assert messages[-3:] == ['m3', 'm4', 'm5']
-
-    # release the waiting consumer
-    consumer_continue.send(None)
 
 
 def test_kill_closes_connections(rabbit_manager, rabbit_config,

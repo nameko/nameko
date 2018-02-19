@@ -85,7 +85,6 @@ def test_event_handler(queue_consumer, mock_container):
     assert event_handler.queue.durable is True
     assert event_handler.queue.routing_key == "eventtype"
     assert event_handler.queue.exchange.name == "srcservice.events"
-    queue_consumer.register_provider.assert_called_once_with(event_handler)
 
     # test service pool handler
     event_handler = EventHandler(
@@ -329,6 +328,10 @@ def start_containers(request, container_factory, rabbit_config, reset_state):
             ct = container_factory(service_cls, rabbit_config)
             containers.append(ct)
             ct.start()
+
+            # TODO: wait for containers to start
+            # not required once multi-rabbit branch lands
+            time.sleep(1)
 
             request.addfinalizer(ct.stop)
 
