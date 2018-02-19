@@ -275,12 +275,11 @@ class Responder(object):
         return result, exc_info
 
 
-class ReplyListener(SharedExtension):
-
-    queue_consumer = QueueConsumer()
+class ReplyListener(SharedExtension, ConsumerMixin):
 
     def __init__(self, **kwargs):
         self.pending = {}
+        self.consumer_ready = Event()
         super(ReplyListener, self).__init__(**kwargs)
 
     def setup(self):
@@ -304,11 +303,63 @@ class ReplyListener(SharedExtension):
             }
         )
 
-        self.queue_consumer.register_provider(self)
+    def start(self):
+        self.should_stop = False
+        self.container.spawn_managed_thread(self.run)
+        self.consumer_ready.wait()
 
     def stop(self):
-        self.queue_consumer.unregister_provider(self)
-        super(ReplyListener, self).stop()
+        self.should_stop = False
+
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def serializer(self):
+        return self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+
+    @property
+    def connection(self):
+        """ Provide the connection parameters for kombu's ConsumerMixin.
+
+        The `Connection` object is a declaration of connection parameters
+        that is lazily evaluated. It doesn't represent an established
+        connection to the broker at this point.
+        """
+        heartbeat = self.container.config.get(
+            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+        )
+        return Connection(self.amqp_uri, heartbeat=heartbeat)
+
+    def on_connection_error(self, exc, interval):
+        _log.warning(
+            "Error connecting to broker at {} ({}).\n"
+            "Retrying in {} seconds.".format(self.amqp_uri, exc, interval)
+        )
+
+    def on_consume_ready(self, connection, channel, consumers, **kwargs):
+        """ Kombu callback when consumers are ready to accept messages.
+
+        Called after any (re)connection to the broker.
+        """
+        if not self.consumer_ready.ready():
+            _log.debug('consumer started %s', self)
+            self.consumer_ready.send(None)
+
+    def get_consumers(self, consumer_cls, channel):
+        """ Kombu callback to set up consumers.
+
+        Called after any (re)connection to the broker.
+        """
+        consumer = consumer_cls(
+            queues=[self.queue],
+            callbacks=[self.handle_message],
+            accept=[self.serializer]
+        )
+        return [consumer]
 
     def register_for_reply(self, correlation_id=None):
         if correlation_id is None:
@@ -319,8 +370,17 @@ class ReplyListener(SharedExtension):
 
         return RpcReply(reply_event.wait, correlation_id)
 
+    def ack_message(self, message):
+        # only attempt to ack if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.ack()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
+
     def handle_message(self, body, message):
-        self.queue_consumer.ack_message(message)
+        self.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
         reply_event = self.pending.pop(correlation_id, None)

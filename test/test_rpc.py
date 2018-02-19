@@ -7,7 +7,7 @@ from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
-from mock import Mock, call, create_autospec, patch
+from mock import Mock, call, patch
 from six.moves import queue
 
 from nameko.constants import HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
@@ -18,7 +18,6 @@ from nameko.exceptions import (
     ReplyQueueExpiredWithPendingReplies, UnknownService
 )
 from nameko.extensions import DependencyProvider
-from nameko.messaging import QueueConsumer
 from nameko.rpc import (
     Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
 )
@@ -99,15 +98,7 @@ def get_rpc_exchange():
         yield patched
 
 
-@pytest.yield_fixture
-def queue_consumer():
-    replacement = create_autospec(QueueConsumer)
-    with patch.object(QueueConsumer, 'bind') as mock_ext:
-        mock_ext.return_value = replacement
-        yield replacement
-
-
-def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
+def test_rpc_consumer(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
@@ -146,7 +137,7 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
     assert consumer._providers == set()
 
 
-def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
+def test_reply_listener(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
@@ -164,14 +155,14 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
         patched_uuid.uuid4.return_value = forced_uuid
 
         reply_listener.setup()
-        queue_consumer.setup()
+        # queue_consumer.setup()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
         assert queue.exchange == exchange
         assert queue.routing_key == forced_uuid
 
-    queue_consumer.register_provider.assert_called_once_with(reply_listener)
+    # queue_consumer.register_provider.assert_called_once_with(reply_listener)
 
     correlation_id = 1
     rpc_reply = reply_listener.register_for_reply(correlation_id)
@@ -185,7 +176,7 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
     message.properties.get.return_value = correlation_id
     reply_listener.handle_message(payload, message)
 
-    queue_consumer.ack_message.assert_called_once_with(message)
+    # queue_consumer.ack_message.assert_called_once_with(message)
     assert reply_listener.pending == {}
 
     assert reply_event.ready()
@@ -870,7 +861,7 @@ class TestReplyListenerDisconnections(object):
                 yield conn
 
         with patch.object(
-            QueueConsumer, 'establish_connection', new=establish_connection
+            ReplyListener, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -878,12 +869,8 @@ class TestReplyListenerDisconnections(object):
     def container(
         self, container_factory, rabbit_config, toxiproxy
     ):
-
-        class ToxicQueueConsumer(QueueConsumer):
-            amqp_uri = toxiproxy.uri
-
         class ToxicReplyListener(ReplyListener):
-            queue_consumer = ToxicQueueConsumer()
+            amqp_uri = toxiproxy.uri
 
         class ToxicRpcProxy(RpcProxy):
             reply_listener = ToxicReplyListener()
@@ -930,13 +917,13 @@ class TestReplyListenerDisconnections(object):
         Attempting to read from the closed socket raises a socket.error
         and the connection is re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.enable()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
             toxiproxy.disable()
 
         # connection re-established
@@ -955,13 +942,13 @@ class TestReplyListenerDisconnections(object):
         is longer than twice the heartbeat interval, the behaviour is the same
         as in `test_upstream_blackhole` below.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -980,13 +967,13 @@ class TestReplyListenerDisconnections(object):
         reads from the socket raise a socket.error, so the connection is
         re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -1009,13 +996,13 @@ class TestReplyListenerDisconnections(object):
 
         See :meth:`kombu.messsaging.Consumer.__exit__`
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -1043,13 +1030,13 @@ class TestReplyListenerDisconnections(object):
         """
         pytest.skip("skip until kombu supports recovery in this scenario")
 
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established
