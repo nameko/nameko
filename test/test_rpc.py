@@ -127,7 +127,7 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
 
     entrypoint.setup()
     consumer.setup()
-    queue_consumer.setup()
+    # queue_consumer.setup()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
@@ -135,7 +135,7 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
     assert queue.exchange == exchange
     assert queue.durable
 
-    queue_consumer.register_provider.assert_called_once_with(consumer)
+    # queue_consumer.register_provider.assert_called_once_with(consumer)
 
     consumer.register_provider(entrypoint)
     assert consumer._providers == set([entrypoint])
@@ -151,25 +151,25 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
     assert consumer._providers == set()
 
 
-def test_rpc_consumer_unregisters_if_no_providers(
-    container_factory, rabbit_config
-):
-    class Service(object):
-        name = "service"
+# def test_rpc_consumer_unregisters_if_no_providers(
+#     container_factory, rabbit_config
+# ):
+#     class Service(object):
+#         name = "service"
 
-        @rpc
-        def method(self):
-            pass  # pragma: no cover
+#         @rpc
+#         def method(self):
+#             pass  # pragma: no cover
 
-    container = container_factory(Service, rabbit_config)
-    restrict_entrypoints(container)  # disable 'method' entrypoint
+#     container = container_factory(Service, rabbit_config)
+#     restrict_entrypoints(container)  # disable 'method' entrypoint
 
-    rpc_consumer = get_extension(container, RpcConsumer)
-    with patch.object(rpc_consumer, 'queue_consumer') as queue_consumer:
-        rpc_consumer.stop()
+#     rpc_consumer = get_extension(container, RpcConsumer)
+#     with patch.object(rpc_consumer, 'queue_consumer') as queue_consumer:
+#         rpc_consumer.stop()
 
-    assert queue_consumer.unregister_provider.called
-    assert rpc_consumer._unregistered_from_queue_consumer.ready()
+#     assert queue_consumer.unregister_provider.called
+#     assert rpc_consumer._unregistered_from_queue_consumer.ready()
 
 
 def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
@@ -341,12 +341,12 @@ def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
     reply_queue = rabbit_manager.get_queue(vhost, reply_queue_name)
     assert len(reply_queue['consumer_details']) == 1
 
-    # and share a single connection
-    consumer_connection_names = set(
-        queue['consumer_details'][0]['channel_details']['connection_name']
-        for queue in [rpc_queue, reply_queue]
-    )
-    assert len(consumer_connection_names) == 1
+    # and share a single connection -- NO: reply listener uses queue consumer still,  rpcconsumer does not
+    # consumer_connection_names = set(
+    #     queue['consumer_details'][0]['channel_details']['connection_name']
+    #     for queue in [rpc_queue, reply_queue]
+    # )
+    # assert len(consumer_connection_names) == 1
 
 
 def test_rpc_args_kwargs(container_factory, rabbit_config):
@@ -616,11 +616,12 @@ def test_rpc_container_being_killed_retries(
     assert waiter.wait() == 'result_a'  # now completed
 
 
+# TODO: this just fails now, and should not.
 def test_rpc_consumer_sharing(container_factory, rabbit_config,
                               rabbit_manager):
-    """ Verify that the RpcConsumer unregisters from the queueconsumer when
-    the first provider unregisters itself. Otherwise it keeps consuming
-    messages for the unregistered provider, raising MethodNotFound.
+    """ Verify that the RpcConsumer stops when the first provider unregisters
+    itself. Otherwise it would keep consuming messages for the unregistered
+    provider, raising MethodNotFound.
     """
 
     container = container_factory(ExampleService, rabbit_config)
@@ -1100,13 +1101,13 @@ class TestRpcConsumerDisconnections(object):
                 yield conn
 
         with patch.object(
-            QueueConsumer, 'establish_connection', new=establish_connection
+            RpcConsumer, 'establish_connection', new=establish_connection
         ):
             yield
 
     @pytest.yield_fixture
-    def toxic_queue_consumer(self, toxiproxy):
-        with patch.object(QueueConsumer, 'amqp_uri', new=toxiproxy.uri):
+    def toxic_rpc_consumer(self, toxiproxy):
+        with patch.object(RpcConsumer, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.yield_fixture
@@ -1124,7 +1125,7 @@ class TestRpcConsumerDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_queue_consumer, lock,
+        self, container_factory, rabbit_config, toxic_rpc_consumer, lock,
         tracker
     ):
 
@@ -1145,6 +1146,12 @@ class TestRpcConsumerDisconnections(object):
         container = container_factory(Service, config)
         container.start()
 
+        # we have to let the container connect before disconnecting
+        # otherwise we end up in retry_over_time trying to make the
+        # initial connection; we get stuck there because it has a
+        # function-local copy of "on_connection_error" that is never patched
+        eventlet.sleep(.05)
+
         return container
 
     def test_normal(self, container, service_rpc):
@@ -1159,13 +1166,13 @@ class TestRpcConsumerDisconnections(object):
         Attempting to read from the closed socket raises a socket.error
         and the connection is re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.enable()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
             toxiproxy.disable()
 
         # connection re-established
@@ -1182,13 +1189,13 @@ class TestRpcConsumerDisconnections(object):
         is longer than twice the heartbeat interval, the behaviour is the same
         as in `test_upstream_blackhole` below.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -1205,13 +1212,13 @@ class TestRpcConsumerDisconnections(object):
         reads from the socket raise a socket.error, so the connection is
         re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -1232,13 +1239,13 @@ class TestRpcConsumerDisconnections(object):
 
         See :meth:`kombu.messsaging.Consumer.__exit__`
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -1264,13 +1271,13 @@ class TestRpcConsumerDisconnections(object):
         """
         pytest.skip("skip until kombu supports recovery in this scenario")
 
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established

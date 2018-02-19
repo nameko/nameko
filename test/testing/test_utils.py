@@ -7,8 +7,7 @@ from mock import Mock, call, patch
 from requests import HTTPError, Response
 
 from nameko.containers import ServiceContainer
-from nameko.messaging import QueueConsumer
-from nameko.rpc import Rpc, RpcConsumer, rpc
+from nameko.rpc import RpcConsumer, Rpc, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
     AnyInstanceOf, ResourcePipeline, find_free_port, get_container,
@@ -75,12 +74,11 @@ def test_get_extension(rabbit_config):
     container = ServiceContainer(Service, rabbit_config)
 
     rpc_consumer = get_extension(container, RpcConsumer)
-    queue_consumer = get_extension(container, QueueConsumer)
     foo_rpc = get_extension(container, Rpc, method_name="foo")
     bar_rpc = get_extension(container, Rpc, method_name="bar")
 
     extensions = container.extensions
-    assert extensions == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
+    assert extensions == set([rpc_consumer, foo_rpc, bar_rpc])
 
 
 def test_get_container(runner_factory, rabbit_config):

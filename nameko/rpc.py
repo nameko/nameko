@@ -6,13 +6,15 @@ from functools import partial
 from logging import getLogger
 
 import kombu.serialization
+from kombu import Connection
+from kombu.mixins import ConsumerMixin
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
 from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER, HEADER_PREFIX,
+    HEARTBEAT_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
@@ -39,14 +41,12 @@ def get_rpc_exchange(config):
     return exchange
 
 
-class RpcConsumer(SharedExtension, ProviderCollector):
-
-    queue_consumer = QueueConsumer()
+class RpcConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     def __init__(self):
-        self._unregistering_providers = set()
-        self._unregistered_from_queue_consumer = Event()
         self.queue = None
+        self.consumer_ready = Event()
+
         super(RpcConsumer, self).__init__()
 
     def setup(self):
@@ -62,39 +62,74 @@ class RpcConsumer(SharedExtension, ProviderCollector):
                 queue_name,
                 exchange=exchange,
                 routing_key=routing_key,
-                durable=True)
+                durable=True
+            )
 
-            self.queue_consumer.register_provider(self)
-            self._registered = True
+    def start(self):
+        self.should_stop = False
+        self.container.spawn_managed_thread(self.run)
+        self.consumer_ready.wait()
 
     def stop(self):
-        """ Stop the RpcConsumer.
+        self.should_stop = True
 
-        The RpcConsumer ordinary unregisters from the QueueConsumer when the
-        last Rpc subclass unregisters from it. If no providers were registered,
-        we should unregister from the QueueConsumer as soon as we're asked
-        to stop.
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def prefetch_count(self):
+        return self.container.max_workers
+
+    @property
+    def serializer(self):
+        return self.container.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+
+    @property
+    def connection(self):
+        """ Provide the connection parameters for kombu's ConsumerMixin.
+
+        The `Connection` object is a declaration of connection parameters
+        that is lazily evaluated. It doesn't represent an established
+        connection to the broker at this point.
         """
-        if not self._providers_registered:
-            self.queue_consumer.unregister_provider(self)
-            self._unregistered_from_queue_consumer.send(True)
+        heartbeat = self.container.config.get(
+            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+        )
+        return Connection(self.amqp_uri, heartbeat=heartbeat)
+
+    def on_connection_error(self, exc, interval):
+        _log.warning(
+            "Error connecting to broker at {} ({}).\n"
+            "Retrying in {} seconds.".format(self.amqp_uri, exc, interval)
+        )
+
+    def on_consume_ready(self, connection, channel, consumers, **kwargs):
+        """ Kombu callback when consumers are ready to accept messages.
+
+        Called after any (re)connection to the broker.
+        """
+        if not self.consumer_ready.ready():
+            _log.debug('consumer started %s', self)
+            self.consumer_ready.send(None)
+
+    def get_consumers(self, consumer_cls, channel):
+        """ Kombu callback to set up consumers.
+
+        Called after any (re)connection to the broker.
+        """
+        consumer = consumer_cls(
+            queues=[self.queue],
+            callbacks=[self.handle_message],
+            accept=[self.serializer]
+        )
+        consumer.qos(prefetch_count=self.prefetch_count)
+        return [consumer]
 
     def unregister_provider(self, provider):
-        """ Unregister a provider.
-
-        Blocks until this RpcConsumer is unregistered from its QueueConsumer,
-        which only happens when all providers have asked to unregister.
-        """
-        self._unregistering_providers.add(provider)
-        remaining_providers = self._providers - self._unregistering_providers
-        if not remaining_providers:
-            _log.debug('unregistering from queueconsumer %s', self)
-            self.queue_consumer.unregister_provider(self)
-            _log.debug('unregistered from queueconsumer %s', self)
-            self._unregistered_from_queue_consumer.send(True)
-
-        _log.debug('waiting for unregister from queue consumer %s', self)
-        self._unregistered_from_queue_consumer.wait()
+        self.stop()
         super(RpcConsumer, self).unregister_provider(provider)
 
     def get_provider_for_method(self, routing_key):
@@ -109,6 +144,10 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             raise MethodNotFound(method_name)
 
     def handle_message(self, body, message):
+        if self.should_stop:
+            self.requeue_message(message)
+            return
+
         routing_key = message.delivery_info['routing_key']
         try:
             provider = self.get_provider_for_method(routing_key)
@@ -128,11 +167,27 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         responder = Responder(amqp_uri, exchange, serializer, message)
         result, exc_info = responder.send_response(result, exc_info)
 
-        self.queue_consumer.ack_message(message)
+        self.ack_message(message)
+
         return result, exc_info
 
+    def ack_message(self, message):
+        # only attempt to ack if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.ack()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
+
     def requeue_message(self, message):
-        self.queue_consumer.requeue_message(message)
+        # only attempt to requeue if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.requeue()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
 
 
 class Rpc(Entrypoint, HeaderDecoder):

@@ -288,38 +288,38 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config,
     check_connections_closed()
 
 
-class TestHeartbeats(object):
+# class TestHeartbeats(object):
 
-    @pytest.fixture
-    def service_cls(self):
-        class Service(object):
-            name = "service"
+#     @pytest.fixture
+#     def service_cls(self):
+#         class Service(object):
+#             name = "service"
 
-            @rpc
-            def echo(self, arg):
-                return arg  # pragma: no cover
+#             @rpc
+#             def echo(self, arg):
+#                 return arg  # pragma: no cover
 
-        return Service
+#         return Service
 
-    def test_default(self, service_cls, container_factory, rabbit_config):
+#     def test_default(self, service_cls, container_factory, rabbit_config):
 
-        container = container_factory(service_cls, rabbit_config)
-        container.start()
+#         container = container_factory(service_cls, rabbit_config)
+#         container.start()
 
-        queue_consumer = get_extension(container, QueueConsumer)
-        assert queue_consumer.connection.heartbeat == DEFAULT_HEARTBEAT
+#         queue_consumer = get_extension(container, QueueConsumer)
+#         assert queue_consumer.connection.heartbeat == DEFAULT_HEARTBEAT
 
-    @pytest.mark.parametrize("heartbeat", [30, None])
-    def test_config_value(
-        self, heartbeat, service_cls, container_factory, rabbit_config
-    ):
-        rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
+#     @pytest.mark.parametrize("heartbeat", [30, None])
+#     def test_config_value(
+#         self, heartbeat, service_cls, container_factory, rabbit_config
+#     ):
+#         rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
 
-        container = container_factory(service_cls, rabbit_config)
-        container.start()
+#         container = container_factory(service_cls, rabbit_config)
+#         container.start()
 
-        queue_consumer = get_extension(container, QueueConsumer)
-        assert queue_consumer.connection.heartbeat == heartbeat
+#         queue_consumer = get_extension(container, QueueConsumer)
+#         assert queue_consumer.connection.heartbeat == heartbeat
 
 
 class TestDeadlockRegression(object):
@@ -395,40 +395,40 @@ class TestDeadlockRegression(object):
             pass
 
 
-def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
+# def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
-    class Service(object):
-        name = "service"
+#     class Service(object):
+#         name = "service"
 
-        @rpc
-        def echo(self, arg):
-            return arg  # pragma: no cover
+#         @rpc
+#         def echo(self, arg):
+#             return arg  # pragma: no cover
 
-    container = container_factory(Service, rabbit_config)
-    queue_consumer = get_extension(container, QueueConsumer)
+#     container = container_factory(Service, rabbit_config)
+#     queue_consumer = get_extension(container, QueueConsumer)
 
-    # an error in the queue_consumer's greenthread will bubble up to the
-    # container that manages the thread. when the container suicides and
-    # kills the queue_consumer, it should warn instead of re-raising the
-    # original exception
+#     # an error in the queue_consumer's greenthread will bubble up to the
+#     # container that manages the thread. when the container suicides and
+#     # kills the queue_consumer, it should warn instead of re-raising the
+#     # original exception
 
-    exc = Exception('error cancelling consumers')
-    with patch.object(
-        queue_consumer, '_cancel_consumers_if_requested'
-    ) as cancel_consumers:
-        cancel_consumers.side_effect = exc
+#     exc = Exception('error cancelling consumers')
+#     with patch.object(
+#         queue_consumer, '_cancel_consumers_if_requested'
+#     ) as cancel_consumers:
+#         cancel_consumers.side_effect = exc
 
-        container.start()
+#         container.start()
 
-        with ServiceRpcProxy('service', rabbit_config) as service_rpc:
-            # async because `echo` will never respond
-            service_rpc.echo.call_async("foo")
+#         with ServiceRpcProxy('service', rabbit_config) as service_rpc:
+#             # async because `echo` will never respond
+#             service_rpc.echo.call_async("foo")
 
-    # container will have died with the messaging ack'ing error
-    with pytest.raises(Exception) as exc_info:
-        container.wait()
-    assert str(exc_info.value) == str(exc)
+#     # container will have died with the messaging ack'ing error
+#     with pytest.raises(Exception) as exc_info:
+#         container.wait()
+#     assert str(exc_info.value) == str(exc)
 
-    # queueconsumer will have warned about the exc raised by its greenthread
-    assert logger.warn.call_args_list == [
-        call("QueueConsumer %s raised `%s` during kill", queue_consumer, exc)]
+#     # queueconsumer will have warned about the exc raised by its greenthread
+#     assert logger.warn.call_args_list == [
+#         call("QueueConsumer %s raised `%s` during kill", queue_consumer, exc)]
