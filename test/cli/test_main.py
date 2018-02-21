@@ -5,7 +5,7 @@ import pytest
 import yaml
 from mock import patch
 
-from nameko.cli.main import main, setup_parser, setup_yaml_parser
+from nameko.cli.main import main, setup_parser, setup_yaml_parser, ENV_VAR_MATCHER
 from nameko.exceptions import CommandError, ConfigurationError
 
 
@@ -54,6 +54,22 @@ def test_flag_action(param, value):
         args.append(param)
     parsed = parser.parse_args(args)
     assert parsed.rlwrap is value
+
+
+class TestConfigEnvironmentParser(object):
+
+    @pytest.mark.parametrize(('value', 'expected'), [
+        ('raw', []),
+        ('${VAR_NAME}', [('VAR_NAME', '')]),
+        ('${VAR_NAME:default}', [('VAR_NAME', 'default')]),
+        ('${VAR_NAME1:default1}_${VAR_NAME2:default2}', [
+                ('VAR_NAME1', 'default1'),
+                ('VAR_NAME2', 'default2'),
+        ]),
+    ])
+    def test_maching_env_variable(self, value, expected):
+        res = ENV_VAR_MATCHER.findall(value)
+        assert res == expected
 
 
 class TestConfigEnvironmentVariables(object):
@@ -206,7 +222,23 @@ class TestConfigEnvironmentVariables(object):
             """,
             {"DICT": "one: 1\ntwo: 2"},
             {'FOO': {'one': 1, 'two': 2}, 'BAR': [1, 2, 3]}
-        )
+        ),
+        # recursive env with root value
+        (
+            """
+            FOO: ${FOO:val_${INDICE:1}}
+            """,
+            {"FOO": 'val_a'},
+            {"FOO": 'val_a'},
+        ),
+        # recursive env with root default and sub value
+        (
+            """
+            FOO: ${FOO:val_${INDICE:1}}
+            """,
+            {"INDICE": 'b'},
+            {"FOO": 'val_b'},
+        ),
     ])
     def test_environment_vars_in_config(
         self, yaml_config, env_vars, expected_config
