@@ -5,11 +5,15 @@ import pytest
 import yaml
 from mock import patch
 
-from nameko.cli.main import main, setup_parser, setup_yaml_parser, ENV_VAR_MATCHER
+from nameko.cli.main import (
+    ENV_VAR_MATCHER, main, setup_parser, setup_yaml_parser
+)
 from nameko.exceptions import CommandError, ConfigurationError
+
 
 try:
     import regex
+    del regex
     has_regex_module = True
 except ImportError:  # pragma: no cover
     has_regex_module = False
@@ -73,8 +77,8 @@ class TestConfigEnvironmentParser(object):
         ('${VAR_NAME:default}', [('VAR_NAME', 'default')]),
         # multiple match with default
         ('${VAR_NAME1:default1}_${VAR_NAME2:default2}', [
-                ('VAR_NAME1', 'default1'),
-                ('VAR_NAME2', 'default2'),
+            ('VAR_NAME1', 'default1'),
+            ('VAR_NAME2', 'default2'),
         ]),
     ])
     def test_maching_env_variable(self, value, expected):
@@ -83,22 +87,28 @@ class TestConfigEnvironmentParser(object):
 
     @pytest.mark.parametrize(('value', 'expected'), [
         # on var, with {} in default (as str.format accept)
-        ('${VAR_NAME:my-{pytemplate}-template}', [('VAR_NAME', 'my-{pytemplate}-template')]),
+        ('${VAR_NAME:my-{pytemplate}-template}', [
+            ('VAR_NAME', 'my-{pytemplate}-template')]),
         # var with var in default
-        ('${VAR_NAME:my-${OTHER_VAR}-template}', [('VAR_NAME', 'my-${OTHER_VAR}-template')]),
+        ('${VAR_NAME:my-${OTHER_VAR}-template}', [
+            ('VAR_NAME', 'my-${OTHER_VAR}-template')]),
         # recursive interpretation of last var
-        ('my-${OTHER_VAR}-template', [('OTHER_VAR', '')]),
+        ('my-${OTHER_VAR}-template', [
+            ('OTHER_VAR', '')]),
         # var with var in default in default
-        ('${VAR_NAME:my-${OTHER_VAR:1}-template}', [('VAR_NAME', 'my-${OTHER_VAR:1}-template')]),
+        ('${VAR_NAME:my-${OTHER_VAR:1}-template}', [
+            ('VAR_NAME', 'my-${OTHER_VAR:1}-template')]),
         # recursive interpretation of last var
-        ('my-${OTHER_VAR:1}-template', [('OTHER_VAR', '1')]),
+        ('my-${OTHER_VAR:1}-template', [
+            ('OTHER_VAR', '1')]),
         # multiple var in default
         ('${VAR_NAME1:default1}_${VAR_NAME2:default2}', [
-                ('VAR_NAME1', 'default1'),
-                ('VAR_NAME2', 'default2'),
+            ('VAR_NAME1', 'default1'),
+            ('VAR_NAME2', 'default2'),
         ]),
     ])
-    @pytest.mark.skipif(not has_regex_module, reason='no support for nested env without regex module')
+    @pytest.mark.skipif(not has_regex_module,
+                        reason='0 support for nested env without regex module')
     def test_maching_recursive_with_regex(self, value, expected):
         res = ENV_VAR_MATCHER.findall(value)
         assert res == expected
@@ -286,7 +296,6 @@ class TestConfigEnvironmentVariables(object):
             results = yaml.load(yaml_config)
             assert results == {'FOO': "${VAR1}", 'BAR': [1, 2, 3]}
 
-
     @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
         # recursive env with root value
         (
@@ -330,8 +339,11 @@ class TestConfigEnvironmentVariables(object):
             {"FOO": '{surname}'},
         ),
     ])
-    @pytest.mark.skipif(not has_regex_module, reason='no support for nested env without regex module')
-    def test_environment_vars_recursive_in_config(self, yaml_config, env_vars, expected_config):
+    @pytest.mark.skipif(not has_regex_module,
+                        reason='0 support for nested env without regex module')
+    def test_environment_vars_recursive_in_config(
+            self, yaml_config, env_vars, expected_config
+    ):
         setup_yaml_parser()
 
         with patch.dict('os.environ'):
@@ -340,4 +352,3 @@ class TestConfigEnvironmentVariables(object):
 
             results = yaml.load(yaml_config)
             assert results == expected_config
-

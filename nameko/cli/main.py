@@ -10,6 +10,7 @@ from nameko.exceptions import CommandError, ConfigurationError
 
 from . import commands
 
+
 try:
     import regex
 except ImportError:  # pragma: no cover
@@ -25,23 +26,23 @@ except ImportError:  # pragma: no cover
 else:
     ENV_VAR_MATCHER = regex.compile(
         r"""
-        \$\{                        #  match ${
-        (                           #  first capturing group: variable name
-            [^{}:\s]+               #  variable name without {,},: or spaces
+        \$\{                #  match ${
+        (                   #  first capturing group: variable name
+            [^{}:\s]+       #  variable name without {,},: or spaces
         )
-        (?:                         # non capturing optional group for value
-            :                       # match : 
-            (                       # 2nd capturing group: default value
-                (?:                 # non capturing group for OR
-                    [^{}]           # any non bracket 
-                |                   # OR
-                    \{              # literal {
-                    (?2)            # recursive 2nd capturing group aka ([^{}]|{(?2)})
-                    \}              # literal }
-                )*                  #
-            )                       
+        (?:                 # non capturing optional group for value
+            :               # match :
+            (               # 2nd capturing group: default value
+                (?:         # non capturing group for OR
+                    [^{}]   # any non bracket
+                |           # OR
+                    \{      # literal {
+                    (?2)    # recursive 2nd capturing group aka ([^{}]|{(?2)})
+                    \}      # literal }
+                )*          #
+            )
         )?
-        \}                          # end of macher }
+        \}                  # end of macher }
         """,
         regex.VERBOSE
     )
@@ -74,7 +75,9 @@ def _replace_env_var(match):
     if value is None:
         # expand default using other vars
         if default is None:
-            default = ''  # regex module return None instead of '' if engine didn't entered default capture group
+            # regex module return None instead of
+            #  '' if engine didn't entered default capture group
+            default = ''
 
         value = default
         while IMPLICIT_ENV_VAR_MATCHER.match(value):
