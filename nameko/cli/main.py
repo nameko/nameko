@@ -10,16 +10,43 @@ from nameko.exceptions import CommandError, ConfigurationError
 
 from . import commands
 
+try:
+    import regex
+except ImportError:
+    ENV_VAR_MATCHER = re.compile(
+        r"""
+            \$\{       # match characters `${` literally
+            ([^}:\s]+) # 1st group: matches any character except `}` or `:`
+            :?         # matches the literal `:` character zero or one times
+            ([^}]+)?   # 2nd group: matches any character except `}`
+            \}         # match character `}` literally
+        """, re.VERBOSE
+    )
+else:
 
-ENV_VAR_MATCHER = re.compile(
-    r"""
-        \$\{       # match characters `${` literally
-        ([^}:\s]+) # 1st group: matches any character except `}` or `:`
-        :?         # matches the literal `:` character zero or one times
-        ([^}]+)?   # 2nd group: matches any character except `}`
-        \}         # match character `}` literally
-    """, re.VERBOSE
-)
+    ENV_VAR_MATCHER = regex.compile(
+        r"""
+        \$\{                        #  match ${
+        (                           #  first capturing group: variable name
+            [^{}:\s]+               #  variable name without {,},: or spaces
+        )
+        (?:                         # non capturing optional group for value
+            :                       # match : 
+            (                       # 2nd capturing group: default value
+                (?:                 # non capturing group for OR
+                    [^{}]           # any non bracket 
+                |                   # OR
+                    \{              # literal {
+                    (?2)            # recursive 2nd capturing group aka ([^{}]|{(?2)})
+                    \}              # literal }
+                )*                  #
+            )                       
+        )?
+        \}                          # end of macher }
+        """,
+        regex.VERBOSE
+    )
+
 IMPLICIT_ENV_VAR_MATCHER = re.compile(
     r"""
         .*          # matches any number of any characters
@@ -44,7 +71,16 @@ def setup_parser():
 
 def _replace_env_var(match):
     env_var, default = match.groups()
-    return os.environ.get(env_var, default)
+    value = os.environ.get(env_var, None)
+    if value is None:
+        # expand default using other vars
+        if default is None:
+            default = ''  # regex module return None instead of '' if engine didn't entered default capture group
+
+        value = default
+        while IMPLICIT_ENV_VAR_MATCHER.match(value):
+            value = ENV_VAR_MATCHER.sub(_replace_env_var, value)
+    return value
 
 
 def env_var_constructor(loader, node):
