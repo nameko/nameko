@@ -12,7 +12,7 @@ from . import commands
 
 try:
     import regex
-except ImportError:
+except ImportError:  # pragma: no cover
     ENV_VAR_MATCHER = re.compile(
         r"""
             \$\{       # match characters `${` literally
@@ -23,7 +23,6 @@ except ImportError:
         """, re.VERBOSE
     )
 else:
-
     ENV_VAR_MATCHER = regex.compile(
         r"""
         \$\{                        #  match ${

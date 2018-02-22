@@ -11,7 +11,7 @@ from nameko.exceptions import CommandError, ConfigurationError
 try:
     import regex
     has_regex_module = True
-except ImportError:
+except ImportError:  # pragma: no cover
     has_regex_module = False
 
 
