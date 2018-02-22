@@ -174,14 +174,24 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
 
 
 @pytest.fixture()
-def rabbit_ssl_config(request):
+def rabbit_ssl_config(request, rabbit_config):
     from ssl import CERT_REQUIRED  # pylint: disable=E0401
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     ca_certs = request.config.getoption('AMQP_SSL_CA_CERTS')
     certfile = request.config.getoption('AMQP_SSL_CERTFILE')
     keyfile = request.config.getoption('AMQP_SSL_KEYFILE')
 
+    amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
+    uri_parts = urlparse(rabbit_config['AMQP_URI'])
+    amqp_ssl_uri = uri_parts._replace(
+        netloc=uri_parts.netloc.replace(
+            str(uri_parts.port),
+            str(amqp_ssl_port))
+    ).geturl()
+
     conf = {
+        'AMQP_URI': amqp_ssl_uri,
         'AMQP_SSL': {
             'ca_certs': ca_certs,
             'certfile': certfile,

@@ -1384,3 +1384,14 @@ def test_prefetch_throughput(container_factory, rabbit_config):
 
         with eventlet.Timeout(1):
             [reply.result() for reply in replies]
+
+
+def test_rpc_over_ssl(container_factory, runner_factory, rabbit_ssl_config):
+    container = container_factory(ExampleService, rabbit_ssl_config)
+    container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo() == ((), {})
+        assert echo("a", "b") == (("a", "b"), {})
+        assert echo(foo="bar") == ((), {'foo': 'bar'})
+        assert echo("arg", kwarg="kwarg") == (("arg",), {'kwarg': 'kwarg'})
