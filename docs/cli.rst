@@ -81,7 +81,7 @@ You can provide many level of generic default value
 	# foobar.yaml
 	AMQP_URI: ${AMQP_URI:pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}}
 
-this config accept AMQP_URI as environment variable, in this case RABBITMQ_* env will not be used.
+this config accept AMQP_URI as environment variable, in this case RABBITMQ_* variables will not be used.
 
 The environment variable value is interpreted as YAML, so it is possible to use rich types:
 
@@ -95,7 +95,7 @@ The environment variable value is interpreted as YAML, so it is possible to use 
 
     $ A_LIST_OF_THINGS=[A,B,C] nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
 
-the parser for environment variable will paire all braquet.
+the parser for environment variable will pair all bracket.
 
 .. code-block::  yaml
 
