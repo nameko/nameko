@@ -12,8 +12,8 @@ from kombu import Exchange, Queue
 
 from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY, AMQP_SSL_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER,
+    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,

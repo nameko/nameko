@@ -2,8 +2,8 @@ from kombu import Exchange
 
 from nameko.amqp.publish import Publisher
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, PERSISTENT, SERIALIZER_CONFIG_KEY,
-    AMQP_SSL_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, PERSISTENT,
+    SERIALIZER_CONFIG_KEY
 )
 
 
