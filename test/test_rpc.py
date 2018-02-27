@@ -1386,12 +1386,10 @@ def test_prefetch_throughput(container_factory, rabbit_config):
             [reply.result() for reply in replies]
 
 
-def test_rpc_over_ssl(container_factory, runner_factory, rabbit_ssl_config):
+def test_rpc_over_ssl(container_factory, rabbit_ssl_config):
+
     container = container_factory(ExampleService, rabbit_ssl_config)
     container.start()
 
-    with entrypoint_hook(container, 'echo') as echo:
-        assert echo() == ((), {})
-        assert echo("a", "b") == (("a", "b"), {})
-        assert echo(foo="bar") == ((), {'foo': 'bar'})
-        assert echo("arg", kwarg="kwarg") == (("arg",), {'kwarg': 'kwarg'})
+    with ServiceRpcProxy("exampleservice", rabbit_ssl_config) as proxy:
+        assert proxy.echo("a", "b", foo="bar") == [['a', 'b'], {'foo': 'bar'}]

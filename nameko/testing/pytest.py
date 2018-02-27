@@ -192,6 +192,8 @@ def rabbit_ssl_config(request, rabbit_config):
 
     conf = {
         'AMQP_URI': amqp_ssl_uri,
+        'username': rabbit_config['username'],
+        'vhost': rabbit_config['vhost'],
         'AMQP_SSL': {
             'ca_certs': ca_certs,
             'certfile': certfile,
