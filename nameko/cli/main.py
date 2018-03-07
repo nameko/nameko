@@ -7,6 +7,7 @@ import re
 import yaml
 
 from nameko.exceptions import CommandError, ConfigurationError
+from nameko import config
 
 from . import commands
 
@@ -58,10 +59,21 @@ def setup_yaml_parser():
     yaml.add_implicit_resolver('!env_var', IMPLICIT_ENV_VAR_MATCHER)
 
 
+def load_config(config_path):
+    with open(config_path) as fle:
+        return yaml.load(fle)
+
+
+def setup_config(config_path):
+    setup_yaml_parser()
+    if config_path:
+        config.update(load_config(config_path))
+
+
 def main():
     parser = setup_parser()
     args = parser.parse_args()
-    setup_yaml_parser()
+    setup_config(args.config)
     try:
         args.main(args)
     except (CommandError, ConfigurationError) as exc:

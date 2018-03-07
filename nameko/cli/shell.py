@@ -3,8 +3,7 @@ import os
 import sys
 from types import ModuleType
 
-import yaml
-
+from nameko import config
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcProxy
@@ -72,13 +71,11 @@ Usage:
 
 def main(args):
 
-    if args.config:
-        with open(args.config) as fle:
-            config = yaml.load(fle)
-        broker_from = " (from --config)"
-    else:
-        config = {AMQP_URI_CONFIG_KEY: args.broker}
+    if AMQP_URI_CONFIG_KEY not in config:
+        config.update({AMQP_URI_CONFIG_KEY: args.broker})
         broker_from = ""
+    else:
+        broker_from = " (from --config)"
 
     banner = 'Nameko Python %s shell on %s\nBroker: %s%s' % (
         sys.version,

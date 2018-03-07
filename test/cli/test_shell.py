@@ -4,8 +4,6 @@ import sys
 import pytest
 from mock import Mock, patch
 
-from nameko.cli.commands import Shell
-from nameko.cli.main import setup_parser
 from nameko.cli.shell import make_nameko_helper
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
@@ -43,14 +41,12 @@ def fake_alternative_interpreters():
         yield
 
 
-def test_basic(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY]
-    ])
-
+def test_basic(command, rabbit_config, pystartup):
     with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
+        command(
+            'nameko', 'shell',
+            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY]
+        )
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -59,15 +55,13 @@ def test_basic(pystartup, rabbit_config):
     local['n'].disconnect()
 
 
-def test_plain(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'plain'
-    ])
-
+def test_plain(command, rabbit_config, pystartup):
     with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
+        command(
+            'nameko', 'shell',
+            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--interface', 'plain'
+        )
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -76,15 +70,13 @@ def test_plain(pystartup, rabbit_config):
     local['n'].disconnect()
 
 
-def test_plain_fallback(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'bpython'
-    ])
-
+def test_plain_fallback(command, rabbit_config, pystartup):
     with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
+        command(
+            'nameko', 'shell',
+            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--interface', 'bpython'
+        )
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -93,15 +85,13 @@ def test_plain_fallback(pystartup, rabbit_config):
     local['n'].disconnect()
 
 
-def test_bpython(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'bpython'
-    ])
-
+def test_bpython(command, rabbit_config, pystartup):
     with patch('bpython.embed') as embed:
-        Shell.main(args)
+        command(
+            'nameko', 'shell',
+            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--interface', 'bpython'
+        )
 
     _, kwargs = embed.call_args
     local = kwargs['locals_']
@@ -110,15 +100,13 @@ def test_bpython(pystartup, rabbit_config):
     local['n'].disconnect()
 
 
-def test_ipython(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'ipython'
-    ])
-
+def test_ipython(command, rabbit_config, pystartup):
     with patch('IPython.embed') as embed:
-        Shell.main(args)
+        command(
+            'nameko', 'shell',
+            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--interface', 'ipython'
+        )
 
     _, kwargs = embed.call_args
     local = kwargs['user_ns']
@@ -127,7 +115,7 @@ def test_ipython(pystartup, rabbit_config):
     local['n'].disconnect()
 
 
-def test_config(pystartup, rabbit_config, tmpdir):
+def test_config(command, pystartup, rabbit_config, tmpdir):
 
     config = tmpdir.join('config.yaml')
     config.write("""
@@ -136,11 +124,11 @@ def test_config(pystartup, rabbit_config, tmpdir):
         serializer: 'json'
     """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
 
-    parser = setup_parser()
-    args = parser.parse_args(['shell', '--config', config.strpath])
-
     with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
+        command(
+            'nameko', 'shell',
+            '--config', config.strpath,
+        )
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -160,15 +148,15 @@ class TestBanner(object):
         with patch('nameko.cli.shell.make_nameko_helper'):
             yield
 
-    def test_broker_as_param(self):
+    def test_broker_as_param(self, command):
 
         amqp_uri = "amqp://broker/param"
 
-        parser = setup_parser()
-        args = parser.parse_args(['shell', '--broker', amqp_uri])
-
         with patch('nameko.cli.shell.ShellRunner') as shell_runner:
-            Shell.main(args)
+            command(
+                'nameko', 'shell',
+                '--broker', amqp_uri,
+            )
 
         expected_message = (
             "Broker: {}".format(amqp_uri)
@@ -176,7 +164,7 @@ class TestBanner(object):
         (banner, _), _ = shell_runner.call_args
         assert expected_message in banner
 
-    def test_broker_from_config(self, tmpdir):
+    def test_broker_from_config(self, command, tmpdir):
 
         amqp_uri = "amqp://broker/config"
 
@@ -187,11 +175,11 @@ class TestBanner(object):
             serializer: 'json'
         """.format(amqp_uri))
 
-        parser = setup_parser()
-        args = parser.parse_args(['shell', '--config', config.strpath])
-
         with patch('nameko.cli.shell.ShellRunner') as shell_runner:
-            Shell.main(args)
+            command(
+                'nameko', 'shell',
+                '--config', config.strpath
+            )
 
         expected_message = (
             "Broker: {} (from --config)".format(amqp_uri)

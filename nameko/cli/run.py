@@ -13,9 +13,9 @@ import signal
 import sys
 
 import six
-import yaml
 from eventlet import backdoor
 
+from nameko import config
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
@@ -160,13 +160,8 @@ def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
 
-    if args.config:
-        with open(args.config) as fle:
-            config = yaml.load(fle)
-    else:
-        config = {
-            AMQP_URI_CONFIG_KEY: args.broker
-        }
+    if AMQP_URI_CONFIG_KEY not in config:
+        config.update({AMQP_URI_CONFIG_KEY: args.broker})
 
     if "LOGGING" in config:
         logging.config.dictConfig(config['LOGGING'])

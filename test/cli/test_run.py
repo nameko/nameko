@@ -9,8 +9,7 @@ import eventlet
 import pytest
 from mock import patch
 
-from nameko.cli.main import setup_parser
-from nameko.cli.run import import_service, main, run, setup_backdoor
+from nameko.cli.run import import_service, run, setup_backdoor
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 )
@@ -25,21 +24,19 @@ from test.sample import Service
 TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
 
 
-def test_run(rabbit_config):
-    parser = setup_parser()
+def test_run(command, rabbit_config):
+
     broker = rabbit_config['AMQP_URI']
-    args = parser.parse_args([
-        'run',
-        '--broker',
-        broker,
-        '--backdoor-port',
-        0,
-        'test.sample:Service',
-    ])
 
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, 'start'):
-        gt = eventlet.spawn(main, args)
+        gt = eventlet.spawn(
+            command,
+            'nameko', 'run',
+            '--broker', broker,
+            '--backdoor-port', 0,
+            'test.sample:Service',
+        )
 
     # make sure service launches ok
     with ClusterRpcProxy(rabbit_config) as proxy:
@@ -51,7 +48,7 @@ def test_run(rabbit_config):
     gt.wait()
 
 
-def test_main_with_config(rabbit_config, tmpdir):
+def test_main_with_config(command, rabbit_config, tmpdir):
 
     config = tmpdir.join('config.yaml')
     config.write("""
@@ -60,16 +57,14 @@ def test_main_with_config(rabbit_config, tmpdir):
         serializer: 'json'
     """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
 
-    parser = setup_parser()
-    args = parser.parse_args([
-        'run',
-        '--config',
-        config.strpath,
-        'test.sample',
-    ])
-
     with patch('nameko.cli.run.run') as run:
-        main(args)
+
+        command(
+            'nameko', 'run',
+            '--config', config.strpath,
+            'test.sample',
+        )
+
         assert run.call_count == 1
         (_, config) = run.call_args[0]
 
@@ -80,7 +75,7 @@ def test_main_with_config(rabbit_config, tmpdir):
         }
 
 
-def test_main_with_logging_config(rabbit_config, tmpdir):
+def test_main_with_logging_config(command, rabbit_config, tmpdir):
 
     config = """
         AMQP_URI: {amqp_uri}
@@ -111,17 +106,16 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
         ))
     )
 
-    parser = setup_parser()
-    args = parser.parse_args([
-        'run',
-        '--config',
-        config_file.strpath,
-        'test.sample',
-    ])
-
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, 'start'):
-        gt = eventlet.spawn(main, args)
+        gt = eventlet.spawn(
+            command,
+            'nameko',
+            'run',
+            '--config',
+            config_file.strpath,
+            'test.sample',
+        )
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         proxy.service.ping()

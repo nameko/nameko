@@ -2,12 +2,9 @@ from textwrap import dedent
 
 from mock import patch
 
-from nameko.cli.commands import ShowConfig
-from nameko.cli.main import setup_parser, setup_yaml_parser
-
 
 @patch('nameko.cli.main.os')
-def test_main(mock_os, tmpdir, capsys):
+def test_main(mock_os, tmpdir, capsys, command):
 
     config = tmpdir.join('config.yaml')
     config.write("""
@@ -15,19 +12,15 @@ def test_main(mock_os, tmpdir, capsys):
         BAR: ${BAR}
     """)
 
-    parser = setup_parser()
-    setup_yaml_parser()
-    args = parser.parse_args([
-        'show-config',
-        '--config',
-        config.strpath,
-    ])
-
     mock_os.environ = {
         'BAR': '[1,2,3]'
     }
 
-    ShowConfig.main(args)
+    command(
+        'nameko', 'show-config',
+        '--config', config.strpath,
+    )
+
     out, _ = capsys.readouterr()
 
     expected = dedent("""
