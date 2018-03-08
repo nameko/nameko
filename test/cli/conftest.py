@@ -3,8 +3,8 @@ import sys
 import pytest
 from mock import patch
 
-from nameko.cli.main import main
 from nameko import config
+from nameko.cli.main import main
 
 
 @pytest.fixture

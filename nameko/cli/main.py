@@ -6,8 +6,8 @@ import re
 
 import yaml
 
-from nameko.exceptions import CommandError, ConfigurationError
 from nameko import config
+from nameko.exceptions import CommandError, ConfigurationError
 
 from . import commands
 
