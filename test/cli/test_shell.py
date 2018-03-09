@@ -141,6 +141,35 @@ def test_config(command, pystartup, rabbit_config, tmpdir):
     local['n'].disconnect()
 
 
+def test_config_options(command, pystartup, rabbit_config, tmpdir):
+
+    config = tmpdir.join('config.yaml')
+    config.write("""
+        WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+        AMQP_URI: '{}'
+        serializer: 'json'
+    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+
+    with patch('nameko.cli.shell.code') as code:
+        command(
+            'nameko', 'shell',
+            '--config', config.strpath,
+            '--define', 'serializer=pickle',
+            '--define', 'EGG=[{"spam": True}]',
+        )
+
+    _, kwargs = code.interact.call_args
+    local = kwargs['local']
+    assert 'n' in local.keys()
+    assert local['n'].config == {
+        WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+        AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
+        SERIALIZER_CONFIG_KEY: 'pickle',  # overrides config file value
+        'EGG': [{'spam': True}],
+    }
+    local['n'].disconnect()
+
+
 class TestBanner(object):
 
     @pytest.yield_fixture(autouse=True)

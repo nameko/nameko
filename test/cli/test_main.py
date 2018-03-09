@@ -5,7 +5,9 @@ import pytest
 import yaml
 from mock import patch
 
-from nameko.cli.main import main, setup_parser, setup_yaml_parser
+from nameko.cli.main import (
+    main, parse_config_option, setup_parser, setup_yaml_parser
+)
 from nameko.exceptions import CommandError, ConfigurationError
 
 
@@ -54,6 +56,28 @@ def test_flag_action(param, value):
         args.append(param)
     parsed = parser.parse_args(args)
     assert parsed.rlwrap is value
+
+
+@pytest.mark.parametrize(
+    ('text', 'expected_key', 'expected_value'),
+    (
+        ('SPAM=ham', 'SPAM', 'ham'),
+        ('  SPAM=ham  ', 'SPAM', 'ham'),
+        ('SPAM="ham"', 'SPAM', 'ham'),
+        ("SPAM='ham'", 'SPAM', 'ham'),
+        ('SPAM=1', 'SPAM', 1),
+        ('SPAM="1"', 'SPAM', "1"),
+        ('SPAM=1.0', 'SPAM', 1.0),
+        ('SPAM=True', 'SPAM', True),
+        ('SPAM=False', 'SPAM', False),
+        ('SPAM=[{"egg": "ham"}]', 'SPAM', [{'egg': 'ham'}]),
+        ('SPAM=', 'SPAM', None),
+        ('SPAM', 'SPAM', True),
+        ('SPAM=EGG=HAM', 'SPAM', 'EGG=HAM'),
+    )
+)
+def test_parse_config_option(text, expected_key, expected_value):
+    assert parse_config_option(text) == (expected_key, expected_value)
 
 
 class TestConfigEnvironmentVariables(object):

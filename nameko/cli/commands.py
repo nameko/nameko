@@ -58,11 +58,6 @@ class ShowConfig(Command):
 
     @staticmethod
     def init_parser(parser):
-
-        parser.add_argument(
-            '--config', default='config.yaml',
-            help='The YAML configuration file')
-
         return parser
 
     @staticmethod
@@ -87,10 +82,6 @@ class Run(Command):
             'services', nargs='+',
             metavar='module[:service class]',
             help='python path to one or more service classes to run')
-
-        parser.add_argument(
-            '--config', default='',
-            help='The YAML configuration file')
 
         parser.add_argument(
             '--broker', default='pyamqp://guest:guest@localhost',
@@ -131,9 +122,6 @@ class Shell(Command):
         parser.add_argument(
             '--interface', choices=cls.SHELLS,
             help='Specify an interactive interpreter interface.')
-        parser.add_argument(
-            '--config', default='',
-            help='The YAML configuration file')
         return parser
 
     @staticmethod

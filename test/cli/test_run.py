@@ -75,6 +75,36 @@ def test_main_with_config(command, rabbit_config, tmpdir):
         }
 
 
+def test_main_with_config_options(command, rabbit_config, tmpdir):
+
+    config = tmpdir.join('config.yaml')
+    config.write("""
+        WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+        AMQP_URI: '{}'
+        serializer: 'json'
+    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+
+    with patch('nameko.cli.run.run') as run:
+
+        command(
+            'nameko', 'run',
+            '--config', config.strpath,
+            '--define', 'serializer=pickle',
+            '--define', 'EGG=[{"spam": True}]',
+            'test.sample',
+        )
+
+        assert run.call_count == 1
+        (_, config) = run.call_args[0]
+
+        assert config == {
+            WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+            AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
+            SERIALIZER_CONFIG_KEY: 'pickle',
+            'EGG': [{'spam': True}],
+        }
+
+
 def test_main_with_logging_config(command, rabbit_config, tmpdir):
 
     config = """

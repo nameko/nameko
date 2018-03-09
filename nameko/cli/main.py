@@ -37,9 +37,20 @@ def setup_parser():
 
     for command in commands.commands:
         command_parser = subparsers.add_parser(
-            command.name, description=command.__doc__)
+            command.name, description=command.__doc__,
+            conflict_handler='resolve')
         command.init_parser(command_parser)
         command_parser.set_defaults(main=command.main)
+        command_parser.add_argument(
+            '--config',
+            help='The YAML configuration file')
+        command_parser.add_argument(
+            '-d', '--define',
+            type=parse_config_option, action='append', metavar='KEY=VALUE',
+            help='Set config entry. Overrides value loaded from config file.'
+            ' Can be used multiple times.'
+            ' Example: --define AMQP_URI=pyamqp://guest:guest@localhost')
+
     return parser
 
 
@@ -64,16 +75,26 @@ def load_config(config_path):
         return yaml.load(fle)
 
 
-def setup_config(config_path):
+def parse_config_option(text):
+    if '=' in text:
+        key, value = text.strip().split('=', 1)
+        return key, yaml.load(value)
+    else:
+        return text, True
+
+
+def setup_config(args):
     setup_yaml_parser()
-    if config_path:
-        config.update(load_config(config_path))
+    if args.config:
+        config.update(load_config(args.config))
+    if args.define:
+        config.update(args.define)
 
 
 def main():
     parser = setup_parser()
     args = parser.parse_args()
-    setup_config(args.config)
+    setup_config(args)
     try:
         args.main(args)
     except (CommandError, ConfigurationError) as exc:
