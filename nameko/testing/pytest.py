@@ -83,10 +83,15 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture(scope='session')
 def vhost_pipeline(request, rabbit_manager):
+    from collections import Iterable
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
+    import socket
     import string
+    from kombu.pools import connections
     from nameko.testing.utils import ResourcePipeline
+    from nameko.utils.retry import retry
+    from requests.exceptions import HTTPError
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
@@ -102,8 +107,17 @@ def vhost_pipeline(request, rabbit_manager):
         )
         return vhost
 
+    @retry(for_exceptions=(HTTPError, socket.timeout), delay=1, max_attempts=9)
     def destroy(vhost):
         rabbit_manager.delete_vhost(vhost)
+
+        # make sure connections for this vhost are also destroyed.
+        vhost_pools = [
+            pool for key, pool in list(connections.items())
+            if isinstance(key, Iterable) and key[4] == vhost
+        ]
+        for pool in vhost_pools:
+            pool.force_close_all()
 
     pipeline = ResourcePipeline(create, destroy)
 
