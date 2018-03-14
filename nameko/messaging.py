@@ -174,6 +174,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
             serializer=serializer,
             exchange=self.exchange,
             declare=self.declare,
+            ssl_params=ssl,
             **self.options
         )
 
