@@ -46,18 +46,21 @@ def pytest_addoption(parser):
         '--amqp-ssl-ca-certs',
         action='store',
         dest='AMQP_SSL_CA_CERTS',
+        default='certs/cacert.pem',
         help='CA certificates chain file for SSL connection')
 
     parser.addoption(
         '--amqp-ssl-certfile',
         action='store',
         dest='AMQP_SSL_CERTFILE',
+        default='certs/clientcert.pem',
         help='Certificate file for SSL connection')
 
     parser.addoption(
         '--amqp-ssl-keyfile',
         action='store',
         dest='AMQP_SSL_KEYFILE',
+        default='certs/clientkey.pem',
         help='Private key file for SSL connection')
 
 
