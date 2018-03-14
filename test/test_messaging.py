@@ -11,7 +11,8 @@ from kombu.connection import Connection
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko.amqp import get_producer
+from nameko.amqp.publish import get_producer
+from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
@@ -1212,3 +1213,60 @@ class TestConfigurability(object):
         publish("payload", use_confirms=True)
         (_, use_confirms, _), _ = get_producer.call_args
         assert use_confirms is True
+
+
+class TestSSL(object):
+
+    @pytest.fixture
+    def queue(self,):
+        queue = Queue(name="queue")
+        return queue
+
+    def test_consume_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config, queue
+    ):
+        class Service(object):
+            name = "service"
+
+            @consume(queue)
+            def echo(self, payload):
+                return payload
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        publisher = PublisherCore(rabbit_config['AMQP_URI'])
+
+        with entrypoint_waiter(container, 'echo') as result:
+            publisher.publish("payload", routing_key=queue.name)
+        assert result.get() == "payload"
+
+    def test_publisher_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config, queue
+    ):
+        class PublisherService(object):
+            name = "publisher"
+
+            publish = Publisher()
+
+            @dummy
+            def method(self, payload):
+                return self.publish(payload, routing_key=queue.name)
+
+        class ConsumerService(object):
+            name = "consumer"
+
+            @consume(queue)
+            def echo(self, payload):
+                return payload
+
+        publisher = container_factory(PublisherService, rabbit_ssl_config)
+        publisher.start()
+
+        consumer = container_factory(ConsumerService, rabbit_config)
+        consumer.start()
+
+        with entrypoint_waiter(consumer, 'echo') as result:
+            with entrypoint_hook(publisher, 'method') as publish:
+                publish("payload")
+        assert result.get() == "payload"

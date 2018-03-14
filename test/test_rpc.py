@@ -1386,10 +1386,52 @@ def test_prefetch_throughput(container_factory, rabbit_config):
             [reply.result() for reply in replies]
 
 
-def test_rpc_over_ssl(container_factory, rabbit_ssl_config):
+class TestSSL(object):
 
-    container = container_factory(ExampleService, rabbit_ssl_config)
-    container.start()
+    def test_rpc_entrypoint_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
 
-    with ServiceRpcProxy("exampleservice", rabbit_ssl_config) as proxy:
-        assert proxy.echo("a", "b", foo="bar") == [['a', 'b'], {'foo': 'bar'}]
+            @rpc
+            def echo(self, *args, **kwargs):
+                return args, kwargs
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
+            assert proxy.echo("a", "b", foo="bar") == [
+                ['a', 'b'], {'foo': 'bar'}
+            ]
+
+    def test_rpc_proxy_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
+
+            delegate_rpc = RpcProxy('delegate')
+
+            @dummy
+            def echo(self, *args, **kwargs):
+                return self.delegate_rpc.echo(*args, **kwargs)
+
+        class Delegate(object):
+            name = "delegate"
+
+            @rpc
+            def echo(self, *args, **kwargs):
+                return args, kwargs
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        delegate = container_factory(Delegate, rabbit_config)
+        delegate.start()
+
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo("a", "b", foo="bar") == [
+                ['a', 'b'], {'foo': 'bar'}
+            ]

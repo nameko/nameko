@@ -757,3 +757,24 @@ class TestStandaloneProxyConsumerDisconnections(object):
         with pytest.raises(RuntimeError) as raised:
             service_rpc.echo(3)
         assert "This consumer has been disconnected" in str(raised.value)
+
+
+class TestSSL(object):
+
+    def test_rpc_proxy_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, *args, **kwargs):
+                return args, kwargs
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        with ServiceRpcProxy("service", rabbit_ssl_config) as proxy:
+            assert proxy.echo("a", "b", foo="bar") == [
+                ['a', 'b'], {'foo': 'bar'}
+            ]

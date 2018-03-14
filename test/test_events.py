@@ -14,7 +14,7 @@ from nameko.events import (
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.standalone.events import get_event_exchange
-from nameko.testing.services import entrypoint_waiter
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import DummyProvider, unpack_mock_call
 
 
@@ -839,3 +839,55 @@ class TestConfigurability(object):
 
         assert producer.publish.call_args[1]['exchange'] == event_exchange
         assert producer.publish.call_args[1]['routing_key'] == event_type
+
+
+class TestSSL(object):
+
+    def test_event_handler_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
+
+            @event_handler("service", "event")
+            def echo(self, event_data):
+                return event_data
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        dispatch = standalone_dispatcher(rabbit_config)
+
+        with entrypoint_waiter(container, 'echo') as result:
+            dispatch("service", "event", "payload")
+        assert result.get() == "payload"
+
+    def test_event_dispatcher_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Dispatcher(object):
+            name = "dispatch"
+
+            dispatch = EventDispatcher()
+
+            @dummy
+            def method(self, payload):
+                return self.dispatch("event-type", payload)
+
+        class Handler(object):
+            name = "handler"
+
+            @event_handler("dispatch", "event-type")
+            def echo(self, payload):
+                return payload
+
+        dispatcher = container_factory(Dispatcher, rabbit_ssl_config)
+        dispatcher.start()
+
+        handler = container_factory(Handler, rabbit_config)
+        handler.start()
+
+        with entrypoint_waiter(handler, 'echo') as result:
+            with entrypoint_hook(dispatcher, 'method') as dispatch:
+                dispatch("payload")
+        assert result.get() == "payload"
