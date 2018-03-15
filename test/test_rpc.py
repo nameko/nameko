@@ -998,8 +998,8 @@ class TestResponderDisconnections(object):
 
     @pytest.yield_fixture(autouse=True)
     def toxic_responder(self, toxiproxy):
-        def replacement_constructor(amqp_uri, *args):
-            return Responder(toxiproxy.uri, *args)
+        def replacement_constructor(amqp_uri, *args, **kwargs):
+            return Responder(toxiproxy.uri, *args, **kwargs)
         with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
