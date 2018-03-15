@@ -1384,3 +1384,12 @@ def test_prefetch_throughput(container_factory, rabbit_config):
 
         with eventlet.Timeout(1):
             [reply.result() for reply in replies]
+
+
+def test_rpc_over_ssl(container_factory, rabbit_ssl_config):
+
+    container = container_factory(ExampleService, rabbit_ssl_config)
+    container.start()
+
+    with ServiceRpcProxy("exampleservice", rabbit_ssl_config) as proxy:
+        assert proxy.echo("a", "b", foo="bar") == [['a', 'b'], {'foo': 'bar'}]

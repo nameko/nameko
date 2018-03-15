@@ -35,6 +35,31 @@ def pytest_addoption(parser):
         help=("URI for RabbitMQ management interface.")
     )
 
+    parser.addoption(
+        '--amqp-ssl-port',
+        action='store',
+        dest='AMQP_SSL_PORT',
+        default=5671,
+        help='Port number for SSL connection')
+
+    parser.addoption(
+        '--amqp-ssl-ca-certs',
+        action='store',
+        dest='AMQP_SSL_CA_CERTS',
+        help='CA certificates chain file for SSL connection')
+
+    parser.addoption(
+        '--amqp-ssl-certfile',
+        action='store',
+        dest='AMQP_SSL_CERTFILE',
+        help='Certificate file for SSL connection')
+
+    parser.addoption(
+        '--amqp-ssl-keyfile',
+        action='store',
+        dest='AMQP_SSL_KEYFILE',
+        help='Private key file for SSL connection')
+
 
 def pytest_load_initial_conftests():
     # make sure we monkey_patch before local conftests
@@ -146,6 +171,38 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
         }
 
         yield conf
+
+
+@pytest.fixture()
+def rabbit_ssl_config(request, rabbit_config):
+    from ssl import CERT_REQUIRED  # pylint: disable=E0401
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+
+    ca_certs = request.config.getoption('AMQP_SSL_CA_CERTS')
+    certfile = request.config.getoption('AMQP_SSL_CERTFILE')
+    keyfile = request.config.getoption('AMQP_SSL_KEYFILE')
+
+    amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
+    uri_parts = urlparse(rabbit_config['AMQP_URI'])
+    amqp_ssl_uri = uri_parts._replace(
+        netloc=uri_parts.netloc.replace(
+            str(uri_parts.port),
+            str(amqp_ssl_port))
+    ).geturl()
+
+    conf = {
+        'AMQP_URI': amqp_ssl_uri,
+        'username': rabbit_config['username'],
+        'vhost': rabbit_config['vhost'],
+        'AMQP_SSL': {
+            'ca_certs': ca_certs,
+            'certfile': certfile,
+            'keyfile': keyfile,
+            'cert_reqs': CERT_REQUIRED,
+        },
+    }
+
+    return conf
 
 
 @pytest.fixture

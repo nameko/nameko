@@ -18,8 +18,9 @@ from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER, HEADER_PREFIX,
-    HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
+    DEFAULT_SERIALIZER, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -158,9 +159,11 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     def setup(self):
 
-        verify_amqp_uri(self.amqp_uri)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
-        with get_connection(self.amqp_uri) as conn:
+        verify_amqp_uri(self.amqp_uri, ssl=ssl)
+
+        with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
                 maybe_declare(entity, conn)
 
@@ -221,7 +224,8 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self):
-        verify_amqp_uri(self.amqp_uri)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
     def start(self):
         if not self._starting:
@@ -349,7 +353,8 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         heartbeat = self.container.config.get(
             HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
         )
-        return Connection(self.amqp_uri, heartbeat=heartbeat)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        return Connection(self.amqp_uri, heartbeat=heartbeat, ssl=ssl)
 
     def handle_message(self, provider, body, message):
         ident = u"{}.handle_message[{}]".format(

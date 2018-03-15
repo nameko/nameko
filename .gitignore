@@ -3,6 +3,7 @@
 *.pyc
 _py_cache
 docs/build
+.idea/
 
 ## Packages
 *.egg-info
