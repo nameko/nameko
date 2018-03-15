@@ -11,8 +11,8 @@ from kombu.connection import Connection
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko.amqp.publish import get_producer
 from nameko.amqp.publish import Publisher as PublisherCore
+from nameko.amqp.publish import get_producer
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
