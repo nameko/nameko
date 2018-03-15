@@ -6,6 +6,15 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.8.5
+-------------
+
+Released: 2018-03-15
+
+* Workaround for a Kombu bug causing new sockets to sometimes have short
+  timeouts. (#521)
+  
+  
 Version 2.8.4
 -------------
 
