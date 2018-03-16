@@ -97,6 +97,8 @@ class WebServer(ProviderCollector, SharedExtension):
         if not self._starting:
             self._starting = True
             self._sock = eventlet.listen(self.bind_addr)
+            # work around https://github.com/celery/kombu/issues/838
+            self._sock.settimeout(None)
             self._serv = self.get_wsgi_server(self._sock, self.get_wsgi_app())
             self._gt = self.container.spawn_managed_thread(self.run)
 
