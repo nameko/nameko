@@ -51,9 +51,9 @@ Config values can be read via the built-in :ref:`config_dependency_provider` dep
 Environment variable substitution
 ---------------------------------
 YAML configuration files have support for environment variables.
-You can use bash style syntax: ``${ENV_VAR}``
-Optionally you can provide default values ``${ENV_VAR:default_value}``
-default values can contains environment variables recursively ``${ENV_VAR:default_${OTHER_ENV_VAR:value}}`` (note: this feature require regex package)
+You can use bash style syntax: ``${ENV_VAR}``.
+Optionally you can provide default values ``${ENV_VAR:default_value}``.
+Default values can contains environment variables recursively ``${ENV_VAR:default_${OTHER_ENV_VAR:value}}`` (note: this feature require regex package).
 
 
 .. code-block:: yaml
@@ -78,8 +78,8 @@ You can provide many level of generic default value
 
 .. code-block:: yaml
 
-	# foobar.yaml
-	AMQP_URI: ${AMQP_URI:pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}}
+    # foobar.yaml
+    AMQP_URI: ${AMQP_URI:pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}}
 
 this config accept AMQP_URI as environment variable, in this case RABBITMQ_* variables will not be used.
 
@@ -99,8 +99,8 @@ the parser for environment variable will pair all bracket.
 
 .. code-block::  yaml
 
-	# foobar.yaml
-	LANDING_URL_TEMPLATE: ${LANDING_URL_TEMPLATE:https://example.com/{path}}
+    # foobar.yaml
+    LANDING_URL_TEMPLATE: ${LANDING_URL_TEMPLATE:https://example.com/{path}}
 
 so the default value for this config will be https://example.com/{path}
 
