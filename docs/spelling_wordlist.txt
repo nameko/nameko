@@ -98,6 +98,7 @@ reconnected
 reconnecting
 reconnection
 redis
+regex
 refactor
 refactored
 refactors
