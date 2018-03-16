@@ -114,6 +114,7 @@ serialized
 serializers
 serializes
 serializing
+setuptools
 shutdown
 specialization
 specialize
