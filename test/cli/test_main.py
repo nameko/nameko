@@ -13,7 +13,7 @@ from nameko.exceptions import CommandError, ConfigurationError
 
 try:
     import regex
-except ImportError:
+except ImportError:  # pragma: no cover
     has_regex_module = False
 else:  # pragma: no cover
     del regex
@@ -385,7 +385,9 @@ class TestConfigEnvironmentVariables(object):
     ])
     @pytest.mark.skipif(has_regex_module,
                         reason='default behavior if no regex module')
-    def test_unhandled_recurtion(self, yaml_config, env_vars, expected_config):
+    def test_unhandled_recurtion(
+            self, yaml_config, env_vars, expected_config
+    ):  # pragma: no cover
         setup_yaml_parser()
 
         with patch.dict('os.environ'):

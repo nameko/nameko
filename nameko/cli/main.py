@@ -13,7 +13,7 @@ from . import commands
 
 try:
     import regex
-except ImportError:
+except ImportError:  # pragma: no cover
     ENV_VAR_MATCHER = re.compile(
         r"""
             \$\{       # match characters `${` literally
