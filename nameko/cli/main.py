@@ -80,7 +80,7 @@ def _replace_env_var(match):
             default = ''
 
         value = default
-        while IMPLICIT_ENV_VAR_MATCHER.match(value):
+        while IMPLICIT_ENV_VAR_MATCHER.match(value):  # pragma: no cover
             value = ENV_VAR_MATCHER.sub(_replace_env_var, value)
     return value
 

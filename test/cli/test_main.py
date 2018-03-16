@@ -355,3 +355,41 @@ class TestConfigEnvironmentVariables(object):
 
             results = yaml.load(yaml_config)
             assert results == expected_config
+
+    @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
+        # recursive env with root value
+        (
+            """
+            FOO: ${FOO:val_${INDICE:1}}
+            """,
+            {"FOO": 'val_a'},
+            {"FOO": 'val_a}'},
+        ),
+        # recursive env with root default and sub value
+        (
+            """
+            FOO: ${FOO:val_${INDICE:1}}
+            """,
+            {"INDICE": 'b'},
+            {"FOO": 'val_${INDICE:1}'},
+        ),
+        # recursive env requiring data
+        (
+            """
+            FOO: ${FOO:${INDICE}_val}
+            """,
+            {"INDICE": 'b'},
+            {"FOO": '${INDICE_val}'},
+        ),
+
+    ])
+    @pytest.mark.skipif(has_regex_module,
+                        reason='default behavior if no regex module')
+    def test_unhandled_recurtion(self, yaml_config, env_vars, expected_config):
+        setup_yaml_parser()
+
+        with patch.dict('os.environ'):
+            for key, val in env_vars.items():
+                os.environ[key] = val
+            results = yaml.load(yaml_config)
+            assert results == expected_config
