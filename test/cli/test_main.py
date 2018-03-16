@@ -110,7 +110,9 @@ class TestConfigEnvironmentParser(object):
     ])
     @pytest.mark.skipif(not has_regex_module,
                         reason='0 support for nested env without regex module')
-    def test_maching_recursive_with_regex(self, value, expected):  # pragma: no cover
+    def test_maching_recursive_with_regex(
+            self, value, expected
+    ):  # pragma: no cover
         res = ENV_VAR_MATCHER.findall(value)
         assert res == expected
 
