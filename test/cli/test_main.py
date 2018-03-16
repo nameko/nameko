@@ -13,10 +13,11 @@ from nameko.exceptions import CommandError, ConfigurationError
 
 try:
     import regex
+except ImportError:
+    has_regex_module = False
+else:  # pragma: no cover
     del regex
     has_regex_module = True
-except ImportError:  # pragma: no cover
-    has_regex_module = False
 
 
 @pytest.yield_fixture(autouse=True)
@@ -109,7 +110,7 @@ class TestConfigEnvironmentParser(object):
     ])
     @pytest.mark.skipif(not has_regex_module,
                         reason='0 support for nested env without regex module')
-    def test_maching_recursive_with_regex(self, value, expected):
+    def test_maching_recursive_with_regex(self, value, expected):  # pragma: no cover
         res = ENV_VAR_MATCHER.findall(value)
         assert res == expected
 
@@ -343,7 +344,7 @@ class TestConfigEnvironmentVariables(object):
                         reason='0 support for nested env without regex module')
     def test_environment_vars_recursive_in_config(
             self, yaml_config, env_vars, expected_config
-    ):
+    ):  # pragma: no cover
         setup_yaml_parser()
 
         with patch.dict('os.environ'):
