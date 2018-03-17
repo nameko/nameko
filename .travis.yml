@@ -114,6 +114,7 @@ matrix:
     - env: TOX_ENV=py36-branchcoverage-lib
 
 script:
+  - python tox_travis_check.py
   - tox -e $TOX_ENV
 
 
