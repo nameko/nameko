@@ -2,8 +2,10 @@ import json
 import subprocess
 import sys
 import uuid
+from contextlib import contextmanager
 from types import ModuleType
 
+import eventlet
 import pytest
 import requests
 from mock import ANY, patch
@@ -42,7 +44,7 @@ def mock_producer():
 
 @pytest.yield_fixture
 def mock_connection():
-    with patch('nameko.amqp.publish.connections') as patched:
+    with patch('nameko.amqp.utils.connections') as patched:
         with patched[ANY].acquire() as connection:
             yield connection
 
@@ -150,15 +152,26 @@ def toxiproxy(toxiproxy_server, rabbit_config):
             )
             requests.delete(resource)
 
-        def reset(self):
-            # ensure the proxy passes traffic healthily again, so test cleanup
-            # doesn't get stuck trying to reconnect
+        @contextmanager
+        def disabled(self):
+            self.disable()
+            yield
             self.enable()
+
+        @contextmanager
+        def timeout(self, timeout=500, stream="upstream"):
+            self.set_timeout(timeout=timeout, stream=stream)
+            yield
             self.reset_timeout()
 
     controller = Controller(proxy_uri)
     yield controller
-    controller.reset()
+
+    # delete proxy
+    # allow some grace period to ensure we don't remove the proxy before
+    # other fixtures have torn down
+    resource = 'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
+    eventlet.spawn_after(10, requests.delete, resource)
 
 
 @pytest.yield_fixture

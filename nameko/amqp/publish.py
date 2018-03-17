@@ -2,7 +2,7 @@ import warnings
 from contextlib import contextmanager
 
 from kombu import Connection
-from kombu.pools import connections, producers
+from kombu.pools import producers
 from six.moves import queue as Queue
 
 from nameko.constants import DEFAULT_RETRY_POLICY, PERSISTENT
@@ -12,13 +12,6 @@ class UndeliverableMessage(Exception):
     """ Raised when publisher confirms are enabled and a message could not
     be routed or persisted """
     pass
-
-
-@contextmanager
-def get_connection(amqp_uri):
-    conn = Connection(amqp_uri)
-    with connections[conn].acquire(block=True) as connection:
-        yield connection
 
 
 @contextmanager

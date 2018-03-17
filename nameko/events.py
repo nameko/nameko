@@ -224,8 +224,7 @@ class EventHandler(Consumer):
     def setup(self):
         _log.debug('starting %s', self)
 
-        # handler_type determines queue name and exclusive flag
-        exclusive = False
+        # handler_type determines queue name
         service_name = self.container.service_name
         if self.handler_type is SERVICE_POOL:
             queue_name = "evt-{}-{}--{}.{}".format(self.source_service,
@@ -249,17 +248,10 @@ class EventHandler(Consumer):
         # auto-delete so they're removed when the consumer disconnects
         auto_delete = self.reliable_delivery is False
 
-        # queues for broadcast handlers are exclusive (meaning that only one
-        # consumer may be connected) except when reliable delivery is enabled,
-        # because exclusive queues are always removed when the consumer
-        # disconnects, regardless of the value of auto_delete
-        exclusive = self.handler_type is BROADCAST
-        if self.reliable_delivery:
-            exclusive = False
-
         self.queue = Queue(
             queue_name, exchange=exchange, routing_key=self.event_type,
-            durable=True, auto_delete=auto_delete, exclusive=exclusive)
+            durable=True, auto_delete=auto_delete
+        )
 
         super(EventHandler, self).setup()
 

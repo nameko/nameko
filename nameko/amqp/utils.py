@@ -1,9 +1,13 @@
 from __future__ import absolute_import
 
+from contextlib import contextmanager
+
 import amqp
 import six
 from amqp.exceptions import NotAllowed
 from kombu import Connection
+from kombu.messaging import Queue
+from kombu.pools import connections
 from kombu.transport.pyamqp import Transport
 
 
@@ -48,3 +52,17 @@ def verify_amqp_uri(amqp_uri):
     transport = TestTransport(connection.transport.client)
     with transport.establish_connection():
         pass
+
+
+@contextmanager
+def get_connection(amqp_uri):
+    conn = Connection(amqp_uri)
+    with connections[conn].acquire(block=True) as connection:
+        yield connection
+
+
+def get_queue_info(amqp_uri, queue_name):
+    with get_connection(amqp_uri) as conn:
+        queue = Queue(name=queue_name)
+        queue = queue.bind(conn)
+        return queue.queue_declare(passive=True)
