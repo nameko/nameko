@@ -86,4 +86,3 @@ def test_ssl_missing_param(uris, rabbit_ssl_config):
 def test_ssl_no_cert_verification(uris):
     ssl_uri = uris['ssl']
     verify_amqp_uri(ssl_uri, ssl=True)
-
