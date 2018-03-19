@@ -1388,6 +1388,14 @@ def test_prefetch_throughput(container_factory, rabbit_config):
 
 class TestSSL(object):
 
+    @pytest.fixture(params=[True, False])
+    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+        verify_certs = request.param
+        if verify_certs is False:
+            # remove certificate paths from config
+            rabbit_ssl_config['AMQP_SSL'] = True
+        return rabbit_ssl_config
+
     def test_rpc_entrypoint_over_ssl(
         self, container_factory, rabbit_ssl_config, rabbit_config
     ):

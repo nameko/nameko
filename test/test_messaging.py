@@ -1222,6 +1222,14 @@ class TestSSL(object):
         queue = Queue(name="queue")
         return queue
 
+    @pytest.fixture(params=[True, False])
+    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+        verify_certs = request.param
+        if verify_certs is False:
+            # remove certificate paths from config
+            rabbit_ssl_config['AMQP_SSL'] = True
+        return rabbit_ssl_config
+
     def test_consume_over_ssl(
         self, container_factory, rabbit_ssl_config, rabbit_config, queue
     ):
