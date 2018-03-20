@@ -14,7 +14,7 @@ from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    UnknownService
+    ReplyQueueExpiredWithPendingReplies, UnknownService
 )
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
@@ -622,6 +622,101 @@ def test_reply_queue_removed_on_expiry(
     container.stop()
     eventlet.sleep(0.15)  # sleep for >TTL
     assert reply_queue not in list_queues()
+
+
+@skip_if_no_toxiproxy
+class TestDisconnectedWhileWaitingForReply(object):
+
+    @pytest.yield_fixture(autouse=True)
+    def fast_reconnects(self):
+
+        @contextmanager
+        def establish_connection(self):
+            with self.create_connection() as conn:
+                conn.ensure_connection(
+                    self.on_connection_error,
+                    self.connect_max_retries,
+                    interval_start=0.1,
+                    interval_step=0.1)
+                yield conn
+
+        with patch.object(
+            QueueConsumer, 'establish_connection', new=establish_connection
+        ):
+            yield
+
+    @pytest.yield_fixture
+    def fast_expiry(self):
+        with patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def container(
+        self, container_factory, rabbit_config, rabbit_manager, toxiproxy,
+        fast_expiry
+    ):
+
+        def enable_after_queue_expires():
+            eventlet.sleep(5)
+            toxiproxy.enable()
+
+        class ToxicQueueConsumer(QueueConsumer):
+            amqp_uri = toxiproxy.uri
+
+        class ToxicReplyListener(ReplyListener):
+            queue_consumer = ToxicQueueConsumer()
+
+        class ToxicRpcProxy(RpcProxy):
+            rpc_reply_listener = ToxicReplyListener()
+
+        class Service(object):
+            name = "service"
+
+            delegate_rpc = ToxicRpcProxy('delegate')
+
+            @dummy
+            def sleep(self):
+                return self.delegate_rpc.sleep()
+
+        class DelegateService(object):
+            name = "delegate"
+
+            @rpc
+            def sleep(self):
+                toxiproxy.disable()
+                eventlet.spawn_n(enable_after_queue_expires)
+                return "OK"
+
+        # very fast heartbeat
+        config = rabbit_config
+        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
+
+        container = container_factory(Service, config)
+        container.start()
+
+        delegate_container = container_factory(DelegateService, config)
+        delegate_container.start()
+
+        return container
+
+    def test_reply_queue_removed_while_disconnected_with_pending_reply(
+        self, container, toxiproxy
+    ):
+        """ Not possible to make this test pass with the current design.
+        We don't have a hook from the ReplyListener into the place where
+        queues are declared (inside consumer creation) because it's delegated
+        to the QueueConsumer, which handles _all_ queues.
+
+        It will be possible once to write test this scenario once the
+        ReplyListener implements the ConsumerMixin itself (by declaring the
+        queue before setting up consumers)
+
+        """
+        pytest.skip("Not possible with current implementation")
+
+        with entrypoint_hook(container, 'sleep') as hook:
+            with pytest.raises(ReplyQueueExpiredWithPendingReplies):
+                hook()
 
 
 @skip_if_no_toxiproxy

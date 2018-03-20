@@ -192,6 +192,25 @@ def test_reply_queue_not_removed_while_in_use(
     assert queues_before == queues_between == queues_after
 
 
+@skip_if_no_toxiproxy
+class TestDisconnectedWhileWaitingForReply(object):
+
+    @patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+    def test_reply_queue_removed_while_disconnected_with_pending_reply(
+        self, rabbit_config, container_factory, toxiproxy
+    ):
+        """ Not possible to test this scenario with the current design.
+        We attempt to _setup_consumer immediately on disconnection, without
+        any kind of retry and only for two attempts; the broker will never
+        have expired the queue during that window.
+
+        It will be possible once to write test this scenario once the
+        `rpc-refactor` branch lands. This test will then become very similar
+        to test/test_rpc.py::TestDisconnectedWhileWaitingForReply.
+        """
+        pytest.skip("Not possible to test with current implementation")
+
+
 def test_unexpected_correlation_id(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()

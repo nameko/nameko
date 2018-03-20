@@ -14,6 +14,10 @@ class RpcTimeout(Exception):
     pass
 
 
+class ReplyQueueExpiredWithPendingReplies(Exception):
+    pass
+
+
 class ContainerBeingKilled(Exception):
     """Raised by :meth:`Container.spawn_worker` if it has started a ``kill``
     sequence.
