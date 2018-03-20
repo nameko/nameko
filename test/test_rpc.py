@@ -1006,7 +1006,7 @@ class TestRpcConsumerDisconnections(object):
         queue_consumer = get_extension(container, QueueConsumer)
 
         def reset(args, kwargs, result, exc_info):
-            toxiproxy.reset()
+            toxiproxy.enable()
             return True
 
         with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
