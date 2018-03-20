@@ -19,8 +19,11 @@ class ExampleService(object):
     def do_post(self, request):
         data = json.loads(request.get_data(as_text=True))
         value = data['value']
-
         return value
+
+    @http('GET,PUT,POST', '/multi')
+    def do_multi(self, request):
+        return request.method
 
     @http('GET', '/custom')
     def do_custom(self, request):
@@ -71,6 +74,21 @@ def test_post(web_session):
         'value': 'foo',
     }))
     assert rv.text == "foo"
+
+
+def test_multi_get(web_session):
+    rv = web_session.get('/multi')
+    assert rv.text == "GET"
+
+
+def test_multi_put(web_session):
+    rv = web_session.put('/multi')
+    assert rv.text == "PUT"
+
+
+def test_multi_post(web_session):
+    rv = web_session.post('/multi')
+    assert rv.text == "POST"
 
 
 def test_custom_response(web_session):

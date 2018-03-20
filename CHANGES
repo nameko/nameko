@@ -5,6 +5,27 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+
+Version 2.8.5
+-------------
+
+Released: 2018-03-15
+
+* Workaround for a Kombu bug causing new sockets to sometimes have short
+  timeouts. (#521)
+  
+  
+Version 2.8.4
+-------------
+
+Released: 2018-02-18
+
+* Fixes a bug where the container crashed if the connection to RabbitMQ
+  was lost while an AMQP entrypoint was running (#511)
+* Correction to WorkerContext.immediate_call_id which actually referred
+  to the id of original call. Adds WorkerContext.origin_call_id to
+  replicate the previous behaviour.
+
 Version 2.8.3
 -------------
 

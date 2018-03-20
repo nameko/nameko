@@ -46,6 +46,14 @@ Extensions
 
         A StatsD dependency for nameko, enabling services to send stats.
 
+    * `nameko-twilio <https://github.com/invictuscapital/nameko-twilio>`_
+
+        Twilio dependency for nameko, so you can send SMS, make calls, and answer calls in your service.
+
+    * `nameko-sendgrid <https://github.com/invictuscapital/nameko-sendgrid>`_
+
+        SendGrid dependency for nameko, for sending transactional and marketing emails.
+
 Supplementary Libraries
 -----------------------
 

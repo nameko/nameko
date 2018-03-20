@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import eventlet
 import pytest
+from eventlet.semaphore import Semaphore
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch
@@ -489,9 +490,18 @@ class TestConsumerDisconnections(object):
                 )
         return publish
 
+    @pytest.fixture
+    def lock(self):
+        return Semaphore()
+
+    @pytest.fixture
+    def tracker(self):
+        return Mock()
+
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_queue_consumer, queue
+        self, container_factory, rabbit_config, toxic_queue_consumer, queue,
+        lock, tracker
     ):
 
         class Service(object):
@@ -499,6 +509,9 @@ class TestConsumerDisconnections(object):
 
             @consume(queue)
             def echo(self, arg):
+                lock.acquire()
+                lock.release()
+                tracker(arg)
                 return arg
 
         # very fast heartbeat
@@ -656,6 +669,88 @@ class TestConsumerDisconnections(object):
         with entrypoint_waiter(container, 'echo') as result:
             publish(msg)
         assert result.get() == msg
+
+    def test_message_ack_regression(
+        self, container, publish, toxiproxy, lock, tracker
+    ):
+        """ Regression for https://github.com/nameko/nameko/issues/511
+        """
+        # prevent workers from completing
+        lock.acquire()
+
+        # fire entrypoint and block the worker;
+        # break connection while the worker is active, then release worker
+        with entrypoint_waiter(container, 'echo') as result:
+            publish('msg1')
+            while not lock._waiters:
+                eventlet.sleep()  # pragma: no cover
+            toxiproxy.disable()
+            # allow connection to close before releasing worker
+            eventlet.sleep(.1)
+            lock.release()
+
+        # entrypoint will return and attempt to ack initiating message
+        assert result.get() == "msg1"
+
+        # enabling connection will re-deliver the initiating message
+        # and it will be processed again
+        with entrypoint_waiter(container, 'echo') as result:
+            toxiproxy.enable()
+        assert result.get() == "msg1"
+
+        # connection re-established, container should work again
+        with entrypoint_waiter(container, 'echo', timeout=1) as result:
+            publish('msg2')
+        assert result.get() == 'msg2'
+
+    def test_message_requeue_regression(
+        self, container, publish, toxiproxy, lock, tracker
+    ):
+        """ Regression for https://github.com/nameko/nameko/issues/511
+        """
+        # turn on requeue_on_error
+        consumer = get_extension(container, Consumer)
+        consumer.requeue_on_error = True
+
+        # make entrypoint raise the first time it's called so that
+        # we attempt to requeue it
+        class Boom(Exception):
+            pass
+
+        def error_once():
+            yield Boom("error")
+            while True:
+                yield
+        tracker.side_effect = error_once()
+
+        # prevent workers from completing
+        lock.acquire()
+
+        # fire entrypoint and block the worker;
+        # break connection while the worker is active, then release worker
+        with entrypoint_waiter(container, 'echo') as result:
+            publish('msg1')
+            while not lock._waiters:
+                eventlet.sleep()  # pragma: no cover
+            toxiproxy.disable()
+            # allow connection to close before releasing worker
+            eventlet.sleep(.1)
+            lock.release()
+
+        # entrypoint will return and attempt to requeue initiating message
+        with pytest.raises(Boom):
+            result.get()
+
+        # enabling connection will re-deliver the initiating message
+        # and it will be processed again
+        with entrypoint_waiter(container, 'echo', timeout=1) as result:
+            toxiproxy.enable()
+        assert result.get() == 'msg1'
+
+        # connection re-established, container should work again
+        with entrypoint_waiter(container, 'echo', timeout=1) as result:
+            publish('msg2')
+        assert result.get() == 'msg2'
 
 
 @skip_if_no_toxiproxy
