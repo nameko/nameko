@@ -53,7 +53,7 @@ Environment variable substitution
 YAML configuration files have support for environment variables.
 You can use bash style syntax: ``${ENV_VAR}``.
 Optionally you can provide default values ``${ENV_VAR:default_value}``.
-Default values can contains environment variables recursively ``${ENV_VAR:default_${OTHER_ENV_VAR:value}}`` (note: this feature require regex package).
+Default values can contains environment variables recursively ``${ENV_VAR:default_${OTHER_ENV_VAR:value}}`` (note: this feature requires regex package).
 
 
 .. code-block:: yaml
@@ -74,14 +74,14 @@ If you need to quote the values in your YAML file, the explicit ``!env_var`` res
     # foobar.yaml
     AMQP_URI: !env_var "pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
 
-You can provide many level of generic default value
+You can provide many levels of default values
 
 .. code-block:: yaml
 
     # foobar.yaml
     AMQP_URI: ${AMQP_URI:pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}}
 
-this config accept AMQP_URI as environment variable, in this case RABBITMQ_* variables will not be used.
+this config accepts AMQP_URI as an environment variable, if provided RABBITMQ_* nested variables will not be used.
 
 The environment variable value is interpreted as YAML, so it is possible to use rich types:
 
@@ -95,7 +95,7 @@ The environment variable value is interpreted as YAML, so it is possible to use 
 
     $ A_LIST_OF_THINGS=[A,B,C] nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
 
-the parser for environment variable will pair all bracket.
+the parser for environment variables will pair all brackets.
 
 .. code-block::  yaml
 
