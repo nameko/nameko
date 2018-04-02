@@ -19,6 +19,7 @@ from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.testing.waiting import wait_for_call
 
+from test.anonymous import Service1, Service2
 from test.sample import Service
 
 
@@ -46,6 +47,27 @@ def test_run(rabbit_config):
         proxy.service.ping()
 
     # stop service
+    pid = os.getpid()
+    os.kill(pid, signal.SIGTERM)
+    gt.wait()
+
+
+def test_run_module(rabbit_config):
+    parser = setup_parser()
+    broker = rabbit_config['AMQP_URI']
+    args = parser.parse_args([
+        'run',
+        '--broker',
+        broker,
+        'test.anonymous',
+    ])
+
+    with wait_for_call(ServiceRunner, 'start'):
+        gt = eventlet.spawn(main, args)
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        proxy.service2.ping()
+
     pid = os.getpid()
     os.kill(pid, signal.SIGTERM)
     gt.wait()
@@ -131,6 +153,12 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
     gt.wait()
 
     assert "test.sample - INFO - ping!" in capture_file.read()
+
+
+def test_exclude_import():
+    services = import_service('test.anonymous')
+    assert Service1 not in services
+    assert Service2 in services
 
 
 def test_import_ok():
