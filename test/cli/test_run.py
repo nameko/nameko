@@ -20,6 +20,7 @@ from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.testing.waiting import wait_for_call
 
 from test.sample import Service
+from test.anonymous import Service1, Service2
 
 
 TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
@@ -131,6 +132,10 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
     gt.wait()
 
     assert "test.sample - INFO - ping!" in capture_file.read()
+
+
+def test_exclude_import():
+    assert import_service('test.anonymous') == [Service2]
 
 
 def test_import_ok():
