@@ -1,11 +1,9 @@
-from kombu import Connection, Exchange
-from kombu.pools import producers, connections
+from kombu import Exchange
 
+from nameko.amqp.publish import Publisher
 from nameko.constants import (
-    DEFAULT_RETRY_POLICY, SERIALIZER_CONFIG_KEY,
-    DEFAULT_SERIALIZER)
-
-from nameko.messaging import PERSISTENT, AMQP_URI_CONFIG_KEY
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, PERSISTENT, SERIALIZER_CONFIG_KEY
+)
 
 
 def get_event_exchange(service_name):
@@ -22,33 +20,30 @@ def get_event_exchange(service_name):
 def event_dispatcher(nameko_config, **kwargs):
     """ Return a function that dispatches nameko events.
     """
+    amqp_uri = nameko_config[AMQP_URI_CONFIG_KEY]
 
-    kwargs = kwargs.copy()
-    retry = kwargs.pop('retry', True)
-    retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
+    serializer = kwargs.pop(
+        'serializer',
+        nameko_config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        )
+    )
+
+    # TODO: standalone event dispatcher should accept context event_data
+    # and insert a call id
+
+    publisher = Publisher(amqp_uri, serializer=serializer, **kwargs)
 
     def dispatch(service_name, event_type, event_data):
         """ Dispatch an event claiming to originate from `service_name` with
         the given `event_type` and `event_data`.
         """
-        conn = Connection(nameko_config[AMQP_URI_CONFIG_KEY])
-
-        serializer = nameko_config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
         exchange = get_event_exchange(service_name)
 
-        with connections[conn].acquire(block=True) as connection:
-            exchange.maybe_bind(connection)
-            with producers[conn].acquire(block=True) as producer:
-                msg = event_data
-                routing_key = event_type
-                producer.publish(
-                    msg,
-                    exchange=exchange,
-                    serializer=serializer,
-                    routing_key=routing_key,
-                    retry=retry,
-                    retry_policy=retry_policy,
-                    **kwargs)
+        publisher.publish(
+            event_data,
+            exchange=exchange,
+            routing_key=event_type
+        )
+
     return dispatch

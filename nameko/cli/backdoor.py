@@ -1,15 +1,9 @@
-"""Connect to a nameko backdoor.
-
-If a backdoor is running this will connect to a remote shell.  The
-runner is generally available as `runner`.
-"""
 from __future__ import print_function
 
 import os
 from subprocess import call
 
 from nameko.exceptions import CommandError
-from .actions import FlagAction
 
 
 def main(args):
@@ -44,13 +38,3 @@ def main(args):
         print()
         if choice == 'telnet' and rlwrap:
             call(['reset'])
-
-
-def init_parser(parser):
-    parser.add_argument(
-        'target', metavar='[host:]port', help="(host and) port to connect to")
-    parser.add_argument(
-        '--rlwrap', dest='rlwrap', action=FlagAction,
-        help='Use rlwrap')
-    parser.set_defaults(feature=True)
-    return parser

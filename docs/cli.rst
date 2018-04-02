@@ -3,6 +3,8 @@ Command Line Interface
 
 Nameko ships with a command line interface to make hosting and interacting with services as easy as possible.
 
+.. _running_a_service:
+
 Running a Service
 -----------------
 
@@ -43,6 +45,8 @@ and providing a simple YAML configuration file:
 
 The ``LOGGING`` entry is passed to :func:`logging.config.dictConfig` and should conform to the schema for that call.
 
+Config values can be read via the built-in :ref:`config_dependency_provider` dependency provider.
+
 
 Environment variable substitution
 ---------------------------------
@@ -54,7 +58,7 @@ Optionally you can provide default values ``${ENV_VAR:default_value}``
 .. code-block:: yaml
 
     # foobar.yaml
-    AMQP_URI: amqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}
+    AMQP_URI: pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}
 
 To run your service and set environment variables for it to use:
 
@@ -67,7 +71,19 @@ If you need to quote the values in your YAML file, the explicit ``!env_var`` res
 .. code-block:: yaml
 
     # foobar.yaml
-    AMQP_URI: !env_var "amqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
+    AMQP_URI: !env_var "pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
+
+The environment variable value is interpreted as YAML, so it is possible to use rich types:
+
+.. code-block:: yaml
+
+    # foobar.yaml
+    ...
+    THINGS: ${A_LIST_OF_THINGS}
+
+.. code-block:: shell
+
+    $ A_LIST_OF_THINGS=[A,B,C] nameko run --config ./foobar.yaml <module>[:<ServiceClass>]
 
 Interacting with running services
 ---------------------------------

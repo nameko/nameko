@@ -1,61 +1,188 @@
-from mock import Mock, call
+from collections import defaultdict
+
 import pytest
+from mock import ANY, Mock, call, patch
 
-from nameko.testing.services import once
-
-
-method_called = Mock()
-
-
-@pytest.yield_fixture(autouse=True)
-def reset():
-    yield
-    method_called.reset_mock()
+from nameko.extensions import DependencyProvider, Entrypoint
+from nameko.testing.services import dummy, entrypoint_hook, once
+from nameko.testing.utils import get_extension
+from nameko.utils import REDACTED, get_redacted_args
 
 
-def test_decorator_without_args(container_factory):
-
-    class Service(object):
-        name = "service"
-
-        @once
-        def method(self, a="a", b="b"):
-            method_called(a, b)
-
-    container = container_factory(Service, config={})
-    container.start()
-    container.stop()  # graceful, waits for workers
-
-    assert method_called.call_args == call('a', 'b')
+@pytest.fixture
+def tracker():
+    return Mock()
 
 
-def test_decorator_with_args(container_factory):
-
-    class Service(object):
-        name = "service"
-
-        @once("x")
-        def method(self, a, b="b"):
-            method_called(a, b)
-
-    container = container_factory(Service, config={})
-    container.start()
-    container.stop()  # graceful, waits for workers
-
-    assert method_called.call_args == call('x', 'b')
+@pytest.yield_fixture
+def warnings():
+    with patch('nameko.extensions.warnings') as patched:
+        yield patched
 
 
-def test_decorator_with_kwargs(container_factory):
+class TestDecorator(object):
 
-    class Service(object):
-        name = "service"
+    def test_decorator_without_args(self, container_factory, tracker):
 
-        @once(b="x")
-        def method(self, a="a", b="b"):
-            method_called(a, b)
+        class Service(object):
+            name = "service"
 
-    container = container_factory(Service, config={})
-    container.start()
-    container.stop()  # graceful, waits for workers
+            @once
+            def method(self, a="a", b="b"):
+                tracker(a, b)
 
-    assert method_called.call_args == call('a', 'x')
+        container = container_factory(Service, config={})
+        container.start()
+        container.stop()  # graceful, waits for workers
+
+        assert tracker.call_args == call('a', 'b')
+
+    def test_decorator_with_args(self, container_factory, tracker):
+
+        class Service(object):
+            name = "service"
+
+            @once("x")
+            def method(self, a, b="b"):
+                tracker(a, b)
+
+        container = container_factory(Service, config={})
+        container.start()
+        container.stop()  # graceful, waits for workers
+
+        assert tracker.call_args == call('x', 'b')
+
+    def test_decorator_with_kwargs(self, container_factory, tracker):
+
+        class Service(object):
+            name = "service"
+
+            @once(b="x")
+            def method(self, a="a", b="b"):
+                tracker(a, b)
+
+        container = container_factory(Service, config={})
+        container.start()
+        container.stop()  # graceful, waits for workers
+
+        assert tracker.call_args == call('a', 'x')
+
+
+class TestExpectedExceptions(object):
+
+    def test_expected_exceptions(self, container_factory):
+
+        exceptions = defaultdict(list)
+
+        class CustomException(Exception):
+            pass
+
+        class Logger(DependencyProvider):
+            """ Example DependencyProvider that interprets
+            ``expected_exceptions`` on an entrypoint
+            """
+
+            def worker_result(self, worker_ctx, result=None, exc_info=None):
+                if exc_info is None:  # nothing to do
+                    return  # pragma: no cover
+
+                exc = exc_info[1]
+                expected = worker_ctx.entrypoint.expected_exceptions
+
+                if isinstance(exc, expected):
+                    exceptions['expected'].append(exc)
+                else:
+                    exceptions['unexpected'].append(exc)
+
+        class Service(object):
+            name = "service"
+
+            logger = Logger()
+
+            @dummy(expected_exceptions=CustomException)
+            def expected(self):
+                raise CustomException()
+
+            @dummy
+            def unexpected(self):
+                raise CustomException()
+
+        container = container_factory(Service, {})
+        container.start()
+
+        with entrypoint_hook(container, 'expected') as hook:
+            with pytest.raises(CustomException) as expected_exc:
+                hook()
+        assert expected_exc.value in exceptions['expected']
+
+        with entrypoint_hook(container, 'unexpected') as hook:
+            with pytest.raises(CustomException) as unexpected_exc:
+                hook()
+        assert unexpected_exc.value in exceptions['unexpected']
+
+
+class TestSensitiveArguments(object):
+
+    def test_sensitive_arguments(self, container_factory):
+
+        redacted = {}
+
+        class Logger(DependencyProvider):
+            """ Example DependencyProvider that makes use of
+            ``get_redacted_args`` to redact ``sensitive_arguments``
+            on entrypoints.
+            """
+
+            def worker_setup(self, worker_ctx):
+                entrypoint = worker_ctx.entrypoint
+                args = worker_ctx.args
+                kwargs = worker_ctx.kwargs
+
+                redacted.update(get_redacted_args(entrypoint, *args, **kwargs))
+
+        class Service(object):
+            name = "service"
+
+            logger = Logger()
+
+            @dummy(sensitive_arguments=("a", "b.x[0]", "b.x[2]"))
+            def method(self, a, b, c):
+                return [a, b, c]
+
+        container = container_factory(Service, {})
+        entrypoint = get_extension(container, Entrypoint)
+
+        assert entrypoint.sensitive_arguments == ("a", "b.x[0]", "b.x[2]")
+
+        a = "A"
+        b = {'x': [1, 2, 3], 'y': [4, 5, 6]}
+        c = "C"
+
+        with entrypoint_hook(container, "method") as method:
+            assert method(a, b, c) == [a, b, c]
+
+        assert redacted == {
+            'a': REDACTED,
+            'b': {
+                'x': [REDACTED, 2, REDACTED],
+                'y': [4, 5, 6]
+            },
+            'c': 'C'
+        }
+
+    def test_sensitive_variables_backwards_compat(
+        self, container_factory, warnings
+    ):
+
+        class Service(object):
+            name = "service"
+
+            @dummy(sensitive_variables=("a", "b.x[0]", "b.x[2]"))
+            def method(self, a, b, c):
+                pass  # pragma: no cover
+
+        container = container_factory(Service, {})
+        entrypoint = get_extension(container, Entrypoint)
+
+        assert entrypoint.sensitive_arguments == ("a", "b.x[0]", "b.x[2]")
+        assert warnings.warn.call_args == call(ANY, DeprecationWarning)

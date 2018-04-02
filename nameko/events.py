@@ -34,8 +34,10 @@ import uuid
 from logging import getLogger
 
 from kombu import Queue
+
 from nameko.messaging import Consumer, Publisher
-from nameko.standalone.events import event_dispatcher, get_event_exchange
+from nameko.standalone.events import get_event_exchange
+
 
 SERVICE_POOL = "service_pool"
 SINGLETON = "singleton"
@@ -75,33 +77,32 @@ class EventDispatcher(Publisher):
                 self.dispatch_spam('spam.ham', evt_data)
 
     """
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-        super(EventDispatcher, self).__init__()
 
     def setup(self):
-        self.service_name = self.container.service_name
-        self.config = self.container.config
-        self.exchange = get_event_exchange(self.service_name)
+        self.exchange = get_event_exchange(self.container.service_name)
+        self.declare.append(self.exchange)
         super(EventDispatcher, self).setup()
 
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        headers = self.get_message_headers(worker_ctx)
-        kwargs = self.kwargs
-        dispatcher = event_dispatcher(self.config, headers=headers, **kwargs)
+        extra_headers = self.get_message_headers(worker_ctx)
 
         def dispatch(event_type, event_data):
-            dispatcher(self.service_name, event_type, event_data)
+            self.publisher.publish(
+                event_data,
+                exchange=self.exchange,
+                routing_key=event_type,
+                extra_headers=extra_headers
+            )
+
         return dispatch
 
 
 class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=True, requeue_on_error=False,
-                 sensitive_variables=()):
+                 reliable_delivery=True, requeue_on_error=False, **kwargs):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``source_service``.
@@ -151,21 +152,15 @@ class EventHandler(Consumer):
             reliable_delivery : bool
                 If true, events will be held in the queue until there is a
                 handler to consume them. Defaults to True.
-            sensitive_variables : string or tuple of strings
-                Mark an argument or part of an argument as sensitive. Saved
-                on the entrypoint instance as
-                ``entrypoint.sensitive_variables`` for later inspection by
-                other extensions, for example a logging system.
-                :seealso: :func:`nameko.utils.get_redacted_args`
         """
         self.source_service = source_service
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
-        self.sensitive_variables = sensitive_variables
 
         super(EventHandler, self).__init__(
-            queue=None, requeue_on_error=requeue_on_error)
+            queue=None, requeue_on_error=requeue_on_error, **kwargs
+        )
 
     @property
     def broadcast_identifier(self):
@@ -267,5 +262,6 @@ class EventHandler(Consumer):
             durable=True, auto_delete=auto_delete, exclusive=exclusive)
 
         super(EventHandler, self).setup()
+
 
 event_handler = EventHandler.decorator

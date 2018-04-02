@@ -1,6 +1,14 @@
 .PHONY: test docs
 
-test: flake8 pylint test_lib test_examples
+ENABLE_BRANCH_COVERAGE ?= 0
+AUTO_FIX_IMPORTS ?= 0
+
+ifneq ($(AUTO_FIX_IMPORTS), 1)
+  autofix = --check-only
+endif
+
+static: imports flake8 pylint
+test: static test_lib test_examples
 
 flake8:
 	flake8 nameko test
@@ -8,11 +16,14 @@ flake8:
 pylint:
 	pylint --rcfile=pylintrc nameko -E
 
+imports:
+	isort -rc $(autofix) nameko test
+
 test_lib:
-	py.test test --cov --cov-config=$(CURDIR)/.coveragerc
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test test --strict --timeout 30 --cov --cov-config=$(CURDIR)/.coveragerc
 
 test_examples:
-	py.test docs/examples/test --cov=docs/examples
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
 	py.test docs/examples/testing
 
 test_docs: docs spelling #linkcheck

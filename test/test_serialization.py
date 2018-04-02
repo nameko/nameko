@@ -12,6 +12,7 @@ from nameko.rpc import rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 
+
 entrypoint_called = Mock()
 
 

@@ -3,7 +3,6 @@ from __future__ import absolute_import, unicode_literals
 import inspect
 import sys
 import uuid
-import warnings
 from collections import deque
 from logging import getLogger
 
@@ -12,15 +11,19 @@ import six
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
+
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, DEFAULT_SERIALIZER, MAX_WORKERS_CONFIG_KEY,
-    PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+    PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+)
 from nameko.exceptions import ConfigurationError, ContainerBeingKilled
 from nameko.extensions import (
-    ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions)
+    ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions
+)
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import SpawningSet, import_from_path
+
 
 _log = getLogger(__name__)
 _log_time = make_timing_logger(_log)
@@ -105,9 +108,14 @@ class WorkerContext(object):
         return data
 
     @property
-    def immediate_parent_call_id(self):
+    def origin_call_id(self):
         if self._parent_call_id_stack:
             return self._parent_call_id_stack[0]
+
+    @property
+    def immediate_parent_call_id(self):
+        if self._parent_call_id_stack:
+            return self._parent_call_id_stack[-1]
 
     def __repr__(self):
         cls_name = type(self).__name__
@@ -119,22 +127,10 @@ class WorkerContext(object):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, config, worker_ctx_cls=None):
+    def __init__(self, service_cls, config):
 
         self.service_cls = service_cls
         self.config = config
-
-        if worker_ctx_cls is not None:
-            warnings.warn(
-                "The constructor of `ServiceContainer` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
-                "version 2.4.0 for more details. This warning will be removed "
-                "in version 2.6.0", DeprecationWarning
-            )
-        else:
-            worker_ctx_cls = WorkerContext
-
-        self.worker_ctx_cls = worker_ctx_cls
 
         self.service_name = get_service_name(service_cls)
         self.shared_extensions = {}
@@ -341,8 +337,9 @@ class ServiceContainer(object):
             raise ContainerBeingKilled()
 
         service = self.service_cls()
-        worker_ctx = self.worker_ctx_cls(
-            self, service, entrypoint, args, kwargs, data=context_data)
+        worker_ctx = WorkerContext(
+            self, service, entrypoint, args, kwargs, data=context_data
+        )
 
         _log.debug('spawning %s', worker_ctx)
         gt = self._worker_pool.spawn(
@@ -353,7 +350,7 @@ class ServiceContainer(object):
         self._worker_threads[worker_ctx] = gt
         return worker_ctx
 
-    def spawn_managed_thread(self, fn, protected=None, identifier=None):
+    def spawn_managed_thread(self, fn, identifier=None):
         """ Spawn a managed thread to run ``fn`` on behalf of an extension.
         The passed `identifier` will be included in logs related to this
         thread, and otherwise defaults to `fn.__name__`, if it is set.
@@ -366,15 +363,6 @@ class ServiceContainer(object):
 
         Extensions should delegate all thread spawning to the container.
         """
-        if protected is not None:
-            warnings.warn(
-                "The signature of `spawn_managed_thread` has changed. "
-                "The `protected` kwarg is now deprecated, and extensions "
-                "can pass an idenifier as a keyword argument for better "
-                "logging. See :meth:`nameko.containers.ServiceContainer."
-                "spawn_managed_thread`. This warning will be removed in "
-                "version 2.6.0.", DeprecationWarning
-            )
         if identifier is None:
             identifier = getattr(fn, '__name__', "<unknown>")
 
@@ -391,6 +379,7 @@ class ServiceContainer(object):
 
         with _log_time('ran worker %s', worker_ctx):
 
+            self._inject_dependencies(worker_ctx)
             self._worker_setup(worker_ctx)
 
             result = exc_info = None
@@ -425,18 +414,23 @@ class ServiceContainer(object):
 
                 self._worker_teardown(worker_ctx)
 
+    def _inject_dependencies(self, worker_ctx):
+        for provider in self.dependencies:
+            dependency = provider.get_dependency(worker_ctx)
+            setattr(worker_ctx.service, provider.attr_name, dependency)
+
     def _worker_setup(self, worker_ctx):
-        # TODO: when we have better parallelization than ``spawningset``,
-        # do this injection inline
-        self.dependencies.all.inject(worker_ctx)
-        self.dependencies.all.worker_setup(worker_ctx)
+        for provider in self.dependencies:
+            provider.worker_setup(worker_ctx)
 
     def _worker_result(self, worker_ctx, result, exc_info):
         _log.debug('signalling result for %s', worker_ctx)
-        self.dependencies.all.worker_result(worker_ctx, result, exc_info)
+        for provider in self.dependencies:
+            provider.worker_result(worker_ctx, result, exc_info)
 
     def _worker_teardown(self, worker_ctx):
-        self.dependencies.all.worker_teardown(worker_ctx)
+        for provider in self.dependencies:
+            provider.worker_teardown(worker_ctx)
 
     def _kill_worker_threads(self):
         """ Kill any currently executing worker threads.

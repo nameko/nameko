@@ -3,11 +3,14 @@ from mock import Mock
 
 from nameko.constants import (
     AUTH_TOKEN_CONTEXT_KEY, LANGUAGE_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
-    USER_ID_CONTEXT_KEY)
+    USER_ID_CONTEXT_KEY
+)
 from nameko.containers import ServiceContainer, WorkerContext
 from nameko.contextdata import (
-    AuthToken, ContextDataProvider, Language, UserAgent, UserId)
+    AuthToken, ContextDataProvider, Language, UserAgent, UserId
+)
 from nameko.testing.utils import get_extension
+
 
 CUSTOM_CONTEXT_KEY = "custom"
 

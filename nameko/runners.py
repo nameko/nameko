@@ -1,11 +1,11 @@
 from __future__ import absolute_import
 
-import warnings
 from contextlib import contextmanager
 from logging import getLogger
 
 from nameko.containers import get_container_cls, get_service_name
 from nameko.utils import SpawningProxy
+
 
 _log = getLogger(__name__)
 
@@ -28,22 +28,11 @@ class ServiceRunner(object):
 
         runner.wait()
     """
-    def __init__(self, config, container_cls=None):
+    def __init__(self, config):
         self.service_map = {}
         self.config = config
 
-        if container_cls is not None:
-            warnings.warn(
-                "The constructor of `ServiceRunner` has changed. "
-                "The `container_cls` kwarg is now deprecated. You can "
-                "use a custom class by setting the `SERVICE_CONTAINER_CLS` "
-                "config option to dotted a class path. This warning will be "
-                "removed in version 2.6.0.", DeprecationWarning
-            )
-        else:
-            container_cls = get_container_cls(config)
-
-        self.container_cls = container_cls
+        self.container_cls = get_container_cls(config)
 
     @property
     def service_names(self):
@@ -53,21 +42,13 @@ class ServiceRunner(object):
     def containers(self):
         return self.service_map.values()
 
-    def add_service(self, cls, worker_ctx_cls=None):
+    def add_service(self, cls):
         """ Add a service class to the runner.
         There can only be one service class for a given service name.
         Service classes must be registered before calling start()
         """
-        if worker_ctx_cls is not None:
-            warnings.warn(
-                "The signature of `add_service` has changed. "
-                "The `worker_ctx_cls` kwarg is now deprecated. See CHANGES, "
-                "version 2.4.0 for more details. THis wanring will be removed "
-                "in version 2.6.0.", DeprecationWarning
-            )
-
         service_name = get_service_name(cls)
-        container = self.container_cls(cls, self.config, worker_ctx_cls)
+        container = self.container_cls(cls, self.config)
         self.service_map[service_name] = container
 
     def start(self):
@@ -138,10 +119,7 @@ def run_services(config, *services, **kwargs):
     Additional configuration available to :class:``ServiceRunner`` instances
     can be specified through keyword arguments::
 
-        with run_services(config, Foobar, Spam,
-                               container_cls=CustomServiceContainer,
-                               worker_ctx_cls=CustomWorkerContext,
-                               kill_on_exit=True):
+        with run_services(config, Foobar, Spam, kill_on_exit=True):
             # interact with services
 
         # services killed
@@ -151,11 +129,6 @@ def run_services(config, *services, **kwargs):
             Configuration to instantiate the service containers with
         services : service definitions
             Services to be served for the contextual block
-        container_cls : container class (default=:class:`ServiceContainer`)
-            The container class for hosting the specified ``services``
-        worker_ctx_cls : worker context class (default=:class:`WorkerContext`)
-            The constructor for creating a worker context within a service
-            container
         kill_on_exit : bool (default=False)
             If ``True``, run ``kill()`` on the service containers when exiting
             the contextual block. Otherwise ``stop()`` will be called on the
@@ -166,24 +139,9 @@ def run_services(config, *services, **kwargs):
     """
     kill_on_exit = kwargs.pop('kill_on_exit', False)
 
-    for deprecated_keyword in ('container_cls', 'worker_ctx_cls'):
-        if deprecated_keyword in kwargs:
-            warnings.warn(
-                "The signature of `run_services` has changed. "
-                "The `worker_ctx_cls` and `container_cls` kwargs are now "
-                "deprecated. You can use a custom `ServiceContainer` class by "
-                "setting the `SERVICE_CONTAINER_CLS` config option to a "
-                "dotted class path. See CHANGES, version 2.4.0 for more "
-                "details. This warning will be removed in version 2.6.0.",
-                DeprecationWarning
-            )
-
-    container_cls = kwargs.pop('container_cls', None)
-    worker_ctx_cls = kwargs.pop('worker_ctx_cls', None)
-
-    runner = ServiceRunner(config, container_cls=container_cls)
+    runner = ServiceRunner(config)
     for service in services:
-        runner.add_service(service, worker_ctx_cls=worker_ctx_cls)
+        runner.add_service(service)
 
     runner.start()
 

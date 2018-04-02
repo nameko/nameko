@@ -3,32 +3,31 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
-import socket
+import warnings
 from functools import partial
-from itertools import count
 from logging import getLogger
 
-import eventlet
 import six
+from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
-from kombu.pools import connections, producers
 
-from nameko.amqp import verify_amqp_uri
+from nameko.amqp.publish import Publisher as PublisherCore
+from nameko.amqp.publish import get_connection
+from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_RETRY_POLICY, DEFAULT_SERIALIZER,
-    SERIALIZER_CONFIG_KEY)
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER, HEADER_PREFIX,
+    HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
-    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension)
+    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
+)
+
 
 _log = getLogger(__name__)
-
-# delivery_mode
-PERSISTENT = 2
-HEADER_PREFIX = "nameko"
 
 
 class HeaderEncoder(object):
@@ -63,7 +62,7 @@ class HeaderDecoder(object):
             return key[len(full_prefix):]
         return key
 
-    def unpack_message_headers(self, worker_ctx_cls, message):
+    def unpack_message_headers(self, message):
         stripped = {
             self._strip_header_name(k): v
             for k, v in six.iteritems(message.headers)
@@ -73,25 +72,31 @@ class HeaderDecoder(object):
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
-    amqp_uri = None
-    serializer = None
+    publisher_cls = PublisherCore
 
-    def __init__(self, exchange=None, queue=None):
+    def __init__(self, exchange=None, queue=None, declare=None, **options):
         """ Provides an AMQP message publisher method via dependency injection.
 
-        In AMQP messages are published to *exchanges* and routed to bound
-        *queues*. This dependency accepts either an `exchange` or a bound
-        `queue`, and will ensure both are declared before publishing.
+        In AMQP, messages are published to *exchanges* and routed to bound
+        *queues*. This dependency accepts the `exchange` to publish to and
+        will ensure that it is declared before publishing.
+
+        Optionally, you may use the `declare` keyword argument to pass a list
+        of other :class:`kombu.Exchange` or :class:`kombu.Queue` objects to
+        declare before publishing.
 
         :Parameters:
             exchange : :class:`kombu.Exchange`
                 Destination exchange
             queue : :class:`kombu.Queue`
-                Bound queue. The event will be published to this queue's
-                exchange.
+                **Deprecated**: Bound queue. The event will be published to
+                this queue's exchange.
+            declare : list
+                List of :class:`kombu.Exchange` or :class:`kombu.Queue` objects
+                to declare before publishing.
 
-        If neither `queue` nor `exchange` are provided, the message will be
-        published to the default exchange.
+        If `exchange` is not provided, the message will be published to the
+        default exchange.
 
         Example::
 
@@ -103,72 +108,88 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     self.publish('spam:' + data)
         """
         self.exchange = exchange
-        self.queue = queue
+        self.options = options
 
-    # TODO: should be a module level function
-    def get_connection(self):
-        conn = Connection(self.amqp_uri)
-        return connections[conn].acquire(block=True)
+        self.declare = declare[:] if declare is not None else []
 
-    # TODO: should be a module level function
-    def get_producer(self):
-        conn = Connection(self.amqp_uri)
-        return producers[conn].acquire(block=True)
+        if self.exchange:
+            self.declare.append(self.exchange)
 
-    def setup(self):
+        if queue is not None:
+            warnings.warn(
+                "The signature of `Publisher` has changed. The `queue` kwarg "
+                "is now deprecated. You can use the `declare` kwarg "
+                "to provide a list of Kombu queues to be declared. "
+                "See CHANGES, version 2.7.0 for more details. This warning "
+                "will be removed in version 2.9.0.",
+                DeprecationWarning
+            )
+            if exchange is None:
+                self.exchange = queue.exchange
+            self.declare.append(queue)
 
-        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
+        # backwards compat
+        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
 
-        self.serializer = self.container.config.get(
+        for compat_attr in compat_attrs:
+            if hasattr(self, compat_attr):
+                warnings.warn(
+                    "'{}' should be specified at instantiation time rather "
+                    "than as a class attribute. See CHANGES, version 2.7.0 "
+                    "for more details. This warning will be removed in "
+                    "version 2.9.0.".format(compat_attr), DeprecationWarning
+                )
+                self.options[compat_attr] = getattr(self, compat_attr)
+
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def serializer(self):
+        """ Default serializer to use when publishing messages.
+
+        Must be registered as a
+        `kombu serializer <http://bit.do/kombu_serialization>`_.
+        """
+        return self.container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
 
-        exchange = self.exchange
-        queue = self.queue
+    def setup(self):
 
         verify_amqp_uri(self.amqp_uri)
 
-        with self.get_connection() as conn:
-            if queue is not None:
-                maybe_declare(queue, conn)
-            elif exchange is not None:
-                maybe_declare(exchange, conn)
+        with get_connection(self.amqp_uri) as conn:
+            for entity in self.declare:
+                maybe_declare(entity, conn)
+
+        serializer = self.options.pop('serializer', self.serializer)
+
+        self.publisher = self.publisher_cls(
+            self.amqp_uri,
+            serializer=serializer,
+            exchange=self.exchange,
+            declare=self.declare,
+            **self.options
+        )
 
     def get_dependency(self, worker_ctx):
+        extra_headers = self.get_message_headers(worker_ctx)
+
         def publish(msg, **kwargs):
-            exchange = self.exchange
-            queue = self.queue
-            serializer = self.serializer
-
-            if exchange is None and queue is not None:
-                exchange = queue.exchange
-
-            retry = kwargs.pop('retry', True)
-            retry_policy = kwargs.pop('retry_policy', DEFAULT_RETRY_POLICY)
-
-            with self.get_producer() as producer:
-                headers = self.get_message_headers(worker_ctx)
-                producer.publish(
-                    msg, exchange=exchange, headers=headers,
-                    serializer=serializer,
-                    retry=retry, retry_policy=retry_policy, **kwargs)
+            self.publisher.publish(
+                msg, extra_headers=extra_headers, **kwargs
+            )
 
         return publish
 
 
 class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
-    amqp_uri = None
-    prefetch_count = None
-
     def __init__(self):
-        self._connection = None
 
         self._consumers = {}
-
-        self._pending_messages = set()
-        self._pending_ack_messages = []
-        self._pending_requeue_messages = []
         self._pending_remove_providers = {}
 
         self._gt = None
@@ -176,6 +197,18 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
         self._consumers_ready = Event()
         super(QueueConsumer, self).__init__()
+
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def prefetch_count(self):
+        return self.container.max_workers
+
+    @property
+    def accept(self):
+        return self.container.accept
 
     def _handle_thread_exited(self, gt):
         exc = None
@@ -188,9 +221,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self._consumers_ready.send_exception(exc)
 
     def setup(self):
-        self.amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
-        self.accept = self.container.accept
-        self.prefetch_count = self.container.max_workers
         verify_amqp_uri(self.amqp_uri)
 
     def start(self):
@@ -250,9 +280,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             # we can't just kill the thread because we have to give
             # ConsumerMixin a chance to close the sockets properly.
             self._providers = set()
-            self._pending_messages = set()
-            self._pending_ack_messages = []
-            self._pending_requeue_messages = []
             self._pending_remove_providers = {}
             self.should_stop = True
             try:
@@ -283,18 +310,22 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         super(QueueConsumer, self).unregister_provider(provider)
 
     def ack_message(self, message):
-        _log.debug("stashing message-ack: %s", message)
-        self._pending_messages.remove(message)
-        self._pending_ack_messages.append(message)
+        # only attempt to ack if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.ack()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
 
     def requeue_message(self, message):
-        _log.debug("stashing message-requeue: %s", message)
-        self._pending_messages.remove(message)
-        self._pending_requeue_messages.append(message)
-
-    def _on_message(self, body, message):
-        _log.debug("received message: %s", message)
-        self._pending_messages.add(message)
+        # only attempt to requeue if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.requeue()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
 
     def _cancel_consumers_if_requested(self):
         provider_remove_events = self._pending_remove_providers.items()
@@ -307,35 +338,28 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             consumer.cancel()
             removed_event.send()
 
-    def _process_pending_message_acks(self):
-        messages = self._pending_ack_messages
-        if messages:
-            _log.debug('ack() %d processed messages', len(messages))
-            while messages:
-                msg = messages.pop()
-                msg.ack()
-                eventlet.sleep()
-
-        messages = self._pending_requeue_messages
-        if messages:
-            _log.debug('requeue() %d processed messages', len(messages))
-            while messages:
-                msg = messages.pop()
-                msg.requeue()
-                eventlet.sleep()
-
     @property
     def connection(self):
-        """ Kombu requirement """
-        if self.amqp_uri is None:
-            return   # don't cache a connection during introspection
+        """ Provide the connection parameters for kombu's ConsumerMixin.
 
-        if self._connection is None:
-            self._connection = Connection(self.amqp_uri)
+        The `Connection` object is a declaration of connection parameters
+        that is lazily evaluated. It doesn't represent an established
+        connection to the broker at this point.
+        """
+        heartbeat = self.container.config.get(
+            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+        )
+        return Connection(self.amqp_uri, heartbeat=heartbeat)
 
-        return self._connection
+    def handle_message(self, provider, body, message):
+        ident = u"{}.handle_message[{}]".format(
+            type(provider).__name__, message.delivery_info['routing_key']
+        )
+        self.container.spawn_managed_thread(
+            partial(provider.handle_message, body, message), identifier=ident
+        )
 
-    def get_consumers(self, Consumer, channel):
+    def get_consumers(self, consumer_cls, channel):
         """ Kombu callback to set up consumers.
 
         Called after any (re)connection to the broker.
@@ -343,10 +367,13 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         _log.debug('setting up consumers %s', self)
 
         for provider in self._providers:
-            callbacks = [self._on_message, provider.handle_message]
+            callbacks = [partial(self.handle_message, provider)]
 
-            consumer = Consumer(queues=[provider.queue], callbacks=callbacks,
-                                accept=self.accept)
+            consumer = consumer_cls(
+                queues=[provider.queue],
+                callbacks=callbacks,
+                accept=self.accept
+            )
             consumer.qos(prefetch_count=self.prefetch_count)
 
             self._consumers[provider] = consumer
@@ -357,12 +384,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         """ Kombu callback for each `drain_events` loop iteration."""
         self._cancel_consumers_if_requested()
 
-        self._process_pending_message_acks()
-
-        num_consumers = len(self._consumers)
-        num_pending_messages = len(self._pending_messages)
-
-        if num_consumers + num_pending_messages == 0:
+        if len(self._consumers) == 0:
             _log.debug('requesting stop after iteration')
             self.should_stop = True
 
@@ -388,40 +410,12 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             else:
                 callback()
 
-    def consume(self, limit=None, timeout=None, safety_interval=0.1, **kwargs):
-        """ Lifted from Kombu.
-
-        We switch the order of the `break` and `self.on_iteration()` to
-        avoid waiting on a drain_events timeout before breaking the loop.
-        """
-        elapsed = 0
-        with self.consumer_context(**kwargs) as (conn, channel, consumers):
-            for i in limit and range(limit) or count():
-                self.on_iteration()
-                if self.should_stop:
-                    break
-                try:
-                    conn.drain_events(timeout=safety_interval)
-                except socket.timeout:
-                    elapsed += safety_interval
-                    # Excluding the following clause from coverage,
-                    # as timeout never appears to be set - This method
-                    # is a lift from kombu so will leave in place for now.
-                    if timeout and elapsed >= timeout:  # pragma: no cover
-                        raise
-                except socket.error:
-                    if not self.should_stop:
-                        raise
-                else:
-                    yield
-                    elapsed = 0
-
 
 class Consumer(Entrypoint, HeaderDecoder):
 
     queue_consumer = QueueConsumer()
 
-    def __init__(self, queue, requeue_on_error=False):
+    def __init__(self, queue, requeue_on_error=False, **kwargs):
         """
         Decorates a method as a message consumer.
 
@@ -450,6 +444,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
+        super(Consumer, self).__init__(**kwargs)
 
     def setup(self):
         self.queue_consumer.register_provider(self)
@@ -461,9 +456,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         args = (body,)
         kwargs = {}
 
-        # TODO: get valid headers from config, not worker_ctx_cls
-        worker_ctx_cls = self.container.worker_ctx_cls
-        context_data = self.unpack_message_headers(worker_ctx_cls, message)
+        context_data = self.unpack_message_headers(message)
 
         handle_result = partial(self.handle_result, message)
         try:

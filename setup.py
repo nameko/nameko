@@ -12,37 +12,39 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='2.4.2',
+    version='2.8.5',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
     long_description=readme,
     author='onefinestay',
-    author_email='nameko-devs@onefinestay.com',
-    url='http://github.com/onefinestay/nameko',
+    url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        "eventlet>=0.16.1",
-        "kombu>=3.0.1",
+        "eventlet>=0.16.1,<0.22.0",
+        "kombu>=3.0.1,<4",
         "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=3.10",
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
+        "wrapt>=1.0.0",
     ],
     extras_require={
         'dev': [
-            "coverage==4.0",
-            "flake8==2.1.0",
-            "mccabe==0.3",
-            "pep8==1.6.1",
-            "pyflakes==0.8.1",
-            "pylint==1.5.1",
+            "coverage==4.4.1",
+            "flake8==3.3.0",
+            "isort==4.2.15",
+            "mccabe==0.6.1",
+            "pycodestyle==2.3.1",
+            "pyflakes==1.5.0",
+            "pylint==1.7.1",
             "pytest==2.7.3",
             "pytest-cov==2.1.0",
             "pytest-timeout==0.4",
-            "urllib3==1.10.2",
+            "requests==2.17.3",
+            "urllib3==1.21.1",
             "websocket-client==0.23.0",
         ],
         'docs': [
@@ -52,7 +54,10 @@ setup(
             "sphinx-nameko-theme==0.0.3",
         ],
         'examples': [
-            "nameko-sqlalchemy==0.0.1"
+            "nameko-sqlalchemy==0.0.1",
+            "PyJWT==1.5.2",
+            "moto==1.0.1",
+            "bcrypt==3.1.3"
         ]
     },
     entry_points={

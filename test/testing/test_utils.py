@@ -1,3 +1,4 @@
+import itertools
 import warnings
 
 import eventlet
@@ -10,8 +11,10 @@ from nameko.constants import DEFAULT_MAX_WORKERS
 from nameko.rpc import Rpc, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
-    AnyInstanceOf, get_container, get_extension, get_rabbit_connections,
-    reset_rabbit_connections, wait_for_call, wait_for_worker_idle)
+    AnyInstanceOf, ResourcePipeline, find_free_port, get_container,
+    get_extension, get_rabbit_connections, reset_rabbit_connections,
+    wait_for_call, wait_for_worker_idle
+)
 
 
 def test_any_instance_of():
@@ -223,3 +226,124 @@ def test_rabbit_connection_refused_error():
 
     message = str(exc_info.value)
     assert 'Connection error' in message
+
+
+@patch('nameko.testing.utils.socket')
+class TestFindFreePort(object):
+
+    def test_default_host(self, patched_socket):
+        host = '127.0.0.1'
+        free_port = 9999
+        mock_sock = patched_socket.socket()
+        mock_sock.getsockname.return_value = [host, free_port]
+
+        assert find_free_port() == free_port
+        assert mock_sock.bind.call_args_list == [call((host, 0))]
+        assert mock_sock.close.called
+
+    def test_specified_host(self, patched_socket):
+        host = '10.0.0.1'
+        free_port = 9999
+        mock_sock = patched_socket.socket()
+        mock_sock.getsockname.return_value = [host, free_port]
+
+        assert find_free_port(host) == free_port
+        assert mock_sock.bind.call_args_list == [call((host, 0))]
+        assert mock_sock.close.called
+
+
+class TestResourcePipeline(object):
+
+    @pytest.mark.parametrize('size', [1, 5, 1000])
+    def test_pipeline(self, size):
+        created = []
+        destroyed = []
+
+        counter = itertools.count()
+
+        def create():
+            obj = next(counter)
+            created.append(obj)
+            return obj
+
+        def destroy(obj):
+            destroyed.append(obj)
+
+        with ResourcePipeline(create, destroy, size).run() as pipeline:
+
+            # check initial size
+            eventlet.sleep()  # let pipeline fill up
+            # when full, created is always exactly one more than `size`
+            assert pipeline.ready.qsize() == size
+            assert len(created) == size + 1
+
+            # get an item
+            with pipeline.get() as item:
+                # let pipeline process
+                eventlet.sleep()
+                # expect pipeline to have created another item
+                assert pipeline.ready.qsize() == size
+                assert len(created) == size + 2
+
+            # after putting the item back
+            # let pipeline process
+            eventlet.sleep()
+            # expect item to have been destroyed
+            assert pipeline.trash.qsize() == 0
+            assert destroyed == [item]
+
+        # after shutdown (no need to yield because shutdown is blocking)
+        # expect all created items to have been destroyed
+        assert created == destroyed == list(range(size + 2))
+
+    def test_create_shutdown_race(self):
+        """
+        Test the race condition where the pipeline shuts down while
+        `create` is still executing.
+        """
+        created = []
+        destroyed = []
+
+        counter = itertools.count()
+        creating = Event()
+
+        def create():
+            creating.send(True)
+            eventlet.sleep()
+            obj = next(counter)
+            created.append(obj)
+            return obj
+
+        def destroy(obj):
+            destroyed.append(obj)
+
+        with ResourcePipeline(create, destroy).run():
+            creating.wait()
+            assert created == []
+
+        assert created == destroyed == list(range(1))
+
+    def test_shutdown_immediately(self):
+
+        created = []
+        destroyed = []
+
+        counter = itertools.count()
+
+        def create():  # pragma: no cover
+            obj = next(counter)
+            created.append(obj)
+            return obj
+
+        def destroy(obj):  # pragma: no cover
+            destroyed.append(obj)
+
+        with ResourcePipeline(create, destroy).run():
+            pass
+
+        assert created == destroyed == []
+
+    def test_zero_size(self):
+
+        with pytest.raises(RuntimeError):
+            ResourcePipeline(None, None, 0)

@@ -5,6 +5,155 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+
+Version 2.8.5
+-------------
+
+Released: 2018-03-15
+
+* Workaround for a Kombu bug causing new sockets to sometimes have short
+  timeouts. (#521)
+  
+  
+Version 2.8.4
+-------------
+
+Released: 2018-02-18
+
+* Fixes a bug where the container crashed if the connection to RabbitMQ
+  was lost while an AMQP entrypoint was running (#511)
+* Correction to WorkerContext.immediate_call_id which actually referred
+  to the id of original call. Adds WorkerContext.origin_call_id to
+  replicate the previous behaviour.
+
+Version 2.8.3
+-------------
+
+Released: 2018-01-12
+
+* Restrict eventlet to <0.22.0 until we're compatible.
+
+Version 2.8.2
+-------------
+
+Released: 2017-12-11
+
+* Remove the pytest `--log-level` argument added by the pytest plugin since
+  this conflicts with newer versions of `pytest` (`>= 3.3.0`). For older
+  versions this can be restored by installing the `pytest-catchlog` package.
+
+
+Version 2.8.1
+-------------
+
+Released: 2017-11-29
+
+* Added the 'show-config' command which will print the service configuration
+  to the console, after environment variable substitution.
+
+
+Version 2.8.0
+-------------
+
+Released: 2017-10-31
+
+* Environment variables substituted into config files are now interpreted
+  as YAML rather than bare values, allowing use of rich data types.
+
+
+Version 2.7.0
+-------------
+
+Released: 2017-10-07
+
+* Set stopped flag in register_provider() to allow PollingQueueConsumer
+  object reuse [fixes #462]
+* Refactor of AMQP message publishing logic into `nameko.amqp.publish`
+* Exposes delivery options and other messaging configuration to AMQP-based
+  DependencyProviders. [addresses #374]
+* Class attributes for configuring `use_confirms`, `retry` and `retry_policy`
+  have been deprecated from the Publisher, EventDispatcher, and RPC MethodProxy
+  classes. If you were subclassing these classes to set these options, you
+  should now set them at class instantiation time.
+
+
+Version 2.6.0
+-------------
+
+Released: 2017-04-30
+
+* Environment variables are now interpreted as native YAML data types rather
+  than just strings
+* The WSGI Server now uses an explicit logger so it can be controlled using a
+  logging config
+* Drops several backwards-compatibility shims that were marked as being
+  maintained only until this release
+
+
+Version 2.5.4
+-------------
+
+Released: 2017-04-20
+
+* Don't block the QueueConsumer thread on the worker pool, which could cause
+  service deadlock and occasional dropped AMQP connections [fixes #428]
+* Revert prefetch count change from 2.5.3 and ack messages outside of the
+  QueueConsumer thread. [fixes #417 more robustly]
+
+
+Version 2.5.3
+-------------
+
+Released: 2017-03-16
+
+* Bump the amqp `prefetch_count` by 1 to `max_workers + 1` to fix throughput
+  issue. [fixes 417]
+
+
+Version 2.5.2
+-------------
+
+Released 2017-02-28
+
+* Improves teardown speed of the `rabbit_config` pytest fixture
+* Support for providing an alternative reply listener to the standalone
+  RPC proxy
+
+Version 2.5.1
+-------------
+
+Released 2017-01-19
+
+* Adds a DependencyProvider to give services access to the config object
+* Internal refactor to make all worker lifecycle steps run in the same thread
+
+Version 2.5.0
+-------------
+
+Released 2016-12-20
+
+* Enables publish confirms by default for all AMQP message publishers
+* Refactors common AMQP connection code into `nameko.amqp`
+
+Version 2.4.4
+-------------
+
+Released 2016-11-28
+
+* Adds AMQP heartbeats to Consumer connections
+* Handles an uncaught exception caused by a fast-disconnecting client under
+  Python 3 [fixes #367]
+
+Version 2.4.3
+-------------
+
+Released 2016-11-16
+
+* Pins kombu back to a compatible release (<4) [fixes #378]
+* Fixes compatibility with latest bpython and ipython shells
+  [fixes #355 and #375]
+* Fixes socket cleanup bug in websocket hub [fixes #367]
+
 Version 2.4.2
 -------------
 
@@ -13,6 +162,7 @@ Released 2016-10-10
 * Added support for environment variables in YAML config files
 * Enhanced :func:`~nameko.testing.services.entrypoint_waiter`. The new
   implementation is backwards compatible but additionally:
+
     - Gives you access to the result returned (or exception raised)
     - Adds the ability to wait for a specific result
     - Doesn't fire until the worker is completely torn down
@@ -22,8 +172,9 @@ Version 2.4.1
 
 Released 2016-09-14
 
-* Enhanced :class: `~nameko.web.server.WebServer` with ``get_wsgi_app`` and ``get_wsgi_server``
-to allow easy usage of WSGI middleware and modifications of the WSGI server.
+* Enhanced :class: `~nameko.web.server.WebServer` with `get_wsgi_app` and
+  `get_wsgi_server` to allow easy usage of WSGI middleware and modifications
+  of the WSGI server.
 * Enhanced :func:`~nameko.testing.services.replace_dependencies` to allow
   specific replacement values to be provided with named arguments.
 
@@ -132,7 +283,7 @@ Released 2015-03-31
   `nameko-sqlalchemy <https://pypi.python.org/pypi/nameko-sqlalchemy>`_
   as a **community extension**.
 * Spun out ``nameko.legacy`` package into
- `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
+  `nameko-nova-compat <https://pypi.python.org/pypi/nameko-nova-compat>`_
 * Rename the standalone rpc proxy to
   :class:`~nameko.standalone.rpc.ServiceRpcProxy` and add a
   :class:`~nameko.standalone.rpc.ClusterRpcProxy`, using a single reply queue

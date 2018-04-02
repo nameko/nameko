@@ -1,8 +1,11 @@
 import json
 
-from requests import HTTPError, Session, ConnectionError
-from six.moves.urllib.parse import quote  # pylint: disable=E0401
 import six
+from requests import ConnectionError, HTTPError, Session
+from requests.auth import HTTPBasicAuth
+from requests.utils import get_auth_from_url, urldefragauth
+from six.moves.urllib.parse import quote  # pylint: disable=E0401
+
 
 __all__ = ['Client', 'HTTPError']
 
@@ -15,8 +18,15 @@ class Client(object):
     """Pyrabbit replacement using requests instead of httplib2 """
 
     def __init__(self, uri):
+
+        # move basic auth creds into headers to avoid
+        # https://github.com/requests/requests/issues/4275
+        username, password = get_auth_from_url(uri)
+        uri = urldefragauth(uri)
+
         self._base_url = '{}/api'.format(uri)
         self._session = Session()
+        self._session.auth = HTTPBasicAuth(username, password)
         self._session.headers['content-type'] = 'application/json'
         self._verify_api_connection()
 

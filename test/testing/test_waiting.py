@@ -44,6 +44,7 @@ class TestPatchWaitUseCases(object):
     def test_wait_until_called_with_argument(self, forever):
 
         class CounterWithSet(object):
+
             value = 0
 
             def set(self, value):
@@ -166,6 +167,20 @@ class TestPatchWait(object):
 
         with wait_for_call(echo, 'upper'):
             assert echo.proxy(arg) == "HELLO"
+
+    def test_patch_class(self):
+
+        class Echo(object):
+
+            def upper(self, arg):
+                return arg.upper()
+
+        echo = Echo()
+        arg = "hello"
+
+        with wait_for_call(Echo, 'upper'):
+            res = echo.upper(arg)
+            assert res == "HELLO"
 
     def test_result(self):
 

@@ -1,22 +1,35 @@
 import uuid
-import warnings
+from contextlib import contextmanager
 
 import eventlet
 import pytest
 from eventlet.event import Event
+from eventlet.semaphore import Semaphore
+from greenlet import GreenletExit  # pylint: disable=E0611
+from kombu.connection import Connection
 from mock import Mock, call, create_autospec, patch
+from six.moves import queue
 
-from nameko.containers import ServiceContainer
+from nameko.constants import HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    UnknownService)
+    UnknownService
+)
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
-from nameko.rpc import ReplyListener, Rpc, RpcConsumer, RpcProxy, rpc
+from nameko.rpc import (
+    MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+)
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import entrypoint_hook, restrict_entrypoints
-from nameko.testing.utils import get_extension, wait_for_call
+from nameko.testing.services import (
+    dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints
+)
+from nameko.testing.utils import get_extension, unpack_mock_call, wait_for_call
+from nameko.testing.waiting import wait_for_call as patch_wait
+
+from test import skip_if_no_toxiproxy
 
 
 class ExampleError(Exception):
@@ -39,29 +52,9 @@ class Translator(DependencyProvider):
         return translate
 
 
-class WorkerErrorLogger(DependencyProvider):
-
-    expected = {}
-    unexpected = {}
-
-    def worker_result(self, worker_ctx, result=None, exc_info=None):
-        if exc_info is None:
-            return  # nothing to do
-
-        exc = exc_info[1]
-        expected_exceptions = getattr(
-            worker_ctx.entrypoint, 'expected_exceptions', ())
-
-        if isinstance(exc, expected_exceptions):
-            self.expected[worker_ctx.entrypoint.method_name] = type(exc)
-        else:
-            self.unexpected[worker_ctx.entrypoint.method_name] = type(exc)
-
-
 class ExampleService(object):
     name = 'exampleservice'
 
-    logger = WorkerErrorLogger()
     translate = Translator()
     example_rpc = RpcProxy('exampleservice')
     unknown_rpc = RpcProxy('unknown_service')
@@ -74,24 +67,12 @@ class ExampleService(object):
     def task_b(self, *args, **kwargs):
         return "result_b"
 
-    @rpc(expected_exceptions=ExampleError)
-    def broken(self):
-        raise ExampleError("broken")
-
-    @rpc(expected_exceptions=(KeyError, ValueError))
-    def very_broken(self):
-        raise AttributeError
-
     @rpc
     def call_async(self):
         res1 = self.example_rpc.task_a.call_async()
         res2 = self.example_rpc.task_b.call_async()
         res3 = self.example_rpc.echo.call_async()
         return [res2.result(), res1.result(), res3.result()]
-
-    @rpc
-    def deprecated_async(self):
-        return self.example_rpc.echo.async().result()
 
     @rpc
     def call_unknown(self):
@@ -108,6 +89,10 @@ class ExampleService(object):
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
         pass  # pragma: no cover
+
+    @rpc
+    def raises(self):
+        raise ExampleError("error")
 
 
 @pytest.yield_fixture
@@ -235,36 +220,9 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
             'Unknown correlation id: %s', correlation_id)
 
 
-def test_expected_exceptions(rabbit_config):
-    container = ServiceContainer(ExampleService, rabbit_config)
-
-    broken = get_extension(container, Rpc, method_name="broken")
-    assert broken.expected_exceptions == ExampleError
-
-    very_broken = get_extension(container, Rpc, method_name="very_broken")
-    assert very_broken.expected_exceptions == (KeyError, ValueError)
-
-
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
-
-def test_expected_exceptions_integration(container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    worker_logger = get_extension(container, WorkerErrorLogger)
-
-    with entrypoint_hook(container, 'broken') as broken:
-        with pytest.raises(ExampleError):
-            broken()
-
-    with entrypoint_hook(container, 'very_broken') as very_broken:
-        with pytest.raises(AttributeError):
-            very_broken()
-
-    assert worker_logger.expected == {'broken': ExampleError}
-    assert worker_logger.unexpected == {'very_broken': AttributeError}
 
 
 def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
@@ -348,7 +306,9 @@ def test_rpc_headers(container_factory, rabbit_config):
     handle_message = rpc_consumer.handle_message
 
     with patch.object(
-            rpc_consumer, 'handle_message', autospec=True) as patched_handler:
+        rpc_consumer, 'handle_message', autospec=True
+    ) as patched_handler:
+
         def side_effect(body, message):
             headers.update(message.headers)  # extract message headers
             return handle_message(body, message)
@@ -356,11 +316,11 @@ def test_rpc_headers(container_factory, rabbit_config):
         patched_handler.side_effect = side_effect
         container.start()
 
-    # use a standalone rpc proxy to call exampleservice.say_hello()
-    with ServiceRpcProxy(
-        "exampleservice", rabbit_config, context_data
-    ) as proxy:
-        proxy.say_hello()
+        # use a standalone rpc proxy to call exampleservice.say_hello()
+        with ServiceRpcProxy(
+            "exampleservice", rabbit_config, context_data
+        ) as proxy:
+            proxy.say_hello()
 
     # headers as per context data, plus call stack
     assert headers == {
@@ -387,23 +347,6 @@ def test_async_rpc(container_factory, rabbit_config):
 
     with entrypoint_hook(container, 'call_async') as call_async:
         assert call_async() == ["result_b", "result_a", [[], {}]]
-
-
-def test_async_rpc_deprecation_warning(container_factory, rabbit_config):
-
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
-
-    with entrypoint_hook(container, 'deprecated_async') as call_async:
-
-        # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
-        # `testdir` plugin is not compatible with eventlet on python3 --
-        # see https://github.com/mattbennett/eventlet-pytest-bug
-        with warnings.catch_warnings(record=True) as ws:
-            assert call_async() == [[], {}]
-            assert len(ws) == 1
-            assert issubclass(ws[-1].category, DeprecationWarning)
-            assert "deprecated" in str(ws[-1].message)
 
 
 def test_rpc_incorrect_signature(container_factory, rabbit_config):
@@ -521,14 +464,14 @@ def test_handle_message_raise_other_exception(
                 proxy.task_a()
 
 
-def test_rpc_broken_method(container_factory, rabbit_config):
+def test_rpc_method_that_raises(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
     with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
         with pytest.raises(RemoteError) as exc_info:
-            proxy.broken()
+            proxy.raises()
     assert exc_info.value.exc_type == "ExampleError"
 
 
@@ -648,3 +591,796 @@ def test_rpc_consumer_cannot_exit_with_providers(
 
     # kill off task_a's misbehaving rpc provider
     container.kill()
+
+
+@skip_if_no_toxiproxy
+class TestRpcConsumerDisconnections(object):
+    """ Test and demonstrate behaviour under poor network conditions.
+    """
+    @pytest.yield_fixture(autouse=True)
+    def fast_reconnects(self):
+
+        @contextmanager
+        def establish_connection(self):
+            with self.create_connection() as conn:
+                conn.ensure_connection(
+                    self.on_connection_error,
+                    self.connect_max_retries,
+                    interval_start=0.1,
+                    interval_step=0.1)
+                yield conn
+
+        with patch.object(
+            QueueConsumer, 'establish_connection', new=establish_connection
+        ):
+            yield
+
+    @pytest.yield_fixture
+    def toxic_queue_consumer(self, toxiproxy):
+        with patch.object(QueueConsumer, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    @pytest.yield_fixture
+    def service_rpc(self, rabbit_config):
+        with ServiceRpcProxy('service', rabbit_config) as proxy:
+            yield proxy
+
+    @pytest.fixture
+    def lock(self):
+        return Semaphore()
+
+    @pytest.fixture
+    def tracker(self):
+        return Mock()
+
+    @pytest.fixture(autouse=True)
+    def container(
+        self, container_factory, rabbit_config, toxic_queue_consumer, lock,
+        tracker
+    ):
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                lock.acquire()
+                lock.release()
+                tracker(arg)
+                return arg
+
+        # very fast heartbeat
+        config = rabbit_config
+        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
+
+        container = container_factory(Service, config)
+        container.start()
+
+        return container
+
+    def test_normal(self, container, service_rpc):
+        assert service_rpc.echo("foo") == "foo"
+
+    def test_down(self, container, service_rpc, toxiproxy):
+        """ Verify we detect and recover from closed sockets.
+
+        This failure mode closes the socket between the consumer and the
+        rabbit broker.
+
+        Attempting to read from the closed socket raises a socket.error
+        and the connection is re-established.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.disable()
+
+        # connection re-established
+        assert service_rpc.echo("foo") == "foo"
+
+    def test_upstream_timeout(self, container, service_rpc, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
+
+        This failure mode means that the socket between the consumer and the
+        rabbit broker times for out `timeout` milliseconds and then closes.
+
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_upstream_blackhole` below.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(timeout=100)
+
+        # connection re-established
+        assert service_rpc.echo("foo") == "foo"
+
+    def test_upstream_blackhole(self, container, service_rpc, toxiproxy):
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the consumer to the
+        rabbit broker is lost, but the socket remains open.
+
+        Heartbeats sent from the consumer are not received by the broker. After
+        two beats are missed the broker closes the connection, and subsequent
+        reads from the socket raise a socket.error, so the connection is
+        re-established.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(timeout=0)
+
+        # connection re-established
+        assert service_rpc.echo("foo") == "foo"
+
+    def test_downstream_timeout(self, container, service_rpc, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
+
+        This failure mode means that the socket between the rabbit broker and
+        the consumer times for out `timeout` milliseconds and then closes.
+
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_downstream_blackhole` below, except that the consumer
+        cancel will eventually (`timeout` milliseconds) raise a socket.error,
+        which is ignored, allowing the teardown to continue.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(stream="downstream", timeout=100)
+
+        # connection re-established
+        assert service_rpc.echo("foo") == "foo"
+
+    def test_downstream_blackhole(
+        self, container, service_rpc, toxiproxy
+    ):  # pragma: no cover
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the rabbit broker to
+        the consumer is lost, but the socket remains open.
+
+        Heartbeat acknowledgements from the broker are not received by the
+        consumer. After two beats are missed the consumer raises a "too many
+        heartbeats missed" error.
+
+        Cancelling the consumer requests an acknowledgement from the broker,
+        which is swallowed by the socket. There is no timeout when reading
+        the acknowledgement so this hangs forever.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        pytest.skip("skip until kombu supports recovery in this scenario")
+
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(stream="downstream", timeout=0)
+
+        # connection re-established
+        assert service_rpc.echo("foo") == "foo"
+
+    def test_message_ack_regression(
+        self, container, service_rpc, toxiproxy, lock, tracker
+    ):
+        """ Regression for https://github.com/nameko/nameko/issues/511
+        """
+        # prevent workers from completing
+        lock.acquire()
+
+        # fire entrypoint and block the worker;
+        # break connection while the worker is active, then release worker
+        with entrypoint_waiter(container, 'echo') as result:
+            res = service_rpc.echo.call_async("msg1")
+            while not lock._waiters:
+                eventlet.sleep()  # pragma: no cover
+            toxiproxy.disable()
+            # allow connection to close before releasing worker
+            eventlet.sleep(.1)
+            lock.release()
+
+        # entrypoint will return and reply will be received,
+        # but the initiating message will not be ack'd
+        assert result.get() == "msg1"
+        assert res.result() == "msg1"
+
+        # enabling connection will re-deliver the initiating message
+        # and it will be processed again
+        with entrypoint_waiter(container, 'echo') as result:
+            toxiproxy.enable()
+        assert result.get() == "msg1"
+
+        # connection re-established, container should work again
+        assert service_rpc.echo("msg2") == "msg2"
+
+
+@skip_if_no_toxiproxy
+class TestProxyDisconnections(object):
+    """ Test and demonstrate behaviour under poor network conditions.
+
+    Publisher confirms must be enabled for some of these tests to pass. Without
+    confirms, previously used but now dead connections will accept writes
+    without raising. These tests are skipped in this scenario.
+
+    Note that publisher confirms do not protect against sockets that remain
+    open but do not deliver messages (i.e. `toxiproxy.set_timeout(0)`).
+    This can only be mitigated with AMQP heartbeats (not yet supported)
+    """
+
+    @pytest.fixture(autouse=True)
+    def server_container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "server"
+
+            @rpc
+            def echo(self, arg):
+                return arg
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+
+    @pytest.fixture(autouse=True)
+    def client_container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "client"
+
+            server_rpc = RpcProxy("server")
+
+            @dummy
+            def echo(self, arg):
+                return self.server_rpc.echo(arg)
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+        return container
+
+    @pytest.yield_fixture(autouse=True)
+    def retry(self, request):
+        retry = False
+        if "publish_retry" in request.keywords:
+            retry = True
+
+        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
+            yield
+
+    @pytest.yield_fixture(params=[True, False])
+    def use_confirms(self, request):
+        with patch.object(
+            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+        ):
+            yield request.param
+
+    @pytest.yield_fixture(autouse=True)
+    def toxic_rpc_proxy(self, toxiproxy):
+        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_normal(self, client_container):
+
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+            assert echo(2) == 2
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_down(self, client_container, toxiproxy):
+        toxiproxy.disable()
+
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(1)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_timeout(self, client_container, toxiproxy):
+        toxiproxy.set_timeout()
+
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(1)
+        assert "Socket closed" in str(exc_info.value)
+
+    def test_reuse_when_down(self, client_container, toxiproxy):
+        """ Verify we detect stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(2)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+    def test_reuse_when_recovered(self, client_container, toxiproxy):
+        """ Verify we detect and recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(IOError) as exc_info:
+            with entrypoint_hook(client_container, 'echo') as echo:
+                echo(2)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+        toxiproxy.enable()
+
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(3) == 3
+
+    @pytest.mark.publish_retry
+    def test_with_retry_policy(self, client_container, toxiproxy):
+        """ Verify we automatically recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        with entrypoint_hook(client_container, 'echo') as echo:
+            assert echo(1) == 1
+
+        toxiproxy.disable()
+
+        def enable_after_retry(args, kwargs, res, exc_info):
+            toxiproxy.enable()
+            return True
+
+        # call 2 succeeds (after reconnecting via retry policy)
+        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+            with entrypoint_hook(client_container, 'echo') as echo:
+                assert echo(2) == 2
+
+
+@skip_if_no_toxiproxy
+class TestResponderDisconnections(object):
+    """ Test and demonstrate behaviour under poor network conditions.
+
+    Publisher confirms must be enabled for some of these tests to pass. Without
+    confirms, previously used but now dead connections will accept writes
+    without raising. These tests are skipped in this scenario.
+
+    Note that publisher confirms do not protect against sockets that remain
+    open but do not deliver messages (i.e. `toxiproxy.set_timeout(0)`).
+    This can only be mitigated with AMQP heartbeats (not yet supported)
+    """
+
+    @pytest.yield_fixture(autouse=True)
+    def toxic_responder(self, toxiproxy):
+        def replacement_constructor(amqp_uri, *args):
+            return Responder(toxiproxy.uri, *args)
+        with patch('nameko.rpc.Responder', wraps=replacement_constructor):
+            yield
+
+    @pytest.yield_fixture(params=[True, False])
+    def use_confirms(self, request):
+        value = request.param
+        with patch.object(Responder.publisher_cls, 'use_confirms', new=value):
+            yield value
+
+    @pytest.yield_fixture(autouse=True)
+    def retry(self, request):
+        value = False
+        if "publish_retry" in request.keywords:
+            value = True
+
+        with patch.object(Responder.publisher_cls, 'retry', new=value):
+            yield
+
+    @pytest.fixture
+    def service_cls(self):
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                return arg
+
+        return Service
+
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, service_cls, rabbit_config):
+
+        config = rabbit_config
+
+        container = container_factory(service_cls, config)
+        container.start()
+        return container
+
+    @pytest.yield_fixture
+    def service_rpc(self, rabbit_config):
+
+        gts = []
+
+        def kill_greenthreads():
+            for gt in gts:
+                try:
+                    gt.kill()
+                except GreenletExit:  # pragma: no cover
+                    pass
+            del gts[:]
+
+        class ThreadSafeRpcProxy(object):
+            """ The ServiceRpcProxy is not thread-safe, so we can't create it
+            in a fixture and use it directly from a new greenlet in a test
+            (which we need to, because it hangs in many of these tests).
+
+            Instead we fake the interface and make the underlying proxy call
+            in a dedicated thread, ensuring it's never shared.
+            """
+
+            def __getattr__(self, name):
+                def method(*args, **kwargs):
+                    def call():
+                        with ServiceRpcProxy(
+                            "service", rabbit_config
+                        ) as proxy:
+                            return getattr(proxy, name)(*args, **kwargs)
+
+                    gt = eventlet.spawn(call)
+                    gts.append(gt)
+                    return gt.wait()
+                return method
+
+            def abort(self):
+                kill_greenthreads()
+
+        proxy = ThreadSafeRpcProxy()
+        yield proxy
+        kill_greenthreads()
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_normal(self, service_rpc):
+        assert service_rpc.echo(1) == 1
+        assert service_rpc.echo(2) == 2
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_down(self, container, service_rpc, toxiproxy):
+        toxiproxy.disable()
+
+        eventlet.spawn_n(service_rpc.echo, 1)
+
+        # the container will raise if the responder cannot reply
+        with pytest.raises(IOError) as exc_info:
+            container.wait()
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        service_rpc.abort()
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_timeout(self, container, service_rpc, toxiproxy):
+        toxiproxy.set_timeout()
+
+        eventlet.spawn_n(service_rpc.echo, 1)
+
+        # the container will raise if the responder cannot reply
+        with pytest.raises(IOError) as exc_info:
+            container.wait()
+        assert "Socket closed" in str(exc_info.value)
+
+        service_rpc.abort()
+
+    def test_reuse_when_down(self, container, service_rpc, toxiproxy):
+        """ Verify we detect stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        eventlet.spawn_n(service_rpc.echo, 2)
+
+        # the container will raise if the responder cannot reply
+        with pytest.raises(IOError) as exc_info:
+            container.wait()
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+        service_rpc.abort()
+
+    def test_reuse_when_recovered(
+        self, container, service_rpc, toxiproxy, container_factory,
+        rabbit_config, service_cls
+    ):
+        """ Verify we detect and recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        eventlet.spawn_n(service_rpc.echo, 2)
+
+        # the container will raise if the responder cannot reply
+        with pytest.raises(IOError) as exc_info:
+            container.wait()
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+        toxiproxy.enable()
+
+        # create new container
+        replacement_container = container_factory(service_cls, rabbit_config)
+        replacement_container.start()
+
+        assert service_rpc.echo(3) == 3
+
+    @pytest.mark.publish_retry
+    def test_with_retry_policy(self, service_rpc, toxiproxy):
+        """ Verify we automatically recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        def enable_after_retry(args, kwargs, res, exc_info):
+            toxiproxy.enable()
+            return True
+
+        # call 2 succeeds (after reconnecting via retry policy)
+        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+            assert service_rpc.echo(2) == 2
+
+
+class TestBackwardsCompatClassAttrs(object):
+
+    @pytest.mark.parametrize("parameter,value", [
+        ('retry', False),
+        ('retry_policy', {'max_retries': 999}),
+        ('use_confirms', False),
+    ])
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
+        """ Verify that you can specify some fields by subclassing the
+        MethodProxy class.
+        """
+        method_proxy_cls = type(
+            "LegacyMethodProxy", (MethodProxy,), {parameter: value}
+        )
+        with patch('nameko.rpc.warnings') as warnings:
+            worker_ctx = Mock()
+            worker_ctx.container.config = {'AMQP_URI': 'memory://'}
+            reply_listener = Mock()
+            proxy = method_proxy_cls(
+                worker_ctx, "service", "method", reply_listener
+            )
+
+        assert warnings.warn.called
+        call_args = warnings.warn.call_args
+        assert parameter in unpack_mock_call(call_args).positional[0]
+
+        assert getattr(proxy.publisher, parameter) == value
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the RpcProxy
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at RpcProxy
+        instantiation time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.container = mock_container
+        worker_ctx.context_data = {}
+
+        value = Mock()
+
+        rpc_proxy = RpcProxy(
+            "service-name", **{parameter: value}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        service_rpc.method.call_async()
+        assert producer.publish.call_args[1][parameter] == value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers can be provided at instantiation time, and are merged with
+        Nameko headers.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service-name"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service-name.method.0'],
+        }
+
+        value = {'foo': Mock()}
+
+        rpc_proxy = RpcProxy(
+            "service-name", **{'headers': value}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        service_rpc.method.call_async()
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, value
+        )
+
+    @patch('nameko.rpc.uuid')
+    def test_restricted_parameters(self, patch_uuid, mock_container, producer):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.container = mock_container
+        worker_ctx.context_data = {}
+
+        uuid1 = uuid.uuid4()
+        uuid2 = uuid.uuid4()
+        patch_uuid.uuid4.side_effect = [uuid1, uuid2]
+
+        restricted_params = (
+            'exchange', 'routing_key', 'mandatory',
+            'correlation_id', 'reply_to'
+        )
+
+        rpc_proxy = RpcProxy(
+            "service", **{param: Mock() for param in restricted_params}
+        ).bind(mock_container, "service_rpc")
+
+        rpc_proxy.setup()
+        rpc_proxy.rpc_reply_listener.setup()
+
+        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+
+        service_rpc.method.call_async()
+        publish_params = producer.publish.call_args[1]
+
+        assert publish_params['exchange'].name == "nameko-rpc"
+        assert publish_params['routing_key'] == 'service.method'
+        assert publish_params['mandatory'] is True
+        assert publish_params['reply_to'] == str(uuid1)
+        assert publish_params['correlation_id'] == str(uuid2)
+
+
+def test_prefetch_throughput(container_factory, rabbit_config):
+    """Make sure even max_workers=1 can consumer faster than 1 msg/second
+
+    Regression test for https://github.com/nameko/nameko/issues/417
+    """
+
+    class Service(object):
+        name = "service"
+
+        @rpc
+        def method(self):
+            pass
+
+    rabbit_config[MAX_WORKERS_CONFIG_KEY] = 1
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    replies = []
+    with ServiceRpcProxy("service", rabbit_config) as proxy:
+        for _ in range(5):
+            replies.append(proxy.method.call_async())
+
+        with eventlet.Timeout(1):
+            [reply.result() for reply in replies]

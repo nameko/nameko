@@ -207,6 +207,7 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 class EntrypointWaiterTimeout(Exception):
     pass
 
+
 entrypoint_waiter.Timeout = EntrypointWaiterTimeout
 
 
@@ -475,11 +476,22 @@ class Once(Entrypoint):
     the service container started.
     """
     def __init__(self, *args, **kwargs):
+        expected_exceptions = kwargs.pop('expected_exceptions', ())
+        sensitive_arguments = kwargs.pop('sensitive_arguments', ())
+        # backwards compat
+        sensitive_variables = kwargs.pop('sensitive_variables', ())
+
         self.args = args
         self.kwargs = kwargs
+        super(Once, self).__init__(
+            expected_exceptions=expected_exceptions,
+            sensitive_arguments=sensitive_arguments,
+            sensitive_variables=sensitive_variables
+        )
 
     def start(self):
         self.container.spawn_worker(self, self.args, self.kwargs)
+
 
 once = Once.decorator
 

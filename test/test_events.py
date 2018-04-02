@@ -1,17 +1,22 @@
 import itertools
+import time
 from collections import defaultdict
 
 import pytest
-from mock import Mock, create_autospec, patch
+from mock import ANY, Mock, create_autospec, patch
+from six.moves import queue
 
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
-    EventHandlerConfigurationError, event_handler)
+    EventHandlerConfigurationError, event_handler
+)
 from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
+from nameko.standalone.events import get_event_exchange
 from nameko.testing.services import entrypoint_waiter
-from nameko.testing.utils import DummyProvider
+from nameko.testing.utils import DummyProvider, unpack_mock_call
+
 
 EVENTS_TIMEOUT = 5
 
@@ -24,33 +29,47 @@ def queue_consumer():
         yield replacement
 
 
-def test_event_dispatcher(mock_container):
+def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
 
     container = mock_container
+    container.config = rabbit_config
     container.service_name = "srcservice"
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider("dispatch"))
 
-    event_dispatcher = EventDispatcher(retry_policy={'max_retries': 5}).bind(
+    custom_retry_policy = {'max_retries': 5}
+
+    event_dispatcher = EventDispatcher(retry_policy=custom_retry_policy).bind(
         container, attr_name="dispatch")
     event_dispatcher.setup()
 
     service.dispatch = event_dispatcher.get_dependency(worker_ctx)
+    service.dispatch('eventtype', 'msg')
 
-    from mock import ANY
-    with patch('nameko.standalone.events.producers') as mock_producers:
-        with mock_producers[ANY].acquire() as mock_producer:
+    headers = event_dispatcher.get_message_headers(worker_ctx)
 
-            service.dispatch('eventtype', 'msg')
-            headers = event_dispatcher.get_message_headers(worker_ctx)
-    mock_producer.publish.assert_called_once_with(
-        'msg', exchange=ANY, headers=headers,
-        serializer=container.serializer,
-        routing_key='eventtype', retry=True, retry_policy={'max_retries': 5})
-    _, call_kwargs = mock_producer.publish.call_args
-    exchange = call_kwargs['exchange']
-    assert exchange.name == 'srcservice.events'
+    expected_args = ('msg',)
+    expected_kwargs = {
+        'exchange': ANY,
+        'routing_key': 'eventtype',
+        'headers': headers,
+        'declare': event_dispatcher.declare,
+        'retry': event_dispatcher.publisher_cls.retry,
+        'retry_policy': custom_retry_policy,
+        'compression': event_dispatcher.publisher_cls.compression,
+        'mandatory': event_dispatcher.publisher_cls.mandatory,
+        'expiration': event_dispatcher.publisher_cls.expiration,
+        'delivery_mode': event_dispatcher.publisher_cls.delivery_mode,
+        'priority': event_dispatcher.publisher_cls.priority,
+        'serializer': event_dispatcher.serializer,
+    }
+
+    assert mock_producer.publish.call_count == 1
+    args, kwargs = mock_producer.publish.call_args
+    assert args == expected_args
+    assert kwargs == expected_kwargs
+    assert kwargs['exchange'].name == 'srcservice.events'
 
 
 def test_event_handler(queue_consumer, mock_container):
@@ -198,6 +217,7 @@ class CustomEventHandler(EventHandler):
         self._calls.append(message)
         return result, exc_info
 
+
 custom_event_handler = CustomEventHandler.decorator
 
 
@@ -332,8 +352,14 @@ def test_service_pooled_events(rabbit_manager, rabbit_config,
     assert len(bar_queue['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
-                           properties=dict(content_type='application/json'))
+    rabbit_manager.publish(
+        vhost, exchange_name, 'eventtype', '"msg"',
+        properties=dict(content_type='application/json')
+    )
+    # can't use the entrypoint waiter here because we don't know
+    # which of the "foo" containers will pick up the message,
+    # so just wait for events to propagate
+    time.sleep(.1)
 
     # a total of two events should be received
     assert len(events) == 2
@@ -353,7 +379,7 @@ def test_service_pooled_events_multiple_handlers(
         rabbit_manager, rabbit_config, start_containers):
 
     vhost = rabbit_config['vhost']
-    start_containers(DoubleServicePoolHandler, ("double",))
+    (container,) = start_containers(DoubleServicePoolHandler, ("double",))
 
     # we should have two queues with a consumer each
     foo_queue_1 = rabbit_manager.get_queue(
@@ -365,8 +391,13 @@ def test_service_pooled_events_multiple_handlers(
     assert len(foo_queue_2['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
-                           properties=dict(content_type='application/json'))
+
+    with entrypoint_waiter(container, 'handle_1'):
+        with entrypoint_waiter(container, 'handle_2'):
+            rabbit_manager.publish(
+                vhost, exchange_name, 'eventtype', '"msg"',
+                properties=dict(content_type='application/json')
+            )
 
     # each handler (3 of them) of the two services should have received the evt
     assert len(events) == 2
@@ -390,6 +421,11 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
                            properties=dict(content_type='application/json'))
 
+    # can't use the entrypoint waiter here because we don't know
+    # which of the containers will pick up the message,
+    # so just wait for events to propagate
+    time.sleep(.1)
+
     # exactly one event should have been received
     assert len(events) == 1
 
@@ -403,7 +439,7 @@ def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
 
 def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
     vhost = rabbit_config['vhost']
-    start_containers(BroadcastHandler, ("foo", "foo", "bar"))
+    (c1, c2, c3) = start_containers(BroadcastHandler, ("foo", "foo", "bar"))
 
     # each broadcast queue should have one consumer
     queues = rabbit_manager.get_queues(vhost)
@@ -416,8 +452,14 @@ def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
         assert len(queue['consumer_details']) == 1
 
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
-                           properties=dict(content_type='application/json'))
+
+    with entrypoint_waiter(c1, 'handle'):
+        with entrypoint_waiter(c2, 'handle'):
+            with entrypoint_waiter(c3, 'handle'):
+                rabbit_manager.publish(
+                    vhost, exchange_name, 'eventtype', '"msg"',
+                    properties=dict(content_type='application/json')
+                )
 
     # a total of three events should be received
     assert len(events) == 3
@@ -452,7 +494,7 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
         vhost, "evt-srcservice-eventtype--requeue.handle")
     assert len(queue['consumer_details']) == 1
 
-    counter = itertools.count()
+    counter = itertools.count(start=1)
 
     def entrypoint_fired_twice(worker_ctx, res, exc_info):
         return next(counter) > 1
@@ -464,6 +506,10 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
             vhost, "srcservice.events", 'eventtype', '"msg"',
             properties=dict(content_type='application/json')
         )
+
+    # stop container to make sure the assertions below aren't made in the
+    # middle of processing an event
+    container.stop()
 
     # the event will be received multiple times as it gets requeued and then
     # consumed again
@@ -495,8 +541,11 @@ def test_reliable_delivery(
 
     # publish an event
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_1"',
-                           properties=dict(content_type='application/json'))
+    with entrypoint_waiter(container, 'handle'):
+        rabbit_manager.publish(
+            vhost, exchange_name, 'eventtype', '"msg_1"',
+            properties=dict(content_type='application/json')
+        )
 
     # wait for the event to be received
     assert events == ["msg_1"]
@@ -535,11 +584,11 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     """
     vhost = rabbit_config['vhost']
 
-    (container,) = start_containers(UnreliableHandler, ('unreliable',))
+    (c1,) = start_containers(UnreliableHandler, ('unreliable',))
 
     # start a normal handler service so the auto-delete events exchange
     # for srcservice is not removed when we stop the UnreliableHandler
-    start_containers(ServicePoolHandler, ('keep-exchange-alive',))
+    (c2,) = start_containers(ServicePoolHandler, ('keep-exchange-alive',))
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--unreliable.handle"
@@ -548,8 +597,12 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 
     # publish an event
     exchange_name = "srcservice.events"
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_1"',
-                           properties=dict(content_type='application/json'))
+    with entrypoint_waiter(c1, 'handle'):
+        with entrypoint_waiter(c2, 'handle'):
+            rabbit_manager.publish(
+                vhost, exchange_name, 'eventtype', '"msg_1"',
+                properties=dict(content_type='application/json')
+            )
 
     # verify it arrived in both services
     assert events == ["msg_1", "msg_1"]
@@ -559,7 +612,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert services['unreliable'][0].events == ["msg_1"]
 
     # stop container, test queue deleted
-    container.stop()
+    c1.stop()
     queues = rabbit_manager.get_queues(vhost)
     assert queue_name not in [q['name'] for q in queues]
 
@@ -568,18 +621,21 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
                            properties=dict(content_type='application/json'))
 
     # start another container
-    start_containers(UnreliableHandler, ('unreliable',))
+    (c3,) = start_containers(UnreliableHandler, ('unreliable',))
 
     # verify the queue is recreated, with one consumer
     queue = rabbit_manager.get_queue(vhost, queue_name)
     assert len(queue['consumer_details']) == 1
 
     # publish a third event
-    rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_3"',
-                           properties=dict(content_type='application/json'))
+    with entrypoint_waiter(c3, 'handle'):
+        rabbit_manager.publish(
+            vhost, exchange_name, 'eventtype', '"msg_3"',
+            properties=dict(content_type='application/json')
+        )
 
     # verify that the "unreliable" handler didn't receive the message sent
-    # while it wasn't running
+    # when there wasn't an instance running
     assert len(services['unreliable']) == 2
     assert services['unreliable'][0].events == ["msg_1"]
     assert services['unreliable'][1].events == ["msg_3"]
@@ -632,3 +688,154 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     # test event receieved on manually added queue
     messages = rabbit_manager.get_messages(vhost, "event-sink")
     assert ['"msg"'] == [msg['payload'] for msg in messages]
+
+
+class TestBackwardsCompatClassAttrs(object):
+
+    @pytest.mark.parametrize("parameter,value", [
+        ('retry', False),
+        ('retry_policy', {'max_retries': 999}),
+        ('use_confirms', False),
+    ])
+    def test_attrs_are_applied_as_defaults(
+        self, parameter, value, mock_container
+    ):
+        """ Verify that you can specify some fields by subclassing the
+        EventDispatcher DependencyProvider.
+        """
+        dispatcher_cls = type(
+            "LegacyEventDispatcher", (EventDispatcher,), {parameter: value}
+        )
+        with patch('nameko.messaging.warnings') as warnings:
+            mock_container.config = {'AMQP_URI': 'memory://'}
+            mock_container.service_name = "service"
+            dispatcher = dispatcher_cls().bind(mock_container, "dispatch")
+        assert warnings.warn.called
+        call_args = warnings.warn.call_args
+        assert parameter in unpack_mock_call(call_args).positional[0]
+
+        dispatcher.setup()
+        assert getattr(dispatcher.publisher, parameter) == value
+
+
+class TestConfigurability(object):
+    """
+    Test and demonstrate configuration options for the EventDispatcher
+    """
+
+    @pytest.yield_fixture
+    def get_producer(self):
+        with patch('nameko.amqp.publish.get_producer') as get_producer:
+            yield get_producer
+
+    @pytest.fixture
+    def producer(self, get_producer):
+        producer = get_producer().__enter__.return_value
+        # make sure we don't raise UndeliverableMessage if mandatory is True
+        producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
+        return producer
+
+    @pytest.mark.parametrize("parameter", [
+        # delivery options
+        'delivery_mode', 'mandatory', 'priority', 'expiration',
+        # message options
+        'serializer', 'compression',
+        # retry policy
+        'retry', 'retry_policy',
+        # other arbitrary publish kwargs
+        'correlation_id', 'user_id', 'bogus_param'
+    ])
+    def test_regular_parameters(
+        self, parameter, mock_container, producer
+    ):
+        """ Verify that most parameters can be specified at instantiation time.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        value = Mock()
+
+        dispatcher = EventDispatcher(
+            **{parameter: value}
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        dispatch("event-type", "event-data")
+        assert producer.publish.call_args[1][parameter] == value
+
+    @pytest.mark.usefixtures('predictable_call_ids')
+    def test_headers(self, mock_container, producer):
+        """ Headers can be provided at instantiation time, and are merged with
+        Nameko headers.
+        """
+        mock_container.config = {
+            'AMQP_URI': 'memory://localhost'
+        }
+        mock_container.service_name = "service"
+
+        # use a real worker context so nameko headers are generated
+        service = Mock()
+        entrypoint = Mock(method_name="method")
+        worker_ctx = WorkerContext(
+            mock_container, service, entrypoint, data={'context': 'data'}
+        )
+
+        nameko_headers = {
+            'nameko.context': 'data',
+            'nameko.call_id_stack': ['service.method.0'],
+        }
+
+        value = {'foo': Mock()}
+
+        dispatcher = EventDispatcher(
+            **{'headers': value}
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        def merge_dicts(base, *updates):
+            merged = base.copy()
+            [merged.update(update) for update in updates]
+            return merged
+
+        dispatch("event-type", "event-data")
+        assert producer.publish.call_args[1]['headers'] == merge_dicts(
+            nameko_headers, value
+        )
+
+    def test_restricted_parameters(
+        self, mock_container, producer
+    ):
+        """ Verify that providing routing parameters at instantiation
+        time has no effect.
+        """
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        worker_ctx = Mock()
+        worker_ctx.context_data = {}
+
+        exchange = Mock()
+        routing_key = Mock()
+
+        dispatcher = EventDispatcher(
+            exchange=exchange,
+            routing_key=routing_key,
+        ).bind(mock_container, "dispatch")
+        dispatcher.setup()
+
+        dispatch = dispatcher.get_dependency(worker_ctx)
+
+        event_exchange = get_event_exchange("service")
+        event_type = "event-type"
+
+        dispatch(event_type, "event-data")
+
+        assert producer.publish.call_args[1]['exchange'] == event_exchange
+        assert producer.publish.call_args[1]['routing_key'] == event_type

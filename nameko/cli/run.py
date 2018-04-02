@@ -1,8 +1,3 @@
-"""Run nameko services.  Given a python path to a module containing one or more
-nameko services, will host and run them. By default this will try to find
-classes that look like services (anything with nameko entrypoints), but a
-specific service can be specified via ``nameko run module:ServiceClass``.  """
-
 from __future__ import print_function
 
 import eventlet
@@ -17,8 +12,10 @@ import re
 import signal
 import sys
 
+import six
 import yaml
 from eventlet import backdoor
+
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
@@ -31,7 +28,7 @@ MISSING_MODULE_TEMPLATE = "^No module named '?{}'?$"
 
 
 def is_type(obj):
-    return isinstance(obj, type)
+    return isinstance(obj, six.class_types)
 
 
 def is_entrypoint(method):
@@ -103,6 +100,8 @@ def setup_backdoor(runner, port):
             'This would kill your service, not close the backdoor. To exit, '
             'use ctrl-c.')
     socket = eventlet.listen(('localhost', port))
+    # work around https://github.com/celery/kombu/issues/838
+    socket.settimeout(None)
     gt = eventlet.spawn(
         backdoor.backdoor_server,
         socket,
@@ -183,26 +182,3 @@ def main(args):
         )
 
     run(services, config, backdoor_port=args.backdoor_port)
-
-
-def init_parser(parser):
-    parser.add_argument(
-        'services', nargs='+',
-        metavar='module[:service class]',
-        help='python path to one or more service classes to run')
-
-    parser.add_argument(
-        '--config', default='',
-        help='The YAML configuration file')
-
-    parser.add_argument(
-        '--broker', default='amqp://guest:guest@localhost',
-        help='RabbitMQ broker url')
-
-    parser.add_argument(
-        '--backdoor-port', type=int,
-        help='Specify a port number to host a backdoor, which can be connected'
-        ' to for an interactive interpreter within the running service'
-        ' process using `nameko backdoor`.')
-
-    return parser

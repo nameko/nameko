@@ -30,6 +30,7 @@ class WaitResult(object):
     def get(self):
         if not self.has_result:
             raise WaitResult.NotReady()
+
         if self.exc_info is not None:
             six.reraise(*self.exc_info)
         return self.res

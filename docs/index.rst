@@ -38,8 +38,8 @@ And play with it from another:
 .. code-block:: pycon
 
     $ nameko shell
-    >>> n.rpc.greeting_service.hello(name="Matt")
-    'Hello, Matt!'
+    >>> n.rpc.greeting_service.hello(name="ナメコ")
+    'Hello, ナメコ!'
 
 
 
@@ -56,6 +56,7 @@ This section covers most things you need to know to create and run your own Name
    installation
    cli
    built_in_extensions
+   built_in_dependency_providers
    community_extensions
    testing
    writing_extensions

@@ -6,6 +6,7 @@ from amqp.exceptions import NotAllowed
 from kombu import Connection
 from kombu.transport.pyamqp import Transport
 
+
 BAD_CREDENTIALS = (
     'Error connecting to broker, probably caused by invalid credentials'
 )
@@ -40,7 +41,7 @@ class TestTransport(Transport):
 
 def verify_amqp_uri(amqp_uri):
     connection = Connection(amqp_uri)
-    if connection.transport_cls != 'amqp':
+    if connection.transport_cls not in ('amqp', 'pyamqp'):
         # Can't use these heuristics. Fall back to the existing error behaviour
         return
 

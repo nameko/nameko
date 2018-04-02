@@ -2,6 +2,7 @@ import re
 import socket
 from collections import namedtuple
 from functools import partial
+from logging import getLogger
 
 import eventlet
 from eventlet import wsgi
@@ -15,11 +16,12 @@ from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
 
+
 BindAddress = namedtuple("BindAddress", ['address', 'port'])
 
 
 def parse_address(address_string):
-    address_re = re.compile('^((?P<address>[^:]+):)?(?P<port>\d+)$')
+    address_re = re.compile(r'^((?P<address>[^:]+):)?(?P<port>\d+)$')
     match = address_re.match(address_string)
     if match is None:
         raise ConfigurationError(
@@ -76,13 +78,27 @@ class WebServer(ProviderCollector, SharedExtension):
             sock, addr = self._sock.accept()
             sock.settimeout(self._serv.socket_timeout)
             self.container.spawn_managed_thread(
-                partial(self._serv.process_request, (sock, addr))
+                partial(self.process_request, sock, addr)
             )
+
+    def process_request(self, sock, address):
+        try:
+            self._serv.process_request((sock, address))
+        except OSError as exc:
+            # OSError("raw readinto() returned invalid length")
+            # can be raised when a client disconnects very early as a result
+            # of an eventlet bug: https://github.com/eventlet/eventlet/pull/353
+            # See https://github.com/onefinestay/nameko/issues/368
+            if "raw readinto() returned invalid length" in str(exc):
+                return
+            raise
 
     def start(self):
         if not self._starting:
             self._starting = True
             self._sock = eventlet.listen(self.bind_addr)
+            # work around https://github.com/celery/kombu/issues/838
+            self._sock.settimeout(None)
             self._serv = self.get_wsgi_server(self._sock, self.get_wsgi_app())
             self._gt = self.container.spawn_managed_thread(self.run)
 
@@ -103,7 +119,8 @@ class WebServer(ProviderCollector, SharedExtension):
             sock.getsockname(),
             wsgi_app,
             protocol=protocol,
-            debug=debug
+            debug=debug,
+            log=getLogger(__name__)
         )
 
     def stop(self):

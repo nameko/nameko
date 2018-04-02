@@ -2,19 +2,22 @@ import errno
 import os
 import signal
 import socket
-from os.path import join, dirname, abspath
-import eventlet
-from mock import patch
+from os.path import abspath, dirname, join
 from textwrap import dedent
+
+import eventlet
 import pytest
+from mock import patch
 
 from nameko.cli.main import setup_parser
-from nameko.cli.run import import_service, setup_backdoor, main, run
+from nameko.cli.run import import_service, main, run, setup_backdoor
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+)
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY, SERIALIZER_CONFIG_KEY)
+from nameko.testing.waiting import wait_for_call
 
 from test.sample import Service
 
@@ -33,8 +36,10 @@ def test_run(rabbit_config):
         0,
         'test.sample:Service',
     ])
-    gt = eventlet.spawn(main, args)
-    eventlet.sleep(1)
+
+    # start runner and wait for it to come up
+    with wait_for_call(ServiceRunner, 'start'):
+        gt = eventlet.spawn(main, args)
 
     # make sure service launches ok
     with ClusterRpcProxy(rabbit_config) as proxy:
@@ -46,12 +51,20 @@ def test_run(rabbit_config):
     gt.wait()
 
 
-def test_main_with_config(rabbit_config):
+def test_main_with_config(rabbit_config, tmpdir):
+
+    config = tmpdir.join('config.yaml')
+    config.write("""
+        WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+        AMQP_URI: '{}'
+        serializer: 'json'
+    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+
     parser = setup_parser()
     args = parser.parse_args([
         'run',
         '--config',
-        TEST_CONFIG_FILE,
+        config.strpath,
         'test.sample',
     ])
 
@@ -62,7 +75,7 @@ def test_main_with_config(rabbit_config):
 
         assert config == {
             WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-            AMQP_URI_CONFIG_KEY: 'amqp://guest:guest@localhost',
+            AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
             SERIALIZER_CONFIG_KEY: 'json'
         }
 
@@ -106,8 +119,9 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
         'test.sample',
     ])
 
-    gt = eventlet.spawn(main, args)
-    eventlet.sleep(1)
+    # start runner and wait for it to come up
+    with wait_for_call(ServiceRunner, 'start'):
+        gt = eventlet.spawn(main, args)
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         proxy.service.ping()

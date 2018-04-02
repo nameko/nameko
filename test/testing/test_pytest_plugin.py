@@ -1,8 +1,10 @@
 import socket
+import time
 
 import pytest
+from six.moves import queue
 
-from nameko.constants import AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -12,11 +14,28 @@ from nameko.web.handlers import http
 from nameko.web.server import parse_address
 from nameko.web.websocket import rpc as wsrpc
 
+
 pytest_plugins = "pytester"
 
 
+@pytest.fixture
+def plugin_options(request):
+    """ Get the options pytest may have been invoked with so we can pass
+    them into subprocess pytests created by the pytester plugin.
+    """
+    options = (
+        '--rabbit-amqp-uri',
+        '--rabbit-api-uri'
+    )
+
+    args = [
+        "{}={}".format(opt, request.config.getoption(opt)) for opt in options
+    ]
+    return args
+
+
 def test_empty_config(empty_config):
-    assert AMQP_URI_CONFIG_KEY in empty_config
+    assert empty_config == {}
 
 
 def test_rabbit_manager(rabbit_manager):
@@ -24,90 +43,249 @@ def test_rabbit_manager(rabbit_manager):
     assert "/" in [vhost['name'] for vhost in rabbit_manager.get_all_vhosts()]
 
 
-def test_rabbit_config_random_vhost(testdir):
+def test_amqp_uri(testdir):
+
+    amqp_uri = "amqp://user:pass@host:5672/vhost"
+
+    testdir.makeconftest(
+        """
+        import pytest
+
+        @pytest.fixture
+        def rabbit_config():
+            return dict(AMQP_URI='{}')
+        """.format(amqp_uri)
+    )
 
     testdir.makepyfile(
         """
         import re
 
-        def test_rabbit_config(rabbit_config):
-            assert re.search("test_[a-z]+$", rabbit_config['AMQP_URI'])
-        """
-    )
-    result = testdir.runpytest()
-    assert result.ret == 0
-
-
-def test_rabbit_config_specific_vhost(testdir):
-
-    testdir.makepyfile(
-        """
-        def test_rabbit_config(rabbit_config):
-            assert "specified_vhost" in rabbit_config['AMQP_URI']
-        """
+        def test_amqp_uri(amqp_uri):
+            assert amqp_uri == '{}'
+        """.format(amqp_uri)
     )
     result = testdir.runpytest(
-        "--amqp-uri", "amqp://guest:guest@localhost:5672/specified_vhost"
+        "--amqp-uri", amqp_uri
     )
     assert result.ret == 0
 
 
-def test_rabbit_config_leftover_connections(testdir):
+class TestGetMessageFromQueue(object):
 
-    # run a test that leaves connections lying around
-    testdir.makepyfile(
-        """
-        from nameko.containers import ServiceContainer
-        from nameko.rpc import rpc
+    @pytest.fixture
+    def queue_name(self):
+        return "queue"
 
-        class Service(object):
-            name = "service"
+    @pytest.fixture
+    def publish_message(self, rabbit_manager, rabbit_config, queue_name):
+        vhost = rabbit_config['vhost']
+        rabbit_manager.create_queue(vhost, queue_name, durable=True)
 
-            @rpc
-            def method(self):
+        def publish(payload, **properties):
+            rabbit_manager.publish(
+                vhost, "amq.default", queue_name, payload, properties
+            )
+
+        return publish
+
+    def test_get_message(
+        self, publish_message, get_message_from_queue, queue_name,
+        rabbit_manager, rabbit_config
+    ):
+        payload = "payload"
+        publish_message(payload)
+
+        message = get_message_from_queue(queue_name)
+        assert message.payload == payload
+
+        vhost = rabbit_config['vhost']
+        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
+
+    def test_requeue(
+        self, publish_message, get_message_from_queue, queue_name,
+        rabbit_manager, rabbit_config
+    ):
+        payload = "payload"
+        publish_message(payload)
+
+        message = get_message_from_queue(queue_name, ack=False)
+        assert message.payload == payload
+
+        time.sleep(1)  # TODO: use retry decorator rather than sleep
+        vhost = rabbit_config['vhost']
+        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 1
+
+    def test_non_blocking(
+        self, publish_message, get_message_from_queue, queue_name
+    ):
+        # no message published; raises immediately
+        with pytest.raises(queue.Empty):
+            get_message_from_queue(queue_name, block=False)
+
+    def test_timeout(
+        self, publish_message, get_message_from_queue, queue_name
+    ):
+        # no message published; raises after timeout
+        with pytest.raises(queue.Empty):
+            get_message_from_queue(queue_name, timeout=0.01)
+
+    def test_accept(
+        self, publish_message, get_message_from_queue, queue_name
+    ):
+        payload = "payload"
+        content_type = "application/x-special"
+        publish_message(payload, content_type=content_type)
+
+        message = get_message_from_queue(queue_name, accept=content_type)
+        assert message.properties['content_type'] == content_type
+        assert message.payload == payload
+
+
+class TestFastTeardown(object):
+
+    def test_order(self, testdir):
+
+        testdir.makeconftest(
+            """
+            from mock import Mock
+            import pytest
+
+            @pytest.fixture(scope='session')
+            def tracker():
+                return Mock()
+
+            @pytest.yield_fixture
+            def rabbit_config(tracker):
+                tracker("rabbit_config", "up")
+                yield
+                tracker("rabbit_config", "down")
+
+            @pytest.yield_fixture
+            def container_factory(tracker):
+                tracker("container_factory", "up")
+                yield
+                tracker("container_factory", "down")
+            """
+        )
+
+        testdir.makepyfile(
+            """
+            from mock import call
+
+            def test_foo(container_factory, rabbit_config):
+                pass  # factory first
+
+            def test_bar(rabbit_config, container_factory):
+                pass  # rabbit first
+
+            def test_check(tracker):
+                assert tracker.call_args_list == [
+                    # test_foo
+                    call("container_factory", "up"),
+                    call("rabbit_config", "up"),
+                    call("rabbit_config", "down"),
+                    call("container_factory", "down"),
+                    # test_bar
+                    call("container_factory", "up"),
+                    call("rabbit_config", "up"),
+                    call("rabbit_config", "down"),
+                    call("container_factory", "down"),
+                ]
+            """
+        )
+        result = testdir.runpytest()
+        assert result.ret == 0
+
+    def test_only_affects_used_fixtures(self, testdir):
+
+        testdir.makeconftest(
+            """
+            from mock import Mock
+            import pytest
+
+            @pytest.fixture(scope='session')
+            def tracker():
+                return Mock()
+
+            @pytest.yield_fixture
+            def rabbit_config(tracker):
+                tracker("rabbit_config", "up")
+                yield
+                tracker("rabbit_config", "down")
+
+            @pytest.yield_fixture
+            def container_factory(tracker):
+                tracker("container_factory", "up")
+                yield
+                tracker("container_factory", "down")
+            """
+        )
+
+        testdir.makepyfile(
+            """
+            from mock import call
+
+            def test_no_rabbit(container_factory):
+                pass  # factory first
+
+            def test_check(tracker):
+                assert tracker.call_args_list == [
+                    call("container_factory", "up"),
+                    call("container_factory", "down"),
+                ]
+            """
+        )
+        result = testdir.runpytest()
+        assert result.ret == 0
+
+    def test_consumer_mixin_patch(self, testdir):
+
+        testdir.makeconftest(
+            """
+            from kombu.mixins import ConsumerMixin
+            import pytest
+
+            consumers = []
+
+            @pytest.fixture(autouse=True)
+            def fast_teardown(patch_checker, fast_teardown):
+                ''' Shadow the fast_teardown fixture to set fixture order:
+
+                Setup:
+
+                    1. patch_checker
+                    2. original fast_teardown (applies monkeypatch)
+                    3. this fixture (creates consumer)
+
+                Teardown:
+
+                    1. this fixture (creates consumer)
+                    2. original fast_teardown (removes patch; sets attribute)
+                    3. patch_checker (verifies consumer was stopped)
+                '''
+                consumers.append(ConsumerMixin())
+
+            @pytest.yield_fixture
+            def patch_checker():
+                yield
+                assert consumers[0].should_stop is True
+            """
+        )
+
+        testdir.makepyfile(
+            """
+            def test_mixin_patch(patch_checker):
                 pass
-
-        def test_rabbit_config(rabbit_config):
-
-            # not using container factory; will leave connections behind
-            container = ServiceContainer(Service, rabbit_config)
-            container.start()
-        """
-    )
-
-    result = testdir.runpytest()
-    assert result.ret == 1
-    result.stdout.fnmatch_lines(
-        ["*RuntimeError: 1 rabbit connection(s) left open*"]
-    )
+            """
+        )
+        result = testdir.runpytest()
+        assert result.ret == 0
 
 
-def test_cleanup_order(testdir):
-
-    # without ``ensure_cleanup_order``, the following fixture ordering would
-    # tear down ``rabbit_config`` before the ``container_factory`` (generating
-    # an error about rabbit connections being left open)
-    testdir.makepyfile(
-        """
-        from nameko.rpc import rpc
-
-        class Service(object):
-            name = "service"
-
-            @rpc
-            def method(self):
-                pass
-
-        def test_service(container_factory, rabbit_config):
-            container = container_factory(Service, rabbit_config)
-            container.start()
-        """
-    )
-    result = testdir.runpytest()
-    assert result.ret == 0
-
-
-def test_container_factory(testdir, rabbit_config, rabbit_manager):
+def test_container_factory(
+    testdir, rabbit_config, rabbit_manager, plugin_options
+):
 
     testdir.makepyfile(
         """
@@ -129,14 +307,14 @@ def test_container_factory(testdir, rabbit_config, rabbit_manager):
                 assert proxy.method() == "OK"
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
     vhost = rabbit_config['vhost']
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
-def test_container_factory_with_custom_container_cls(testdir):
+def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
     testdir.makepyfile(container_module="""
         from nameko.containers import ServiceContainer
@@ -175,62 +353,13 @@ def test_container_factory_with_custom_container_cls(testdir):
                 assert proxy.method() == "OK"
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
 
-def test_container_factory_custom_worker_ctx_deprecation_warning(testdir):
-
-    testdir.makeconftest(
-        """
-        from mock import patch
-        import pytest
-
-        @pytest.yield_fixture
-        def warnings():
-            with patch('nameko.containers.warnings') as patched:
-                yield patched
-        """
-    )
-
-    testdir.makepyfile(
-        """
-        from mock import ANY, call
-
-        from nameko.containers import WorkerContext
-        from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
-
-        class ServiceX(object):
-            name = "x"
-
-            @rpc
-            def method(self):
-                return "OK"
-
-        def test_container_factory(
-            container_factory, rabbit_config, warnings
-        ):
-            class WorkerContextX(WorkerContext):
-                pass
-
-            container = container_factory(
-                ServiceX, rabbit_config, worker_ctx_cls=WorkerContextX
-            )
-            container.start()
-
-            # TODO: replace with pytest.warns when eventlet >= 0.19.0 is
-            # released
-            assert warnings.warn.call_args_list == [
-                call(ANY, DeprecationWarning)
-            ]
-        """
-    )
-    result = testdir.runpytest()
-    assert result.ret == 0
-
-
-def test_runner_factory(testdir, rabbit_config, rabbit_manager):
+def test_runner_factory(
+    testdir, plugin_options, rabbit_config, rabbit_manager
+):
 
     testdir.makepyfile(
         """
@@ -252,7 +381,7 @@ def test_runner_factory(testdir, rabbit_config, rabbit_manager):
                 assert proxy.method() == "OK"
         """
     )
-    result = testdir.runpytest()
+    result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
     vhost = rabbit_config['vhost']

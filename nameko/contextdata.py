@@ -1,6 +1,6 @@
 from nameko.constants import (
-    LANGUAGE_CONTEXT_KEY, USER_ID_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
-    AUTH_TOKEN_CONTEXT_KEY,
+    AUTH_TOKEN_CONTEXT_KEY, LANGUAGE_CONTEXT_KEY, USER_AGENT_CONTEXT_KEY,
+    USER_ID_CONTEXT_KEY
 )
 from nameko.extensions import DependencyProvider
 

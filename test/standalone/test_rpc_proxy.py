@@ -2,14 +2,22 @@ import socket
 
 import eventlet
 import pytest
+from eventlet.event import Event
+from kombu.connection import Connection
 from kombu.message import Message
+from mock import Mock, call
 
 from nameko.containers import WorkerContext
 from nameko.exceptions import RemoteError, RpcConnectionError, RpcTimeout
 from nameko.extensions import DependencyProvider
-from nameko.rpc import Responder, rpc
-from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.utils import get_rabbit_connections
+from nameko.rpc import MethodProxy, Responder, get_rpc_exchange, rpc
+from nameko.standalone.rpc import (
+    ClusterRpcProxy, ConsumeEvent, ServiceRpcProxy
+)
+from nameko.testing.waiting import wait_for_call
+
+from test import skip_if_no_toxiproxy
+
 
 # uses autospec on method; needs newer mock for py3
 try:
@@ -24,6 +32,7 @@ class ContextReader(DependencyProvider):
     This is a test facilty! Write specific Dependencies to make use of
     values in ``WorkerContext.data``, don't expose it directly.
     """
+
     def get_dependency(self, worker_ctx):
         def get_context_value(key):
             return worker_ctx.data.get(key)
@@ -161,7 +170,10 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
             'reply_to': proxy.reply_listener.routing_key,
             'correlation_id': 'invalid',
         })
-        responder = Responder(container.config, message)
+        amqp_uri = container.config['AMQP_URI']
+        exchange = get_rpc_exchange(container.config)
+
+        responder = Responder(amqp_uri, exchange, "json", message)
         with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
             responder.send_response(None, None)
             assert proxy.spam(ham='eggs') == 'eggs'
@@ -210,61 +222,170 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
         res.result()
 
 
-class ExampleService(object):
-    name = "exampleservice"
+@skip_if_no_toxiproxy
+class TestDisconnectWithPendingReply(object):
 
-    def callback(self):
-        # to be patched out with mock
-        pass  # pragma: no cover
+    @pytest.yield_fixture
+    def toxic_rpc_proxy(self, rabbit_config, toxiproxy):
+        rabbit_config['AMQP_URI'] = toxiproxy.uri
+        with ClusterRpcProxy(rabbit_config) as proxy:
+            yield proxy
 
-    @rpc
-    def method(self, arg):
-        self.callback()
-        return arg
+    def test_disconnect_and_successfully_reconnect(
+        self, container_factory, rabbit_manager, rabbit_config,
+        toxic_rpc_proxy, toxiproxy
+    ):
+        block = Event()
 
+        class Service(object):
+            name = "service"
 
-def test_disconnect_with_pending_reply(
-        container_factory, rabbit_manager, rabbit_config):
+            @rpc
+            def method(self, arg):
+                block.wait()
+                return arg
 
-    example_container = container_factory(ExampleService, rabbit_config)
-    example_container.start()
+        container = container_factory(Service, rabbit_config)
+        container.start()
 
-    vhost = rabbit_config['vhost']
+        # make an async call that will block,
+        # wait for the worker to have spawned
+        with wait_for_call(container, 'spawn_worker'):
+            res = toxic_rpc_proxy.service.method.call_async('msg1')
 
-    # get exampleservice's queue consumer connection while we know it's the
-    # only active connection
-    connections = get_rabbit_connections(vhost, rabbit_manager)
-    assert len(connections) == 1
-    container_connection = connections[0]
+        # disconnect toxiproxy
+        toxiproxy.disable()
 
-    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
-        connections = get_rabbit_connections(vhost, rabbit_manager)
-        assert len(connections) == 2
-        proxy_connection = [
-            conn for conn in connections if conn != container_connection][0]
+        # reconnect toxiproxy just before the consumer attempts to reconnect;
+        # (consumer.cancel is the only hook we have)
+        def reconnect(args, kwargs, res, exc_info):
+            block.send(True)
+            toxiproxy.enable()
+            return True
 
-        def disconnect_once(self):
-            if hasattr(disconnect_once, 'called'):
-                return
-            disconnect_once.called = True
-            rabbit_manager.delete_connection(proxy_connection['name'])
-
-        with patch.object(ExampleService, 'callback', disconnect_once):
-
-            async = proxy.method.call_async('hello')
-
-            # if disconnecting while waiting for a reply, call fails
+        with wait_for_call(
+            toxic_rpc_proxy._reply_listener.queue_consumer.consumer, 'cancel',
+            callback=reconnect
+        ):
+            # rpc proxy should return an error for the request in flight.
             with pytest.raises(RpcConnectionError):
-                proxy.method('hello')
+                res.result()
 
-            # the failure above also has to consider any other pending calls a
-            # failure, since the reply may have been sent while the queue was
-            # gone (deleted on disconnect, and not added until re-connect)
-            with pytest.raises(RpcConnectionError):
-                async.result()
+        # proxy should work again after reconnection
+        assert toxic_rpc_proxy.service.method("msg3") == "msg3"
 
-            # proxy should work again afterwards
-            assert proxy.method('hello') == 'hello'
+    def test_disconnect_and_fail_to_reconnect(
+        self, container_factory, rabbit_manager, rabbit_config,
+        toxic_rpc_proxy, toxiproxy
+    ):
+        block = Event()
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def method(self, arg):
+                block.wait()
+                return arg
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # make an async call that will block,
+        # wait for the worker to have spawned
+        with wait_for_call(container, 'spawn_worker'):
+            res = toxic_rpc_proxy.service.method.call_async('msg1')
+
+        try:
+            # disconnect
+            toxiproxy.disable()
+
+            # rpc proxy should return an error for the request in flight.
+            # it will also attempt to reconnect and throw on failure
+            # because toxiproxy is still disconnected
+            with pytest.raises(socket.error):
+                with pytest.raises(RpcConnectionError):
+                    res.result()
+
+        finally:
+            # reconnect toxiproxy
+            block.send(True)
+            toxiproxy.enable()
+
+        # proxy will not work afterwards because the queueconsumer connection
+        # was not recovered on the second attempt
+        with pytest.raises(RuntimeError):
+            toxic_rpc_proxy.service.method("msg3")
+
+
+class TestConsumeEvent(object):
+
+    @pytest.fixture
+    def queue_consumer(self):
+        queue_consumer = Mock()
+        queue_consumer.stopped = False
+        queue_consumer.connection.connected = True
+        return queue_consumer
+
+    def test_wait(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        result = "result"
+
+        def get_message(correlation_id):
+            event.send(result)
+        queue_consumer.get_message.side_effect = get_message
+
+        assert event.wait() == result
+        assert queue_consumer.get_message.call_args == call(correlation_id)
+
+    def test_wait_disconnected_while_waiting(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        exc = RpcConnectionError()
+
+        def get_message(correlation_id):
+            event.send_exception(exc)
+        queue_consumer.get_message.side_effect = get_message
+
+        with pytest.raises(RpcConnectionError):
+            event.wait()
+        assert queue_consumer.get_message.call_args == call(correlation_id)
+
+    def test_wait_already_disconnected(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        exc = RpcConnectionError()
+
+        event.send_exception(exc)
+        with pytest.raises(RpcConnectionError):
+            event.wait()
+        assert not queue_consumer.get_message.called
+
+    def test_wait_queue_consumer_stopped(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        queue_consumer.stopped = True
+
+        with pytest.raises(RuntimeError) as raised:
+            event.wait()
+        assert "stopped" in str(raised.value)
+        assert not queue_consumer.get_message.called
+
+    def test_wait_queue_consumer_disconnected(self, queue_consumer):
+        correlation_id = 1
+        event = ConsumeEvent(queue_consumer, correlation_id)
+
+        queue_consumer.connection.connected = False
+
+        with pytest.raises(RuntimeError) as raised:
+            event.wait()
+        assert "disconnected" in str(raised.value)
+        assert not queue_consumer.get_message.called
 
 
 def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):
@@ -279,7 +400,7 @@ def test_timeout(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=.5) as proxy:
         with pytest.raises(RpcTimeout):
             proxy.sleep(seconds=1)
 
@@ -305,7 +426,7 @@ def test_async_timeout(
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('foobar', rabbit_config, timeout=.1) as proxy:
+    with ServiceRpcProxy('foobar', rabbit_config, timeout=.5) as proxy:
         result = proxy.sleep.call_async(seconds=1)
         with pytest.raises(RpcTimeout):
             result.result()
@@ -342,6 +463,18 @@ def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
 
     with ClusterRpcProxy(rabbit_config) as proxy:
         assert proxy.foobar.spam(ham=1) == 1
+
+
+def test_cluster_proxy_reuse(container_factory, rabbit_manager, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    cluster_proxy = ClusterRpcProxy(rabbit_config)
+    with cluster_proxy as proxy:
+        assert proxy.foobar.spam(ham=1) == 1
+
+    with cluster_proxy as second_proxy:
+        assert second_proxy.foobar.spam(ham=1) == 1
 
 
 def test_cluster_proxy_dict_access(
@@ -413,3 +546,217 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
     for _, message in fake_replies.messages:
         consumer_tags.add(message.delivery_info['consumer_tag'])
     assert len(consumer_tags) == 1
+
+
+@skip_if_no_toxiproxy
+class TestStandaloneProxyDisconnections(object):
+
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                return arg
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+
+    @pytest.yield_fixture(autouse=True)
+    def retry(self, request):
+        retry = False
+        if "publish_retry" in request.keywords:
+            retry = True
+
+        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
+            yield
+
+    @pytest.yield_fixture(params=[True, False])
+    def use_confirms(self, request):
+        with patch.object(
+            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+        ):
+            yield request.param
+
+    @pytest.yield_fixture(autouse=True)
+    def toxic_rpc_proxy(self, toxiproxy):
+        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    @pytest.yield_fixture
+    def service_rpc(self, rabbit_config):
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
+            yield proxy
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_normal(self, service_rpc):
+        assert service_rpc.echo(1) == 1
+        assert service_rpc.echo(2) == 2
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_down(self, service_rpc, toxiproxy):
+        toxiproxy.disable()
+
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(1)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+    @pytest.mark.usefixtures('use_confirms')
+    def test_timeout(self, service_rpc, toxiproxy):
+        toxiproxy.set_timeout()
+
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(1)
+        assert "Socket closed" in str(exc_info.value)
+
+    def test_reuse_when_down(self, service_rpc, toxiproxy):
+        """ Verify we detect stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        # publisher cannot connect, raises
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(2)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+    def test_reuse_when_recovered(self, service_rpc, toxiproxy):
+        """ Verify we detect and recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        # publisher cannot connect, raises
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(2)
+        assert (
+            # expect the write to raise a BrokenPipe or, if it succeeds,
+            # the socket to be closed on the subsequent confirmation read
+            "Broken pipe" in str(exc_info.value) or
+            "Socket closed" in str(exc_info.value)
+        )
+
+        toxiproxy.enable()
+
+        assert service_rpc.echo(3) == 3
+
+    @pytest.mark.publish_retry
+    def test_with_retry_policy(self, service_rpc, toxiproxy):
+        """ Verify we automatically recover from stale connections.
+
+        Publish confirms are required for this functionality. Without confirms
+        the later messages are silently lost and the test hangs waiting for a
+        response.
+        """
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        def enable_after_retry(args, kwargs, res, exc_info):
+            toxiproxy.enable()
+            return True
+
+        # subsequent calls succeed (after reconnecting via retry policy)
+        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
+            assert service_rpc.echo(2) == 2
+
+
+@skip_if_no_toxiproxy
+class TestStandaloneProxyConsumerDisconnections(object):
+
+    @pytest.fixture(autouse=True)
+    def container(self, container_factory, rabbit_config):
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, arg):
+                print("ECHO!", arg)
+                return arg
+
+        config = rabbit_config
+
+        container = container_factory(Service, config)
+        container.start()
+
+    @pytest.yield_fixture(autouse=True)
+    def non_toxic_rpc_proxy(self, rabbit_config):
+        """ Fix the AMQP URI passes to the publisher so we're only testing
+        the effect of the broken connection on the consumer.
+        """
+        amqp_uri = rabbit_config['AMQP_URI']
+        with patch.object(MethodProxy, 'amqp_uri', new=amqp_uri):
+            yield
+
+    @pytest.yield_fixture
+    def service_rpc(self, toxiproxy, rabbit_config):
+
+        config = rabbit_config.copy()
+        config['AMQP_URI'] = toxiproxy.uri
+
+        with ServiceRpcProxy("service", config) as proxy:
+            yield proxy
+
+    def test_normal(self, service_rpc):
+        assert service_rpc.echo(1) == 1
+        assert service_rpc.echo(2) == 2
+
+    def test_down(self, service_rpc, toxiproxy):
+        toxiproxy.disable()
+
+        # fails to set up initial consumer
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(1)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+    def test_timeout(self, service_rpc, toxiproxy):
+        toxiproxy.set_timeout(stream="downstream")
+
+        with pytest.raises(IOError) as exc_info:
+            service_rpc.echo(1)
+        assert "Socket closed" in str(exc_info.value)
+
+    def test_reuse_when_down(self, service_rpc, toxiproxy):
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(2)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+    def test_reuse_when_recovered(self, service_rpc, toxiproxy):
+        assert service_rpc.echo(1) == 1
+
+        toxiproxy.disable()
+
+        with pytest.raises(socket.error) as exc_info:
+            service_rpc.echo(2)
+        assert "ECONNREFUSED" in str(exc_info.value)
+
+        toxiproxy.enable()
+
+        # can't reuse it
+        with pytest.raises(RuntimeError) as raised:
+            service_rpc.echo(3)
+        assert "This consumer has been disconnected" in str(raised.value)
