@@ -19,8 +19,8 @@ from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.testing.waiting import wait_for_call
 
-from test.sample import Service
 from test.anonymous import Service1, Service2
+from test.sample import Service
 
 
 TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
