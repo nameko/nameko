@@ -313,9 +313,6 @@ class ServiceProxy(object):
             **self.options
         )
 
-    def __getitem__(self, name):
-        return getattr(self, name)
-
 
 class RpcReply(object):
     resp_body = None
