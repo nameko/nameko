@@ -19,7 +19,7 @@ from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.testing.waiting import wait_for_call
 
-from test.anonymous import Service1, Service2
+from test.anonymous import Service2
 from test.sample import Service
 
 
