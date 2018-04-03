@@ -123,3 +123,5 @@ Service Runner
 :class:`~nameko.runners.ServiceRunner` is a thin wrapper around multiple containers, exposing methods for starting and stopping all the wrapped containers simultaneously. This is what ``nameko run`` uses internally, and it can also be constructed programmatically:
 
 .. literalinclude:: examples/service_runner.py
+
+If you create your own runner rather than using `nameko run`, you must also apply the eventlet `monkey patch <http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library>`_. 
