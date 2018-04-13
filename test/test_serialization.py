@@ -11,7 +11,7 @@ from nameko.constants import ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.messaging import consume
-from nameko.rpc import rpc
+from nameko.rpc import rpc, RpcProxy
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 
@@ -244,3 +244,52 @@ def test_consumer_accepts_multiple_serialization_formats(
     publish(yaml.dump(payload), 'application/x-yaml')
 
     assert consumed.mock_calls == [call(payload), call(payload)]
+
+
+def test_rpc_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager
+):
+
+    called = Mock()
+
+    class ForwardingService(object):
+
+        name = 'forwarder'
+
+        echoer = RpcProxy('echoer')
+
+        @rpc
+        def forward(self, payload):
+            return self.echoer.echo(payload)
+
+    class EchoingService(object):
+
+        name = 'echoer'
+
+        @rpc
+        def echo(self, payload):
+            called(payload)
+            return payload
+
+    rabbit_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    echoer = container_factory(EchoingService, rabbit_config)
+    echoer.start()
+
+    payload = {'spam': 'ham'}
+
+    rabbit_config[SERIALIZER_CONFIG_KEY] = 'json'
+    forwarder = container_factory(ForwardingService, rabbit_config)
+    forwarder.start()
+
+    with entrypoint_hook(forwarder, 'forward') as echo:
+        assert echo(payload) == payload
+
+    rabbit_config[SERIALIZER_CONFIG_KEY] = 'yaml'
+    forwarder = container_factory(ForwardingService, rabbit_config)
+    forwarder.start()
+
+    with entrypoint_hook(forwarder, 'forward') as echo:
+        assert echo(payload) == payload
+
+    assert called.mock_calls == [call(payload), call(payload)]
