@@ -152,9 +152,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         Must be registered as a
         `kombu serializer <http://bit.do/kombu_serialization>`_.
         """
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
+        return self.container.serializer
 
     def setup(self):
 
