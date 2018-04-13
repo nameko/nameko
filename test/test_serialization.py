@@ -1,13 +1,16 @@
 import json
 import uuid
+import yaml
 
 import pytest
+from kombu import Queue, Exchange
 from kombu.serialization import register
 from mock import Mock, call
 
-from nameko.constants import SERIALIZER_CONFIG_KEY
+from nameko.constants import ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
+from nameko.messaging import consume
 from nameko.rpc import rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
@@ -208,3 +211,36 @@ def test_custom_serializer(container_factory, rabbit_config,
     msg = get_messages()[0]
     assert '"RESULT": "HELLO"' in msg['payload']
     assert msg['properties']['content_type'] == "application/x-upper-json"
+
+
+def test_consumer_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager
+):
+
+    consumed = Mock()
+
+    class Service(object):
+
+        name = 'service'
+
+        @consume(queue=Queue(exchange=Exchange('spam'), name='some-queue'))
+        def consume(self, payload):
+            assert payload == {'spam': 'ham'}
+            consumed(payload)
+
+    rabbit_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    payload = {'spam': 'ham'}
+
+    def publish(serialized_payload, content_type):
+        rabbit_manager.publish(
+            rabbit_config['vhost'], 'spam', '', serialized_payload,
+            properties={'content_type': content_type})
+
+    publish(json.dumps(payload), 'application/json')
+    publish(yaml.dump(payload), 'application/x-yaml')
+
+    assert consumed.mock_calls == [call(payload), call(payload)]

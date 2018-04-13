@@ -13,7 +13,7 @@ from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
 
 from nameko.constants import (
-    CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
+    ACCEPT_CONFIG_KEY, CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, DEFAULT_SERIALIZER, MAX_WORKERS_CONFIG_KEY,
     PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
@@ -168,7 +168,8 @@ class ServiceContainer(object):
     def setup_serialization(self):
         self.serializer = self.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-        self.accept = [self.serializer]
+        self.accept = self.config.get(
+            ACCEPT_CONFIG_KEY, [self.serializer])
 
     @property
     def extensions(self):
