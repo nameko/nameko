@@ -138,10 +138,7 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
-        self.serializer = config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
-        self.accept = [self.serializer]
+        self.setup_serialization()
 
         self.entrypoints = SpawningSet()
         self.dependencies = SpawningSet()
@@ -167,6 +164,11 @@ class ServiceContainer(object):
         self._managed_threads = {}
         self._being_killed = False
         self._died = Event()
+
+    def setup_serialization(self):
+        self.serializer = self.config.get(
+            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+        self.accept = [self.serializer]
 
     @property
     def extensions(self):
