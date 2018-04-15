@@ -4,10 +4,13 @@ import yaml
 
 import pytest
 from kombu import Queue, Exchange
-from kombu.serialization import register
 from mock import Mock, call
 
-from nameko.constants import ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+from nameko.constants import (
+	ACCEPT_CONFIG_KEY,
+	SERIALIZER_CONFIG_KEY,
+	SERIALIZERS_CONFIG_KEY,
+)
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.messaging import consume
@@ -177,18 +180,17 @@ def test_event_serialization(
     assert msg['properties']['content_type'] == serialized['content_type']
 
 
+def upperjson_encode(value):
+	value = json.dumps(value)
+	return value.upper()
+
+def upperjson_decode(value):
+	value = value.lower()
+	return json.loads(value)
+
+
 def test_custom_serializer(container_factory, rabbit_config,
                            sniffer_queue_factory):
-
-    def encode(value):
-        value = json.dumps(value)
-        return value.upper()
-
-    def decode(value):
-        value = value.lower()
-        return json.loads(value)
-
-    register("upperjson", encode, decode, "application/x-upper-json", "utf-8")
 
     class Service(object):
         name = "service"
@@ -198,6 +200,13 @@ def test_custom_serializer(container_factory, rabbit_config,
             return arg
 
     rabbit_config[SERIALIZER_CONFIG_KEY] = "upperjson"
+    rabbit_config[SERIALIZERS_CONFIG_KEY] = {
+        'upperjson': {
+            'encoder': 'test.test_serialization.upperjson_encode',
+            'decoder': 'test.test_serialization.upperjson_decode',
+            'content_type': 'application/x-upper-json'
+        }
+    }
     container = container_factory(Service, rabbit_config)
     container.start()
 

@@ -11,11 +11,12 @@ import six
 from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
+from kombu import serialization
 
 from nameko.constants import (
     ACCEPT_CONFIG_KEY, CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, DEFAULT_SERIALIZER, MAX_WORKERS_CONFIG_KEY,
-    PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY, SERIALIZERS_CONFIG_KEY
 )
 from nameko.exceptions import ConfigurationError, ContainerBeingKilled
 from nameko.extensions import (
@@ -166,8 +167,17 @@ class ServiceContainer(object):
         self._died = Event()
 
     def setup_serialization(self):
+
+        serializers = self.config.get(SERIALIZERS_CONFIG_KEY, {})
+        for name, kwargs in serializers.items():
+            encoder = import_from_path(kwargs.pop('encoder'))
+            decoder = import_from_path(kwargs.pop('decoder'))
+            serialization.register(
+                name, encoder=encoder, decoder=decoder, **kwargs)
+
         self.serializer = self.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+
         self.accept = self.config.get(
             ACCEPT_CONFIG_KEY, [self.serializer])
 
