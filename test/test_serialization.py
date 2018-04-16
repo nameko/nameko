@@ -182,6 +182,7 @@ def upperjson_encode(value):
     value = json.dumps(value)
     return value.upper()
 
+
 def upperjson_decode(value):
     value = value.lower()
     return json.loads(value)
