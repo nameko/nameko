@@ -322,3 +322,68 @@ def test_rpc_accepts_multiple_serialization_formats(
     assert msg['properties']['content_type'] == "application/x-yaml"
 
     assert called.mock_calls == [call(payload), call(payload)]
+
+
+def test_events_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager,
+    sniffer_queue_factory
+):
+
+    called = Mock()
+
+    class PublishingService(object):
+
+        name = 'publisher'
+
+        dispatch = EventDispatcher()
+
+        @rpc
+        def dispatch_event(self, payload):
+            self.dispatch('spam', payload)
+
+    class ConsumingService(object):
+
+        name = 'consumer'
+
+        @event_handler('publisher', 'spam')
+        def handle_event(self, event_data):
+            called(event_data)
+
+    def publish(consumer, publisher):
+        with entrypoint_waiter(consumer, "handle_event"):
+            with entrypoint_hook(publisher, "dispatch_event") as dispatch:
+                dispatch(payload)
+
+    consumer_config = rabbit_config.copy()
+    consumer_config[SERIALIZER_CONFIG_KEY] = 'json'
+    consumer_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    consumer = container_factory(ConsumingService, consumer_config)
+    consumer.start()
+
+    get_messages = sniffer_queue_factory(
+        'publisher.events', routing_key='spam')
+
+    payload = {'spam': 'ham'}
+
+    publisher_config = rabbit_config.copy()
+    publisher_config[SERIALIZER_CONFIG_KEY] = 'json'
+    publisher = container_factory(PublishingService, publisher_config)
+    publisher.start()
+    publish(consumer, publisher)
+
+    msg = get_messages().pop()
+    assert '{"spam": "ham"}' in msg['payload']
+    assert msg['properties']['content_type'] == 'application/json'
+
+    publisher_config = rabbit_config.copy()
+    publisher_config[SERIALIZER_CONFIG_KEY] = 'yaml'
+    publisher = container_factory(PublishingService, publisher_config)
+    publisher.start()
+    publish(consumer, publisher)
+
+    msg = get_messages().pop()
+    assert '{spam: ham}' in msg['payload']
+    assert msg['properties']['content_type'] == 'application/x-yaml'
+
+    assert called.mock_calls == [call(payload), call(payload)]
