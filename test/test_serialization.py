@@ -1,20 +1,18 @@
 import json
 import uuid
-import yaml
 
 import pytest
-from kombu import Queue, Exchange
+import yaml
+from kombu import Exchange, Queue
 from mock import Mock, call
 
 from nameko.constants import (
-    ACCEPT_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY,
-    SERIALIZERS_CONFIG_KEY,
+    ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY, SERIALIZERS_CONFIG_KEY
 )
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.messaging import consume
-from nameko.rpc import rpc, RpcProxy
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 
