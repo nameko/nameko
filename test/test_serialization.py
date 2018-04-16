@@ -7,9 +7,9 @@ from kombu import Queue, Exchange
 from mock import Mock, call
 
 from nameko.constants import (
-	ACCEPT_CONFIG_KEY,
-	SERIALIZER_CONFIG_KEY,
-	SERIALIZERS_CONFIG_KEY,
+    ACCEPT_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY,
+    SERIALIZERS_CONFIG_KEY,
 )
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
@@ -181,12 +181,12 @@ def test_event_serialization(
 
 
 def upperjson_encode(value):
-	value = json.dumps(value)
-	return value.upper()
+    value = json.dumps(value)
+    return value.upper()
 
 def upperjson_decode(value):
-	value = value.lower()
-	return json.loads(value)
+    value = value.lower()
+    return json.loads(value)
 
 
 def test_custom_serializer(container_factory, rabbit_config,
@@ -256,7 +256,8 @@ def test_consumer_accepts_multiple_serialization_formats(
 
 
 def test_rpc_accepts_multiple_serialization_formats(
-    container_factory, rabbit_config, rabbit_manager
+    container_factory, rabbit_config, rabbit_manager,
+    sniffer_queue_factory
 ):
 
     called = Mock()
@@ -291,14 +292,26 @@ def test_rpc_accepts_multiple_serialization_formats(
     forwarder = container_factory(ForwardingService, rabbit_config)
     forwarder.start()
 
+    get_messages = sniffer_queue_factory('nameko-rpc')
+
     with entrypoint_hook(forwarder, 'forward') as echo:
         assert echo(payload) == payload
+
+    msg = get_messages()[0]
+    assert '"result": {"spam": "ham"}' in msg['payload']
+    assert msg['properties']['content_type'] == "application/json"
 
     rabbit_config[SERIALIZER_CONFIG_KEY] = 'yaml'
     forwarder = container_factory(ForwardingService, rabbit_config)
     forwarder.start()
 
+    get_messages = sniffer_queue_factory('nameko-rpc')
+
     with entrypoint_hook(forwarder, 'forward') as echo:
         assert echo(payload) == payload
 
     assert called.mock_calls == [call(payload), call(payload)]
+
+    msg = get_messages()[0]
+    assert 'result: {spam: ham}' in msg['payload']
+    assert msg['properties']['content_type'] == "application/x-yaml"
