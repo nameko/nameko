@@ -281,15 +281,20 @@ def test_rpc_accepts_multiple_serialization_formats(
             called(payload)
             return payload
 
-    rabbit_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+    # Echoer serialiser is set to JSON, but accepts both JSON and YAML
+    echoer_config = rabbit_config.copy()
+    echoer_config[SERIALIZER_CONFIG_KEY] = 'json'
+    echoer_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
 
-    echoer = container_factory(EchoingService, rabbit_config)
+    echoer = container_factory(EchoingService, echoer_config)
     echoer.start()
 
     payload = {'spam': 'ham'}
 
-    rabbit_config[SERIALIZER_CONFIG_KEY] = 'json'
-    forwarder = container_factory(ForwardingService, rabbit_config)
+    # Forwarder serialiser is set to JSON and should send and receive JSON
+    forwarder_config = rabbit_config.copy()
+    forwarder_config[SERIALIZER_CONFIG_KEY] = 'json'
+    forwarder = container_factory(ForwardingService, forwarder_config)
     forwarder.start()
 
     get_messages = sniffer_queue_factory('nameko-rpc')
@@ -297,12 +302,14 @@ def test_rpc_accepts_multiple_serialization_formats(
     with entrypoint_hook(forwarder, 'forward') as echo:
         assert echo(payload) == payload
 
-    msg = get_messages()[0]
+    msg = get_messages().pop()
     assert '"result": {"spam": "ham"}' in msg['payload']
     assert msg['properties']['content_type'] == "application/json"
 
-    rabbit_config[SERIALIZER_CONFIG_KEY] = 'yaml'
-    forwarder = container_factory(ForwardingService, rabbit_config)
+    # Forwarder serialiser is set to YAML and should send and receive YAML
+    forwarder_config = rabbit_config.copy()
+    forwarder_config[SERIALIZER_CONFIG_KEY] = 'yaml'
+    forwarder = container_factory(ForwardingService, forwarder_config)
     forwarder.start()
 
     get_messages = sniffer_queue_factory('nameko-rpc')
@@ -310,8 +317,8 @@ def test_rpc_accepts_multiple_serialization_formats(
     with entrypoint_hook(forwarder, 'forward') as echo:
         assert echo(payload) == payload
 
-    assert called.mock_calls == [call(payload), call(payload)]
-
-    msg = get_messages()[0]
+    msg = get_messages().pop()
     assert 'result: {spam: ham}' in msg['payload']
     assert msg['properties']['content_type'] == "application/x-yaml"
+
+    assert called.mock_calls == [call(payload), call(payload)]
