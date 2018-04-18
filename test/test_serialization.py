@@ -221,11 +221,16 @@ def test_custom_serializer(container_factory, rabbit_config,
     assert msg['properties']['content_type'] == "application/x-upper-json"
 
 
+@pytest.mark.parametrize(
+    'content_type, encode',
+    (
+        ('application/json', json.dumps),
+        ('application/x-yaml', yaml.dump),
+    )
+)
 def test_consumer_accepts_multiple_serialization_formats(
-    container_factory, rabbit_config, rabbit_manager
+    container_factory, rabbit_config, rabbit_manager, content_type, encode
 ):
-
-    consumed = Mock()
 
     class Service(object):
 
@@ -234,7 +239,6 @@ def test_consumer_accepts_multiple_serialization_formats(
         @consume(queue=Queue(exchange=Exchange('spam'), name='some-queue'))
         def consume(self, payload):
             assert payload == {'spam': 'ham'}
-            consumed(payload)
 
     rabbit_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
 
@@ -243,20 +247,22 @@ def test_consumer_accepts_multiple_serialization_formats(
 
     payload = {'spam': 'ham'}
 
-    def publish(serialized_payload, content_type):
+    with entrypoint_waiter(container, 'consume'):
         rabbit_manager.publish(
-            rabbit_config['vhost'], 'spam', '', serialized_payload,
+            rabbit_config['vhost'], 'spam', '', encode(payload),
             properties={'content_type': content_type})
 
-    publish(json.dumps(payload), 'application/json')
-    publish(yaml.dump(payload), 'application/x-yaml')
 
-    assert consumed.mock_calls == [call(payload), call(payload)]
-
-
+@pytest.mark.parametrize(
+    'serializer, content_type, encode',
+    (
+        ('json', 'application/json', json.dumps),
+        ('yaml', 'application/x-yaml', yaml.dump),
+    )
+)
 def test_rpc_accepts_multiple_serialization_formats(
     container_factory, rabbit_config, rabbit_manager,
-    sniffer_queue_factory
+    sniffer_queue_factory, serializer, content_type, encode
 ):
 
     called = Mock()
@@ -292,7 +298,7 @@ def test_rpc_accepts_multiple_serialization_formats(
 
     # Forwarder serialiser is set to JSON and should send and receive JSON
     forwarder_config = rabbit_config.copy()
-    forwarder_config[SERIALIZER_CONFIG_KEY] = 'json'
+    forwarder_config[SERIALIZER_CONFIG_KEY] = serializer
     forwarder = container_factory(ForwardingService, forwarder_config)
     forwarder.start()
 
@@ -302,30 +308,22 @@ def test_rpc_accepts_multiple_serialization_formats(
         assert echo(payload) == payload
 
     msg = get_messages().pop()
-    assert '"result": {"spam": "ham"}' in msg['payload']
-    assert msg['properties']['content_type'] == "application/json"
+    assert encode(payload) in msg['payload']
+    assert msg['properties']['content_type'] == content_type
 
-    # Forwarder serialiser is set to YAML and should send and receive YAML
-    forwarder_config = rabbit_config.copy()
-    forwarder_config[SERIALIZER_CONFIG_KEY] = 'yaml'
-    forwarder = container_factory(ForwardingService, forwarder_config)
-    forwarder.start()
-
-    get_messages = sniffer_queue_factory('nameko-rpc')
-
-    with entrypoint_hook(forwarder, 'forward') as echo:
-        assert echo(payload) == payload
-
-    msg = get_messages().pop()
-    assert 'result: {spam: ham}' in msg['payload']
-    assert msg['properties']['content_type'] == "application/x-yaml"
-
-    assert called.mock_calls == [call(payload), call(payload)]
+    assert called.mock_calls == [call(payload)]
 
 
+@pytest.mark.parametrize(
+    'serializer, content_type, encode',
+    (
+        ('json', 'application/json', json.dumps),
+        ('yaml', 'application/x-yaml', yaml.dump),
+    )
+)
 def test_events_accepts_multiple_serialization_formats(
     container_factory, rabbit_config, rabbit_manager,
-    sniffer_queue_factory
+    sniffer_queue_factory, serializer, content_type, encode
 ):
 
     called = Mock()
@@ -366,23 +364,13 @@ def test_events_accepts_multiple_serialization_formats(
     payload = {'spam': 'ham'}
 
     publisher_config = rabbit_config.copy()
-    publisher_config[SERIALIZER_CONFIG_KEY] = 'json'
+    publisher_config[SERIALIZER_CONFIG_KEY] = serializer
     publisher = container_factory(PublishingService, publisher_config)
     publisher.start()
     publish(consumer, publisher)
 
     msg = get_messages().pop()
-    assert '{"spam": "ham"}' in msg['payload']
-    assert msg['properties']['content_type'] == 'application/json'
+    assert encode(payload) in msg['payload']
+    assert msg['properties']['content_type'] == content_type
 
-    publisher_config = rabbit_config.copy()
-    publisher_config[SERIALIZER_CONFIG_KEY] = 'yaml'
-    publisher = container_factory(PublishingService, publisher_config)
-    publisher.start()
-    publish(consumer, publisher)
-
-    msg = get_messages().pop()
-    assert '{spam: ham}' in msg['payload']
-    assert msg['properties']['content_type'] == 'application/x-yaml'
-
-    assert called.mock_calls == [call(payload), call(payload)]
+    assert called.mock_calls == [call(payload)]
