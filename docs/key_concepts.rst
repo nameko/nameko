@@ -124,4 +124,7 @@ Service Runner
 
 .. literalinclude:: examples/service_runner.py
 
-If you create your own runner rather than using `nameko run`, you must also apply the eventlet `monkey patch <http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library>`_. 
+If you create your own runner rather than using `nameko run`, you must also apply the eventlet `monkey patch <http://eventlet.net/doc/patching.html#monkeypatching-the-standard-library>`_.
+
+See the `nameko.cli.run <https://github.com/nameko/nameko/blob/cc13802d8afb059419384e2e2016bae7fe1415ce/nameko/cli/run.py#L3-L4>`_ module for an example.
+
