@@ -286,7 +286,6 @@ def test_rpc_accepts_multiple_serialization_formats(
             called(payload)
             return payload
 
-    # Echoer serialiser is set to JSON, but accepts both JSON and YAML
     echoer_config = rabbit_config.copy()
     echoer_config[SERIALIZER_CONFIG_KEY] = 'json'
     echoer_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
@@ -296,7 +295,6 @@ def test_rpc_accepts_multiple_serialization_formats(
 
     payload = {'spam': 'ham'}
 
-    # Forwarder serialiser is set to JSON and should send and receive JSON
     forwarder_config = rabbit_config.copy()
     forwarder_config[SERIALIZER_CONFIG_KEY] = serializer
     forwarder = container_factory(ForwardingService, forwarder_config)
