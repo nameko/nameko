@@ -181,6 +181,14 @@ class ServiceContainer(object):
         self.accept = self.config.get(
             ACCEPT_CONFIG_KEY, [self.serializer])
 
+        for serializer in [self.serializer] + self.accept:
+            try:
+                content_type = serialization.registry.name_to_type[serializer]
+            except KeyError:
+                raise ConfigurationError(
+                    'Please register a serializer for "{}" format'
+                    .format(serializer))
+
     @property
     def extensions(self):
         return SpawningSet(

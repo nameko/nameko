@@ -10,7 +10,7 @@ from nameko.constants import (
     ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY, SERIALIZERS_CONFIG_KEY
 )
 from nameko.events import EventDispatcher, event_handler
-from nameko.exceptions import RemoteError
+from nameko.exceptions import ConfigurationError, RemoteError
 from nameko.messaging import consume
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
@@ -219,6 +219,29 @@ def test_custom_serializer(container_factory, rabbit_config,
     msg = get_messages()[0]
     assert '"RESULT": "HELLO"' in msg['payload']
     assert msg['properties']['content_type'] == "application/x-upper-json"
+
+
+@pytest.mark.parametrize(
+    'config',
+    (
+        {SERIALIZER_CONFIG_KEY: 'unknown'},
+        {ACCEPT_CONFIG_KEY: ['json', 'unknown']},
+        {
+            SERIALIZER_CONFIG_KEY: 'json',
+            ACCEPT_CONFIG_KEY: ['json', 'unknown'],
+        },
+    )
+)
+def test_missing_serializers(container_factory, rabbit_config, config):
+
+    rabbit_config.update(config)
+    with pytest.raises(ConfigurationError) as exc:
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+    assert (
+        str(exc.value) ==
+        'Please register a serializer for "unknown" format')
 
 
 @pytest.mark.parametrize(
