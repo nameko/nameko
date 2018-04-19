@@ -283,6 +283,53 @@ def test_consumer_accepts_multiple_serialization_formats(
         ('yaml', 'application/x-yaml', yaml.dump),
     )
 )
+def test_standalone_rpc_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager,
+    sniffer_queue_factory, serializer, content_type, encode
+):
+
+    called = Mock()
+
+    class EchoingService(object):
+
+        name = 'echoer'
+
+        @rpc
+        def echo(self, payload):
+            called(payload)
+            return payload
+
+    echoer_config = rabbit_config.copy()
+    echoer_config[SERIALIZER_CONFIG_KEY] = 'json'
+    echoer_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    echoer = container_factory(EchoingService, echoer_config)
+    echoer.start()
+
+    payload = {'spam': 'ham'}
+
+    proxy_config = rabbit_config.copy()
+    proxy_config[SERIALIZER_CONFIG_KEY] = serializer
+
+    get_messages = sniffer_queue_factory('nameko-rpc')
+
+    with ServiceRpcProxy('echoer', proxy_config) as proxy:
+        assert proxy.echo(payload) == payload
+
+    msg = get_messages().pop()
+    assert encode(payload) in msg['payload']
+    assert msg['properties']['content_type'] == content_type
+
+    assert called.mock_calls == [call(payload)]
+
+
+@pytest.mark.parametrize(
+    'serializer, content_type, encode',
+    (
+        ('json', 'application/json', json.dumps),
+        ('yaml', 'application/x-yaml', yaml.dump),
+    )
+)
 def test_rpc_accepts_multiple_serialization_formats(
     container_factory, rabbit_config, rabbit_manager,
     sniffer_queue_factory, serializer, content_type, encode

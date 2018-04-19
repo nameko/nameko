@@ -8,10 +8,9 @@ from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
+from nameko import serialization
 from nameko.amqp import verify_amqp_uri
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY
-)
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcConnectionError, RpcTimeout
 from nameko.extensions import Entrypoint
@@ -111,9 +110,8 @@ class PollingQueueConsumer(object):
     def register_provider(self, provider):
         self.provider = provider
 
-        self.serializer = provider.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-        self.accept = [self.serializer]
+        self.serializer, self.accept = serialization.setup(
+            provider.container.config)
 
         amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
         verify_amqp_uri(amqp_uri)
