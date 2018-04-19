@@ -3,10 +3,8 @@ from copy import deepcopy
 import kombu.serialization
 
 from nameko.constants import (
-    ACCEPT_CONFIG_KEY,
-    DEFAULT_SERIALIZER,
-    SERIALIZER_CONFIG_KEY,
-    SERIALIZERS_CONFIG_KEY,
+    ACCEPT_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY,
+    SERIALIZERS_CONFIG_KEY
 )
 from nameko.exceptions import ConfigurationError
 from nameko.utils import import_from_path
