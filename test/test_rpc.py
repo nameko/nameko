@@ -626,7 +626,7 @@ def test_reply_queue_removed_on_expiry(
 
 
 @skip_if_no_toxiproxy
-class TestDisconnectedWhileWaitingForReply(object):
+class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
     @pytest.yield_fixture(autouse=True)
     def fast_reconnects(self):
