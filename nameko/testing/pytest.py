@@ -9,7 +9,17 @@ import pytest
 #  https://github.com/eventlet/eventlet/pull/239)
 
 
+def parse_config_option(text):
+    import yaml
+    if '=' in text:
+        key, value = text.strip().split('=', 1)
+        return key, yaml.load(value)
+    else:
+        return text, True
+
+
 def pytest_addoption(parser):
+    import ssl
     parser.addoption(
         '--blocking-detection',
         action='store_true',
@@ -43,25 +53,26 @@ def pytest_addoption(parser):
         help='Port number for SSL connection')
 
     parser.addoption(
-        '--amqp-ssl-ca-certs',
-        action='store',
-        dest='AMQP_SSL_CA_CERTS',
-        default='certs/cacert.pem',
-        help='CA certificates chain file for SSL connection')
-
-    parser.addoption(
-        '--amqp-ssl-certfile',
-        action='store',
-        dest='AMQP_SSL_CERTFILE',
-        default='certs/clientcert.pem',
-        help='Certificate file for SSL connection')
-
-    parser.addoption(
-        '--amqp-ssl-keyfile',
-        action='store',
-        dest='AMQP_SSL_KEYFILE',
-        default='certs/clientkey.pem',
-        help='Private key file for SSL connection')
+        '--amqp-ssl-option',
+        type=parse_config_option,
+        action='append',
+        dest='AMQP_SSL_OPTIONS',
+        metavar='KEY=VALUE',
+        default=(
+            ('ca_certs', 'certs/cacert.pem'),
+            ('certfile', 'certs/clientcert.pem'),
+            ('keyfile', 'certs/clientkey.pem'),
+            ('cert_reqs', ssl.CERT_REQUIRED)
+        ),
+        help=(
+            'SSL connection options for passing to ssl.wrap_socket.'
+            'Multiple options may be given. Values are parsed as YAML, '
+            'hence the following example is valid: \n'
+            '--amqp-ssl-option certfile=clientcert.pem '
+            '--amqp-ssl-option cert_reqs=!!python/name:ssl.CERT_REQUIRED '
+            '--amqp-ssl-option ssl_version=!!python/name:ssl.PROTOCOL_TLSv1_2'
+        )
+    )
 
 
 def pytest_load_initial_conftests():
@@ -178,12 +189,10 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
 
 @pytest.fixture()
 def rabbit_ssl_config(request, rabbit_config):
-    from ssl import CERT_REQUIRED  # pylint: disable=E0401
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
-    ca_certs = request.config.getoption('AMQP_SSL_CA_CERTS')
-    certfile = request.config.getoption('AMQP_SSL_CERTFILE')
-    keyfile = request.config.getoption('AMQP_SSL_KEYFILE')
+    ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
+    ssl_options = {key: value for key, value in ssl_options}
 
     amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
     uri_parts = urlparse(rabbit_config['AMQP_URI'])
@@ -197,12 +206,7 @@ def rabbit_ssl_config(request, rabbit_config):
         'AMQP_URI': amqp_ssl_uri,
         'username': rabbit_config['username'],
         'vhost': rabbit_config['vhost'],
-        'AMQP_SSL': {
-            'ca_certs': ca_certs,
-            'certfile': certfile,
-            'keyfile': keyfile,
-            'cert_reqs': CERT_REQUIRED,
-        },
+        'AMQP_SSL': ssl_options,
     }
 
     return conf
