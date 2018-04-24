@@ -236,8 +236,7 @@ def test_missing_serializers(container_factory, rabbit_config, config):
 
     rabbit_config.update(config)
     with pytest.raises(ConfigurationError) as exc:
-        container = container_factory(Service, rabbit_config)
-        container.start()
+        container_factory(Service, rabbit_config)
 
     assert (
         str(exc.value) ==
