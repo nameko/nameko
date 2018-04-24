@@ -4,6 +4,7 @@ import logging
 import socket
 import uuid
 
+from amqp.exceptions import NotFound
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Queue
@@ -16,7 +17,7 @@ from nameko.constants import (
     HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.containers import new_call_id
-from nameko.exceptions import RpcTimeout
+from nameko.exceptions import RpcTimeout, ReplyQueueExpiredWithPendingReplies
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
     RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, ServiceProxy,
@@ -98,6 +99,17 @@ class ReplyListener(ConsumerMixin):
 
         Called after any (re)connection to the broker.
         """
+        if self.pending:
+            try:
+                with self.connection as conn:
+                    self.queue.bind(conn).queue_declare(passive=True)
+            except NotFound:
+                raise ReplyQueueExpiredWithPendingReplies(
+                    "Lost replies for correlation ids:\n{}".format(
+                        "\n".join(self.pending.keys())
+                    )
+                )
+
         consumer = consumer_cls(
             queues=[self.queue],
             callbacks=[self.handle_message],

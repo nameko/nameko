@@ -9,7 +9,9 @@ from kombu.message import Message
 
 from nameko.constants import HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
-from nameko.exceptions import RemoteError, RpcTimeout
+from nameko.exceptions import (
+    RemoteError, RpcTimeout, ReplyQueueExpiredWithPendingReplies
+)
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
@@ -211,20 +213,66 @@ def test_reply_queue_not_removed_while_in_use(
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):
 
-    @patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
-    def test_reply_queue_removed_while_disconnected_with_pending_reply(
-        self, rabbit_config, container_factory, toxiproxy
-    ):
-        """ Not possible to test this scenario with the current design.
-        We attempt to _setup_consumer immediately on disconnection, without
-        any kind of retry and only for two attempts; the broker will never
-        have expired the queue during that window.
+    @pytest.yield_fixture(autouse=True)
+    def fast_reconnects(self):
 
-        It will be possible once to write test this scenario once the
-        `rpc-refactor` branch lands. This test will then become very similar
-        to test/test_rpc.py::TestDisconnectedWhileWaitingForReply.
-        """
-        pytest.skip("Not possible to test with current implementation")
+        @contextmanager
+        def establish_connection(self):
+            with self.create_connection() as conn:
+                conn.ensure_connection(
+                    self.on_connection_error,
+                    self.connect_max_retries,
+                    interval_start=0.1,
+                    interval_step=0.1)
+                yield conn
+
+        with patch.object(
+            ReplyListener, 'establish_connection', new=establish_connection
+        ):
+            yield
+
+    @pytest.yield_fixture(autouse=True)
+    def fast_expiry(self):
+        with patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=100):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def container(
+        self, container_factory, rabbit_config, rabbit_manager, toxiproxy,
+        fast_expiry
+    ):
+
+        def enable_after_queue_expires():
+            eventlet.sleep(1)
+            toxiproxy.enable()
+
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def sleep(self):
+                toxiproxy.disable()
+                eventlet.spawn_n(enable_after_queue_expires)
+                return "OK"
+
+        config = rabbit_config.copy()
+        container = container_factory(Service, config)
+        container.start()
+
+        return container
+
+    @pytest.yield_fixture
+    def toxic_rpc_proxy(self, rabbit_config, toxiproxy):
+        config = rabbit_config.copy()
+        config['AMQP_URI'] = toxiproxy.uri
+        with ClusterRpcProxy(config) as proxy:
+            yield proxy
+
+    def test_reply_queue_removed_while_disconnected_with_pending_reply(
+        self, toxic_rpc_proxy, toxiproxy, container
+    ):
+        with pytest.raises(ReplyQueueExpiredWithPendingReplies):
+            toxic_rpc_proxy.service.sleep()
 
 
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
@@ -240,7 +288,7 @@ def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
         res = foo.sleep.call_async(0.4)
         eventlet.sleep(0.4)
 
-        with pytest.raises(RpcTimeout):
+        with pytest.raises(ReplyQueueExpiredWithPendingReplies):
             res.result()
 
 

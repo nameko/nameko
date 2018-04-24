@@ -775,8 +775,10 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
         It will be possible once to write test this scenario once the
         ReplyListener implements the ConsumerMixin itself (by declaring the
-        queue before setting up consumers)
+        queue before setting up consumers).
 
+        See similar test for standalone proxy:
+        test/standalone/test_rpc.py::TestDisconnectedWhileWaitingForReply
         """
         pytest.skip("Not possible with current implementation")
 
