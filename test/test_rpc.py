@@ -816,7 +816,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
             queue_consumer = ToxicQueueConsumer()
 
         class ToxicRpcProxy(RpcProxy):
-            rpc_reply_listener = ToxicReplyListener()
+            reply_listener = ToxicReplyListener()
 
         class Service(object):
             name = "service"
@@ -904,7 +904,7 @@ class TestReplyListenerDisconnections(object):
             queue_consumer = ToxicQueueConsumer()
 
         class ToxicRpcProxy(RpcProxy):
-            rpc_reply_listener = ToxicReplyListener()
+            reply_listener = ToxicReplyListener()
 
         class Service(object):
             name = "service"
