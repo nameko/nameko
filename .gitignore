@@ -2,6 +2,7 @@
 *.pyc
 _py_cache
 docs/build
+certs
 
 ## Packages
 *.egg-info
