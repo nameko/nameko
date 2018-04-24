@@ -58,18 +58,17 @@ def pytest_addoption(parser):
         action='append',
         dest='AMQP_SSL_OPTIONS',
         metavar='KEY=VALUE',
-        default=(
+        default=[
             ('ca_certs', 'certs/cacert.pem'),
             ('certfile', 'certs/clientcert.pem'),
             ('keyfile', 'certs/clientkey.pem'),
             ('cert_reqs', ssl.CERT_REQUIRED)
-        ),
+        ],
         help=(
             'SSL connection options for passing to ssl.wrap_socket.'
             'Multiple options may be given. Values are parsed as YAML, '
             'hence the following example is valid: \n'
             '--amqp-ssl-option certfile=clientcert.pem '
-            '--amqp-ssl-option cert_reqs=!!python/name:ssl.CERT_REQUIRED '
             '--amqp-ssl-option ssl_version=!!python/name:ssl.PROTOCOL_TLSv1_2'
         )
     )

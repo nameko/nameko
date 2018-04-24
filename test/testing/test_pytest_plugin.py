@@ -2,6 +2,7 @@ import socket
 import time
 
 import pytest
+import yaml
 from six.moves import queue
 
 from nameko.constants import WEB_SERVER_CONFIG_KEY
@@ -32,6 +33,89 @@ def plugin_options(request):
         "{}={}".format(opt, request.config.getoption(opt)) for opt in options
     ]
     return args
+
+
+class TestOptions(object):
+
+    def test_options(self, testdir):
+
+        options = (
+            ("--amqp-uri", 'amqp://localhost:5672/vhost'),
+            ("--rabbit-api-uri", 'http://localhost:15672'),
+            ("--amqp-ssl-port", 1234),
+        )
+
+        testdir.makepyfile(
+            """
+            import re
+
+            def test_option(request):
+                assert request.config.getoption('RABBIT_AMQP_URI') == (
+                    'amqp://localhost:5672/vhost'
+                )
+                assert request.config.getoption('RABBIT_API_URI') == (
+                    'http://localhost:15672'
+                )
+                assert request.config.getoption('AMQP_SSL_PORT') == '1234'
+            """
+        )
+        args = []
+        for option, value in options:
+            args.extend((option, value))
+        result = testdir.runpytest(*args)
+        assert result.ret == 0
+
+    def test_ssl_options(self, testdir):
+
+        options = (
+            ('certfile', 'path/cert.pem'),  # override default
+            ('string', 'string'),
+            ('number', 1),
+            ('list', '[1, 2, 3]'),
+            ('map', '{"foo": "bar"}'),
+            ('lookup', '!!python/name:ssl.CERT_REQUIRED'),
+        )
+
+        testdir.makepyfile(
+            """
+            import re
+            import ssl
+
+            def test_ssl_options(request, rabbit_ssl_config):
+                assert request.config.getoption('AMQP_SSL_OPTIONS') == [
+                    # defaults
+                    ('ca_certs', 'certs/cacert.pem'),
+                    ('certfile', 'certs/clientcert.pem'),
+                    ('keyfile', 'certs/clientkey.pem'),
+                    ('cert_reqs', ssl.CERT_REQUIRED),
+                    # additions
+                    ('certfile', 'path/cert.pem'),
+                    ('string', 'string'),
+                    ('number', 1),
+                    ('list', [1, 2, 3]),
+                    ('map', {'foo': 'bar'}),
+                    ('lookup', ssl.CERT_REQUIRED)
+                ]
+
+                expected_ssl_options = {
+                    'certfile': 'path/cert.pem',  # default overridden
+                    'ca_certs': 'certs/cacert.pem',
+                    'keyfile': 'certs/clientkey.pem',
+                    'cert_reqs': ssl.CERT_REQUIRED,
+                    'string': 'string',
+                    'number': 1,
+                    'list': [1, 2, 3],
+                    'map': {'foo': 'bar'},
+                    'lookup': ssl.CERT_REQUIRED
+                }
+                assert rabbit_ssl_config['AMQP_SSL'] == expected_ssl_options
+            """
+        )
+        args = []
+        for key, value in options:
+            args.extend(['--amqp-ssl-option', "{}={}".format(key, value)])
+        result = testdir.runpytest(*args)
+        assert result.ret == 0
 
 
 def test_empty_config(empty_config):
