@@ -8,7 +8,7 @@ import warnings
 from functools import partial
 from logging import getLogger
 
-from amqp.exceptions import ConnectionError, RecoverableConnectionError
+from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu import Connection
 from kombu.common import maybe_declare
