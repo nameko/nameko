@@ -2,8 +2,6 @@
 Common testing utilities.
 """
 import socket
-import warnings
-from collections import namedtuple
 from contextlib import contextmanager
 from functools import partial
 

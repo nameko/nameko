@@ -1,5 +1,4 @@
 import itertools
-import warnings
 
 import eventlet
 import pytest
@@ -7,8 +6,9 @@ from eventlet.event import Event
 from mock import Mock, call, patch
 from requests import HTTPError, Response
 
-from nameko.constants import DEFAULT_MAX_WORKERS
-from nameko.rpc import Rpc, rpc
+from nameko.containers import ServiceContainer
+from nameko.messaging import QueueConsumer
+from nameko.rpc import Rpc, RpcConsumer, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
     AnyInstanceOf, ResourcePipeline, find_free_port, get_container,
@@ -60,10 +60,6 @@ def test_wait_for_call():
 
 
 def test_get_extension(rabbit_config):
-
-    from nameko.messaging import QueueConsumer
-    from nameko.rpc import Rpc, RpcConsumer
-    from nameko.containers import ServiceContainer
 
     class Service(object):
         name = "service"
