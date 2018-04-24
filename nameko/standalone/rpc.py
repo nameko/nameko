@@ -17,7 +17,7 @@ from nameko.constants import (
     HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.containers import new_call_id
-from nameko.exceptions import RpcTimeout, ReplyQueueExpiredWithPendingReplies
+from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
     RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, ServiceProxy,

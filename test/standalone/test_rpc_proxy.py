@@ -10,7 +10,7 @@ from kombu.message import Message
 from nameko.constants import HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import (
-    RemoteError, RpcTimeout, ReplyQueueExpiredWithPendingReplies
+    RemoteError, ReplyQueueExpiredWithPendingReplies, RpcTimeout
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
