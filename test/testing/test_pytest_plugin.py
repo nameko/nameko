@@ -2,7 +2,6 @@ import socket
 import time
 
 import pytest
-import yaml
 from six.moves import queue
 
 from nameko.constants import WEB_SERVER_CONFIG_KEY
