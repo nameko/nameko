@@ -93,7 +93,8 @@ class TestOptions(object):
                     ('number', 1),
                     ('list', [1, 2, 3]),
                     ('map', {'foo': 'bar'}),
-                    ('lookup', ssl.CERT_REQUIRED)
+                    ('lookup', ssl.CERT_REQUIRED),
+                    ('keyonly', True),
                 ]
 
                 expected_ssl_options = {
@@ -105,7 +106,8 @@ class TestOptions(object):
                     'number': 1,
                     'list': [1, 2, 3],
                     'map': {'foo': 'bar'},
-                    'lookup': ssl.CERT_REQUIRED
+                    'lookup': ssl.CERT_REQUIRED,
+                    'keyonly': True,
                 }
                 assert rabbit_ssl_config['AMQP_SSL'] == expected_ssl_options
             """
@@ -113,6 +115,9 @@ class TestOptions(object):
         args = []
         for key, value in options:
             args.extend(['--amqp-ssl-option', "{}={}".format(key, value)])
+        # key only case
+        args.extend(['--amqp-ssl-option', "keyonly"])
+
         result = testdir.runpytest(*args)
         assert result.ret == 0
 
