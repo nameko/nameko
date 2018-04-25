@@ -15,7 +15,7 @@ from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    UnknownService
+    ReplyQueueExpiredWithPendingReplies, UnknownService
 )
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
@@ -573,8 +573,8 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
 
 def test_rpc_consumer_cannot_exit_with_providers(
-        container_factory, rabbit_config):
-
+    container_factory, rabbit_config
+):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
@@ -591,6 +591,339 @@ def test_rpc_consumer_cannot_exit_with_providers(
 
     # kill off task_a's misbehaving rpc provider
     container.kill()
+
+
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
+def test_reply_queue_removed_on_expiry(
+    container_factory, rabbit_config, rabbit_manager
+):
+    def list_queues():
+        vhost = rabbit_config['vhost']
+        return [
+            queue['name']
+            for queue in rabbit_manager.get_queues(vhost=vhost)
+        ]
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def method(self, arg):
+            pass  # pragma: no cover
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    reply_queue = [
+        queue for queue in list_queues() if "rpc.reply" in queue
+    ][0]
+
+    container.stop()
+    eventlet.sleep(0.15)  # sleep for >TTL
+    assert reply_queue not in list_queues()
+
+
+@skip_if_no_toxiproxy
+class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
+
+    @pytest.yield_fixture(autouse=True)
+    def fast_reconnects(self):
+
+        @contextmanager
+        def establish_connection(self):
+            with self.create_connection() as conn:
+                conn.ensure_connection(
+                    self.on_connection_error,
+                    self.connect_max_retries,
+                    interval_start=0.1,
+                    interval_step=0.1)
+                yield conn
+
+        with patch.object(
+            QueueConsumer, 'establish_connection', new=establish_connection
+        ):
+            yield
+
+    @pytest.yield_fixture
+    def fast_expiry(self):
+        with patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def container(
+        self, container_factory, rabbit_config, rabbit_manager, toxiproxy,
+        fast_expiry
+    ):
+
+        def enable_after_queue_expires():
+            eventlet.sleep(5)
+            toxiproxy.enable()
+
+        class ToxicQueueConsumer(QueueConsumer):
+            amqp_uri = toxiproxy.uri
+
+        class ToxicReplyListener(ReplyListener):
+            queue_consumer = ToxicQueueConsumer()
+
+        class ToxicRpcProxy(RpcProxy):
+            rpc_reply_listener = ToxicReplyListener()
+
+        class Service(object):
+            name = "service"
+
+            delegate_rpc = ToxicRpcProxy('delegate')
+
+            @dummy
+            def sleep(self):
+                return self.delegate_rpc.sleep()
+
+        class DelegateService(object):
+            name = "delegate"
+
+            @rpc
+            def sleep(self):
+                toxiproxy.disable()
+                eventlet.spawn_n(enable_after_queue_expires)
+                return "OK"
+
+        # very fast heartbeat
+        config = rabbit_config
+        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
+
+        container = container_factory(Service, config)
+        container.start()
+
+        delegate_container = container_factory(DelegateService, config)
+        delegate_container.start()
+
+        return container
+
+    def test_reply_queue_removed_while_disconnected_with_pending_reply(
+        self, container, toxiproxy
+    ):
+        """ Not possible to make this test pass with the current design.
+        We don't have a hook from the ReplyListener into the place where
+        queues are declared (inside consumer creation) because it's delegated
+        to the QueueConsumer, which handles _all_ queues.
+
+        It will be possible once to write test this scenario once the
+        ReplyListener implements the ConsumerMixin itself (by declaring the
+        queue before setting up consumers)
+
+        """
+        pytest.skip("Not possible with current implementation")
+
+        with entrypoint_hook(container, 'sleep') as hook:
+            with pytest.raises(ReplyQueueExpiredWithPendingReplies):
+                hook()
+
+
+@skip_if_no_toxiproxy
+class TestReplyListenerDisconnections(object):
+    """ Test and demonstrate behaviour under poor network conditions.
+    """
+    @pytest.yield_fixture(autouse=True)
+    def fast_reconnects(self):
+
+        @contextmanager
+        def establish_connection(self):
+            with self.create_connection() as conn:
+                conn.ensure_connection(
+                    self.on_connection_error,
+                    self.connect_max_retries,
+                    interval_start=0.1,
+                    interval_step=0.1)
+                yield conn
+
+        with patch.object(
+            QueueConsumer, 'establish_connection', new=establish_connection
+        ):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def container(
+        self, container_factory, rabbit_config, toxiproxy
+    ):
+
+        class ToxicQueueConsumer(QueueConsumer):
+            amqp_uri = toxiproxy.uri
+
+        class ToxicReplyListener(ReplyListener):
+            queue_consumer = ToxicQueueConsumer()
+
+        class ToxicRpcProxy(RpcProxy):
+            rpc_reply_listener = ToxicReplyListener()
+
+        class Service(object):
+            name = "service"
+
+            delegate_rpc = ToxicRpcProxy('delegate')
+
+            @dummy
+            def echo(self, arg):
+                return self.delegate_rpc.echo(arg)
+
+        class DelegateService(object):
+            name = "delegate"
+
+            @rpc
+            def echo(self, arg):
+                return arg
+
+        # very fast heartbeat
+        config = rabbit_config
+        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
+
+        container = container_factory(Service, config)
+        container.start()
+
+        delegate_container = container_factory(DelegateService, config)
+        delegate_container.start()
+
+        return container
+
+    def test_normal(self, container):
+        msg = "foo"
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo(msg) == msg
+
+    def test_down(self, container, toxiproxy):
+        """ Verify we detect and recover from closed sockets.
+
+        This failure mode closes the socket between the consumer and the
+        rabbit broker.
+
+        Attempting to read from the closed socket raises a socket.error
+        and the connection is re-established.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.enable()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.disable()
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo(msg) == msg
+
+    def test_upstream_timeout(self, container, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
+
+        This failure mode means that the socket between the consumer and the
+        rabbit broker times for out `timeout` milliseconds and then closes.
+
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_upstream_blackhole` below.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(timeout=100)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo(msg) == msg
+
+    def test_upstream_blackhole(self, container, toxiproxy):
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the consumer to the
+        rabbit broker is lost, but the socket remains open.
+
+        Heartbeats sent from the consumer are not received by the broker. After
+        two beats are missed the broker closes the connection, and subsequent
+        reads from the socket raise a socket.error, so the connection is
+        re-established.
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(timeout=0)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo(msg) == msg
+
+    def test_downstream_timeout(self, container, toxiproxy):
+        """ Verify we detect and recover from sockets timing out.
+
+        This failure mode means that the socket between the rabbit broker and
+        the consumer times for out `timeout` milliseconds and then closes.
+
+        Attempting to read from the socket after it's closed raises a
+        socket.error and the connection will be re-established. If `timeout`
+        is longer than twice the heartbeat interval, the behaviour is the same
+        as in `test_downstream_blackhole` below, except that the consumer
+        cancel will eventually (`timeout` milliseconds) raise a socket.error,
+        which is ignored, allowing the teardown to continue.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(stream="downstream", timeout=100)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo(msg) == msg
+
+    def test_downstream_blackhole(
+        self, container, toxiproxy
+    ):  # pragma: no cover
+        """ Verify we detect and recover from sockets losing data.
+
+        This failure mode means that all data sent from the rabbit broker to
+        the consumer is lost, but the socket remains open.
+
+        Heartbeat acknowledgements from the broker are not received by the
+        consumer. After two beats are missed the consumer raises a "too many
+        heartbeats missed" error.
+
+        Cancelling the consumer requests an acknowledgement from the broker,
+        which is swallowed by the socket. There is no timeout when reading
+        the acknowledgement so this hangs forever.
+
+        See :meth:`kombu.messsaging.Consumer.__exit__`
+        """
+        pytest.skip("skip until kombu supports recovery in this scenario")
+
+        queue_consumer = get_extension(container, QueueConsumer)
+
+        def reset(args, kwargs, result, exc_info):
+            toxiproxy.reset_timeout()
+            return True
+
+        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+            toxiproxy.set_timeout(stream="downstream", timeout=0)
+
+        # connection re-established
+        msg = "foo"
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo(msg) == msg
 
 
 @skip_if_no_toxiproxy
@@ -673,7 +1006,7 @@ class TestRpcConsumerDisconnections(object):
         queue_consumer = get_extension(container, QueueConsumer)
 
         def reset(args, kwargs, result, exc_info):
-            toxiproxy.reset()
+            toxiproxy.enable()
             return True
 
         with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
@@ -895,21 +1228,21 @@ class TestProxyDisconnections(object):
 
     @pytest.mark.usefixtures('use_confirms')
     def test_down(self, client_container, toxiproxy):
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        with pytest.raises(IOError) as exc_info:
-            with entrypoint_hook(client_container, 'echo') as echo:
-                echo(1)
-        assert "ECONNREFUSED" in str(exc_info.value)
+            with pytest.raises(IOError) as exc_info:
+                with entrypoint_hook(client_container, 'echo') as echo:
+                    echo(1)
+            assert "ECONNREFUSED" in str(exc_info.value)
 
     @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, client_container, toxiproxy):
-        toxiproxy.set_timeout()
+        with toxiproxy.timeout():
 
-        with pytest.raises(IOError) as exc_info:
-            with entrypoint_hook(client_container, 'echo') as echo:
-                echo(1)
-        assert "Socket closed" in str(exc_info.value)
+            with pytest.raises(IOError) as exc_info:
+                with entrypoint_hook(client_container, 'echo') as echo:
+                    echo(1)
+            assert "Socket closed" in str(exc_info.value)
 
     def test_reuse_when_down(self, client_container, toxiproxy):
         """ Verify we detect stale connections.
@@ -921,17 +1254,17 @@ class TestProxyDisconnections(object):
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(1) == 1
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        with pytest.raises(IOError) as exc_info:
-            with entrypoint_hook(client_container, 'echo') as echo:
-                echo(2)
-        assert (
-            # expect the write to raise a BrokenPipe or, if it succeeds,
-            # the socket to be closed on the subsequent confirmation read
-            "Broken pipe" in str(exc_info.value) or
-            "Socket closed" in str(exc_info.value)
-        )
+            with pytest.raises(IOError) as exc_info:
+                with entrypoint_hook(client_container, 'echo') as echo:
+                    echo(2)
+            assert (
+                # expect the write to raise a BrokenPipe or, if it succeeds,
+                # the socket to be closed on the subsequent confirmation read
+                "Broken pipe" in str(exc_info.value) or
+                "Socket closed" in str(exc_info.value)
+            )
 
     def test_reuse_when_recovered(self, client_container, toxiproxy):
         """ Verify we detect and recover from stale connections.
@@ -943,19 +1276,17 @@ class TestProxyDisconnections(object):
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(1) == 1
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        with pytest.raises(IOError) as exc_info:
-            with entrypoint_hook(client_container, 'echo') as echo:
-                echo(2)
-        assert (
-            # expect the write to raise a BrokenPipe or, if it succeeds,
-            # the socket to be closed on the subsequent confirmation read
-            "Broken pipe" in str(exc_info.value) or
-            "Socket closed" in str(exc_info.value)
-        )
-
-        toxiproxy.enable()
+            with pytest.raises(IOError) as exc_info:
+                with entrypoint_hook(client_container, 'echo') as echo:
+                    echo(2)
+            assert (
+                # expect the write to raise a BrokenPipe or, if it succeeds,
+                # the socket to be closed on the subsequent confirmation read
+                "Broken pipe" in str(exc_info.value) or
+                "Socket closed" in str(exc_info.value)
+            )
 
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(3) == 3
@@ -1087,29 +1418,29 @@ class TestResponderDisconnections(object):
 
     @pytest.mark.usefixtures('use_confirms')
     def test_down(self, container, service_rpc, toxiproxy):
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        eventlet.spawn_n(service_rpc.echo, 1)
+            eventlet.spawn_n(service_rpc.echo, 1)
 
-        # the container will raise if the responder cannot reply
-        with pytest.raises(IOError) as exc_info:
-            container.wait()
-        assert "ECONNREFUSED" in str(exc_info.value)
+            # the container will raise if the responder cannot reply
+            with pytest.raises(IOError) as exc_info:
+                container.wait()
+            assert "ECONNREFUSED" in str(exc_info.value)
 
-        service_rpc.abort()
+            service_rpc.abort()
 
     @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, container, service_rpc, toxiproxy):
-        toxiproxy.set_timeout()
+        with toxiproxy.timeout():
 
-        eventlet.spawn_n(service_rpc.echo, 1)
+            eventlet.spawn_n(service_rpc.echo, 1)
 
-        # the container will raise if the responder cannot reply
-        with pytest.raises(IOError) as exc_info:
-            container.wait()
-        assert "Socket closed" in str(exc_info.value)
+            # the container will raise if the responder cannot reply
+            with pytest.raises(IOError) as exc_info:
+                container.wait()
+            assert "Socket closed" in str(exc_info.value)
 
-        service_rpc.abort()
+            service_rpc.abort()
 
     def test_reuse_when_down(self, container, service_rpc, toxiproxy):
         """ Verify we detect stale connections.
@@ -1120,21 +1451,21 @@ class TestResponderDisconnections(object):
         """
         assert service_rpc.echo(1) == 1
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        eventlet.spawn_n(service_rpc.echo, 2)
+            eventlet.spawn_n(service_rpc.echo, 2)
 
-        # the container will raise if the responder cannot reply
-        with pytest.raises(IOError) as exc_info:
-            container.wait()
-        assert (
-            # expect the write to raise a BrokenPipe or, if it succeeds,
-            # the socket to be closed on the subsequent confirmation read
-            "Broken pipe" in str(exc_info.value) or
-            "Socket closed" in str(exc_info.value)
-        )
+            # the container will raise if the responder cannot reply
+            with pytest.raises(IOError) as exc_info:
+                container.wait()
+            assert (
+                # expect the write to raise a BrokenPipe or, if it succeeds,
+                # the socket to be closed on the subsequent confirmation read
+                "Broken pipe" in str(exc_info.value) or
+                "Socket closed" in str(exc_info.value)
+            )
 
-        service_rpc.abort()
+            service_rpc.abort()
 
     def test_reuse_when_recovered(
         self, container, service_rpc, toxiproxy, container_factory,
@@ -1148,21 +1479,19 @@ class TestResponderDisconnections(object):
         """
         assert service_rpc.echo(1) == 1
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        eventlet.spawn_n(service_rpc.echo, 2)
+            eventlet.spawn_n(service_rpc.echo, 2)
 
-        # the container will raise if the responder cannot reply
-        with pytest.raises(IOError) as exc_info:
-            container.wait()
-        assert (
-            # expect the write to raise a BrokenPipe or, if it succeeds,
-            # the socket to be closed on the subsequent confirmation read
-            "Broken pipe" in str(exc_info.value) or
-            "Socket closed" in str(exc_info.value)
-        )
-
-        toxiproxy.enable()
+            # the container will raise if the responder cannot reply
+            with pytest.raises(IOError) as exc_info:
+                container.wait()
+            assert (
+                # expect the write to raise a BrokenPipe or, if it succeeds,
+                # the socket to be closed on the subsequent confirmation read
+                "Broken pipe" in str(exc_info.value) or
+                "Socket closed" in str(exc_info.value)
+            )
 
         # create new container
         replacement_container = container_factory(service_cls, rabbit_config)

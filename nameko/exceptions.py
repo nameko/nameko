@@ -14,9 +14,8 @@ class RpcTimeout(Exception):
     pass
 
 
-class RpcConnectionError(Exception):
-    """Raised (in the caller) if the connection to the broker is lost while
-    waiting for an rpc reply"""
+class ReplyQueueExpiredWithPendingReplies(Exception):
+    pass
 
 
 class ContainerBeingKilled(Exception):

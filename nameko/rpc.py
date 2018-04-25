@@ -16,8 +16,8 @@ from nameko.constants import (
     SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
-    ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
-    UnknownService, UnserializableValueError, deserialize, serialize
+    ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
+    UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
@@ -30,6 +30,7 @@ _log = getLogger(__name__)
 
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
+RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
 
 
 def get_rpc_exchange(config):
@@ -229,13 +230,13 @@ class ReplyListener(SharedExtension):
 
     def setup(self):
 
-        service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
+        reply_queue_uuid = uuid.uuid4()
         service_name = self.container.service_name
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
-            service_name, service_uuid)
+            service_name, reply_queue_uuid)
 
-        self.routing_key = str(service_uuid)
+        self.routing_key = str(reply_queue_uuid)
 
         exchange = get_rpc_exchange(self.container.config)
 
@@ -243,8 +244,9 @@ class ReplyListener(SharedExtension):
             queue_name,
             exchange=exchange,
             routing_key=self.routing_key,
-            auto_delete=True,
-            exclusive=True,
+            queue_arguments={
+                'x-expires': RPC_REPLY_QUEUE_TTL
+            }
         )
 
         self.queue_consumer.register_provider(self)
@@ -257,17 +259,6 @@ class ReplyListener(SharedExtension):
         reply_event = Event()
         self._reply_events[correlation_id] = reply_event
         return reply_event
-
-    def on_consume_ready(self):
-        # This is called on re-connection, and is the best hook for detecting
-        # disconnections. If we have any pending reply events, we were
-        # disconnected, and may have lost replies (since reply queues auto
-        # delete).
-        for event in self._reply_events.values():
-            event.send_exception(
-                RpcConnectionError('Disconnected while waiting for reply')
-            )
-        self._reply_events.clear()
 
     def handle_message(self, body, message):
         self.queue_consumer.ack_message(message)

@@ -389,7 +389,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self.should_stop = True
 
     def on_connection_error(self, exc, interval):
-        _log.warn(
+        _log.warning(
             "Error connecting to broker at {} ({}).\n"
             "Retrying in {} seconds.".format(self.amqp_uri, exc, interval))
 
@@ -401,14 +401,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         if not self._consumers_ready.ready():
             _log.debug('consumer started %s', self)
             self._consumers_ready.send(None)
-
-        for provider in self._providers:
-            try:
-                callback = provider.on_consume_ready
-            except AttributeError:
-                pass
-            else:
-                callback()
 
 
 class Consumer(Entrypoint, HeaderDecoder):
