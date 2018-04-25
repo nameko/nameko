@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 
 import pytest
-from mock import ANY, Mock, create_autospec, patch
+from mock import ANY, Mock, patch
 from six.moves import queue
 
 from nameko.containers import WorkerContext
@@ -11,7 +11,6 @@ from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler
 )
-from nameko.messaging import QueueConsumer
 from nameko.standalone.events import event_dispatcher as standalone_dispatcher
 from nameko.standalone.events import get_event_exchange
 from nameko.testing.services import entrypoint_waiter
@@ -19,14 +18,6 @@ from nameko.testing.utils import DummyProvider
 
 
 EVENTS_TIMEOUT = 5
-
-
-@pytest.yield_fixture
-def queue_consumer():
-    replacement = create_autospec(QueueConsumer)
-    with patch.object(QueueConsumer, 'bind') as mock_ext:
-        mock_ext.return_value = replacement
-        yield replacement
 
 
 def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
@@ -72,7 +63,7 @@ def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
     assert kwargs['exchange'].name == 'srcservice.events'
 
 
-def test_event_handler(queue_consumer, mock_container):
+def test_event_handler(mock_container):
 
     container = mock_container
     container.service_name = "destservice"
@@ -153,7 +144,7 @@ def test_event_handler(queue_consumer, mock_container):
 class TestReliableDeliveryEventHandlerConfigurationError():
 
     def test_raises_with_default_broadcast_identity(
-        self, queue_consumer, mock_container
+        self, mock_container
     ):
 
         container = mock_container
@@ -169,7 +160,7 @@ class TestReliableDeliveryEventHandlerConfigurationError():
             )
 
     def test_no_raise_with_custom_identity(
-        self, queue_consumer, mock_container
+        self, mock_container
     ):
         container = mock_container
         container.service_name = "destservice"

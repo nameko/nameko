@@ -68,10 +68,6 @@ class Extension(object):
         stopping as soon as possible by omitting cleanup.
         This may be distinct from ``stop()`` for certain dependencies.
 
-        For example, :class:`~messaging.QueueConsumer` tracks messages being
-        processed and pending message acks. Its ``kill`` implementation
-        discards these and disconnects from rabbit as soon as possible.
-
         Extensions should not raise during kill, since the container
         is already dying. Instead they should log what is appropriate and
         swallow the exception to allow the container kill to continue.

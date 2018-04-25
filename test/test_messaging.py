@@ -13,9 +13,7 @@ from mock import Mock, call, patch
 from six.moves import queue
 
 from nameko.amqp import get_producer
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
-)
+from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.messaging import (
     Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume
@@ -383,7 +381,7 @@ class TestConsumerDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_queue_consumer, queue,
+        self, container_factory, rabbit_config, toxic_consumer, queue,
         lock, tracker
     ):
 
