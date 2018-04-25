@@ -763,7 +763,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 yield conn
 
         with patch.object(
-            QueueConsumer, 'establish_connection', new=establish_connection
+            ReplyListener, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -779,14 +779,11 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
     ):
 
         def enable_after_queue_expires():
-            eventlet.sleep(5)
+            eventlet.sleep(1)
             toxiproxy.enable()
 
-        class ToxicQueueConsumer(QueueConsumer):
-            amqp_uri = toxiproxy.uri
-
         class ToxicReplyListener(ReplyListener):
-            queue_consumer = ToxicQueueConsumer()
+            amqp_uri = toxiproxy.uri
 
         class ToxicRpcProxy(RpcProxy):
             reply_listener = ToxicReplyListener()
@@ -824,20 +821,6 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
         self, container, toxiproxy
     ):
-        """ Not possible to make this test pass with the current design.
-        We don't have a hook from the ReplyListener into the place where
-        queues are declared (inside consumer creation) because it's delegated
-        to the QueueConsumer, which handles _all_ queues.
-
-        It will be possible once to write test this scenario once the
-        ReplyListener implements the ConsumerMixin itself (by declaring the
-        queue before setting up consumers).
-
-        See similar test for standalone proxy:
-        test/standalone/test_rpc.py::TestDisconnectedWhileWaitingForReply
-        """
-        pytest.skip("Not possible with current implementation")
-
         with entrypoint_hook(container, 'sleep') as hook:
             with pytest.raises(ReplyQueueExpiredWithPendingReplies):
                 hook()

@@ -5,6 +5,7 @@ import uuid
 from functools import partial
 from logging import getLogger
 
+from amqp.exceptions import NotFound
 import kombu.serialization
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
@@ -13,17 +14,18 @@ from kombu import Exchange, Queue
 
 from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER, HEADER_PREFIX,
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER,
     HEARTBEAT_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
+    ReplyQueueExpiredWithPendingReplies,
     ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
     UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
 )
-from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
+from nameko.messaging import HeaderDecoder, HeaderEncoder
 
 
 _log = getLogger(__name__)
@@ -354,6 +356,17 @@ class ReplyListener(SharedExtension, ConsumerMixin):
 
         Called after any (re)connection to the broker.
         """
+        if self.pending:
+            try:
+                with self.connection as conn:
+                    self.queue.bind(conn).queue_declare(passive=True)
+            except NotFound:
+                raise ReplyQueueExpiredWithPendingReplies(
+                    "Lost replies for correlation ids:\n{}".format(
+                        "\n".join(self.pending.keys())
+                    )
+                )
+
         consumer = consumer_cls(
             queues=[self.queue],
             callbacks=[self.handle_message],
