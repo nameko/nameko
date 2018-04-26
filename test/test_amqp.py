@@ -58,9 +58,12 @@ class TestDeadlockRegression(object):
     def test_deadlock_due_to_slow_workers(
         self, service_cls, container_factory, config
     ):
-        """ Deadlock will occur if the unack'd messages grows beyond the
-        size of the worker pool at any point. The QueueConsumer will block
-        waiting for a worker and pending RPC replies will not be ack'd.
+        """
+        Implementation has now changed, but keeping this test as a regression.
+
+        Deadlock would occur if the unack'd messages grows beyond the
+        size of the worker pool at any point. The QueueConsumer would block
+        waiting for a worker and pending RPC replies would not be ack'd.
         Any running workers therefore never complete, and the worker pool
         remains exhausted.
         """
