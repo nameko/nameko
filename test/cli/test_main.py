@@ -385,7 +385,7 @@ class TestConfigEnvironmentVariables(object):
     ])
     @pytest.mark.skipif(has_regex_module,
                         reason='default behavior if no regex module')
-    def test_unhandled_recurtion(
+    def test_unhandled_recursion(
             self, yaml_config, env_vars, expected_config
     ):  # pragma: no cover
         setup_yaml_parser()
