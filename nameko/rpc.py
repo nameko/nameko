@@ -70,7 +70,7 @@ class RpcConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     def start(self):
         self.should_stop = False
         self.container.spawn_managed_thread(self.run)
-        self.consumer_ready.wait()
+        self.consumer_ready.wait()  # TODO what happens if we don't wait?
 
     def stop(self):
         self.should_stop = True
@@ -203,6 +203,14 @@ class Rpc(Entrypoint, HeaderDecoder):
         self.rpc_consumer.unregister_provider(self)
 
     def handle_message(self, body, message):
+        ident = u"{}.process_message[{}]".format(
+            type(self).__name__, message.delivery_info['routing_key']
+        )
+        self.container.spawn_managed_thread(
+            lambda: self.process_message(body, message), identifier=ident
+        )
+
+    def process_message(self, body, message):
         try:
             args = body['args']
             kwargs = body['kwargs']

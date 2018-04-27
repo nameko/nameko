@@ -257,6 +257,14 @@ class Consumer(Entrypoint, HeaderDecoder, ConsumerMixin):
         return [consumer]
 
     def handle_message(self, body, message):
+        ident = u"{}.process_message[{}]".format(
+            type(self).__name__, message.delivery_info['routing_key']
+        )
+        self.container.spawn_managed_thread(
+            lambda: self.process_message(body, message), identifier=ident
+        )
+
+    def process_message(self, body, message):
         args = (body,)
         kwargs = {}
 
