@@ -257,26 +257,33 @@ class Consumer(Entrypoint, HeaderDecoder, ConsumerMixin):
         return [consumer]
 
     def handle_message(self, body, message):
-        ident = u"{}.process_message[{}]".format(
-            type(self).__name__, message.delivery_info['routing_key']
-        )
-        self.container.spawn_managed_thread(
-            lambda: self.process_message(body, message), identifier=ident
-        )
-
-    def process_message(self, body, message):
         args = (body,)
         kwargs = {}
 
         context_data = self.unpack_message_headers(message)
 
         handle_result = partial(self.handle_result, message)
-        try:
-            self.container.spawn_worker(self, args, kwargs,
-                                        context_data=context_data,
-                                        handle_result=handle_result)
-        except ContainerBeingKilled:
-            message.requeue()
+
+        def spawn_worker():
+            try:
+                self.container.spawn_worker(
+                    self, args, kwargs,
+                    context_data=context_data,
+                    handle_result=handle_result
+                )
+            except ContainerBeingKilled:
+                self.requeue_message(message)
+
+        service_name = self.container.service_name
+        method_name = self.method_name
+
+        # TODO replace global worker pool limits with per-entrypoint limits,
+        # then remove this waiter thread
+        ident = u"{}.wait_for_worker_pool[{}.{}]".format(
+            type(self).__name__, service_name, method_name
+        )
+        self.container.spawn_managed_thread(spawn_worker, identifier=ident)
+
 
     def handle_result(self, message, worker_ctx, result=None, exc_info=None):
         self.handle_message_processed(message, result, exc_info)
