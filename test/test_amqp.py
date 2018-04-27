@@ -2,14 +2,17 @@ import itertools
 import time
 
 import pytest
+from mock import Mock
 from kombu.messaging import Queue
 
+from nameko.amqp.publish import get_connection, Publisher
 from nameko.constants import DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 from nameko.events import event_handler, EventHandler
 from nameko.messaging import consume, Consumer
 from nameko.rpc import ReplyListener, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
-from nameko.testing.services import entrypoint_waiter
+from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.testing.services import entrypoint_waiter, once
 from nameko.testing.utils import get_extension
 
 
@@ -134,3 +137,138 @@ class TestHeartbeats(object):
 
         extension = get_extension(container, extension_cls)
         assert extension.connection.heartbeat == heartbeat
+
+
+class TestHeartbeatFailure(object):
+
+    @pytest.fixture
+    def config(self, rabbit_config):
+        config = rabbit_config.copy()
+        config['max_workers'] = 2
+        config[HEARTBEAT_CONFIG_KEY] = 3  # minimum reliable heartbeat
+        return config
+
+    @pytest.fixture
+    def queue_info(self, config):
+        # TODO once https://github.com/nameko/nameko/pull/484 lands
+        # we can use the utility in nameko.amqo.utils instead of this
+        def get_queue_info(queue_name):
+            with get_connection(config['AMQP_URI']) as conn:
+                queue = Queue(name=queue_name)
+                queue = queue.bind(conn)
+                return queue.queue_declare(passive=True)
+        return get_queue_info
+
+    @pytest.fixture
+    def tracker(self):
+        return Mock()
+
+    def test_event_handler(
+        self, container_factory, config, tracker, queue_info
+    ):
+
+        class Service(object):
+            name = "service"
+
+            @once
+            def work(self):
+                # consume a worker
+                time.sleep(999)
+
+            @event_handler('service', 'event')
+            def handle(self, event_data):
+                time.sleep(9)  # >2x heartbeat
+                tracker(event_data)
+
+        container = container_factory(Service, config)
+        container.start()
+
+        # wait for service to handle two requests
+        counter = itertools.count(start=1)
+        with entrypoint_waiter(
+            container, 'handle', callback=lambda *a: next(counter) == 2
+        ):
+            # dispatch two messages; the second will block on the worker pool
+            dispatch = event_dispatcher(config)
+            dispatch("service", "event", 1)
+            dispatch("service", "event", 2)
+
+        # expect entrypoint to only have run twice and consumed all messages.
+        # more than twice or remaining messages means the heartbeat failed
+        # and a message was requeued or redelivered
+        assert tracker.call_count == 2
+        assert queue_info(
+            "evt-service-event--service.handle"
+        ).message_count == 0
+
+    def test_consumer(self, container_factory, config, tracker, queue_info):
+
+        queue = Queue(name="queue")
+
+        class Service(object):
+            name = "service"
+
+            @once
+            def work(self):
+                # consume a worker
+                time.sleep(999)
+
+            @consume(queue)
+            def handle(self, payload):
+                time.sleep(9)  # >3x heartbeat
+                tracker(payload)
+
+        container = container_factory(Service, config)
+        container.start()
+
+        # wait for service to handle two requests
+        counter = itertools.count(start=1)
+        with entrypoint_waiter(
+            container, 'handle', callback=lambda *a: next(counter) == 2
+        ):
+            # publish two messages; the second will block on the worker pool
+            publisher = Publisher(
+                config['AMQP_URI'], routing_key=queue.name
+            )
+            publisher.publish(1)
+            publisher.publish(2)
+
+        # expect entrypoint to only have run twice and consumed all messages.
+        # more than twice or remaining messages means the heartbeat failed
+        # and a message was requeued or redelivered
+        assert tracker.call_count == 2
+        assert queue_info(queue.name).message_count == 0
+
+    def test_rpc(self, container_factory, config, tracker, queue_info):
+
+        class Service(object):
+            name = "service"
+
+            @once
+            def work(self):
+                # consume a worker
+                time.sleep(999)
+
+            @rpc
+            def method(self, arg):
+                time.sleep(9)  # >2x heartbeat
+                tracker(arg)
+
+        container = container_factory(Service, config)
+        container.start()
+
+        # wait for service to handle two requests
+        counter = itertools.count(start=1)
+        with entrypoint_waiter(
+            container, 'method', callback=lambda *a: next(counter) == 2
+        ):
+            # make two requests; the second will block on the worker pool
+            with ServiceRpcProxy('service', config) as service_rpc:
+                service_rpc.method.call_async(1)
+                service_rpc.method.call_async(2)
+
+        # expect entrypoint to only have run twice and consumed all messages.
+        # more than twice or remaining messages means the heartbeat failed
+        # and a message was requeued or redelivered
+        assert tracker.call_count == 2
+        assert queue_info("rpc-service").message_count == 0
