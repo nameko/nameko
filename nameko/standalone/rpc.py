@@ -35,7 +35,6 @@ class ReplyListener(ConsumerMixin):
         self.timeout = timeout
 
         self.pending = {}
-        verify_amqp_uri(self.amqp_uri)
 
         super(ReplyListener, self).__init__(
             config=config,
@@ -44,11 +43,9 @@ class ReplyListener(ConsumerMixin):
             **kwargs
         )
 
-    @property
-    def routing_key(self):
-        return self.queue.routing_key
-
     def start(self):
+        verify_amqp_uri(self.amqp_uri)
+
         self.should_stop = False
         with self.connection as conn:
             maybe_declare(self.queue, conn)
@@ -93,7 +90,7 @@ class ReplyListener(ConsumerMixin):
         return self.pending.pop(correlation_id)
 
     def handle_message(self, body, message):
-        message.ack()
+        self.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
         if correlation_id not in self.pending:
@@ -195,7 +192,7 @@ class RpcProxy(object):
             publisher.publish(
                 *args,
                 exchange=exchange,
-                reply_to=self.reply_listener.routing_key,
+                reply_to=self.reply_listener.queue.routing_key,
                 extra_headers=extra_headers,
                 **kwargs
             )
