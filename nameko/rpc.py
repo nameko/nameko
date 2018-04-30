@@ -7,15 +7,14 @@ from logging import getLogger
 
 from amqp.exceptions import NotFound
 import kombu.serialization
-from kombu import Connection
-from kombu.mixins import ConsumerMixin
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
 from nameko.amqp.publish import Publisher, UndeliverableMessage
+from nameko.amqp.consume import ConsumerMixin
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER,
-    HEARTBEAT_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
+    SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
     ReplyQueueExpiredWithPendingReplies,
@@ -45,11 +44,19 @@ def get_rpc_exchange(config):
 
 class RpcConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.queue = None
-        self.consumer_ready = Event()
+        super(RpcConsumer, self).__init__(
+            callbacks=[self.handle_message], **kwargs
+        )
 
-        super(RpcConsumer, self).__init__()
+    @property
+    def config(self):
+        return self.container.config
+
+    @property
+    def queues(self):
+        return [self.queue] if self.queue else []
 
     def setup(self):
         if self.queue is None:
@@ -70,65 +77,10 @@ class RpcConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
     def start(self):
         self.should_stop = False
         self.container.spawn_managed_thread(self.run)
-        self.consumer_ready.wait()  # TODO what happens if we don't wait?
+        self.wait_until_consumer_ready()
 
     def stop(self):
         self.should_stop = True
-
-    @property
-    def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def prefetch_count(self):
-        return self.container.max_workers
-
-    @property
-    def serializer(self):
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
-
-    @property
-    def connection(self):
-        """ Provide the connection parameters for kombu's ConsumerMixin.
-
-        The `Connection` object is a declaration of connection parameters
-        that is lazily evaluated. It doesn't represent an established
-        connection to the broker at this point.
-        """
-        heartbeat = self.container.config.get(
-            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
-        )
-        return Connection(self.amqp_uri, heartbeat=heartbeat)
-
-    def on_connection_error(self, exc, interval):
-        _log.warning(
-            "Error connecting to broker at {} ({}).\n"
-            "Retrying in {} seconds.".format(self.amqp_uri, exc, interval)
-        )
-
-    def on_consume_ready(self, connection, channel, consumers, **kwargs):
-        """ Kombu callback when consumers are ready to accept messages.
-
-        Called after any (re)connection to the broker.
-        """
-        if not self.consumer_ready.ready():
-            _log.debug('consumer started %s', self)
-            self.consumer_ready.send(None)
-
-    def get_consumers(self, consumer_cls, channel):
-        """ Kombu callback to set up consumers.
-
-        Called after any (re)connection to the broker.
-        """
-        consumer = consumer_cls(
-            queues=[self.queue],
-            callbacks=[self.handle_message],
-            accept=[self.serializer]
-        )
-        consumer.qos(prefetch_count=self.prefetch_count)
-        return [consumer]
 
     def unregister_provider(self, provider):
         self.stop()
@@ -172,24 +124,6 @@ class RpcConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         self.ack_message(message)
 
         return result, exc_info
-
-    def ack_message(self, message):
-        # only attempt to ack if the message connection is alive;
-        # otherwise the message will already have been reclaimed by the broker
-        if message.channel.connection:
-            try:
-                message.ack()
-            except ConnectionError:  # pragma: no cover
-                pass  # ignore connection closing inside conditional
-
-    def requeue_message(self, message):
-        # only attempt to requeue if the message connection is alive;
-        # otherwise the message will already have been reclaimed by the broker
-        if message.channel.connection:
-            try:
-                message.requeue()
-            except ConnectionError:  # pragma: no cover
-                pass  # ignore connection closing inside conditional
 
 
 class Rpc(Entrypoint, HeaderDecoder):
@@ -294,9 +228,19 @@ class Responder(object):
 class ReplyListener(SharedExtension, ConsumerMixin):
 
     def __init__(self, **kwargs):
+        self.queue = None
         self.pending = {}
-        self.consumer_ready = Event()
-        super(ReplyListener, self).__init__(**kwargs)
+        super(ReplyListener, self).__init__(
+            callbacks=[self.handle_message], **kwargs
+        )
+
+    @property
+    def config(self):
+        return self.container.config
+
+    @property
+    def queues(self):
+        return [self.queue] if self.queue else []
 
     def setup(self):
 
@@ -322,53 +266,13 @@ class ReplyListener(SharedExtension, ConsumerMixin):
     def start(self):
         self.should_stop = False
         self.container.spawn_managed_thread(self.run)
-        self.consumer_ready.wait()
+        self.wait_until_consumer_ready()
 
     def stop(self):
         self.should_stop = False
 
-    @property
-    def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def serializer(self):
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
-
-    @property
-    def connection(self):
-        """ Provide the connection parameters for kombu's ConsumerMixin.
-
-        The `Connection` object is a declaration of connection parameters
-        that is lazily evaluated. It doesn't represent an established
-        connection to the broker at this point.
-        """
-        heartbeat = self.container.config.get(
-            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
-        )
-        return Connection(self.amqp_uri, heartbeat=heartbeat)
-
-    def on_connection_error(self, exc, interval):
-        _log.warning(
-            "Error connecting to broker at {} ({}).\n"
-            "Retrying in {} seconds.".format(self.amqp_uri, exc, interval)
-        )
-
-    def on_consume_ready(self, connection, channel, consumers, **kwargs):
-        """ Kombu callback when consumers are ready to accept messages.
-
-        Called after any (re)connection to the broker.
-        """
-        if not self.consumer_ready.ready():
-            _log.debug('consumer started %s', self)
-            self.consumer_ready.send(None)
-
     def get_consumers(self, consumer_cls, channel):
-        """ Kombu callback to set up consumers.
-
-        Called after any (re)connection to the broker.
+        """ Extend Consumer.get_consumers
         """
         if self.pending:
             try:
@@ -381,12 +285,7 @@ class ReplyListener(SharedExtension, ConsumerMixin):
                     )
                 )
 
-        consumer = consumer_cls(
-            queues=[self.queue],
-            callbacks=[self.handle_message],
-            accept=[self.serializer]
-        )
-        return [consumer]
+        return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
     def register_for_reply(self, correlation_id=None):
         if correlation_id is None:
@@ -396,15 +295,6 @@ class ReplyListener(SharedExtension, ConsumerMixin):
         self.pending[correlation_id] = reply_event
 
         return RpcReply(reply_event.wait, correlation_id)
-
-    def ack_message(self, message):
-        # only attempt to ack if the message connection is alive;
-        # otherwise the message will already have been reclaimed by the broker
-        if message.channel.connection:
-            try:
-                message.ack()
-            except ConnectionError:  # pragma: no cover
-                pass  # ignore connection closing inside conditional
 
     def handle_message(self, body, message):
         self.ack_message(message)

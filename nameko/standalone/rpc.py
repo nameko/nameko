@@ -8,9 +8,9 @@ from amqp.exceptions import NotFound
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Queue
-from kombu.mixins import ConsumerMixin
 
 from nameko.amqp import verify_amqp_uri
+from nameko.amqp.consume import ConsumerMixin
 from nameko.amqp.publish import Publisher
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER,
@@ -30,22 +30,18 @@ _logger = logging.getLogger(__name__)
 
 class ReplyListener(ConsumerMixin):
 
-    def __init__(self, config, queue, timeout=None):
-        self.config = config
+    def __init__(self, config, queue, timeout=None, **kwargs):
         self.queue = queue
         self.timeout = timeout
 
         self.pending = {}
         verify_amqp_uri(self.amqp_uri)
 
-    @property
-    def amqp_uri(self):
-        return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def accept(self):
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        super(ReplyListener, self).__init__(
+            config=config,
+            queues=[self.queue],
+            callbacks=[self.handle_message],
+            **kwargs
         )
 
     @property
@@ -60,23 +56,8 @@ class ReplyListener(ConsumerMixin):
     def stop(self):
         self.should_stop = True
 
-    @property
-    def connection(self):
-        """ Provide the connection parameters for kombu's ConsumerMixin.
-
-        The `Connection` object is a declaration of connection parameters
-        that is lazily evaluated. It doesn't represent an established
-        connection to the broker at this point.
-        """
-        heartbeat = self.config.get(
-            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
-        )
-        return Connection(self.amqp_uri, heartbeat=heartbeat)
-
     def get_consumers(self, consumer_cls, channel):
-        """ Kombu callback to set up consumers.
-
-        Called after any (re)connection to the broker.
+        """ Extend Consumer.get_consumers
         """
         if self.pending:
             try:
@@ -89,12 +70,7 @@ class ReplyListener(ConsumerMixin):
                     )
                 )
 
-        consumer = consumer_cls(
-            queues=[self.queue],
-            callbacks=[self.handle_message],
-            accept=[self.accept]
-        )
-        return [consumer]
+        return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
     def register_for_reply(self, correlation_id=None):
         if correlation_id is None:

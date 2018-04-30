@@ -1081,27 +1081,27 @@ class TestPrefetchCount(object):
         exchange = Exchange('exchange')
         queue = Queue('queue', exchange=exchange, auto_delete=False)
 
-        class SelfishConsumer1(Consumer):
+        class LimitedConsumer1(Consumer):
 
             def handle_message(self, body, message):
                 consumer_continue.wait()
-                super(SelfishConsumer1, self).handle_message(body, message)
+                super(LimitedConsumer1, self).handle_message(body, message)
 
-        class SelfishConsumer2(Consumer):
+        class LimitedConsumer2(Consumer):
 
             def handle_message(self, body, message):
                 messages.append(body)
-                super(SelfishConsumer2, self).handle_message(body, message)
+                super(LimitedConsumer2, self).handle_message(body, message)
 
         class Service(object):
             name = "service"
 
-            @SelfishConsumer1.decorator(queue=queue)
-            @SelfishConsumer2.decorator(queue=queue)
+            @LimitedConsumer1.decorator(queue=queue)
+            @LimitedConsumer2.decorator(queue=queue)
             def handle(self, payload):
                 pass
 
-        rabbit_config['max_workers'] = 1
+        rabbit_config['PREFETCH_COUNT'] = 1
         container = container_factory(Service, rabbit_config)
         container.start()
 

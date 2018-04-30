@@ -351,6 +351,7 @@ def test_rpc_context_data(container_factory, rabbit_config):
 def test_rpc_headers(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
+    container.start()
 
     context_data = {
         'language': 'en',
@@ -358,32 +359,27 @@ def test_rpc_headers(container_factory, rabbit_config):
     }
 
     headers = {}
+
     rpc_consumer = get_extension(container, RpcConsumer)
-    handle_message = rpc_consumer.handle_message
 
     with patch.object(
-        rpc_consumer, 'handle_message', autospec=True
-    ) as patched_handler:
+        rpc_consumer, 'handle_result', wraps=rpc_consumer.handle_result
+    ) as patched:
 
-        def side_effect(body, message):
-            headers.update(message.headers)  # extract message headers
-            return handle_message(body, message)
-
-        patched_handler.side_effect = side_effect
-        container.start()
+        patched.side_effect = lambda msg, *args: headers.update(msg.headers)
 
         # use a standalone rpc proxy to call exampleservice.say_hello()
         with ServiceRpcProxy(
             "exampleservice", rabbit_config, context_data
         ) as proxy:
-            proxy.say_hello()
+            assert proxy.say_hello() == "hello"
 
-    # headers as per context data, plus call stack
-    assert headers == {
-        'nameko.language': 'en',
-        'nameko.otherheader': 'othervalue',
-        'nameko.call_id_stack': ['standalone_rpc_proxy.0.0']
-    }
+        # headers as per context data, plus call stack
+        assert headers == {
+            'nameko.language': 'en',
+            'nameko.otherheader': 'othervalue',
+            'nameko.call_id_stack': ['standalone_rpc_proxy.0.0']
+        }
 
 
 def test_rpc_existing_method(container_factory, rabbit_config):

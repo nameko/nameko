@@ -150,6 +150,7 @@ def test_proxy_remote_error(container_factory, rabbit_config):
         assert exc_info.value.exc_type == "ExampleError"
 
 
+@pytest.mark.skip("Known race condition")
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_removed_on_expiry(
     rabbit_manager, rabbit_config, container_factory
@@ -186,6 +187,7 @@ def test_reply_queue_removed_on_expiry(
     assert queues_after == queues_before
 
 
+@pytest.mark.skip("Known race condition")
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_not_removed_while_in_use(
     rabbit_manager, rabbit_config, container_factory
