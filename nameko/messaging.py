@@ -7,23 +7,18 @@ import re
 from functools import partial
 from logging import getLogger
 
-from amqp.exceptions import ConnectionError
-from eventlet.event import Event
-from kombu import Connection
 from kombu.common import maybe_declare
 
-from nameko.amqp.consume import ConsumerMixin
+from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_SERIALIZER, HEADER_PREFIX,
-    HEARTBEAT_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, HEADER_PREFIX,
+    SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
-from nameko.extensions import (
-    DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
-)
+from nameko.extensions import DependencyProvider, Entrypoint
 
 
 _log = getLogger(__name__)
@@ -154,7 +149,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return publish
 
 
-class Consumer(Entrypoint, HeaderDecoder, ConsumerMixin):
+class Consumer(Entrypoint, HeaderDecoder, ConsumerCore):
 
     def __init__(self, queue, requeue_on_error=False, **kwargs):
         """
@@ -251,7 +246,3 @@ class Consumer(Entrypoint, HeaderDecoder, ConsumerMixin):
 
 
 consume = Consumer.decorator
-
-
-class QueueConsumerStopped(Exception):
-    pass

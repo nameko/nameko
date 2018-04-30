@@ -11,7 +11,7 @@ from eventlet.event import Event
 from kombu import Exchange, Queue
 
 from nameko.amqp.publish import Publisher, UndeliverableMessage
-from nameko.amqp.consume import ConsumerMixin
+from nameko.amqp.consume import Consumer
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
     SERIALIZER_CONFIG_KEY
@@ -42,7 +42,7 @@ def get_rpc_exchange(config):
     return exchange
 
 
-class RpcConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
+class RpcConsumer(SharedExtension, ProviderCollector, Consumer):
 
     def __init__(self, **kwargs):
         self.queue = None
@@ -225,7 +225,7 @@ class Responder(object):
         return result, exc_info
 
 
-class ReplyListener(SharedExtension, ConsumerMixin):
+class ReplyListener(SharedExtension, Consumer):
 
     def __init__(self, **kwargs):
         self.queue = None
