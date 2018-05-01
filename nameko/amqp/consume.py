@@ -28,7 +28,7 @@ class Consumer(ConsumerMixin):
         self.callbacks = callbacks or []
         self.ready = Event()
 
-        super(ConsumerMixin, self).__init__(**kwargs)
+        super(Consumer, self).__init__(**kwargs)
 
     @property
     def config(self):
