@@ -1,6 +1,7 @@
 from logging import getLogger
 from threading import Event
 
+from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
