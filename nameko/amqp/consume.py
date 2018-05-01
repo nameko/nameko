@@ -19,15 +19,12 @@ class Consumer(ConsumerMixin):
 
     Can be used as a mixin or instantiated directly.
     """
-    config = None
-    _queues = None
-    _callbacks = None
 
     def __init__(self, config=None, queues=None, callbacks=None, **kwargs):
         self._config = config
         self._queues = queues
 
-        self.callbacks = callbacks
+        self.callbacks = callbacks or []
         self.ready = Event()
 
         super(ConsumerMixin, self).__init__(**kwargs)
@@ -47,7 +44,7 @@ class Consumer(ConsumerMixin):
     @property
     def queues(self):
         """ We need to use a property and setter for queues because some
-        subclasses don't have queues until the service name is known
+        subclasses don't define queues until the service name is known.
         """
         return self._queues or []
 
