@@ -2,13 +2,13 @@ import itertools
 import time
 
 import pytest
-from mock import Mock
 from kombu.messaging import Queue
+from mock import Mock
 
-from nameko.amqp.publish import get_connection, Publisher
+from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
-from nameko.events import event_handler, EventHandler
-from nameko.messaging import consume, Consumer
+from nameko.events import EventHandler, event_handler
+from nameko.messaging import Consumer, consume
 from nameko.rpc import ReplyListener, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ServiceRpcProxy

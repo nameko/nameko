@@ -7,7 +7,7 @@ from mock import Mock, call, patch
 from requests import HTTPError, Response
 
 from nameko.containers import ServiceContainer
-from nameko.rpc import RpcConsumer, Rpc, rpc
+from nameko.rpc import Rpc, RpcConsumer, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
     AnyInstanceOf, ResourcePipeline, find_free_port, get_container,

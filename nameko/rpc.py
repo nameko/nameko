@@ -5,20 +5,20 @@ import uuid
 from functools import partial
 from logging import getLogger
 
-from amqp.exceptions import NotFound
 import kombu.serialization
+from amqp.exceptions import NotFound
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
-from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.amqp.consume import Consumer
+from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
     SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
-    ReplyQueueExpiredWithPendingReplies,
-    ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
+    ContainerBeingKilled, MalformedRequest, MethodNotFound,
+    ReplyQueueExpiredWithPendingReplies, UnknownService,
     UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (

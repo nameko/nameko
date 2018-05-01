@@ -5,8 +5,8 @@ from contextlib import contextmanager
 
 import eventlet
 import pytest
-from eventlet.semaphore import Semaphore
 from eventlet.event import Event
+from eventlet.semaphore import Semaphore
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from mock import Mock, call, patch

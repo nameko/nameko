@@ -3,7 +3,7 @@
 ENABLE_BRANCH_COVERAGE ?= 0
 AUTO_FIX_IMPORTS ?= 0
 
-ifneq ($(AUTO_FIX_IMPORTS), 1)
+ifneq ($(FIX), 1)
   autofix = --check-only
 endif
 
