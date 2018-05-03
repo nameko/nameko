@@ -38,20 +38,12 @@ class Consumer(ConsumerMixin):
         """
         return self._config or {AMQP_URI_CONFIG_KEY: ''}
 
-    @config.setter
-    def config(self, value):
-        self._config = value
-
     @property
     def queues(self):
         """ We need to use a property and setter for queues because some
         subclasses don't define queues until the service name is known.
         """
         return self._queues or []
-
-    @queues.setter
-    def queues(self, value):
-        self._queues = value
 
     @property
     def amqp_uri(self):
