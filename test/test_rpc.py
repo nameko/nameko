@@ -284,7 +284,7 @@ def test_rpc_consumer_connections(
 
         @rpc
         def echo(self, arg):
-            return arg
+            return arg  # pragma: no cover
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
