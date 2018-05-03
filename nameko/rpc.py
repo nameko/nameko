@@ -449,9 +449,6 @@ class Proxy(object):
 
         return reply
 
-    def __repr__(self):
-        return '<RpcProxy: {}>'.format(self.identifier)
-
 
 class RpcReply(object):
     def __init__(self, wait, correlation_id):
