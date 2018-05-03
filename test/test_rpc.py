@@ -802,14 +802,10 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 eventlet.spawn_n(enable_after_queue_expires)
                 return "OK"
 
-        # very fast heartbeat
-        config = rabbit_config
-        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
-
-        container = container_factory(Service, config)
+        container = container_factory(Service, rabbit_config)
         container.start()
 
-        delegate_container = container_factory(DelegateService, config)
+        delegate_container = container_factory(DelegateService, rabbit_config)
         delegate_container.start()
 
         return container
