@@ -271,7 +271,9 @@ class ReplyListener(SharedExtension, Consumer):
     def stop(self):
         self.should_stop = False
 
-    def on_connection_revived(self):
+    def get_consumers(self, consumer_cls, channel):
+        """ Extend Consumer.get_consumers
+        """
         if self.pending:
             try:
                 with self.connection as conn:
@@ -283,7 +285,7 @@ class ReplyListener(SharedExtension, Consumer):
                     )
                 )
 
-        return super(ReplyListener, self).on_connection_revived()
+        return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
     def register_for_reply(self, correlation_id=None):
         if correlation_id is None:

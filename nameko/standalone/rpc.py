@@ -28,9 +28,6 @@ _logger = logging.getLogger(__name__)
 
 class ReplyListener(Consumer):
 
-    REGISTERED = "registered"
-    REQUESTED = "requested"
-
     def __init__(self, config, queue, timeout=None, **kwargs):
         self.queue = queue
         self.timeout = timeout
@@ -54,30 +51,26 @@ class ReplyListener(Consumer):
     def stop(self):
         self.should_stop = True
 
-    def on_connection_revived(self):
-
-        requested_not_received = [
-            correlation_id for correlation_id, state in self.pending.items()
-            if state is self.REQUESTED
-        ]
-        if requested_not_received:
+    def get_consumers(self, consumer_cls, channel):
+        """ Extend Consumer.get_consumers
+        """
+        if self.pending:
             try:
                 with self.connection as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
-                    print("queue still exists")
             except NotFound:
                 raise ReplyQueueExpiredWithPendingReplies(
                     "Lost replies for correlation ids:\n{}".format(
-                        "\n".join(requested_not_received)
+                        "\n".join(self.pending.keys())
                     )
                 )
 
-        return super(ReplyListener, self).on_connection_revived()
+        return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
     def register_for_reply(self, correlation_id=None):
         if correlation_id is None:
             correlation_id = str(uuid.uuid4())
-        self.pending[correlation_id] = self.REGISTERED
+        self.pending[correlation_id] = None
         return RpcReply(
             lambda: self.consume_reply(correlation_id), correlation_id
         )
@@ -87,26 +80,11 @@ class ReplyListener(Consumer):
         if self.should_stop:
             raise RuntimeError("Stopped and can no longer be used")
 
-        recoverable_errors = (
-            self.connection.connection_errors +
-            self.connection.channel_errors
-        )
-
-        # if registered: move to requested
-        # TODO would be better if this state lived in the RpcReply object
-        if self.pending.get(correlation_id) is self.REGISTERED:
-            self.pending[correlation_id] = self.REQUESTED
-
-        while self.pending.get(correlation_id) is self.REQUESTED:
+        while not self.pending.get(correlation_id):
             try:
                 next(self.consume(timeout=self.timeout))
             except socket.timeout:
-                # TODO socket timeout does not equate to RPC timeout;
-                # we can try to consume a message multiple times
                 raise RpcTimeout()
-            except recoverable_errors:
-                pass
-
         return self.pending.pop(correlation_id)
 
     def handle_message(self, body, message):
