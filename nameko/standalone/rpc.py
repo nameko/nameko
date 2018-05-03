@@ -190,6 +190,7 @@ class RpcProxy(object):
             publisher.publish(
                 *args,
                 exchange=exchange,
+                declare=[self.reply_listener.queue],
                 reply_to=self.reply_listener.queue.routing_key,
                 extra_headers=extra_headers,
                 **kwargs

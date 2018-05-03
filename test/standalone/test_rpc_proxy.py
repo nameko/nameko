@@ -150,7 +150,6 @@ def test_proxy_remote_error(container_factory, rabbit_config):
         assert exc_info.value.exc_type == "ExampleError"
 
 
-@pytest.mark.skip("Known race condition")
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_removed_on_expiry(
     rabbit_manager, rabbit_config, container_factory
@@ -187,7 +186,6 @@ def test_reply_queue_removed_on_expiry(
     assert queues_after == queues_before
 
 
-@pytest.mark.skip("Known race condition")
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_not_removed_while_in_use(
     rabbit_manager, rabbit_config, container_factory
@@ -303,6 +301,16 @@ def test_request_longer_than_expiry(container_factory, rabbit_config):
 
     with ServiceRpcProxy('foobar', rabbit_config) as foo:
         assert foo.sleep(0.4) == 0.4
+
+
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_inactive_longer_than_expiry(container_factory, rabbit_config):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ServiceRpcProxy('foobar', rabbit_config) as foo:
+        eventlet.sleep(0.4)
+        assert foo.spam(ham='eggs') == 'eggs'
 
 
 def test_unexpected_correlation_id(container_factory, rabbit_config):
