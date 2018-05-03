@@ -3,9 +3,12 @@ import time
 from collections import defaultdict
 
 import pytest
+from amqp.exceptions import NotFound
+from kombu.messaging import Queue
 from mock import ANY, Mock, patch
 from six.moves import queue
 
+from nameko.amqp.publish import get_connection
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
@@ -18,6 +21,18 @@ from nameko.testing.utils import DummyProvider
 
 
 EVENTS_TIMEOUT = 5
+
+
+@pytest.fixture
+def queue_info(rabbit_config):
+    # TODO once https://github.com/nameko/nameko/pull/484 lands
+    # we can use the utility in nameko.amqo.utils instead of this
+    def get_queue_info(queue_name):
+        with get_connection(rabbit_config['AMQP_URI']) as conn:
+            queue = Queue(name=queue_name)
+            queue = queue.bind(conn)
+            return queue.queue_declare(passive=True)
+    return get_queue_info
 
 
 def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
@@ -330,20 +345,19 @@ def start_containers(request, container_factory, rabbit_config, reset_state):
     return make
 
 
-def test_service_pooled_events(rabbit_manager, rabbit_config,
-                               start_containers):
+def test_service_pooled_events(
+    rabbit_manager, rabbit_config, start_containers, queue_info
+):
     vhost = rabbit_config['vhost']
     start_containers(ServicePoolHandler, ("foo", "foo", "bar"))
 
     # foo service pool queue should have two consumers
-    foo_queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--foo.handle")
-    assert len(foo_queue['consumer_details']) == 2
+    foo_queue_name = "evt-srcservice-eventtype--foo.handle"
+    assert queue_info(foo_queue_name).consumer_count == 2
 
     # bar service pool queue should have one consumer
-    bar_queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--bar.handle")
-    assert len(bar_queue['consumer_details']) == 1
+    bar_queue_name = "evt-srcservice-eventtype--bar.handle"
+    assert queue_info(bar_queue_name).consumer_count == 1
 
     exchange_name = "srcservice.events"
     rabbit_manager.publish(
@@ -370,19 +384,17 @@ def test_service_pooled_events(rabbit_manager, rabbit_config,
 
 
 def test_service_pooled_events_multiple_handlers(
-        rabbit_manager, rabbit_config, start_containers):
+    rabbit_manager, rabbit_config, start_containers, queue_info
+):
 
     vhost = rabbit_config['vhost']
     (container,) = start_containers(DoubleServicePoolHandler, ("double",))
 
     # we should have two queues with a consumer each
-    foo_queue_1 = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--double.handle_1")
-    assert len(foo_queue_1['consumer_details']) == 1
-
-    foo_queue_2 = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--double.handle_2")
-    assert len(foo_queue_2['consumer_details']) == 1
+    queue_1_name = "evt-srcservice-eventtype--double.handle_1"
+    assert queue_info(queue_1_name).consumer_count == 1
+    queue_2_name = "evt-srcservice-eventtype--double.handle_2"
+    assert queue_info(queue_2_name).consumer_count == 1
 
     exchange_name = "srcservice.events"
 
@@ -402,14 +414,15 @@ def test_service_pooled_events_multiple_handlers(
     assert services['double'][1].events == ["msg"]
 
 
-def test_singleton_events(rabbit_manager, rabbit_config, start_containers):
+def test_singleton_events(
+    rabbit_manager, rabbit_config, start_containers, queue_info
+):
 
     vhost = rabbit_config['vhost']
     start_containers(SingletonHandler, ("foo", "foo", "bar"))
 
     # the singleton queue should have three consumers
-    queue = rabbit_manager.get_queue(vhost, "evt-srcservice-eventtype")
-    assert len(queue['consumer_details']) == 3
+    assert queue_info("evt-srcservice-eventtype").consumer_count == 3
 
     exchange_name = "srcservice.events"
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg"',
@@ -442,8 +455,12 @@ def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
 
     assert len(queue_names) == 3
     for name in queue_names:
+        # TODO can use queue_info here once
+        # https://github.com/nameko/nameko/pull/484 lands and we drop the
+        # exclusive flag on broadcast handlers
         queue = rabbit_manager.get_queue(vhost, name)
         assert len(queue['consumer_details']) == 1
+        # assert queue_info(name).consumer_count == 1
 
     exchange_name = "srcservice.events"
 
@@ -479,14 +496,15 @@ def test_broadcast_events(rabbit_manager, rabbit_config, start_containers):
     assert services['bar'][0].events == ["msg"]
 
 
-def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
+def test_requeue_on_error(
+    rabbit_manager, rabbit_config, start_containers, queue_info
+):
     vhost = rabbit_config['vhost']
     (container,) = start_containers(RequeueingHandler, ('requeue',))
 
     # the queue should been created and have one consumer
-    queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--requeue.handle")
-    assert len(queue['consumer_details']) == 1
+    queue_name = "evt-srcservice-eventtype--requeue.handle"
+    assert queue_info(queue_name).consumer_count == 1
 
     counter = itertools.count(start=1)
 
@@ -518,7 +536,8 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
 
 
 def test_reliable_delivery(
-    rabbit_manager, rabbit_config, start_containers, container_factory
+    rabbit_manager, rabbit_config, start_containers, container_factory,
+    queue_info
 ):
     """ Events sent to queues declared by ``reliable_delivery`` handlers
     should be received even if no service was listening when they were
@@ -530,8 +549,7 @@ def test_reliable_delivery(
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--service-pool.handle"
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 1
+    assert queue_info(queue_name).consumer_count == 1
 
     # publish an event
     exchange_name = "srcservice.events"
@@ -546,10 +564,7 @@ def test_reliable_delivery(
 
     # stop container, check queue still exists, without consumers
     container.stop()
-    queues = rabbit_manager.get_queues(vhost)
-    assert queue_name in [q['name'] for q in queues]
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 0
+    assert queue_info(queue_name).consumer_count == 0
 
     # publish another event while nobody is listening
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_2"',
@@ -572,10 +587,13 @@ def test_reliable_delivery(
     assert events == ["msg_1", "msg_2"]
 
 
-def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
+def test_unreliable_delivery(
+    rabbit_manager, rabbit_config, start_containers, queue_info
+):
     """ Events sent to queues declared by non- ``reliable_delivery`` handlers
     should be lost if no service was listening when they were dispatched.
     """
+
     vhost = rabbit_config['vhost']
 
     (c1,) = start_containers(UnreliableHandler, ('unreliable',))
@@ -586,8 +604,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--unreliable.handle"
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 1
+    assert queue_info(queue_name).consumer_count == 1
 
     # publish an event
     exchange_name = "srcservice.events"
@@ -607,8 +624,8 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
 
     # stop container, test queue deleted
     c1.stop()
-    queues = rabbit_manager.get_queues(vhost)
-    assert queue_name not in [q['name'] for q in queues]
+    with pytest.raises(NotFound):
+        queue_info(queue_name)
 
     # publish a second event while nobody is listening
     rabbit_manager.publish(vhost, exchange_name, 'eventtype', '"msg_2"',
@@ -618,8 +635,7 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     (c3,) = start_containers(UnreliableHandler, ('unreliable',))
 
     # verify the queue is recreated, with one consumer
-    queue = rabbit_manager.get_queue(vhost, queue_name)
-    assert len(queue['consumer_details']) == 1
+    assert queue_info(queue_name).consumer_count == 1
 
     # publish a third event
     with entrypoint_waiter(c3, 'handle'):
