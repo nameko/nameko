@@ -94,6 +94,7 @@ pyamqp
 pyrabbit
 pytest
 rabbitmq
+rc
 reconnected
 reconnecting
 reconnection
