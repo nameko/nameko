@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import itertools
 import time
 from collections import defaultdict
