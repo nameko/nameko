@@ -15,11 +15,10 @@ from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler
 )
-from nameko.standalone.events import event_dispatcher
-from nameko.standalone.events import get_event_exchange
+from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
-from nameko.testing.waiting import wait_for_call
 from nameko.testing.utils import DummyProvider
+from nameko.testing.waiting import wait_for_call
 
 
 @pytest.fixture
