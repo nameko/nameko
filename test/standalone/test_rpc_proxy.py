@@ -313,6 +313,7 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
         message = Message(channel=None, properties={
             'reply_to': service_rpc_proxy.reply_listener.routing_key,
             'correlation_id': 'invalid',
+            'content_type': 'application/json'
         })
         amqp_uri = container.config['AMQP_URI']
         exchange = get_rpc_exchange(container.config)

@@ -10,6 +10,7 @@ from kombu.common import maybe_declare
 from kombu.messaging import Queue
 from kombu.mixins import ConsumerMixin
 
+from nameko import serialization
 from nameko.amqp import verify_amqp_uri
 from nameko.amqp.publish import Publisher
 from nameko.constants import (

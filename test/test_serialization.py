@@ -2,13 +2,17 @@ import json
 import uuid
 
 import pytest
-from kombu.serialization import register
+import yaml
+from kombu import Exchange, Queue
 from mock import Mock, call
 
-from nameko.constants import SERIALIZER_CONFIG_KEY
+from nameko.constants import (
+    ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY, SERIALIZERS_CONFIG_KEY
+)
 from nameko.events import EventDispatcher, event_handler
-from nameko.exceptions import RemoteError
-from nameko.rpc import rpc
+from nameko.exceptions import ConfigurationError, RemoteError
+from nameko.messaging import consume
+from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 
@@ -174,18 +178,18 @@ def test_event_serialization(
     assert msg['properties']['content_type'] == serialized['content_type']
 
 
+def upperjson_encode(value):
+    value = json.dumps(value)
+    return value.upper()
+
+
+def upperjson_decode(value):
+    value = value.lower()
+    return json.loads(value)
+
+
 def test_custom_serializer(container_factory, rabbit_config,
                            sniffer_queue_factory):
-
-    def encode(value):
-        value = json.dumps(value)
-        return value.upper()
-
-    def decode(value):
-        value = value.lower()
-        return json.loads(value)
-
-    register("upperjson", encode, decode, "application/x-upper-json", "utf-8")
 
     class Service(object):
         name = "service"
@@ -195,6 +199,13 @@ def test_custom_serializer(container_factory, rabbit_config,
             return arg
 
     rabbit_config[SERIALIZER_CONFIG_KEY] = "upperjson"
+    rabbit_config[SERIALIZERS_CONFIG_KEY] = {
+        'upperjson': {
+            'encoder': 'test.test_serialization.upperjson_encode',
+            'decoder': 'test.test_serialization.upperjson_decode',
+            'content_type': 'application/x-upper-json'
+        }
+    }
     container = container_factory(Service, rabbit_config)
     container.start()
 
@@ -208,3 +219,225 @@ def test_custom_serializer(container_factory, rabbit_config,
     msg = get_messages()[0]
     assert '"RESULT": "HELLO"' in msg['payload']
     assert msg['properties']['content_type'] == "application/x-upper-json"
+
+
+@pytest.mark.parametrize(
+    'config',
+    (
+        {SERIALIZER_CONFIG_KEY: 'unknown'},
+        {ACCEPT_CONFIG_KEY: ['json', 'unknown']},
+        {
+            SERIALIZER_CONFIG_KEY: 'json',
+            ACCEPT_CONFIG_KEY: ['json', 'unknown'],
+        },
+    )
+)
+def test_missing_serializers(container_factory, rabbit_config, config):
+
+    rabbit_config.update(config)
+    with pytest.raises(ConfigurationError) as exc:
+        container_factory(Service, rabbit_config)
+
+    assert (
+        str(exc.value) ==
+        'Please register a serializer for "unknown" format')
+
+
+@pytest.mark.parametrize(
+    'content_type, encode',
+    (
+        ('application/json', json.dumps),
+        ('application/x-yaml', yaml.dump),
+    )
+)
+def test_consumer_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager, content_type, encode
+):
+
+    class Service(object):
+
+        name = 'service'
+
+        @consume(queue=Queue(exchange=Exchange('spam'), name='some-queue'))
+        def consume(self, payload):
+            assert payload == {'spam': 'ham'}
+
+    rabbit_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    payload = {'spam': 'ham'}
+
+    with entrypoint_waiter(container, 'consume'):
+        rabbit_manager.publish(
+            rabbit_config['vhost'], 'spam', '', encode(payload),
+            properties={'content_type': content_type})
+
+
+@pytest.mark.parametrize(
+    'serializer, content_type, encode',
+    (
+        ('json', 'application/json', json.dumps),
+        ('yaml', 'application/x-yaml', yaml.dump),
+    )
+)
+def test_standalone_rpc_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager,
+    sniffer_queue_factory, serializer, content_type, encode
+):
+
+    called = Mock()
+
+    class EchoingService(object):
+
+        name = 'echoer'
+
+        @rpc
+        def echo(self, payload):
+            called(payload)
+            return payload
+
+    echoer_config = rabbit_config.copy()
+    echoer_config[SERIALIZER_CONFIG_KEY] = 'json'
+    echoer_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    echoer = container_factory(EchoingService, echoer_config)
+    echoer.start()
+
+    payload = {'spam': 'ham'}
+
+    proxy_config = rabbit_config.copy()
+    proxy_config[SERIALIZER_CONFIG_KEY] = serializer
+
+    get_messages = sniffer_queue_factory('nameko-rpc')
+
+    with ServiceRpcProxy('echoer', proxy_config) as proxy:
+        assert proxy.echo(payload) == payload
+
+    msg = get_messages().pop()
+    assert encode(payload) in msg['payload']
+    assert msg['properties']['content_type'] == content_type
+
+    assert called.mock_calls == [call(payload)]
+
+
+@pytest.mark.parametrize(
+    'serializer, content_type, encode',
+    (
+        ('json', 'application/json', json.dumps),
+        ('yaml', 'application/x-yaml', yaml.dump),
+    )
+)
+def test_rpc_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager,
+    sniffer_queue_factory, serializer, content_type, encode
+):
+
+    called = Mock()
+
+    class ForwardingService(object):
+
+        name = 'forwarder'
+
+        echoer = RpcProxy('echoer')
+
+        @rpc
+        def forward(self, payload):
+            return self.echoer.echo(payload)
+
+    class EchoingService(object):
+
+        name = 'echoer'
+
+        @rpc
+        def echo(self, payload):
+            called(payload)
+            return payload
+
+    echoer_config = rabbit_config.copy()
+    echoer_config[SERIALIZER_CONFIG_KEY] = 'json'
+    echoer_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    echoer = container_factory(EchoingService, echoer_config)
+    echoer.start()
+
+    payload = {'spam': 'ham'}
+
+    forwarder_config = rabbit_config.copy()
+    forwarder_config[SERIALIZER_CONFIG_KEY] = serializer
+    forwarder = container_factory(ForwardingService, forwarder_config)
+    forwarder.start()
+
+    get_messages = sniffer_queue_factory('nameko-rpc')
+
+    with entrypoint_hook(forwarder, 'forward') as echo:
+        assert echo(payload) == payload
+
+    msg = get_messages().pop()
+    assert encode(payload) in msg['payload']
+    assert msg['properties']['content_type'] == content_type
+
+    assert called.mock_calls == [call(payload)]
+
+
+@pytest.mark.parametrize(
+    'serializer, content_type, encode',
+    (
+        ('json', 'application/json', json.dumps),
+        ('yaml', 'application/x-yaml', yaml.dump),
+    )
+)
+def test_events_accepts_multiple_serialization_formats(
+    container_factory, rabbit_config, rabbit_manager,
+    sniffer_queue_factory, serializer, content_type, encode
+):
+
+    called = Mock()
+
+    class PublishingService(object):
+
+        name = 'publisher'
+
+        dispatch = EventDispatcher()
+
+        @rpc
+        def dispatch_event(self, payload):
+            self.dispatch('spam', payload)
+
+    class ConsumingService(object):
+
+        name = 'consumer'
+
+        @event_handler('publisher', 'spam')
+        def handle_event(self, event_data):
+            called(event_data)
+
+    def publish(consumer, publisher):
+        with entrypoint_waiter(consumer, "handle_event"):
+            with entrypoint_hook(publisher, "dispatch_event") as dispatch:
+                dispatch(payload)
+
+    consumer_config = rabbit_config.copy()
+    consumer_config[SERIALIZER_CONFIG_KEY] = 'json'
+    consumer_config[ACCEPT_CONFIG_KEY] = ['json', 'yaml']
+
+    consumer = container_factory(ConsumingService, consumer_config)
+    consumer.start()
+
+    get_messages = sniffer_queue_factory(
+        'publisher.events', routing_key='spam')
+
+    payload = {'spam': 'ham'}
+
+    publisher_config = rabbit_config.copy()
+    publisher_config[SERIALIZER_CONFIG_KEY] = serializer
+    publisher = container_factory(PublishingService, publisher_config)
+    publisher.start()
+    publish(consumer, publisher)
+
+    msg = get_messages().pop()
+    assert encode(payload) in msg['payload']
+    assert msg['properties']['content_type'] == content_type
+
+    assert called.mock_calls == [call(payload)]
