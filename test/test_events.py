@@ -19,6 +19,7 @@ from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider
 from nameko.testing.waiting import wait_for_call
+from nameko.utils.retry import retry
 
 
 @pytest.fixture
@@ -464,7 +465,10 @@ def test_reliable_delivery(
 
     # stop container, check queue still exists, without consumers
     container.stop()
-    assert queue_info(queue_name).consumer_count == 0
+
+    def consumer_removed():
+        assert queue_info(queue_name).consumer_count == 0
+    retry(consumer_removed)
 
     # dispatch another event while nobody is listening
     dispatch("srcservice", "eventtype", "msg_2")
@@ -535,8 +539,11 @@ def test_unreliable_delivery(
 
     # stop container, test queue deleted
     unreliable_container.stop()
-    with pytest.raises(NotFound):
-        queue_info(queue_name)
+
+    def queue_removed():
+        with pytest.raises(NotFound):
+            queue_info(queue_name)
+    retry(queue_removed)
 
     # dispatch a second event while nobody is listening
     count = itertools.count(start=1)
