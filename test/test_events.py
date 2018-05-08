@@ -466,9 +466,10 @@ def test_reliable_delivery(
     # stop container, check queue still exists, without consumers
     container.stop()
 
+    @retry
     def consumer_removed():
         assert queue_info(queue_name).consumer_count == 0
-    retry(consumer_removed)
+    consumer_removed()
 
     # dispatch another event while nobody is listening
     dispatch("srcservice", "eventtype", "msg_2")
@@ -540,10 +541,11 @@ def test_unreliable_delivery(
     # stop container, test queue deleted
     unreliable_container.stop()
 
+    @retry
     def queue_removed():
         with pytest.raises(NotFound):
             queue_info(queue_name)
-    retry(queue_removed)
+    queue_removed()
 
     # dispatch a second event while nobody is listening
     count = itertools.count(start=1)
