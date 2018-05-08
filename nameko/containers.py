@@ -12,10 +12,11 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
 
+from nameko import serialization
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
-    DEFAULT_PARENT_CALLS_TRACKED, DEFAULT_SERIALIZER, MAX_WORKERS_CONFIG_KEY,
-    PARENT_CALLS_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    DEFAULT_PARENT_CALLS_TRACKED, MAX_WORKERS_CONFIG_KEY,
+    PARENT_CALLS_CONFIG_KEY
 )
 from nameko.exceptions import ConfigurationError, ContainerBeingKilled
 from nameko.extensions import (
@@ -138,10 +139,7 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
-        self.serializer = config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-
-        self.accept = [self.serializer]
+        self.serializer, self.accept = serialization.setup(self.config)
 
         self.entrypoints = SpawningSet()
         self.dependencies = SpawningSet()

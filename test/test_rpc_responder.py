@@ -15,10 +15,14 @@ def unserializable():
     yield unserializable_inner
 
 
-def test_responder(mock_producer):
-
+@pytest.fixture
+def message():
     message = Mock()
-    message.properties = {'reply_to': ''}
+    message.properties = {'reply_to': '', 'content_type': 'application/json'}
+    return message
+
+
+def test_responder(message, mock_producer):
 
     exchange = Mock()
 
@@ -37,10 +41,7 @@ def test_responder(mock_producer):
     assert msg == expected_msg
 
 
-def test_responder_worker_exc(mock_producer):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
+def test_responder_worker_exc(message, mock_producer):
 
     exchange = Mock()
 
@@ -66,15 +67,14 @@ def test_responder_worker_exc(mock_producer):
     assert msg == expected_msg
 
 
-@pytest.mark.parametrize("serializer,exception_info_string", [
-    ('json', "is not JSON serializable"),
-    ('pickle', "Can't pickle")])
+@pytest.mark.parametrize("serializer,content_type,exception_info_string", [
+    ('json', 'application/json', "is not JSON serializable"),
+    ('pickle', 'application/x-python-serialize', "Can't pickle")])
 def test_responder_unserializable_result(
-        mock_producer, unserializable,
-        serializer, exception_info_string):
+        message, mock_producer, unserializable,
+        serializer, content_type, exception_info_string):
 
-    message = Mock()
-    message.properties = {'reply_to': ''}
+    message.properties['content_type'] = content_type
 
     exchange = Mock()
 
@@ -106,10 +106,7 @@ def test_responder_unserializable_result(
     assert msg == expected_msg
 
 
-def test_responder_cannot_unicode_exc(mock_producer):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
+def test_responder_cannot_unicode_exc(message, mock_producer):
 
     exchange = Mock()
 
@@ -126,10 +123,7 @@ def test_responder_cannot_unicode_exc(mock_producer):
     responder.send_response(True, (Exception, worker_exc, "tb"))
 
 
-def test_responder_cannot_repr_exc(mock_producer):
-
-    message = Mock()
-    message.properties = {'reply_to': ''}
+def test_responder_cannot_repr_exc(message, mock_producer):
 
     exchange = Mock()
 
