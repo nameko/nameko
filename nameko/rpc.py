@@ -544,7 +544,8 @@ class RpcCall(object):
         """ Return the result of this RPC call, blocking if the response
         has not been received.
 
-        Raises a `RemoteError` if the remote service returned an error response.
+        Raises a `RemoteError` if the remote service returned an error
+        response.
         """
         response = self.get_response()
         error = response.get('error')

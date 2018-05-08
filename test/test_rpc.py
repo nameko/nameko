@@ -1757,7 +1757,7 @@ class TestConfigurability(object):
         assert publish_params['exchange'].name == "nameko-rpc"
         assert publish_params['routing_key'] == 'service.method'
         assert publish_params['mandatory'] is True
-        assert publish_params['reply_to'] =="uuid1"
+        assert publish_params['reply_to'] == "uuid1"
         assert publish_params['correlation_id'] == "uuid2"
 
 

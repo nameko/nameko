@@ -1,5 +1,4 @@
 import socket
-import uuid
 from contextlib import contextmanager
 
 import eventlet
