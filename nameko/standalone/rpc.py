@@ -51,18 +51,14 @@ class ReplyListener(ConsumerMixin):
         self.queue = queue
         self.timeout = timeout
 
+        self.serializer, self.accept = serialization.setup(self.config)
+
         self.pending = {}
         verify_amqp_uri(self.amqp_uri)
 
     @property
     def amqp_uri(self):
         return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def accept(self):
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
 
     @property
     def routing_key(self):
@@ -114,7 +110,7 @@ class ReplyListener(ConsumerMixin):
         consumer = consumer_cls(
             queues=[self.queue],
             callbacks=[self.handle_message],
-            accept=[self.accept]
+            accept=self.accept
         )
         return [consumer]
 

@@ -291,8 +291,12 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
     def setup(self):
         self.exchange = get_rpc_exchange(self.container.config)
+
+        serializer = self.options.pop('serializer', self.container.serializer)
+
         self.publisher = self.publisher_cls(
             self.amqp_uri,
+            serializer=serializer,
             **self.options
         )
 
