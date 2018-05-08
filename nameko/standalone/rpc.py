@@ -36,18 +36,14 @@ class ReplyListener(ConsumerMixin):
         self.queue = queue
         self.timeout = timeout
 
+        self.serializer, self.accept = serialization.setup(self.config)
+
         self.pending = {}
         verify_amqp_uri(self.amqp_uri)
 
     @property
     def amqp_uri(self):
         return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def accept(self):
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
 
     @property
     def routing_key(self):
@@ -93,7 +89,7 @@ class ReplyListener(ConsumerMixin):
         consumer = consumer_cls(
             queues=[self.queue],
             callbacks=[self.handle_message],
-            accept=[self.accept]
+            accept=self.accept
         )
         return [consumer]
 
@@ -198,7 +194,9 @@ class RpcProxy(object):
 
         self.reply_listener = ReplyListener(config, queue, timeout=timeout)
 
-        serializer = options.pop('serializer', self.serializer)
+        serializer = options.pop(
+            'serializer', config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
+        )
 
         publisher = Publisher(
             self.amqp_uri,
@@ -232,17 +230,6 @@ class RpcProxy(object):
     @property
     def amqp_uri(self):
         return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def serializer(self):
-        """ Default serializer to use when publishing messages.
-
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
 
     def __enter__(self):
         return self.start()
