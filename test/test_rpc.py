@@ -155,18 +155,14 @@ def test_reply_listener(get_rpc_exchange, mock_container):
         patched_uuid.uuid4.return_value = forced_uuid
 
         reply_listener.setup()
-        # queue_consumer.setup()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
         assert queue.exchange == exchange
         assert queue.routing_key == forced_uuid
 
-    # queue_consumer.register_provider.assert_called_once_with(reply_listener)
-
     correlation_id = 1
-    rpc_reply = reply_listener.register_for_reply(correlation_id)
-    assert rpc_reply.correlation_id == correlation_id
+    get_response = reply_listener.register_for_reply(correlation_id)
     assert correlation_id in reply_listener.pending
 
     reply_event = reply_listener.pending[correlation_id]
@@ -176,12 +172,11 @@ def test_reply_listener(get_rpc_exchange, mock_container):
     message.properties.get.return_value = correlation_id
     reply_listener.handle_message(payload, message)
 
-    # queue_consumer.ack_message.assert_called_once_with(message)
     assert reply_listener.pending == {}
 
     assert reply_event.ready()
     assert reply_event.wait() == payload
-    assert rpc_reply.result() == "msg"
+    assert get_response() == payload
 
     with patch('nameko.rpc._log', autospec=True) as log:
         reply_listener.handle_message("msg", message)
@@ -199,7 +194,7 @@ class TestProxy(object):
         service_proxy = proxy.service
         assert proxy != service_proxy
         assert proxy.publish == service_proxy.publish
-        assert proxy.get_reply == service_proxy.get_reply
+        assert proxy.register_for_reply == service_proxy.register_for_reply
         assert proxy.service_name is None
         assert proxy.method_name is None
         assert service_proxy.service_name == "service"
@@ -208,7 +203,9 @@ class TestProxy(object):
         method1_proxy = service_proxy.method1
         assert service_proxy != method1_proxy
         assert service_proxy.publish == method1_proxy.publish
-        assert service_proxy.get_reply == method1_proxy.get_reply
+        assert service_proxy.register_for_reply == (
+            method1_proxy.register_for_reply
+        )
         assert service_proxy.service_name == "service"
         assert service_proxy.method_name is None
         assert method1_proxy.service_name == "service"
@@ -219,7 +216,9 @@ class TestProxy(object):
         method2_proxy = service_proxy.method2
         assert service_proxy != method2_proxy
         assert service_proxy.publish == method2_proxy.publish
-        assert service_proxy.get_reply == method2_proxy.get_reply
+        assert service_proxy.register_for_reply == (
+            method2_proxy.register_for_reply
+        )
         assert service_proxy.service_name == "service"
         assert service_proxy.method_name is None
         assert method2_proxy.service_name == "service"
@@ -234,9 +233,9 @@ class TestProxy(object):
 
     def test_identifier(self):
         publish = Mock()
-        get_reply = Mock()
+        register_for_reply = Mock()
 
-        proxy = Proxy(publish, get_reply)
+        proxy = Proxy(publish, register_for_reply)
         service_proxy = proxy.service
         method1_proxy = service_proxy.method1
         method2_proxy = service_proxy.method2
@@ -248,18 +247,18 @@ class TestProxy(object):
 
     def test_dict_access(self):
         publish = Mock()
-        get_reply = Mock()
+        register_for_reply = Mock()
 
-        proxy = Proxy(publish, get_reply)
+        proxy = Proxy(publish, register_for_reply)
 
         assert proxy['service'].identifier == "service.*"
         assert proxy['service']['method'].identifier == "service.method"
 
     def test_cannot_invoke_unspecified_proxy(self):
         publish = Mock()
-        get_reply = Mock()
+        register_for_reply = Mock()
 
-        proxy = Proxy(publish, get_reply)
+        proxy = Proxy(publish, register_for_reply)
 
         with pytest.raises(ValueError):
             proxy()
@@ -1736,9 +1735,7 @@ class TestConfigurability(object):
         worker_ctx.container = mock_container
         worker_ctx.context_data = {}
 
-        uuid1 = uuid.uuid4()
-        uuid2 = uuid.uuid4()
-        patch_uuid.uuid4.side_effect = [uuid1, uuid2]
+        patch_uuid.uuid4.side_effect = ["uuid1", "uuid2"]
 
         restricted_params = (
             'exchange', 'routing_key', 'mandatory',
@@ -1760,8 +1757,8 @@ class TestConfigurability(object):
         assert publish_params['exchange'].name == "nameko-rpc"
         assert publish_params['routing_key'] == 'service.method'
         assert publish_params['mandatory'] is True
-        assert publish_params['reply_to'] == str(uuid1)
-        assert publish_params['correlation_id'] == str(uuid2)
+        assert publish_params['reply_to'] =="uuid1"
+        assert publish_params['correlation_id'] == "uuid2"
 
 
 def test_prefetch_throughput(container_factory, rabbit_config):

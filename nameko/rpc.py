@@ -179,6 +179,8 @@ rpc = Rpc.decorator
 
 
 class Responder(object):
+    """ Helper object for publishing replies to RPC calls.
+    """
 
     publisher_cls = Publisher
 
@@ -230,6 +232,13 @@ class Responder(object):
 
 
 class ReplyListener(SharedExtension, Consumer):
+    """ SharedExtension for comsuming replies to RPC requests.
+
+    Creates a queue and consumes from it in a managed thread. RPC requests
+    should register their `correlation_id` with
+    :meth:`~ReplyListener.register_for_reply` in order for the `ReplyListener`
+    to capture the reply.
+    """
 
     def __init__(self, **kwargs):
         self.queue = None
@@ -276,7 +285,8 @@ class ReplyListener(SharedExtension, Consumer):
         self.should_stop = False
 
     def get_consumers(self, consumer_cls, channel):
-        """ Extend Consumer.get_consumers
+        """ Extend Consumer.get_consumers to check for messages lost while
+        the reply listener was disconnected from the broker.
         """
         if self.pending:
             try:
@@ -291,27 +301,37 @@ class ReplyListener(SharedExtension, Consumer):
 
         return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
-    def register_for_reply(self, correlation_id=None):
-        if correlation_id is None:
-            correlation_id = str(uuid.uuid4())
+    def register_for_reply(self, correlation_id):
+        """ Register an RPC call with the given `correlation_id` for a reply.
 
+        Returns a function that can be used to retrieve the reply, blocking
+        until it has been received.
+        """
         reply_event = Event()
         self.pending[correlation_id] = reply_event
-
-        return RpcReply(reply_event.wait, correlation_id)
+        return reply_event.wait
 
     def handle_message(self, body, message):
         self.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
-        reply_event = self.pending.pop(correlation_id, None)
-        if reply_event is not None:
-            reply_event.send(body)
+        rpc_call = self.pending.pop(correlation_id, None)
+        if rpc_call is not None:
+            rpc_call.send(body)
         else:
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
 class RpcProxy(DependencyProvider, HeaderEncoder):
+    """ DependencyProvider for injecting an RPC proxy into a service.
+
+    :Parameters:
+        target_service : str
+            Target service name
+        **options
+            Options to configure the :class:`~nameko.amqqp.publish.Publisher`
+            that sends the message.
+    """
 
     publisher_cls = Publisher
 
@@ -357,19 +377,50 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
             extra_headers=extra_headers
         )
 
-        get_reply = self.reply_listener.register_for_reply
+        register_for_reply = self.reply_listener.register_for_reply
 
-        proxy = Proxy(publish, get_reply)
+        proxy = Proxy(publish, register_for_reply)
         return getattr(proxy, self.target_service)
 
 
 class Proxy(object):
+    """ Helper object for making RPC calls.
+
+    The target service and method name may be specified at construction time
+    or by attibute or dict access, for example:
+
+        # target at construction time
+        proxy = Proxy(
+            publish, register_for_reply, "target_service", "target_method"
+        )
+        proxy(*args, **kwargs)
+
+        # equivalent with attribute access
+        proxy = Proxy(publish, register_for_reply)
+        proxy = proxy.target_service.target_method  # proxy now fully-specified
+        proxy(*args, **kwargs)
+
+    Calling a fully-specified `Proxy` will make the RPC call and block for the
+    result. The `call_async` method initiates the call but returns an
+    `RpcReply` object that can be used later to retrieve the result.
+
+    :Parameters:
+        publish : callable
+            Function to publish an RPC request
+        register_for_reply : callable
+            Function to register a new call with a reply listener. Returns
+            another function that should be used to retrieve the response.
+        service_name : str
+            Optional target service name, if known
+        method_name : str
+            Optional target method name, if known
+    """
 
     def __init__(
-        self, publish, get_reply, service_name=None, method_name=None
+        self, publish, register_for_reply, service_name=None, method_name=None
     ):
         self.publish = publish
-        self.get_reply = get_reply
+        self.register_for_reply = register_for_reply
         self.service_name = service_name
         self.method_name = method_name
 
@@ -379,7 +430,7 @@ class Proxy(object):
 
         clone = Proxy(
             self.publish,
-            self.get_reply,
+            self.register_for_reply,
             self.service_name or name,
             self.service_name and name
         )
@@ -403,12 +454,12 @@ class Proxy(object):
         return getattr(self, name)
 
     def __call__(self, *args, **kwargs):
-        reply = self._call(*args, **kwargs)
-        return reply.result()
+        rpc_call = self._call(*args, **kwargs)
+        return rpc_call.result()
 
     def call_async(self, *args, **kwargs):
-        reply = self._call(*args, **kwargs)
-        return reply
+        rpc_call = self._call(*args, **kwargs)
+        return rpc_call
 
     def _call(self, *args, **kwargs):
         if not self.fully_specified:
@@ -417,8 +468,6 @@ class Proxy(object):
             )
 
         _log.debug('invoking %s', self)
-
-        msg = {'args': args, 'kwargs': kwargs}
 
         # We use the `mandatory` flag in `producer.publish` below to catch rpc
         # calls to non-existent services, which would otherwise wait forever
@@ -439,33 +488,66 @@ class Proxy(object):
         # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
-        routing_key = self.identifier
+        correlation_id = str(uuid.uuid4())
 
-        reply = self.get_reply()
+        send_request = partial(
+            self.publish, routing_key=self.identifier, mandatory=True,
+            correlation_id=correlation_id
+        )
+        get_response = self.register_for_reply(correlation_id)
+
+        rpc_call = RpcCall(correlation_id, send_request, get_response)
 
         try:
-            self.publish(
-                msg,
-                routing_key=routing_key,
-                mandatory=True,
-                correlation_id=reply.correlation_id
-            )
+            rpc_call.send_request(*args, **kwargs)
         except UndeliverableMessage:
             raise UnknownService(self.service_name)
 
-        return reply
+        return rpc_call
 
 
-class RpcReply(object):
-    def __init__(self, wait, correlation_id):
-        self.response = None
-        self.wait = wait
+class RpcCall(object):
+    """ Encapsulates a single RPC request and response.
+
+    :Parameters:
+        correlation_id : str
+            Identifier for this call
+        send_request : callable
+            Function that initiates the request
+        get_response : callable
+            Function that retrieves the response
+    """
+    _response = None
+
+    def __init__(self, correlation_id, send_request, get_response):
         self.correlation_id = correlation_id
+        self._send_request = send_request
+        self._get_response = get_response
+
+    def send_request(self, *args, **kwargs):
+        """ Send the RPC request to the remote service
+        """
+        payload = {'args': args, 'kwargs': kwargs}
+        self._send_request(payload)
+
+    def get_response(self):
+        """ Retrieve the response for this RPC call. Blocks if the response
+        has not been received.
+        """
+        if self._response is not None:
+            return self._response
+
+        self._response = self._get_response()
+        return self._response
 
     def result(self):
-        if self.response is None:
-            self.response = self.wait()
-        error = self.response.get('error')
+        """ Return the result of this RPC call, blocking if the response
+        has not been received.
+
+        Raises a `RemoteError` if the remote service returned an error response.
+        """
+        response = self.get_response()
+        error = response.get('error')
         if error:
             raise deserialize(error)
-        return self.response['result']
+        return response['result']

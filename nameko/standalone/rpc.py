@@ -17,8 +17,7 @@ from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
-    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy, RpcReply,
-    get_rpc_exchange
+    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy, get_rpc_exchange
 )
 
 
@@ -26,6 +25,13 @@ _logger = logging.getLogger(__name__)
 
 
 class ReplyListener(Consumer):
+    """ Single-threaded listener for RPC replies.
+
+    Creates a queue and consumes from it on demand. RPC requests
+    should register their `correlation_id` with
+    :meth:`~ReplyListener.register_for_reply` in order for the `ReplyListener`
+    to capture the reply.
+    """
 
     def __init__(self, config, queue, timeout=None, **kwargs):
         self.queue = queue
@@ -66,15 +72,19 @@ class ReplyListener(Consumer):
 
         return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
-    def register_for_reply(self, correlation_id=None):
-        if correlation_id is None:
-            correlation_id = str(uuid.uuid4())
+    def register_for_reply(self, correlation_id):
+        """ Register an RPC call with the given `correlation_id` for a reply.
+
+        Returns a function that can be used to retrieve the reply, blocking
+        until it has been received.
+        """
         self.pending[correlation_id] = None
-        return RpcReply(
-            lambda: self.consume_reply(correlation_id), correlation_id
-        )
+        return lambda: self.consume_reply(correlation_id)
 
     def consume_reply(self, correlation_id):
+        """ Consume from the reply queue until the reply for the given
+        `correlation_id` is received.
+        """
         # return error if correlation_id not pending? (new feature)
         if self.should_stop:
             raise RuntimeError("Stopped and can no longer be used")
@@ -99,25 +109,22 @@ class ReplyListener(Consumer):
 
 class RpcProxy(object):
     """
-    A single-threaded RPC proxy to a cluster of services. Individual services
-    are accessed via attributes, which return service proxies. Method calls on
-    the proxies are converted into RPC calls to the service, with responses
-    returned directly.
+    Single-threaded RPC proxy to a cluster of services. The target service
+    and method are specified with attibutes.
+
+    Method calls on the locsl object are converted into RPC calls to the
+    target service.
 
     Enables services not hosted by nameko to make RPC requests to a nameko
     cluster. It is commonly used as a context manager but may also be manually
     started and stopped.
-
-    This is similar to the service proxy, but may be uses a single reply queue
-    for calls to all services, where a collection of service proxies would have
-    one reply queue per proxy.
 
     *Usage*
 
     As a context manager::
 
         with RpcProxy(config) as proxy:
-            proxy.service.method()
+            proxy.target_service.method()
             proxy.other_service.method()
 
     The equivalent call, manually starting and stopping::
@@ -125,7 +132,7 @@ class RpcProxy(object):
         proxy = RpcProxy(config)
         proxy = proxy.start()
         try:
-            proxy.targetservice.method()
+            proxy.target_service.method()
             proxy.other_service.method()
         finally:
             proxy.stop()
@@ -221,8 +228,10 @@ class RpcProxy(object):
 
 class ServiceRpcProxy(RpcProxy):
     """
-    A single-threaded RPC proxy to a named service. As per
-    `~nameko.standalone.rpc.RpcProxy` but with a pre-specified target service.
+    Single-threaded RPC proxy to a named service.
+
+    As per :class:`~nameko.standalone.rpc.RpcProxy` but with a pre-specified
+    target ervice.
     """
 
     def __init__(self, service_name, *args, **kwargs):

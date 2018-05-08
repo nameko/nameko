@@ -626,18 +626,18 @@ class TestConfigurability(object):
             nameko_headers, value
         )
 
+    @patch('nameko.rpc.uuid')
     @patch('nameko.standalone.rpc.uuid')
     def test_restricted_parameters(
-        self, patch_uuid, mock_container, producer
+        self, patch_standalone_uuid, patch_uuid, mock_container, producer
     ):
         """ Verify that providing routing parameters at instantiation
         time has no effect.
         """
         config = {'AMQP_URI': 'memory://localhost'}
 
-        uuid1 = uuid.uuid4()
-        uuid2 = uuid.uuid4()
-        patch_uuid.uuid4.side_effect = [uuid1, uuid2]
+        patch_standalone_uuid.uuid4.return_value = "uuid1"
+        patch_uuid.uuid4.return_value = "uuid2"
 
         restricted_params = (
             'exchange', 'routing_key', 'mandatory',
@@ -656,8 +656,8 @@ class TestConfigurability(object):
         assert publish_params['exchange'].name == "nameko-rpc"
         assert publish_params['routing_key'] == 'service.method'
         assert publish_params['mandatory'] is True
-        assert publish_params['reply_to'] == str(uuid1)
-        assert publish_params['correlation_id'] == str(uuid2)
+        assert publish_params['reply_to'] == "uuid1"
+        assert publish_params['correlation_id'] == "uuid2"
 
 
 @skip_if_no_toxiproxy
