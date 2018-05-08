@@ -5,10 +5,10 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
+from nameko import serialization
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
-    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY
+    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 
 
@@ -57,13 +57,13 @@ class Consumer(ConsumerMixin):
 
     @property
     def serializer(self):
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
+        serializer, _ = serialization.setup(self.config)
+        return serializer
 
     @property
     def accept(self):
-        return self.serializer
+        _, accept = serialization.setup(self.config)
+        return accept
 
     @property
     def connection(self):
@@ -91,7 +91,7 @@ class Consumer(ConsumerMixin):
         consumer = consumer_cls(
             queues=self.queues,
             callbacks=self.callbacks,
-            accept=[self.serializer]
+            accept=self.accept
         )
         consumer.qos(prefetch_count=self.prefetch_count)
         return [consumer]

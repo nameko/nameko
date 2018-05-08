@@ -13,10 +13,7 @@ from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, HEADER_PREFIX,
-    SERIALIZER_CONFIG_KEY
-)
+from nameko.constants import AMQP_URI_CONFIG_KEY, HEADER_PREFIX
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import DependencyProvider, Entrypoint
 
@@ -116,9 +113,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         Must be registered as a
         `kombu serializer <http://bit.do/kombu_serialization>`_.
         """
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
+        return self.container.serializer
 
     def setup(self):
 

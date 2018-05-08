@@ -8,12 +8,11 @@ from amqp.exceptions import NotFound
 from kombu.common import maybe_declare
 from kombu.messaging import Queue
 
+from nameko import serialization
 from nameko.amqp import verify_amqp_uri
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY
-)
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
@@ -168,6 +167,8 @@ class RpcProxy(object):
 
         self.reply_listener = ReplyListener(config, queue, timeout=timeout)
 
+        self.serializer, _ = serialization.setup(config)
+
         serializer = options.pop('serializer', self.serializer)
 
         publisher = Publisher(
@@ -203,17 +204,6 @@ class RpcProxy(object):
     @property
     def amqp_uri(self):
         return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def serializer(self):
-        """ Default serializer to use when publishing messages.
-
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
 
     def __enter__(self):
         return self.start()

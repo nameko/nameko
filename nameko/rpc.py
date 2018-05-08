@@ -194,13 +194,17 @@ class Responder(object):
         if exc_info is not None:
             error = serialize(exc_info[1])
 
+        # send response encoded the same way as was the request message
+        content_type = self.message.properties['content_type']
+        serializer = kombu.serialization.registry.type_to_name[content_type]
+
         # disaster avoidance serialization check: `result` must be
         # serializable, otherwise the container will commit suicide assuming
         # unrecoverable errors (and the message will be requeued for another
         # victim)
 
         try:
-            kombu.serialization.dumps(result, self.serializer)
+            kombu.serialization.dumps(result, serializer)
         except Exception:
             exc_info = sys.exc_info()
             # `error` below is guaranteed to serialize to json
@@ -216,7 +220,7 @@ class Responder(object):
 
         publisher.publish(
             payload,
-            serializer=self.serializer,
+            serializer=serializer,
             exchange=self.exchange,
             routing_key=routing_key,
             correlation_id=correlation_id
