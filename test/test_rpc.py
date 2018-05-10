@@ -553,8 +553,7 @@ def test_rpc_unknown_service_standalone(rabbit_config):
     assert exc_info.value._service_name == 'unknown_service'
 
 
-def test_rpc_container_being_killed_retries(
-        container_factory, rabbit_config):
+def test_rpc_container_being_killed_retries(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()

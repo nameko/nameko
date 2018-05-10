@@ -89,13 +89,11 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         )
 
     def start(self):
-        self.consumer.should_stop = False
         self.container.spawn_managed_thread(self.consumer.run)
         self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        # TODO self.consumer.stop(wait=False)?
-        self.consumer.should_stop = True
+        self.consumer.stop()
 
     def unregister_provider(self, provider):
         self.stop()
@@ -113,11 +111,6 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             raise MethodNotFound(method_name)
 
     def handle_message(self, body, message):
-        # TODO: should all the other extensions do this too?
-        if self.consumer.should_stop:
-            self.consumer.requeue_message(message)
-            return
-
         routing_key = message.delivery_info['routing_key']
         try:
             provider = self.get_provider_for_method(routing_key)
@@ -169,7 +162,7 @@ class Rpc(Entrypoint, HeaderDecoder):
                     handle_result=handle_result
                 )
             except ContainerBeingKilled:
-                self.rpc_consumer.requeue_message(message)
+                self.rpc_consumer.consumer.requeue_message(message)
 
         service_name = self.container.service_name
         method_name = self.method_name
@@ -321,12 +314,11 @@ class ReplyListener(SharedExtension):
         )
 
     def start(self):
-        self.consumer.should_stop = False
         self.container.spawn_managed_thread(self.consumer.run)
         self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        self.consumer.should_stop = False
+        self.consumer.stop()
 
     def check_for_lost_replies(self):
         if self.pending:

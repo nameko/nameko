@@ -208,12 +208,11 @@ class Consumer(Entrypoint, HeaderDecoder):
         )
 
     def start(self):
-        self.consumer.should_stop = False
         self.container.spawn_managed_thread(self.consumer.run)
         self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        self.consumer.should_stop = False
+        self.consumer.stop()
 
     def handle_message(self, body, message):
         args = (body,)

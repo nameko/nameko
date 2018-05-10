@@ -10,9 +10,6 @@ _log = getLogger(__name__)
 
 class Consumer(ConsumerMixin):
     """ Helper utility for consuming messages from RabbitMQ.
-
-    If you don't specify `callbacks`, the consumer may be used like an
-    iterator?
     """
 
     def __init__(
@@ -22,13 +19,12 @@ class Consumer(ConsumerMixin):
         self.amqp_uri = amqp_uri
 
         self.queues = queues
-        self.callbacks = callbacks or []  # [self.deque.append]
+        self.callbacks = callbacks or []
         self.heartbeat = heartbeat
         self.prefetch_count = prefetch_count
         self.serializer = serializer
         self.accept = accept
 
-        # self.deque = Deque()
         self.ready = Event()
 
         super(Consumer, self).__init__(**kwargs)
@@ -43,6 +39,14 @@ class Consumer(ConsumerMixin):
         """
         return Connection(self.amqp_uri, heartbeat=self.heartbeat)
 
+    def stop(self):
+        """ Stop this consumer.
+
+        Any messages received between when this method is called and the
+        resulting consumer cancel will be requeued.
+        """
+        self.should_stop = True
+
     def wait_until_consumer_ready(self):
         """ Wait for initial connection.
         """
@@ -55,7 +59,7 @@ class Consumer(ConsumerMixin):
         """
         consumer = consumer_cls(
             queues=self.queues,
-            callbacks=self.callbacks,
+            callbacks=[self.on_message],
             accept=self.accept
         )
         consumer.qos(prefetch_count=self.prefetch_count)
@@ -76,6 +80,13 @@ class Consumer(ConsumerMixin):
             "Error connecting to broker at {} ({}).\n"
             "Retrying in {} seconds.".format(self.amqp_uri, exc, interval)
         )
+
+    def on_message(self, body, message):
+        if self.should_stop:
+            self.requeue_message(message)
+            return
+        for callback in self.callbacks:
+            callback(body, message)
 
     def ack_message(self, message):
         # only attempt to ack if the message connection is alive;

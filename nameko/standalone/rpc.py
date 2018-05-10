@@ -95,7 +95,7 @@ class ReplyListener(object):
             maybe_declare(self.queue, conn)
 
     def stop(self):
-        self.consumer.should_stop = True
+        self.consumer.stop()
 
     def check_for_lost_replies(self):
         if self.pending:
