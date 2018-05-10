@@ -736,7 +736,7 @@ class TestContainerBeingKilled(object):
 
             @event_handler("service", "eventtype")
             def method(self, event_data):
-                pass
+                pass  # pragma: no cover
 
         container = container_factory(Service, rabbit_config)
         container.start()

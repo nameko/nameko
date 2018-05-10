@@ -1147,8 +1147,6 @@ class TestPrefetchCount(object):
 
 class TestContainerBeingKilled(object):
 
-    # TODO copy into rpc tests, events tests
-
     @pytest.fixture
     def publisher(self, amqp_uri):
         return PublisherCore(amqp_uri)
@@ -1163,7 +1161,7 @@ class TestContainerBeingKilled(object):
 
             @consume(queue)
             def method(self, payload):
-                pass
+                pass  # pragma: no cover
 
         container = container_factory(Service, rabbit_config)
         container.start()
