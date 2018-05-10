@@ -17,8 +17,8 @@ from nameko.constants import (
 from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
-    IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    ReplyQueueExpiredWithPendingReplies, UnknownService, ContainerBeingKilled
+    ContainerBeingKilled, IncorrectSignature, MalformedRequest, MethodNotFound,
+    RemoteError, ReplyQueueExpiredWithPendingReplies, UnknownService
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import (

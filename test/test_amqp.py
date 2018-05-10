@@ -5,7 +5,7 @@ import pytest
 from kombu.messaging import Queue
 from mock import Mock
 
-from nameko.amqp.publish import Publisher, get_connection
+from nameko.amqp.publish import Publisher
 from nameko.constants import DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 from nameko.events import EventHandler, event_handler
 from nameko.messaging import Consumer, consume
