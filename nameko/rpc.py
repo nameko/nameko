@@ -57,24 +57,19 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
-        if self.queue is None:
 
-            service_name = self.container.service_name
-            queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
-            routing_key = '{}.*'.format(service_name)
+        service_name = self.container.service_name
+        queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
+        routing_key = '{}.*'.format(service_name)
 
-            exchange = get_rpc_exchange(self.container.config)
+        exchange = get_rpc_exchange(self.container.config)
 
-            self.queue = Queue(
-                queue_name,
-                exchange=exchange,
-                routing_key=routing_key,
-                durable=True
-            )
-        else:
-            # TODO
-            import pdb; pdb.set_trace()
-            print("remove conditional if this never happens")
+        self.queue = Queue(
+            queue_name,
+            exchange=exchange,
+            routing_key=routing_key,
+            durable=True
+        )
 
         config = self.container.config
 
