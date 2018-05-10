@@ -900,7 +900,7 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.enable()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.disable()
@@ -927,7 +927,7 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(timeout=100)
@@ -954,7 +954,7 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(timeout=0)
@@ -985,7 +985,7 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
@@ -1021,7 +1021,7 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
@@ -1128,7 +1128,7 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.enable()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             rpc_consumer.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.disable()
@@ -1153,7 +1153,7 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             rpc_consumer.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(timeout=100)
@@ -1178,7 +1178,7 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             rpc_consumer.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(timeout=0)
@@ -1207,7 +1207,7 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             rpc_consumer.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
@@ -1241,7 +1241,7 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(
+        with wait_for_call(
             rpc_consumer.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
@@ -1440,7 +1440,7 @@ class TestProxyDisconnections(object):
             return True
 
         # call 2 succeeds (after reconnecting via retry policy)
-        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
             with entrypoint_hook(client_container, 'echo') as echo:
                 assert echo(2) == 2
 
@@ -1647,7 +1647,7 @@ class TestResponderDisconnections(object):
             return True
 
         # call 2 succeeds (after reconnecting via retry policy)
-        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
 
 
