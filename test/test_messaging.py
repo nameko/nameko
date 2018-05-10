@@ -1174,11 +1174,3 @@ class TestContainerBeingKilled(object):
 
             with patch_wait(ConsumerCore, 'requeue_message'):
                 publisher.publish("payload", routing_key=queue.name)
-
-
-class TestConsumerError(object):
-
-    # TODO do this, then copy into rpc.py, events.py
-
-    def test_consumer_error(self):
-        pass  # container killed
