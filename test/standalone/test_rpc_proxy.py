@@ -328,7 +328,7 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
         amqp_uri = container.config['AMQP_URI']
         exchange = get_rpc_exchange(container.config)
 
-        responder = Responder(amqp_uri, exchange, "json", message)
+        responder = Responder(amqp_uri, exchange, message)
         with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
             responder.send_response(None, None)
             assert proxy.spam(ham='eggs') == 'eggs'
