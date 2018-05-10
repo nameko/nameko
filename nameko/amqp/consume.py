@@ -5,6 +5,7 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
+
 _log = getLogger(__name__)
 
 

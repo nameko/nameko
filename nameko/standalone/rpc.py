@@ -13,8 +13,8 @@ from nameko.amqp import verify_amqp_uri
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT,
-    HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
+    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
