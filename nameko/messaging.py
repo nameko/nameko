@@ -222,7 +222,7 @@ class Consumer(Entrypoint, HeaderDecoder):
                     handle_result=handle_result
                 )
             except ContainerBeingKilled:
-                self.requeue_message(message)
+                self.consumer.requeue_message(message)
 
         service_name = self.container.service_name
         method_name = self.method_name

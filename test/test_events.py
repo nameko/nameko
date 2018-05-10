@@ -5,16 +5,16 @@ from collections import Counter
 
 import pytest
 from amqp.exceptions import NotFound
-from kombu.messaging import Queue
 from mock import ANY, Mock, patch
 from six.moves import queue
 
-from nameko.amqp.publish import get_connection
+from nameko.amqp.consume import Consumer
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler
 )
+from nameko.exceptions import ContainerBeingKilled
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider
@@ -720,3 +720,30 @@ class TestConfigurability(object):
 
         assert producer.publish.call_args[1]['exchange'] == event_exchange
         assert producer.publish.call_args[1]['routing_key'] == event_type
+
+
+class TestContainerBeingKilled(object):
+
+    @pytest.fixture
+    def dispatch(self, rabbit_config):
+        return event_dispatcher(rabbit_config)
+
+    def test_container_killed(
+        self, container_factory, rabbit_config, dispatch
+    ):
+        class Service(object):
+            name = "service"
+
+            @event_handler("service", "eventtype")
+            def method(self, event_data):
+                pass
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # check message is requeued if container throws ContainerBeingKilled
+        with patch.object(container, 'spawn_worker') as spawn_worker:
+            spawn_worker.side_effect = ContainerBeingKilled()
+
+            with wait_for_call(Consumer, 'requeue_message'):
+                dispatch("service", "eventtype", "payload")

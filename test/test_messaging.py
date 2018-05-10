@@ -14,8 +14,10 @@ from six.moves import queue
 
 from nameko.amqp import get_producer
 from nameko.amqp.consume import Consumer as ConsumerCore
+from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
+from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
     Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume
 )
@@ -1141,3 +1143,42 @@ class TestPrefetchCount(object):
 
         # release the waiting consumer
         consumer_continue.send(None)
+
+
+class TestContainerBeingKilled(object):
+
+    # TODO copy into rpc tests, events tests
+
+    @pytest.fixture
+    def publisher(self, amqp_uri):
+        return PublisherCore(amqp_uri)
+
+    def test_container_killed(
+        self, container_factory, rabbit_config, publisher
+    ):
+        queue = Queue('queue')
+
+        class Service(object):
+            name = "service"
+
+            @consume(queue)
+            def method(self, payload):
+                pass
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        # check message is requeued if container throws ContainerBeingKilled
+        with patch.object(container, 'spawn_worker') as spawn_worker:
+            spawn_worker.side_effect = ContainerBeingKilled()
+
+            with patch_wait(ConsumerCore, 'requeue_message'):
+                publisher.publish("payload", routing_key=queue.name)
+
+
+class TestConsumerError(object):
+
+    # TODO do this, then copy into rpc.py, events.py
+
+    def test_consumer_error(self):
+        pass  # container killed
