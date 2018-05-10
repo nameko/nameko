@@ -80,7 +80,7 @@ def test_publish_to_exchange(
         'expiration': publisher.publisher_cls.expiration,
         'delivery_mode': publisher.publisher_cls.delivery_mode,
         'priority': publisher.publisher_cls.priority,
-        'serializer': publisher.serializer
+        'serializer': publisher.publisher_cls.serializer
     }
 
     assert mock_producer.publish.call_args_list == [
@@ -127,7 +127,7 @@ def test_publish_custom_headers(
         'expiration': publisher.publisher_cls.expiration,
         'delivery_mode': publisher.publisher_cls.delivery_mode,
         'priority': publisher.publisher_cls.priority,
-        'serializer': publisher.serializer
+        'serializer': publisher.publisher_cls.serializer
     }
 
     assert mock_producer.publish.call_args_list == [

@@ -67,7 +67,7 @@ def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
         'expiration': event_dispatcher.publisher_cls.expiration,
         'delivery_mode': event_dispatcher.publisher_cls.delivery_mode,
         'priority': event_dispatcher.publisher_cls.priority,
-        'serializer': event_dispatcher.serializer,
+        'serializer': event_dispatcher.publisher_cls.serializer,
     }
 
     assert mock_producer.publish.call_count == 1

@@ -110,15 +110,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def amqp_uri(self):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
-    @property
-    def serializer(self):
-        """ Default serializer to use when publishing messages.
-
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.container.serializer
-
     def setup(self):
 
         verify_amqp_uri(self.amqp_uri)
@@ -127,7 +118,8 @@ class Publisher(DependencyProvider, HeaderEncoder):
             for entity in self.declare:
                 maybe_declare(entity, conn)
 
-        serializer = self.options.pop('serializer', self.serializer)
+        default_serializer = self.container.serializer
+        serializer = self.options.pop('serializer', default_serializer)
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,

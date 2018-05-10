@@ -15,8 +15,7 @@ from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, UndeliverableMessage, get_connection
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
-    DEFAULT_SERIALIZER, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY,
-    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound,
@@ -376,20 +375,11 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
     def amqp_uri(self):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
-    @property
-    def serializer(self):
-        """ Default serializer to use when publishing messages.
-
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
-
     def setup(self):
         self.exchange = get_rpc_exchange(self.container.config)
-        serializer = self.options.pop('serializer', self.serializer)
+
+        default_serializer = self.container.serializer
+        serializer = self.options.pop('serializer', default_serializer)
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,
