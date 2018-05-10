@@ -130,10 +130,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
         exchange = get_rpc_exchange(self.container.config)
 
-        # TODO TEMP: don't need to pass serializer to responder anymore
-        serializer, _ = serialization.setup(self.container.config)
-
-        responder = Responder(self.amqp_uri, exchange, serializer, message)
+        responder = Responder(self.amqp_uri, exchange, message)
         result, exc_info = responder.send_response(result, exc_info)
 
         self.consumer.ack_message(message)
@@ -199,9 +196,8 @@ class Responder(object):
 
     publisher_cls = Publisher
 
-    def __init__(self, amqp_uri, exchange, serializer, message):
+    def __init__(self, amqp_uri, exchange, message):
         self.amqp_uri = amqp_uri
-        self.serializer = serializer
         self.message = message
         self.exchange = exchange
 
