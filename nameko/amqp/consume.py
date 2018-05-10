@@ -5,65 +5,33 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
-from nameko import serialization
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
-    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
-)
-
-
 _log = getLogger(__name__)
 
 
 class Consumer(ConsumerMixin):
     """ Helper utility for consuming messages from RabbitMQ.
 
-    Can be used as a mixin or instantiated directly.
+    If you don't specify `callbacks`, the consumer may be used like an
+    iterator?
     """
 
-    def __init__(self, config=None, queues=None, callbacks=None, **kwargs):
-        self._config = config
-        self._queues = queues
+    def __init__(
+        self, amqp_uri, queues=None, callbacks=None, heartbeat=None,
+        prefetch_count=None, serializer=None, accept=None, **kwargs
+    ):
+        self.amqp_uri = amqp_uri
 
-        self.callbacks = callbacks or []
+        self.queues = queues
+        self.callbacks = callbacks or []  # [self.deque.append]
+        self.heartbeat = heartbeat
+        self.prefetch_count = prefetch_count
+        self.serializer = serializer
+        self.accept = accept
+
+        # self.deque = Deque()
         self.ready = Event()
 
         super(Consumer, self).__init__(**kwargs)
-
-    @property
-    def config(self):
-        """ We need to use a property and setter for config because some
-        subclasses don't have config until they're bound to a container.
-        TODO Remove this once https://github.com/nameko/nameko/pull/520 lands
-        """
-        return self._config or {AMQP_URI_CONFIG_KEY: ''}
-
-    @property
-    def queues(self):
-        """ We need to use a property and setter for queues because some
-        subclasses don't define queues until the service name is known.
-        """
-        return self._queues or []
-
-    @property
-    def amqp_uri(self):
-        return self.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def prefetch_count(self):
-        return self.config.get(
-            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
-        )
-
-    @property
-    def serializer(self):
-        serializer, _ = serialization.setup(self.config)
-        return serializer
-
-    @property
-    def accept(self):
-        _, accept = serialization.setup(self.config)
-        return accept
 
     @property
     def connection(self):
@@ -73,10 +41,7 @@ class Consumer(ConsumerMixin):
         that is lazily evaluated. It doesn't represent an established
         connection to the broker at this point.
         """
-        heartbeat = self.config.get(
-            HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
-        )
-        return Connection(self.amqp_uri, heartbeat=heartbeat)
+        return Connection(self.amqp_uri, heartbeat=self.heartbeat)
 
     def wait_until_consumer_ready(self):
         """ Wait for initial connection.

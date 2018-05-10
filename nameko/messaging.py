@@ -9,11 +9,15 @@ from logging import getLogger
 
 from kombu.common import maybe_declare
 
+from nameko import serialization
 from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
-from nameko.constants import AMQP_URI_CONFIG_KEY, HEADER_PREFIX
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
+    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY, HEADER_PREFIX
+)
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import DependencyProvider, Entrypoint
 
@@ -144,7 +148,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return publish
 
 
-class Consumer(Entrypoint, HeaderDecoder, ConsumerCore):
+class Consumer(Entrypoint, HeaderDecoder):
+
+    consumer_cls = ConsumerCore
 
     def __init__(self, queue, requeue_on_error=False, **kwargs):
         """
@@ -175,30 +181,39 @@ class Consumer(Entrypoint, HeaderDecoder, ConsumerCore):
         """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
-        super(Consumer, self).__init__(
-            callbacks=[self.handle_message], **kwargs
-        )
+        super(Consumer, self).__init__(**kwargs)
 
     @property
-    def queues(self):
-        return [self.queue] if self.queue else []
-
-    @property
-    def config(self):
-        return self.container.config
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
         verify_amqp_uri(self.amqp_uri)
-        with self.connection as conn:
-            maybe_declare(self.queue, conn)
+
+        config = self.container.config
+
+        heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
+        prefetch_count = config.get(
+            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+        )
+        serializer, accept = serialization.setup(config)
+
+        queues = [self.queue]
+        callbacks = [self.handle_message]
+
+        self.consumer = self.consumer_cls(
+            self.amqp_uri, queues=queues, callbacks=callbacks,
+            heartbeat=heartbeat, prefetch_count=prefetch_count,
+            serializer=serializer, accept=accept
+        )
 
     def start(self):
-        self.should_stop = False
-        self.container.spawn_managed_thread(self.run)
-        self.wait_until_consumer_ready()
+        self.consumer.should_stop = False
+        self.container.spawn_managed_thread(self.consumer.run)
+        self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        self.should_stop = False
+        self.consumer.should_stop = False
 
     def handle_message(self, body, message):
         args = (body,)
@@ -235,9 +250,9 @@ class Consumer(Entrypoint, HeaderDecoder, ConsumerCore):
     def handle_message_processed(self, message, result=None, exc_info=None):
 
         if exc_info is not None and self.requeue_on_error:
-            self.requeue_message(message)
+            self.consumer.requeue_message(message)
         else:
-            self.ack_message(message)
+            self.consumer.ack_message(message)
 
 
 consume = Consumer.decorator

@@ -120,7 +120,7 @@ class TestHeartbeats(object):
         container.start()
 
         extension = get_extension(container, extension_cls)
-        assert extension.connection.heartbeat == DEFAULT_HEARTBEAT
+        assert extension.consumer.heartbeat == DEFAULT_HEARTBEAT
 
     @pytest.mark.parametrize("heartbeat", [30, None])
     @pytest.mark.parametrize(
@@ -136,7 +136,7 @@ class TestHeartbeats(object):
         container.start()
 
         extension = get_extension(container, extension_cls)
-        assert extension.connection.heartbeat == heartbeat
+        assert extension.consumer.heartbeat == heartbeat
 
 
 class TestHeartbeatFailure(object):

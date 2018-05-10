@@ -10,11 +10,13 @@ from amqp.exceptions import NotFound
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
+from nameko import serialization
 from nameko.amqp.consume import Consumer
-from nameko.amqp.publish import Publisher, UndeliverableMessage
+from nameko.amqp.publish import Publisher, UndeliverableMessage, get_connection
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY
+    SERIALIZER_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
+    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound,
@@ -42,21 +44,17 @@ def get_rpc_exchange(config):
     return exchange
 
 
-class RpcConsumer(SharedExtension, ProviderCollector, Consumer):
+class RpcConsumer(SharedExtension, ProviderCollector):
+
+    consumer_cls = Consumer
 
     def __init__(self, **kwargs):
         self.queue = None
-        super(RpcConsumer, self).__init__(
-            callbacks=[self.handle_message], **kwargs
-        )
+        super(RpcConsumer, self).__init__(**kwargs)
 
     @property
-    def config(self):
-        return self.container.config
-
-    @property
-    def queues(self):
-        return [self.queue] if self.queue else []
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
         if self.queue is None:
@@ -73,14 +71,36 @@ class RpcConsumer(SharedExtension, ProviderCollector, Consumer):
                 routing_key=routing_key,
                 durable=True
             )
+        else:
+            # TODO
+            import pdb; pdb.set_trace()
+            print("remove conditional if this never happens")
+
+        config = self.container.config
+
+        heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
+        prefetch_count = config.get(
+            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+        )
+        serializer, accept = serialization.setup(config)
+
+        queues = [self.queue]
+        callbacks = [self.handle_message]
+
+        self.consumer = self.consumer_cls(
+            self.amqp_uri, queues=queues, callbacks=callbacks,
+            heartbeat=heartbeat, prefetch_count=prefetch_count,
+            serializer=serializer, accept=accept
+        )
 
     def start(self):
-        self.should_stop = False
-        self.container.spawn_managed_thread(self.run)
-        self.wait_until_consumer_ready()
+        self.consumer.should_stop = False
+        self.container.spawn_managed_thread(self.consumer.run)
+        self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        self.should_stop = True
+        # TODO self.consumer.stop(wait=False)?
+        self.consumer.should_stop = True
 
     def unregister_provider(self, provider):
         self.stop()
@@ -98,8 +118,9 @@ class RpcConsumer(SharedExtension, ProviderCollector, Consumer):
             raise MethodNotFound(method_name)
 
     def handle_message(self, body, message):
-        if self.should_stop:
-            self.requeue_message(message)
+        # TODO: should all the other extensions do this too?
+        if self.consumer.should_stop:
+            self.consumer.requeue_message(message)
             return
 
         routing_key = message.delivery_info['routing_key']
@@ -112,16 +133,15 @@ class RpcConsumer(SharedExtension, ProviderCollector, Consumer):
 
     def handle_result(self, message, result, exc_info):
 
-        amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
-        serializer = self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
         exchange = get_rpc_exchange(self.container.config)
 
-        responder = Responder(amqp_uri, exchange, serializer, message)
+        # TODO TEMP: don't need to pass serializer to responder anymore
+        serializer, _ = serialization.setup(self.container.config)
+
+        responder = Responder(self.amqp_uri, exchange, serializer, message)
         result, exc_info = responder.send_response(result, exc_info)
 
-        self.ack_message(message)
+        self.consumer.ack_message(message)
 
         return result, exc_info
 
@@ -231,7 +251,7 @@ class Responder(object):
         return result, exc_info
 
 
-class ReplyListener(SharedExtension, Consumer):
+class ReplyListener(SharedExtension):
     """ SharedExtension for comsuming replies to RPC requests.
 
     Creates a queue and consumes from it in a managed thread. RPC requests
@@ -240,20 +260,35 @@ class ReplyListener(SharedExtension, Consumer):
     to capture the reply.
     """
 
+    class ReplyConsumer(Consumer):
+        """ Subclass Consumer to add disconnection check
+        """
+
+        def __init__(self, check_for_lost_replies, *args, **kwargs):
+            self.check_for_lost_replies = check_for_lost_replies
+            super(ReplyListener.ReplyConsumer, self).__init__(*args, **kwargs)
+
+        def get_consumers(self, consumer_cls, channel):
+            """
+            Check for messages lost while the reply listener was disconnected
+            from the broker.
+            """
+            self.check_for_lost_replies()
+
+            return super(ReplyListener.ReplyConsumer, self).get_consumers(
+                consumer_cls, channel
+            )
+
+    consumer_cls = ReplyConsumer
+
     def __init__(self, **kwargs):
         self.queue = None
         self.pending = {}
-        super(ReplyListener, self).__init__(
-            callbacks=[self.handle_message], **kwargs
-        )
+        super(ReplyListener, self).__init__(**kwargs)
 
     @property
-    def config(self):
-        return self.container.config
-
-    @property
-    def queues(self):
-        return [self.queue] if self.queue else []
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
 
@@ -276,21 +311,36 @@ class ReplyListener(SharedExtension, Consumer):
             }
         )
 
+        config = self.container.config
+
+        heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
+        prefetch_count = config.get(
+            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+        )
+        serializer, accept = serialization.setup(config)
+
+        queues = [self.queue]
+        callbacks = [self.handle_message]
+
+        self.consumer = self.consumer_cls(
+            self.check_for_lost_replies, self.amqp_uri,
+            queues=queues, callbacks=callbacks,
+            heartbeat=heartbeat, prefetch_count=prefetch_count,
+            serializer=serializer, accept=accept
+        )
+
     def start(self):
-        self.should_stop = False
-        self.container.spawn_managed_thread(self.run)
-        self.wait_until_consumer_ready()
+        self.consumer.should_stop = False
+        self.container.spawn_managed_thread(self.consumer.run)
+        self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        self.should_stop = False
+        self.consumer.should_stop = False
 
-    def get_consumers(self, consumer_cls, channel):
-        """ Extend Consumer.get_consumers to check for messages lost while
-        the reply listener was disconnected from the broker.
-        """
+    def check_for_lost_replies(self):
         if self.pending:
             try:
-                with self.connection as conn:
+                with get_connection(self.amqp_uri) as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
             except NotFound:
                 raise ReplyQueueExpiredWithPendingReplies(
@@ -298,8 +348,6 @@ class ReplyListener(SharedExtension, Consumer):
                         "\n".join(self.pending.keys())
                     )
                 )
-
-        return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
     def register_for_reply(self, correlation_id):
         """ Register an RPC call with the given `correlation_id` for a reply.
@@ -312,7 +360,7 @@ class ReplyListener(SharedExtension, Consumer):
         return reply_event.wait
 
     def handle_message(self, body, message):
-        self.ack_message(message)
+        self.consumer.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
         rpc_call = self.pending.pop(correlation_id, None)

@@ -13,6 +13,7 @@ from mock import Mock, call, patch
 from six.moves import queue
 
 from nameko.amqp import get_producer
+from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.messaging import (
@@ -344,7 +345,7 @@ class TestConsumerDisconnections(object):
                 yield conn
 
         with patch.object(
-            Consumer, 'establish_connection', new=establish_connection
+            ConsumerCore, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -431,7 +432,9 @@ class TestConsumerDisconnections(object):
             toxiproxy.enable()
             return True
 
-        with patch_wait(consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.disable()
 
         # connection re-established
@@ -457,7 +460,9 @@ class TestConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -483,7 +488,9 @@ class TestConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -513,7 +520,9 @@ class TestConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -548,7 +557,9 @@ class TestConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established

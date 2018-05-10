@@ -11,8 +11,11 @@ from kombu.messaging import Queue
 from nameko import serialization
 from nameko.amqp import verify_amqp_uri
 from nameko.amqp.consume import Consumer
-from nameko.amqp.publish import Publisher
-from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.amqp.publish import Publisher, get_connection
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT,
+    HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
+)
 from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
@@ -24,7 +27,7 @@ from nameko.rpc import (
 _logger = logging.getLogger(__name__)
 
 
-class ReplyListener(Consumer):
+class ReplyListener(object):
     """ Single-threaded listener for RPC replies.
 
     Creates a queue and consumes from it on demand. RPC requests
@@ -32,36 +35,72 @@ class ReplyListener(Consumer):
     :meth:`~ReplyListener.register_for_reply` in order for the `ReplyListener`
     to capture the reply.
     """
+    class ReplyConsumer(Consumer):
+        """ Subclass Consumer to add disconnection check
+        """
+
+        def __init__(self, check_for_lost_replies, *args, **kwargs):
+            self.check_for_lost_replies = check_for_lost_replies
+            super(ReplyListener.ReplyConsumer, self).__init__(*args, **kwargs)
+
+        def get_consumers(self, consumer_cls, channel):
+            """
+            Check for messages lost while the reply listener was disconnected
+            from the broker.
+            """
+            self.check_for_lost_replies()
+
+            return super(ReplyListener.ReplyConsumer, self).get_consumers(
+                consumer_cls, channel
+            )
+
+    consumer_cls = ReplyConsumer
 
     def __init__(self, config, queue, timeout=None, **kwargs):
+        self.config = config
         self.queue = queue
         self.timeout = timeout
 
         self.pending = {}
 
-        super(ReplyListener, self).__init__(
-            config=config,
-            queues=[self.queue],
-            callbacks=[self.handle_message],
-            **kwargs
-        )
+        super(ReplyListener, self).__init__(**kwargs)
+
+    @property
+    def amqp_uri(self):
+        return self.config[AMQP_URI_CONFIG_KEY]
 
     def start(self):
         verify_amqp_uri(self.amqp_uri)
 
-        self.should_stop = False
-        with self.connection as conn:
+        config = self.config
+
+        heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
+        prefetch_count = config.get(
+            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+        )
+        serializer, accept = serialization.setup(config)
+
+        queues = [self.queue]
+        callbacks = [self.handle_message]
+
+        self.consumer = self.consumer_cls(
+            self.check_for_lost_replies, self.amqp_uri,
+            queues=queues, callbacks=callbacks,
+            heartbeat=heartbeat, prefetch_count=prefetch_count,
+            serializer=serializer, accept=accept
+        )
+
+        # must declare queue because the consumer doesn't start right away
+        with self.consumer.connection as conn:
             maybe_declare(self.queue, conn)
 
     def stop(self):
-        self.should_stop = True
+        self.consumer.should_stop = True
 
-    def get_consumers(self, consumer_cls, channel):
-        """ Extend Consumer.get_consumers
-        """
+    def check_for_lost_replies(self):
         if self.pending:
             try:
-                with self.connection as conn:
+                with get_connection(self.amqp_uri) as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
             except NotFound:
                 raise ReplyQueueExpiredWithPendingReplies(
@@ -69,8 +108,6 @@ class ReplyListener(Consumer):
                         "\n".join(self.pending.keys())
                     )
                 )
-
-        return super(ReplyListener, self).get_consumers(consumer_cls, channel)
 
     def register_for_reply(self, correlation_id):
         """ Register an RPC call with the given `correlation_id` for a reply.
@@ -86,18 +123,18 @@ class ReplyListener(Consumer):
         `correlation_id` is received.
         """
         # return error if correlation_id not pending? (new feature)
-        if self.should_stop:
+        if self.consumer.should_stop:
             raise RuntimeError("Stopped and can no longer be used")
 
         while not self.pending.get(correlation_id):
             try:
-                next(self.consume(timeout=self.timeout))
+                next(self.consumer.consume(timeout=self.timeout))
             except socket.timeout:
                 raise RpcTimeout()
         return self.pending.pop(correlation_id)
 
     def handle_message(self, body, message):
-        self.ack_message(message)
+        self.consumer.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
         if correlation_id not in self.pending:

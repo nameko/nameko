@@ -10,7 +10,10 @@ from kombu.connection import Connection
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko.constants import HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+from nameko.amqp.consume import Consumer
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
@@ -102,7 +105,7 @@ def test_rpc_consumer(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = {}
+    container.config = {AMQP_URI_CONFIG_KEY: 'memory://localhost'}
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
 
@@ -141,7 +144,7 @@ def test_reply_listener(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = {}
+    container.config = {AMQP_URI_CONFIG_KEY: 'memory://localhost'}
     container.service_name = "exampleservice"
 
     exchange = Mock()
@@ -565,9 +568,8 @@ def test_rpc_container_being_killed_retries(
     rpc_provider = get_extension(container, Rpc, method_name='task_a')
 
     with patch.object(
-        rpc_provider,
-        'rpc_consumer',
-        wraps=rpc_provider.rpc_consumer,
+        rpc_provider.rpc_consumer, 'consumer',
+        wraps=rpc_provider.rpc_consumer.consumer,
     ) as wrapped_consumer:
         waiter = eventlet.spawn(wait_for_result)
         with wait_for_call(1, wrapped_consumer.requeue_message):
@@ -758,7 +760,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 yield conn
 
         with patch.object(
-            ReplyListener, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -839,7 +841,7 @@ class TestReplyListenerDisconnections(object):
                 yield conn
 
         with patch.object(
-            ReplyListener, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -847,6 +849,7 @@ class TestReplyListenerDisconnections(object):
     def container(
         self, container_factory, rabbit_config, toxiproxy
     ):
+        # TODO: be more constent: apply these with class patches
         class ToxicReplyListener(ReplyListener):
             amqp_uri = toxiproxy.uri
 
@@ -901,7 +904,9 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.enable()
             return True
 
-        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
+        with patch_wait(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.disable()
 
         # connection re-established
@@ -926,7 +931,9 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
+        with patch_wait(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -951,7 +958,9 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
+        with patch_wait(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -980,7 +989,9 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
+        with patch_wait(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -1014,7 +1025,9 @@ class TestReplyListenerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(reply_listener, 'on_connection_error', callback=reset):
+        with patch_wait(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established
@@ -1041,13 +1054,20 @@ class TestRpcConsumerDisconnections(object):
                 yield conn
 
         with patch.object(
-            RpcConsumer, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
     @pytest.yield_fixture
     def toxic_rpc_consumer(self, toxiproxy):
         with patch.object(RpcConsumer, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    @pytest.yield_fixture(autouse=True)
+    def nontoxic_responder(self, rabbit_config):
+        def replacement_constructor(amqp_uri, *args):
+            return Responder(rabbit_config[AMQP_URI_CONFIG_KEY], *args)
+        with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
     @pytest.yield_fixture
@@ -1112,7 +1132,9 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.enable()
             return True
 
-        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.disable()
 
         # connection re-established
@@ -1135,7 +1157,9 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -1158,7 +1182,9 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -1185,7 +1211,9 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -1217,7 +1245,9 @@ class TestRpcConsumerDisconnections(object):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(rpc_consumer, 'on_connection_error', callback=reset):
+        with patch_wait(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established

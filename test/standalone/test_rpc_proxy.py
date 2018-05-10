@@ -9,6 +9,7 @@ from kombu.message import Message
 from mock import Mock, patch
 from six.moves import queue
 
+from nameko.amqp.consume import Consumer
 from nameko.constants import HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import (
@@ -228,7 +229,7 @@ class TestDisconnectedWhileWaitingForReply(object):
                 yield conn
 
         with patch.object(
-            ReplyListener, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -418,7 +419,7 @@ class TestDisconnectWithPendingReply(object):
                 return True
 
             with wait_for_call(
-                toxic_rpc_proxy.reply_listener, 'on_connection_error',
+                toxic_rpc_proxy.reply_listener.consumer, 'on_connection_error',
                 callback=reconnect
             ):
                 # rpc proxy should recover the message in flight
@@ -811,7 +812,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
                 yield conn
 
         with patch.object(
-            ReplyListener, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -869,7 +870,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
             return True
 
         with wait_for_call(
-            reply_listener, 'on_connection_error', callback=reset
+            reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.disable()
 
@@ -894,7 +895,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
             return True
 
         with wait_for_call(
-            reply_listener, 'on_connection_error', callback=reset
+            reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(timeout=100)
 
@@ -919,7 +920,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
             return True
 
         with wait_for_call(
-            reply_listener, 'on_connection_error', callback=reset
+            reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(timeout=0)
 
@@ -948,7 +949,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
             return True
 
         with wait_for_call(
-            reply_listener, 'on_connection_error', callback=reset
+            reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
@@ -982,7 +983,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
             return True
 
         with wait_for_call(
-            reply_listener, 'on_connection_error', callback=reset
+            reply_listener.consumer, 'on_connection_error', callback=reset
         ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
