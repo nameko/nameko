@@ -22,18 +22,6 @@ from nameko.testing.waiting import wait_for_call
 from nameko.utils.retry import retry
 
 
-@pytest.fixture
-def queue_info(rabbit_config):
-    # TODO once https://github.com/nameko/nameko/pull/484 lands
-    # we can use the utility in nameko.amqo.utils instead of this
-    def get_queue_info(queue_name):
-        with get_connection(rabbit_config['AMQP_URI']) as conn:
-            queue = Queue(name=queue_name)
-            queue = queue.bind(conn)
-            return queue.queue_declare(passive=True)
-    return get_queue_info
-
-
 def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
 
     container = mock_container

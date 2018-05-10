@@ -149,17 +149,6 @@ class TestHeartbeatFailure(object):
         return config
 
     @pytest.fixture
-    def queue_info(self, config):
-        # TODO once https://github.com/nameko/nameko/pull/484 lands
-        # we can use the utility in nameko.amqo.utils instead of this
-        def get_queue_info(queue_name):
-            with get_connection(config['AMQP_URI']) as conn:
-                queue = Queue(name=queue_name)
-                queue = queue.bind(conn)
-                return queue.queue_declare(passive=True)
-        return get_queue_info
-
-    @pytest.fixture
     def tracker(self):
         return Mock()
 
