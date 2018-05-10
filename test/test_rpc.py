@@ -18,7 +18,7 @@ from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    ReplyQueueExpiredWithPendingReplies, UnknownService
+    ReplyQueueExpiredWithPendingReplies, UnknownService, ContainerBeingKilled
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import (
@@ -26,8 +26,8 @@ from nameko.rpc import (
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
-from nameko.testing.utils import get_extension, wait_for_call
-from nameko.testing.waiting import wait_for_call as patch_wait
+from nameko.testing.utils import get_extension
+from nameko.testing.waiting import wait_for_call
 
 from test import skip_if_no_toxiproxy
 
@@ -553,30 +553,32 @@ def test_rpc_unknown_service_standalone(rabbit_config):
     assert exc_info.value._service_name == 'unknown_service'
 
 
-def test_rpc_container_being_killed_retries(container_factory, rabbit_config):
+class TestContainerBeingKilled(object):
 
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
+    @pytest.yield_fixture
+    def service_rpc(self, rabbit_config):
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
+            yield proxy
 
-    def wait_for_result():
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
-            return proxy.task_a()
+    def test_container_killed(
+        self, container_factory, rabbit_config, service_rpc
+    ):
+        class Service(object):
+            name = "service"
 
-    container._being_killed = True
+            @rpc
+            def method(self):
+                pass  # pragma: no cover
 
-    rpc_provider = get_extension(container, Rpc, method_name='task_a')
+        container = container_factory(Service, rabbit_config)
+        container.start()
 
-    with patch.object(
-        rpc_provider.rpc_consumer, 'consumer',
-        wraps=rpc_provider.rpc_consumer.consumer,
-    ) as wrapped_consumer:
-        waiter = eventlet.spawn(wait_for_result)
-        with wait_for_call(1, wrapped_consumer.requeue_message):
-            pass  # wait until at least one message has been requeued
-        assert not waiter.dead
+        # check message is requeued if container throws ContainerBeingKilled
+        with patch.object(container, 'spawn_worker') as spawn_worker:
+            spawn_worker.side_effect = ContainerBeingKilled()
 
-    container._being_killed = False
-    assert waiter.wait() == 'result_a'  # now completed
+            with wait_for_call(Consumer, 'requeue_message'):
+                service_rpc.method.call_async()
 
 
 def test_rpc_consumer_sharing(container_factory, rabbit_config,
