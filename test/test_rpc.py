@@ -769,26 +769,25 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
         with patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100):
             yield
 
+    @pytest.yield_fixture
+    def toxic_reply_listener(self, toxiproxy):
+        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
     @pytest.fixture(autouse=True)
     def container(
         self, container_factory, rabbit_config, rabbit_manager, toxiproxy,
-        fast_expiry
+        fast_expiry, toxic_reply_listener
     ):
 
         def enable_after_queue_expires():
             eventlet.sleep(1)
             toxiproxy.enable()
 
-        class ToxicReplyListener(ReplyListener):
-            amqp_uri = toxiproxy.uri
-
-        class ToxicRpcProxy(RpcProxy):
-            reply_listener = ToxicReplyListener()
-
         class Service(object):
             name = "service"
 
-            delegate_rpc = ToxicRpcProxy('delegate')
+            delegate_rpc = RpcProxy('delegate')
 
             @dummy
             def sleep(self):
@@ -803,9 +802,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 eventlet.spawn_n(enable_after_queue_expires)
                 return "OK"
 
-        # very fast heartbeat
         config = rabbit_config
-        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
 
         container = container_factory(Service, config)
         container.start()
@@ -845,21 +842,19 @@ class TestReplyListenerDisconnections(object):
         ):
             yield
 
+    @pytest.yield_fixture
+    def toxic_reply_listener(self, toxiproxy):
+        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxiproxy
+        self, container_factory, rabbit_config, toxiproxy, toxic_reply_listener
     ):
-        # TODO: be more constent: apply these with class patches
-        class ToxicReplyListener(ReplyListener):
-            amqp_uri = toxiproxy.uri
-
-        class ToxicRpcProxy(RpcProxy):
-            reply_listener = ToxicReplyListener()
-
         class Service(object):
             name = "service"
 
-            delegate_rpc = ToxicRpcProxy('delegate')
+            delegate_rpc = RpcProxy('delegate')
 
             @dummy
             def echo(self, arg):
