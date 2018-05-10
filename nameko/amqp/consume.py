@@ -22,7 +22,7 @@ class Consumer(ConsumerMixin):
         self.queues = queues
         self.callbacks = callbacks or []
         self.heartbeat = heartbeat
-        self.prefetch_count = prefetch_count
+        self.prefetch_count = prefetch_count or 0
         self.serializer = serializer
         self.accept = accept
 
