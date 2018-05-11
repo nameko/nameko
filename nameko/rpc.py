@@ -1,8 +1,8 @@
 from __future__ import absolute_import, unicode_literals
 
 import sys
-import uuid
 import time
+import uuid
 from functools import partial
 from logging import getLogger
 
