@@ -68,7 +68,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     publisher_cls = PublisherCore
 
-    def __init__(self, exchange=None, declare=None, **options):
+    def __init__(self, exchange=None, declare=None, **publisher_options):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP, messages are published to *exchanges* and routed to bound
@@ -85,6 +85,11 @@ class Publisher(DependencyProvider, HeaderEncoder):
             declare : list
                 List of :class:`kombu.Exchange` or :class:`kombu.Queue` objects
                 to declare before publishing.
+            **publisher_options
+                Options to configure the
+                :class:`~nameko.amqqp.publish.Publisher` that sends the
+                message.
+
 
         If `exchange` is not provided, the message will be published to the
         default exchange.
@@ -99,7 +104,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
                     self.publish('spam:' + data)
         """
         self.exchange = exchange
-        self.options = options
+        self.publisher_options = publisher_options
 
         self.declare = declare[:] if declare is not None else []
 
@@ -119,14 +124,16 @@ class Publisher(DependencyProvider, HeaderEncoder):
                 maybe_declare(entity, conn)
 
         default_serializer = self.container.serializer
-        serializer = self.options.pop('serializer', default_serializer)
+        serializer = self.publisher_options.pop(
+            'serializer', default_serializer
+        )
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,
             serializer=serializer,
             exchange=self.exchange,
             declare=self.declare,
-            **self.options
+            **self.publisher_options
         )
 
     def get_dependency(self, worker_ctx):

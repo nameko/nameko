@@ -20,8 +20,8 @@ from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
-    RESTRICTED_OPTIONS, RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy,
-    get_rpc_exchange
+    RESTRICTED_PUBLISHER_OPTIONS, RPC_REPLY_QUEUE_TEMPLATE,
+    RPC_REPLY_QUEUE_TTL, Proxy, get_rpc_exchange
 )
 
 
@@ -63,7 +63,6 @@ class ReplyListener(object):
         self.timeout = timeout
 
         self.pending = {}
-
         super(ReplyListener, self).__init__(**kwargs)
 
     @property
@@ -191,7 +190,9 @@ class RpcProxy(object):
 
     publisher_cls = Publisher
 
-    def __init__(self, config, context_data=None, timeout=None, **options):
+    def __init__(
+        self, config, context_data=None, timeout=None, **publisher_options
+    ):
         self.config = config
         self.uuid = str(uuid.uuid4())
 
@@ -213,10 +214,10 @@ class RpcProxy(object):
 
         self.serializer, _ = serialization.setup(config)
 
-        serializer = options.pop('serializer', self.serializer)
+        serializer = publisher_options.pop('serializer', self.serializer)
 
-        for option in RESTRICTED_OPTIONS:
-            options.pop(option, None)
+        for option in RESTRICTED_PUBLISHER_OPTIONS:
+            publisher_options.pop(option, None)
 
         publisher = Publisher(
             self.amqp_uri,
@@ -224,7 +225,7 @@ class RpcProxy(object):
             serializer=serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
-            **options
+            **publisher_options
         )
 
         data = context_data

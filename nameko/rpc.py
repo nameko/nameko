@@ -36,7 +36,7 @@ RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
 
-RESTRICTED_OPTIONS = (
+RESTRICTED_PUBLISHER_OPTIONS = (
     'exchange', 'routing_key', 'mandatory', 'reply_to', 'correlation_id'
 )
 """
@@ -101,6 +101,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
     def stop(self):
         self.consumer.stop()
+        # super stop? (waits for all other providers)
 
     def unregister_provider(self, provider):
         self.stop()
@@ -365,7 +366,7 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
     :Parameters:
         target_service : str
             Target service name
-        **options
+        **publisher_options
             Options to configure the :class:`~nameko.amqqp.publish.Publisher`
             that sends the message.
     """
@@ -374,11 +375,11 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
     reply_listener = ReplyListener()
 
-    def __init__(self, target_service, **options):
+    def __init__(self, target_service, **publisher_options):
         self.target_service = target_service
-        for option in RESTRICTED_OPTIONS:
-            options.pop(option, None)
-        self.options = options
+        for option in RESTRICTED_PUBLISHER_OPTIONS:
+            publisher_options.pop(option, None)
+        self.publisher_options = publisher_options
 
     @property
     def amqp_uri(self):
@@ -394,7 +395,9 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
         exchange = get_rpc_exchange(self.container.config)
 
         default_serializer = self.container.serializer
-        serializer = self.options.pop('serializer', default_serializer)
+        serializer = self.publisher_options.pop(
+            'serializer', default_serializer
+        )
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,
@@ -402,7 +405,7 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
             serializer=serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
-            **self.options
+            **self.publisher_options
         )
 
     def get_dependency(self, worker_ctx):
