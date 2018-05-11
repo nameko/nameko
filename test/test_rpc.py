@@ -1698,8 +1698,8 @@ class TestConfigurability(object):
             "service-name", **{parameter: value}
         ).bind(mock_container, "service_rpc")
 
-        rpc_proxy.setup()
         rpc_proxy.reply_listener.setup()
+        rpc_proxy.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1733,8 +1733,8 @@ class TestConfigurability(object):
             "service-name", **{'headers': value}
         ).bind(mock_container, "service_rpc")
 
-        rpc_proxy.setup()
         rpc_proxy.reply_listener.setup()
+        rpc_proxy.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1772,8 +1772,8 @@ class TestConfigurability(object):
             "service", **{param: Mock() for param in restricted_params}
         ).bind(mock_container, "service_rpc")
 
-        rpc_proxy.setup()
         rpc_proxy.reply_listener.setup()
+        rpc_proxy.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 

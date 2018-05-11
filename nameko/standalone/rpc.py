@@ -20,7 +20,8 @@ from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
-    RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy, get_rpc_exchange
+    RESTRICTED_OPTIONS, RPC_REPLY_QUEUE_TEMPLATE, RPC_REPLY_QUEUE_TTL, Proxy,
+    get_rpc_exchange
 )
 
 
@@ -215,9 +216,15 @@ class RpcProxy(object):
 
         serializer = options.pop('serializer', self.serializer)
 
+        for option in RESTRICTED_OPTIONS:
+            options.pop(option, None)
+
         publisher = Publisher(
             self.amqp_uri,
+            exchange=exchange,
             serializer=serializer,
+            declare=[self.reply_listener.queue],
+            reply_to=self.reply_listener.queue.routing_key,
             **options
         )
 
@@ -233,12 +240,7 @@ class RpcProxy(object):
             extra_headers = encode_to_headers(context_data)
 
             publisher.publish(
-                *args,
-                exchange=exchange,
-                declare=[self.reply_listener.queue],
-                reply_to=self.reply_listener.queue.routing_key,
-                extra_headers=extra_headers,
-                **kwargs
+                *args, extra_headers=extra_headers, **kwargs
             )
 
         get_reply = self.reply_listener.register_for_reply

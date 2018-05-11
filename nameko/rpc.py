@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import sys
 import uuid
+import time
 from functools import partial
 from logging import getLogger
 
@@ -34,6 +35,13 @@ _log = getLogger(__name__)
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
+
+RESTRICTED_OPTIONS = (
+    'exchange', 'routing_key', 'mandatory', 'reply_to', 'correlation_id'
+)
+"""
+Publisher options that cannot be overridden when configuring an RPC proxy
+"""
 
 
 def get_rpc_exchange(config):
@@ -369,6 +377,8 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
     def __init__(self, target_service, **options):
         self.target_service = target_service
+        for option in RESTRICTED_OPTIONS:
+            options.pop(option, None)
         self.options = options
 
     @property
@@ -376,14 +386,23 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
-        self.exchange = get_rpc_exchange(self.container.config)
+
+        # ReplyListener.setup() runs concurrently in another thread, so
+        # we need to wait here until it's defined its queue
+        while self.reply_listener.queue is None:
+            time.sleep(.1)
+
+        exchange = get_rpc_exchange(self.container.config)
 
         default_serializer = self.container.serializer
         serializer = self.options.pop('serializer', default_serializer)
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,
+            exchange=exchange,
             serializer=serializer,
+            declare=[self.reply_listener.queue],
+            reply_to=self.reply_listener.queue.routing_key,
             **self.options
         )
 
@@ -391,12 +410,7 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
         extra_headers = self.get_message_headers(worker_ctx)
 
-        publish = partial(
-            self.publisher.publish,
-            exchange=self.exchange,
-            reply_to=self.reply_listener.routing_key,
-            extra_headers=extra_headers
-        )
+        publish = partial(self.publisher.publish, extra_headers=extra_headers)
 
         register_for_reply = self.reply_listener.register_for_reply
 
