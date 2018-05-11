@@ -15,7 +15,7 @@ class Consumer(ConsumerMixin):
 
     def __init__(
         self, amqp_uri, queues=None, callbacks=None, heartbeat=None,
-        prefetch_count=None, serializer=None, accept=None, **kwargs
+        prefetch_count=None, accept=None, **kwargs
     ):
         self.amqp_uri = amqp_uri
 
@@ -23,7 +23,6 @@ class Consumer(ConsumerMixin):
         self.callbacks = callbacks or []
         self.heartbeat = heartbeat
         self.prefetch_count = prefetch_count or 0
-        self.serializer = serializer
         self.accept = accept
 
         self.ready = Event()

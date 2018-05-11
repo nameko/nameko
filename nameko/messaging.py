@@ -188,15 +188,14 @@ class Consumer(Entrypoint, HeaderDecoder):
         prefetch_count = config.get(
             PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
         )
-        serializer, accept = serialization.setup(config)
+        _, accept = serialization.setup(config)
 
         queues = [self.queue]
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
             self.amqp_uri, queues=queues, callbacks=callbacks,
-            heartbeat=heartbeat, prefetch_count=prefetch_count,
-            serializer=serializer, accept=accept
+            heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept
         )
 
     def start(self):
