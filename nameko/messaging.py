@@ -19,8 +19,7 @@ from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
-    DEFAULT_SERIALIZER, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY
+    HEADER_PREFIX, HEARTBEAT_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -153,9 +152,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         Must be registered as a
         `kombu serializer <http://bit.do/kombu_serialization>`_.
         """
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
+        return self.container.serializer
 
     def setup(self):
 
@@ -395,7 +392,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self.should_stop = True
 
     def on_connection_error(self, exc, interval):
-        _log.warn(
+        _log.warning(
             "Error connecting to broker at {} ({}).\n"
             "Retrying in {} seconds.".format(self.amqp_uri, exc, interval))
 
@@ -407,14 +404,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         if not self._consumers_ready.ready():
             _log.debug('consumer started %s', self)
             self._consumers_ready.send(None)
-
-        for provider in self._providers:
-            try:
-                callback = provider.on_consume_ready
-            except AttributeError:
-                pass
-            else:
-                callback()
 
 
 class Consumer(Entrypoint, HeaderDecoder):

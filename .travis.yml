@@ -54,6 +54,9 @@ matrix:
       python: 2.7
       env: TOX_ENV=py27-latest-lib
     - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-extra-lib
+    - stage: test
       python: 3.4
       env: TOX_ENV=py34-oldest-lib
     - stage: test
@@ -80,6 +83,9 @@ matrix:
     - stage: test
       python: 3.6
       env: TOX_ENV=py36-latest-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-extra-lib
     - stage: deploy
       script: skip
       deploy:

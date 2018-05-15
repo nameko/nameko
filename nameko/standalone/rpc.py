@@ -8,13 +8,11 @@ from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
+from nameko import serialization
 from nameko.amqp import verify_amqp_uri
-from nameko.constants import (
-    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER,
-    SERIALIZER_CONFIG_KEY
-)
+from nameko.constants import AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY
 from nameko.containers import WorkerContext
-from nameko.exceptions import RpcConnectionError, RpcTimeout
+from nameko.exceptions import RpcTimeout
 from nameko.extensions import Entrypoint
 from nameko.rpc import ReplyListener, ServiceProxy
 
@@ -65,7 +63,10 @@ class ConsumeEvent(object):
                 "be used"
             )
 
-        self.queue_consumer.get_message(self.correlation_id)
+        try:
+            self.queue_consumer.get_message(self.correlation_id)
+        except socket.error as exc:
+            self.exception = exc
 
         # disconnected while waiting
         if self.exception:
@@ -112,9 +113,8 @@ class PollingQueueConsumer(object):
     def register_provider(self, provider):
         self.provider = provider
 
-        self.serializer = provider.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
-        self.accept = [self.serializer]
+        self.serializer, self.accept = serialization.setup(
+            provider.container.config)
 
         amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
         ssl = provider.container.config.get(AMQP_SSL_CONFIG_KEY)
@@ -152,24 +152,22 @@ class PollingQueueConsumer(object):
             self.provider.handle_message(body, message)
 
         except socket.timeout:
+            # TODO: this conflates an rpc timeout with a socket read timeout.
+            # a better rpc proxy implementation would recover from a socket
+            # timeout if the rpc timeout had not yet been reached
             timeout_error = RpcTimeout(self.timeout)
             event = self.provider._reply_events.pop(correlation_id)
             event.send_exception(timeout_error)
 
             # timeout is implemented using socket timeout, so when it
-            # fires the connection is closed, causing the reply queue
-            # to be deleted
+            # fires the connection is closed and must be re-established
             self._setup_consumer()
 
         except (IOError, ConnectionError) as exc:
-            for event in self.provider._reply_events.values():
-                rpc_connection_error = RpcConnectionError(
-                    'Disconnected while waiting for reply: %s', exc)
-                event.send_exception(rpc_connection_error)
-            self.provider._reply_events.clear()
-            # In case this was a temporary error, attempt to reconnect. If
-            # we fail, the connection error will bubble.
+            # in case this was a temporary error, attempt to reconnect
+            # and try again. if we fail to reconnect, the error will bubble
             self._setup_consumer()
+            self.get_message(correlation_id)
 
         except KeyboardInterrupt as exc:
             event = self.provider._reply_events.pop(correlation_id)
