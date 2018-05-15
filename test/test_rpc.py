@@ -1652,6 +1652,86 @@ class TestResponderDisconnections(object):
             assert service_rpc.echo(2) == 2
 
 
+class TestRpcConsumerConfigurability(object):
+
+    def test_heartbeat(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        rpc_consumer = RpcConsumer(heartbeat=value).bind(mock_container)
+        rpc_consumer.setup()
+
+        assert rpc_consumer.consumer.connection.heartbeat == value
+
+    def test_prefetch_count(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        rpc_consumer = RpcConsumer(prefetch_count=value).bind(mock_container)
+        rpc_consumer.setup()
+
+        assert rpc_consumer.consumer.prefetch_count == value
+
+    def test_accept(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = ['yaml', 'json']
+
+        rpc_consumer = RpcConsumer(accept=value).bind(mock_container)
+        rpc_consumer.setup()
+
+        assert rpc_consumer.consumer.accept == value
+
+
+class TestReplyListenerConfigurability(object):
+
+    def test_heartbeat(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        reply_listener = ReplyListener(heartbeat=value).bind(mock_container)
+        reply_listener.setup()
+
+        assert reply_listener.consumer.connection.heartbeat == value
+
+    def test_prefetch_count(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        reply_listener = ReplyListener(
+            prefetch_count=value
+        ).bind(mock_container)
+        reply_listener.setup()
+
+        assert reply_listener.consumer.prefetch_count == value
+
+    def test_accept(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = ['yaml', 'json']
+
+        reply_listener = ReplyListener(accept=value).bind(mock_container)
+        reply_listener.setup()
+
+        assert reply_listener.consumer.accept == value
+
+
 class TestConfigurability(object):
     """
     Test and demonstrate configuration options for the RpcProxy

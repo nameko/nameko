@@ -55,9 +55,10 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
     consumer_cls = Consumer
 
-    def __init__(self, **kwargs):
+    def __init__(self, **consumer_options):
         self.queue = None
-        super(RpcConsumer, self).__init__(**kwargs)
+        self.consumer_options = consumer_options
+        super(RpcConsumer, self).__init__()
 
     @property
     def amqp_uri(self):
@@ -80,11 +81,17 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
         config = self.container.config
 
-        heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
-        prefetch_count = config.get(
-            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+        heartbeat = self.consumer_options.pop(
+            'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         )
-        _, accept = serialization.setup(config)
+        prefetch_count = self.consumer_options.pop(
+            'prefetch_count', config.get(
+                PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+            )
+        )
+        accept = self.consumer_options.pop(
+            'accept', serialization.setup(config)[1]
+        )
 
         queues = [self.queue]
         callbacks = [self.handle_message]
@@ -140,7 +147,14 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
 
 class Rpc(Entrypoint, HeaderDecoder):
+    """
+    A limitation of using a shared queue for all RPC entrypoints is
+    that we can't accept per-entrypoint consumer options. The best solution
+    to this is to start using a queue per entrypoint, but this will require
+    a consumer (and if using kombu, a connection) per entrypoint.
 
+    For the time being consumer options are not supported in RPC entrypoints.
+    """
     rpc_consumer = RpcConsumer()
 
     def setup(self):
@@ -273,10 +287,11 @@ class ReplyListener(SharedExtension):
 
     consumer_cls = ReplyConsumer
 
-    def __init__(self, **kwargs):
+    def __init__(self, **consumer_options):
         self.queue = None
         self.pending = {}
-        super(ReplyListener, self).__init__(**kwargs)
+        self.consumer_options = consumer_options
+        super(ReplyListener, self).__init__()
 
     @property
     def amqp_uri(self):
@@ -305,11 +320,17 @@ class ReplyListener(SharedExtension):
 
         config = self.container.config
 
-        heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
-        prefetch_count = config.get(
-            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+        heartbeat = self.consumer_options.pop(
+            'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         )
-        _, accept = serialization.setup(config)
+        prefetch_count = self.consumer_options.pop(
+            'prefetch_count', config.get(
+                PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+            )
+        )
+        accept = self.consumer_options.pop(
+            'accept', serialization.setup(config)[1]
+        )
 
         queues = [self.queue]
         callbacks = [self.handle_message]

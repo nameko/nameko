@@ -918,7 +918,55 @@ class TestPublisherDisconnections(object):
             ]
 
 
-class TestConfigurability(object):
+class TestConsumerConfigurability(object):
+    """
+    Test and demonstrate configuration options for the Consumer
+    """
+
+    def test_heartbeat(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        value = 999
+        queue = Mock()
+
+        consumer = Consumer(
+            queue, heartbeat=value
+        ).bind(mock_container, "method")
+        consumer.setup()
+
+        assert consumer.consumer.connection.heartbeat == value
+
+    def test_prefetch_count(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        value = 999
+        queue = Mock()
+
+        consumer = Consumer(
+            queue, prefetch_count=value
+        ).bind(mock_container, "method")
+        consumer.setup()
+
+        assert consumer.consumer.prefetch_count == value
+
+    def test_accept(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        value = ['yaml', 'json']
+        queue = Mock()
+
+        consumer = Consumer(
+            queue, accept=value
+        ).bind(mock_container, "method")
+        consumer.setup()
+
+        assert consumer.consumer.accept == value
+
+
+class TestPublisherConfigurability(object):
     """
     Test and demonstrate configuration options for the Publisher
     """

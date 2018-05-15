@@ -15,7 +15,7 @@ class Consumer(ConsumerMixin):
 
     def __init__(
         self, amqp_uri, queues=None, callbacks=None, heartbeat=None,
-        prefetch_count=None, accept=None, **kwargs
+        prefetch_count=None, accept=None, **consumer_options
     ):
         self.amqp_uri = amqp_uri
 
@@ -25,9 +25,11 @@ class Consumer(ConsumerMixin):
         self.prefetch_count = prefetch_count or 0
         self.accept = accept
 
+        self.consumer_options = consumer_options
+
         self.ready = Event()
 
-        super(Consumer, self).__init__(**kwargs)
+        super(Consumer, self).__init__()
 
     @property
     def connection(self):
@@ -60,7 +62,8 @@ class Consumer(ConsumerMixin):
         consumer = consumer_cls(
             queues=self.queues,
             callbacks=[self.on_message],
-            accept=self.accept
+            accept=self.accept,
+            **self.consumer_options
         )
         consumer.qos(prefetch_count=self.prefetch_count)
         return [consumer]

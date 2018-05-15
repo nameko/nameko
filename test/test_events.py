@@ -601,7 +601,52 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     assert ['"msg"'] == [msg['payload'] for msg in messages]
 
 
-class TestConfigurability(object):
+class TestHandlerConfigurability(object):
+    """
+    Test and demonstrate configuration options for the EventHandler
+    """
+
+    def test_heartbeat(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        handler = EventHandler(
+            "service", "event", heartbeat=value
+        ).bind(mock_container, "method")
+        handler.setup()
+
+        assert handler.consumer.connection.heartbeat == value
+
+    def test_prefetch_count(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        handler = EventHandler(
+            "service", "event", prefetch_count=value
+        ).bind(mock_container, "method")
+        handler.setup()
+
+        assert handler.consumer.prefetch_count == value
+
+    def test_accept(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.service_name = "service"
+
+        value = ['yaml', 'json']
+
+        handler = EventHandler(
+            "service", "event", accept=value
+        ).bind(mock_container, "method")
+        handler.setup()
+
+        assert handler.consumer.accept == value
+
+
+class TestDispatcherConfigurability(object):
     """
     Test and demonstrate configuration options for the EventDispatcher
     """

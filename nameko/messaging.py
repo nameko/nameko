@@ -151,7 +151,7 @@ class Consumer(Entrypoint, HeaderDecoder):
 
     consumer_cls = ConsumerCore
 
-    def __init__(self, queue, requeue_on_error=False, **kwargs):
+    def __init__(self, queue, requeue_on_error=False, **consumer_options):
         """
         Decorates a method as a message consumer.
 
@@ -180,7 +180,9 @@ class Consumer(Entrypoint, HeaderDecoder):
         """
         self.queue = queue
         self.requeue_on_error = requeue_on_error
-        super(Consumer, self).__init__(**kwargs)
+        self.consumer_options = consumer_options
+        # TODO it's bad that we eat all the keyword arguments as consumer opts
+        super(Consumer, self).__init__()
 
     @property
     def amqp_uri(self):
@@ -191,18 +193,25 @@ class Consumer(Entrypoint, HeaderDecoder):
 
         config = self.container.config
 
-        heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
-        prefetch_count = config.get(
-            PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+        heartbeat = self.consumer_options.pop(
+            'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         )
-        _, accept = serialization.setup(config)
+        prefetch_count = self.consumer_options.pop(
+            'prefetch_count', config.get(
+                PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+            )
+        )
+        accept = self.consumer_options.pop(
+            'accept', serialization.setup(config)[1]
+        )
 
         queues = [self.queue]
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
             self.amqp_uri, queues=queues, callbacks=callbacks,
-            heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept
+            heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept,
+            **self.consumer_options
         )
 
     def start(self):
