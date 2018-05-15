@@ -26,6 +26,7 @@ from nameko.testing.utils import (
     ANY_PARTIAL, DummyProvider, get_extension, wait_for_call
 )
 from nameko.testing.waiting import wait_for_call as patch_wait
+from nameko.utils.retry import retry
 
 from test import skip_if_no_toxiproxy
 
@@ -1172,3 +1173,48 @@ class TestContainerBeingKilled(object):
 
             with patch_wait(ConsumerCore, 'requeue_message'):
                 publisher.publish("payload", routing_key=queue.name)
+
+
+def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
+    """ Test behaviour when we stop a container with an active worker.
+
+    Expect the consumer to stop and the message be requeued, but the container
+    to continue running the active worker until it completes.
+
+    This is not desirable behaviour but it is consistent with the old
+    implementation. It would be better to stop the consumer but keep the
+    channel alive until the worker has completed and the message can be
+    ack'd, but we can't do that with kombu or without per-entrypoint worker
+    pools.
+    """
+
+    block = Event()
+
+    class Service(object):
+        name = "service"
+
+        @consume(Queue(name="queue"))
+        def method(self, payload):
+            block.wait()
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    publisher = PublisherCore(rabbit_config['AMQP_URI'])
+    publisher.publish("payload", routing_key="queue")
+
+    gt = eventlet.spawn(container.stop)
+
+    @retry
+    def consumer_removed():
+        info = queue_info('queue')
+        assert info.consumer_count == 0
+        assert info.message_count == 1
+
+    consumer_removed()
+
+    assert not gt.dead
+    block.send(True)
+
+    gt.wait()
+    assert gt.dead

@@ -3,8 +3,10 @@ from __future__ import absolute_import
 import itertools
 from collections import Counter
 
+import eventlet
 import pytest
 from amqp.exceptions import NotFound
+from eventlet.event import Event
 from mock import ANY, Mock, patch
 from six.moves import queue
 
@@ -747,3 +749,49 @@ class TestContainerBeingKilled(object):
 
             with wait_for_call(Consumer, 'requeue_message'):
                 dispatch("service", "eventtype", "payload")
+
+
+def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
+    """ Test behaviour when we stop a container with an active worker.
+
+    Expect the consumer to stop and the message be requeued, but the container
+    to continue running the active worker until it completes.
+
+    This is not desirable behaviour but it is consistent with the old
+    implementation. It would be better to stop the consumer but keep the
+    channel alive until the worker has completed and the message can be
+    ack'd, but we can't do that with kombu or without per-entrypoint worker
+    pools.
+    """
+
+    block = Event()
+
+    class Service(object):
+        name = "service"
+
+        @event_handler("service", "event")
+        def method(self, event_data):
+            block.wait()
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    dispatch = event_dispatcher(rabbit_config)
+    dispatch("service", "event", "payload")
+
+    gt = eventlet.spawn(container.stop)
+
+    @retry
+    def consumer_removed():
+        info = queue_info('evt-service-event--service.method')
+        assert info.consumer_count == 0
+        assert info.message_count == 1
+
+    consumer_removed()
+
+    assert not gt.dead
+    eventlet.sleep(10)
+    block.send(True)
+
+    gt.wait()
+    assert gt.dead
