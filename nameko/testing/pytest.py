@@ -189,9 +189,10 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
 @pytest.fixture()
 def rabbit_ssl_config(request, rabbit_config):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+    from nameko.amqp.utils import verify_amqp_uri
 
     ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
-    ssl_options = {key: value for key, value in ssl_options}
+    ssl_options = {key: value for key, value in ssl_options} or True
 
     amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
     uri_parts = urlparse(rabbit_config['AMQP_URI'])
@@ -207,6 +208,11 @@ def rabbit_ssl_config(request, rabbit_config):
         'vhost': rabbit_config['vhost'],
         'AMQP_SSL': ssl_options,
     }
+
+    try:
+        verify_amqp_uri(amqp_ssl_uri, ssl=ssl_options)
+    except Exception:  # pragma: no cover
+        pytest.skip("SSL not available or incorrectly configured")
 
     return conf
 
