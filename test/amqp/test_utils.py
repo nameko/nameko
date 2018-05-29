@@ -69,6 +69,7 @@ def test_ssl_missing_option(rabbit_ssl_config):
         verify_amqp_uri(amqp_ssl_uri, ssl=amqp_ssl_config)
 
     message = str(exc_info.value)
+    # without the private key we'll get a PEM lib error trying to connect
     assert 'PEM lib' in message
 
 
