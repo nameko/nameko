@@ -108,11 +108,11 @@ class Publisher(object):
     def __init__(
         self, amqp_uri, use_confirms=None, serializer=None, compression=None,
         delivery_mode=None, mandatory=None, priority=None, expiration=None,
-        declare=None, retry=None, retry_policy=None, ssl_params=None,
+        declare=None, retry=None, retry_policy=None, ssl=None,
         **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
-        self.ssl_params = ssl_params
+        self.ssl = ssl
 
         # publish confirms
         if use_confirms is not None:
@@ -174,8 +174,7 @@ class Publisher(object):
 
         publish_kwargs.update(kwargs)  # remaining publish-time kwargs win
 
-        with get_producer(
-                self.amqp_uri, use_confirms, self.ssl_params) as producer:
+        with get_producer(self.amqp_uri, use_confirms, self.ssl) as producer:
 
             producer.publish(
                 payload,
