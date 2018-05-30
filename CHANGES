@@ -6,6 +6,14 @@ are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
 
+Version 2.9.1
+-------------
+
+Released: Pending
+
+* SSL connections now supported by all AMQP extensions, configurable using
+  the `AMQP_SSL` config key.
+
 Version 2.9.0
 -------------
 
