@@ -2,7 +2,6 @@ from __future__ import absolute_import, unicode_literals
 
 import sys
 import uuid
-import warnings
 from functools import partial
 from logging import getLogger
 
@@ -34,6 +33,7 @@ RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
 
 
 def get_rpc_exchange(config):
+    # TODO: refactor this ugliness
     exchange_name = config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
     exchange = Exchange(exchange_name, durable=True, type="topic")
     return exchange
@@ -275,7 +275,9 @@ class ReplyListener(SharedExtension):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-class RpcProxy(DependencyProvider):
+class RpcProxy(DependencyProvider, HeaderEncoder):
+
+    publisher_cls = Publisher
 
     rpc_reply_listener = ReplyListener()
 
@@ -283,29 +285,50 @@ class RpcProxy(DependencyProvider):
         self.target_service = target_service
         self.options = options
 
-    def get_dependency(self, worker_ctx):
-        return ServiceProxy(
-            worker_ctx,
-            self.target_service,
-            self.rpc_reply_listener,
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    def setup(self):
+        self.exchange = get_rpc_exchange(self.container.config)
+
+        serializer = self.options.pop('serializer', self.container.serializer)
+
+        self.publisher = self.publisher_cls(
+            self.amqp_uri,
+            serializer=serializer,
             **self.options
+        )
+
+    def get_dependency(self, worker_ctx):
+
+        extra_headers = self.get_message_headers(worker_ctx)
+
+        publish = partial(
+            self.publisher.publish,
+            exchange=self.exchange,
+            extra_headers=extra_headers
+        )
+
+        return ServiceProxy(
+            self.target_service,
+            publish,
+            self.rpc_reply_listener
         )
 
 
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name, reply_listener, **options):
-        self.worker_ctx = worker_ctx
+    def __init__(self, service_name, publish, reply_listener):
         self.service_name = service_name
+        self.publish = publish
         self.reply_listener = reply_listener
-        self.options = options
 
     def __getattr__(self, name):
         return MethodProxy(
-            self.worker_ctx,
             self.service_name,
             name,
-            self.reply_listener,
-            **self.options
+            self.publish,
+            self.reply_listener
         )
 
 
@@ -328,65 +351,23 @@ class RpcReply(object):
         return self.resp_body['result']
 
 
-class MethodProxy(HeaderEncoder):
-
-    publisher_cls = Publisher
+class MethodProxy(object):
 
     def __init__(
-        self, worker_ctx, service_name, method_name, reply_listener, **options
+        self, service_name, method_name, publish, reply_listener
     ):
         """
             Note that mechanism which raises :class:`UnknownService` exceptions
             relies on publish confirms being enabled in the proxy.
         """
-
-        self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
+        self.publish = publish
         self.reply_listener = reply_listener
-
-        # backwards compat
-        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
-
-        for compat_attr in compat_attrs:
-            if hasattr(self, compat_attr):
-                warnings.warn(
-                    "'{}' should be specified at RpcProxy instantiation time "
-                    "rather than as a class attribute. See CHANGES, version "
-                    "2.7.0 for more details. This warning will be removed in "
-                    "version 2.9.0.".format(compat_attr), DeprecationWarning
-                )
-                options[compat_attr] = getattr(self, compat_attr)
-
-        serializer = options.pop('serializer', self.serializer)
-
-        self.publisher = self.publisher_cls(
-            self.amqp_uri, serializer=serializer, **options
-        )
 
     def __call__(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
         return reply.result()
-
-    @property
-    def container(self):
-        # TODO: seems wrong
-        return self.worker_ctx.container
-
-    @property
-    def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
-
-    @property
-    def serializer(self):
-        """ Default serializer to use when publishing message payloads.
-
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
 
     def call_async(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
@@ -416,25 +397,20 @@ class MethodProxy(HeaderEncoder):
         # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
-        exchange = get_rpc_exchange(self.container.config)
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         reply_to = self.reply_listener.routing_key
         correlation_id = str(uuid.uuid4())
 
-        extra_headers = self.get_message_headers(self.worker_ctx)
-
         reply_event = self.reply_listener.get_reply_event(correlation_id)
 
         try:
-            self.publisher.publish(
+            self.publish(
                 msg,
-                exchange=exchange,
                 routing_key=routing_key,
                 mandatory=True,
                 reply_to=reply_to,
-                correlation_id=correlation_id,
-                extra_headers=extra_headers
+                correlation_id=correlation_id
             )
         except UndeliverableMessage:
             raise UnknownService(self.service_name)
