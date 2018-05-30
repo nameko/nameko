@@ -475,18 +475,16 @@ class Once(Entrypoint):
     """ Entrypoint that spawns a worker exactly once, as soon as
     the service container started.
     """
+
     def __init__(self, *args, **kwargs):
         expected_exceptions = kwargs.pop('expected_exceptions', ())
         sensitive_arguments = kwargs.pop('sensitive_arguments', ())
-        # backwards compat
-        sensitive_variables = kwargs.pop('sensitive_variables', ())
 
         self.args = args
         self.kwargs = kwargs
         super(Once, self).__init__(
             expected_exceptions=expected_exceptions,
-            sensitive_arguments=sensitive_arguments,
-            sensitive_variables=sensitive_variables
+            sensitive_arguments=sensitive_arguments
         )
 
     def start(self):

@@ -3,11 +3,10 @@ Provides core messaging decorators and dependency providers.
 '''
 from __future__ import absolute_import
 
-import warnings
+import re
 from functools import partial
 from logging import getLogger
 
-import six
 from amqp.exceptions import ConnectionError
 from eventlet.event import Event
 from kombu import Connection
@@ -30,12 +29,24 @@ from nameko.extensions import (
 _log = getLogger(__name__)
 
 
+def encode_to_headers(context_data, prefix=HEADER_PREFIX):
+    return {
+        "{}.{}".format(prefix, key): value
+        for key, value in context_data.items()
+        if value is not None
+    }
+
+
+def decode_from_headers(headers, prefix=HEADER_PREFIX):
+    return {
+        re.sub("^{}\.".format(prefix), "", key): value
+        for key, value in headers.items()
+    }
+
+
 class HeaderEncoder(object):
 
     header_prefix = HEADER_PREFIX
-
-    def _get_header_name(self, key):
-        return "{}.{}".format(self.header_prefix, key)
 
     def get_message_headers(self, worker_ctx):
         data = worker_ctx.context_data
@@ -46,35 +57,22 @@ class HeaderEncoder(object):
                 'Headers with a value of `None` will be dropped from '
                 'the payload. %s', data)
 
-        headers = {self._get_header_name(key): value
-                   for key, value in data.items()
-                   if value is not None}
-        return headers
+        return encode_to_headers(data, prefix=self.header_prefix)
 
 
 class HeaderDecoder(object):
 
     header_prefix = HEADER_PREFIX
 
-    def _strip_header_name(self, key):
-        full_prefix = "{}.".format(self.header_prefix)
-        if key.startswith(full_prefix):
-            return key[len(full_prefix):]
-        return key
-
     def unpack_message_headers(self, message):
-        stripped = {
-            self._strip_header_name(k): v
-            for k, v in six.iteritems(message.headers)
-        }
-        return stripped
+        return decode_from_headers(message.headers, prefix=self.header_prefix)
 
 
 class Publisher(DependencyProvider, HeaderEncoder):
 
     publisher_cls = PublisherCore
 
-    def __init__(self, exchange=None, queue=None, declare=None, **options):
+    def __init__(self, exchange=None, declare=None, **options):
         """ Provides an AMQP message publisher method via dependency injection.
 
         In AMQP, messages are published to *exchanges* and routed to bound
@@ -88,9 +86,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
         :Parameters:
             exchange : :class:`kombu.Exchange`
                 Destination exchange
-            queue : :class:`kombu.Queue`
-                **Deprecated**: Bound queue. The event will be published to
-                this queue's exchange.
             declare : list
                 List of :class:`kombu.Exchange` or :class:`kombu.Queue` objects
                 to declare before publishing.
@@ -114,32 +109,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         if self.exchange:
             self.declare.append(self.exchange)
-
-        if queue is not None:
-            warnings.warn(
-                "The signature of `Publisher` has changed. The `queue` kwarg "
-                "is now deprecated. You can use the `declare` kwarg "
-                "to provide a list of Kombu queues to be declared. "
-                "See CHANGES, version 2.7.0 for more details. This warning "
-                "will be removed in version 2.9.0.",
-                DeprecationWarning
-            )
-            if exchange is None:
-                self.exchange = queue.exchange
-            self.declare.append(queue)
-
-        # backwards compat
-        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
-
-        for compat_attr in compat_attrs:
-            if hasattr(self, compat_attr):
-                warnings.warn(
-                    "'{}' should be specified at instantiation time rather "
-                    "than as a class attribute. See CHANGES, version 2.7.0 "
-                    "for more details. This warning will be removed in "
-                    "version 2.9.0.".format(compat_attr), DeprecationWarning
-                )
-                self.options[compat_attr] = getattr(self, compat_attr)
 
     @property
     def amqp_uri(self):

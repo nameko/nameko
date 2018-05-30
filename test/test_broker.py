@@ -190,8 +190,9 @@ def test_service_disconnect_with_active_rpc_worker(
     # there should now be two connections:
     # 1. the queue consumer from the target service
     # 2. the queue consumer in the standalone rpc proxy
-    connections = get_rabbit_connections(vhost, rabbit_manager)
-    assert len(connections) == 2
+    # connections = get_rabbit_connections(vhost, rabbit_manager)
+    # assert len(connections) == 2
+    # ^^ no longer true; we connect on consume
 
     # disconnect the service's queue consumer while it's running a worker
     eventlet.spawn(disconnect_on_event, rabbit_manager, queue_consumer_conn)

@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 import pytest
-from mock import ANY, Mock, call, patch
+from mock import Mock, call
 
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.services import dummy, entrypoint_hook, once
@@ -12,12 +12,6 @@ from nameko.utils import REDACTED, get_redacted_args
 @pytest.fixture
 def tracker():
     return Mock()
-
-
-@pytest.yield_fixture
-def warnings():
-    with patch('nameko.extensions.warnings') as patched:
-        yield patched
 
 
 class TestDecorator(object):
@@ -169,20 +163,3 @@ class TestSensitiveArguments(object):
             },
             'c': 'C'
         }
-
-    def test_sensitive_variables_backwards_compat(
-        self, container_factory, warnings
-    ):
-
-        class Service(object):
-            name = "service"
-
-            @dummy(sensitive_variables=("a", "b.x[0]", "b.x[2]"))
-            def method(self, a, b, c):
-                pass  # pragma: no cover
-
-        container = container_factory(Service, {})
-        entrypoint = get_extension(container, Entrypoint)
-
-        assert entrypoint.sensitive_arguments == ("a", "b.x[0]", "b.x[2]")
-        assert warnings.warn.call_args == call(ANY, DeprecationWarning)

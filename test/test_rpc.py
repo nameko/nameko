@@ -20,13 +20,13 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+    Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import (
     dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints
 )
-from nameko.testing.utils import get_extension, unpack_mock_call, wait_for_call
+from nameko.testing.utils import get_extension, wait_for_call
 from nameko.testing.waiting import wait_for_call as patch_wait
 
 from test import skip_if_no_toxiproxy
@@ -200,24 +200,107 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
     queue_consumer.register_provider.assert_called_once_with(reply_listener)
 
     correlation_id = 1
-    reply_event = reply_listener.get_reply_event(correlation_id)
+    rpc_reply = reply_listener.register_for_reply(correlation_id)
+    assert rpc_reply.correlation_id == correlation_id
+    assert correlation_id in reply_listener.pending
 
-    assert reply_listener._reply_events == {1: reply_event}
+    reply_event = reply_listener.pending[correlation_id]
 
+    payload = {"result": "msg", "error": None}
     message = Mock()
     message.properties.get.return_value = correlation_id
-    reply_listener.handle_message("msg", message)
+    reply_listener.handle_message(payload, message)
 
     queue_consumer.ack_message.assert_called_once_with(message)
-    assert reply_event.ready()
-    assert reply_event.wait() == "msg"
+    assert reply_listener.pending == {}
 
-    assert reply_listener._reply_events == {}
+    assert reply_event.ready()
+    assert reply_event.wait() == payload
+    assert rpc_reply.result() == "msg"
 
     with patch('nameko.rpc._log', autospec=True) as log:
         reply_listener.handle_message("msg", message)
         assert log.debug.call_args == call(
             'Unknown correlation id: %s', correlation_id)
+
+
+class TestProxy(object):
+
+    def test_getattr(self):
+        publish = Mock()
+        reply_listener = Mock()
+
+        proxy = Proxy(publish, reply_listener)
+        service_proxy = proxy.service
+        assert proxy != service_proxy
+        assert proxy.publish == service_proxy.publish
+        assert proxy.get_reply == service_proxy.get_reply
+        assert proxy.service_name is None
+        assert proxy.method_name is None
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+
+        method1_proxy = service_proxy.method1
+        assert service_proxy != method1_proxy
+        assert service_proxy.publish == method1_proxy.publish
+        assert service_proxy.get_reply == method1_proxy.get_reply
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+        assert method1_proxy.service_name == "service"
+        assert method1_proxy.method_name == "method1"
+
+        method2_proxy = service_proxy.method2
+
+        method2_proxy = service_proxy.method2
+        assert service_proxy != method2_proxy
+        assert service_proxy.publish == method2_proxy.publish
+        assert service_proxy.get_reply == method2_proxy.get_reply
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+        assert method2_proxy.service_name == "service"
+        assert method2_proxy.method_name == "method2"
+
+        assert method1_proxy != method2_proxy
+
+        with pytest.raises(AttributeError):
+            method1_proxy.attr
+        with pytest.raises(AttributeError):
+            method2_proxy.attr
+
+    def test_identifier(self):
+        publish = Mock()
+        get_reply = Mock()
+
+        proxy = Proxy(publish, get_reply)
+        service_proxy = proxy.service
+        method1_proxy = service_proxy.method1
+        method2_proxy = service_proxy.method2
+
+        assert proxy.identifier == "*.*"
+        assert service_proxy.identifier == "service.*"
+        assert method1_proxy.identifier == "service.method1"
+        assert method2_proxy.identifier == "service.method2"
+
+    def test_dict_access(self):
+        publish = Mock()
+        get_reply = Mock()
+
+        proxy = Proxy(publish, get_reply)
+
+        assert proxy['service'].identifier == "service.*"
+        assert proxy['service']['method'].identifier == "service.method"
+
+    def test_cannot_invoke_unspecified_proxy(self):
+        publish = Mock()
+        get_reply = Mock()
+
+        proxy = Proxy(publish, get_reply)
+
+        with pytest.raises(ValueError):
+            proxy()
+
+        with pytest.raises(ValueError):
+            proxy.service()
 
 
 # =============================================================================
@@ -326,7 +409,7 @@ def test_rpc_headers(container_factory, rabbit_config):
     assert headers == {
         'nameko.language': 'en',
         'nameko.otherheader': 'othervalue',
-        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0'],
+        'nameko.call_id_stack': ['standalone_rpc_proxy.0.0']
     }
 
 
@@ -625,6 +708,71 @@ def test_reply_queue_removed_on_expiry(
     assert reply_queue not in list_queues()
 
 
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
+    """ RpcProxy ReplyListener consumer runs in a thread and prevents the
+    reply queue from expiring. Contrast to the single-threaded equivalent
+    in nameko.standalone.rpc.
+    """
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def echo(self, arg):
+            res = self.delegate_rpc.echo.call_async(arg)
+            eventlet.sleep(0.4)  # sleep for 2x TTL
+            return res.result()
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_request_longer_than_expiry(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def echo(self, arg):
+            return self.delegate_rpc.echo(arg)
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            eventlet.sleep(0.4)  # sleep for 2x TTL
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
@@ -668,7 +816,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
             queue_consumer = ToxicQueueConsumer()
 
         class ToxicRpcProxy(RpcProxy):
-            rpc_reply_listener = ToxicReplyListener()
+            reply_listener = ToxicReplyListener()
 
         class Service(object):
             name = "service"
@@ -710,8 +858,10 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
         It will be possible once to write test this scenario once the
         ReplyListener implements the ConsumerMixin itself (by declaring the
-        queue before setting up consumers)
+        queue before setting up consumers).
 
+        See similar test for standalone proxy:
+        test/standalone/test_rpc.py::TestDisconnectedWhileWaitingForReply
         """
         pytest.skip("Not possible with current implementation")
 
@@ -754,7 +904,7 @@ class TestReplyListenerDisconnections(object):
             queue_consumer = ToxicQueueConsumer()
 
         class ToxicRpcProxy(RpcProxy):
-            rpc_reply_listener = ToxicReplyListener()
+            reply_listener = ToxicReplyListener()
 
         class Service(object):
             name = "service"
@@ -1183,7 +1333,9 @@ class TestProxyDisconnections(object):
         container.start()
 
     @pytest.fixture(autouse=True)
-    def client_container(self, container_factory, rabbit_config):
+    def client_container(
+        self, container_factory, rabbit_config, toxic_rpc_proxy
+    ):
 
         class Service(object):
             name = "client"
@@ -1204,19 +1356,19 @@ class TestProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
+        with patch.object(RpcProxy.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+            RpcProxy.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(RpcProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.mark.usefixtures('use_confirms')
@@ -1520,37 +1672,6 @@ class TestResponderDisconnections(object):
             assert service_rpc.echo(2) == 2
 
 
-class TestBackwardsCompatClassAttrs(object):
-
-    @pytest.mark.parametrize("parameter,value", [
-        ('retry', False),
-        ('retry_policy', {'max_retries': 999}),
-        ('use_confirms', False),
-    ])
-    def test_attrs_are_applied_as_defaults(
-        self, parameter, value, mock_container
-    ):
-        """ Verify that you can specify some fields by subclassing the
-        MethodProxy class.
-        """
-        method_proxy_cls = type(
-            "LegacyMethodProxy", (MethodProxy,), {parameter: value}
-        )
-        with patch('nameko.rpc.warnings') as warnings:
-            worker_ctx = Mock()
-            worker_ctx.container.config = {'AMQP_URI': 'memory://'}
-            reply_listener = Mock()
-            proxy = method_proxy_cls(
-                worker_ctx, "service", "method", reply_listener
-            )
-
-        assert warnings.warn.called
-        call_args = warnings.warn.call_args
-        assert parameter in unpack_mock_call(call_args).positional[0]
-
-        assert getattr(proxy.publisher, parameter) == value
-
-
 class TestConfigurability(object):
     """
     Test and demonstrate configuration options for the RpcProxy
@@ -1599,7 +1720,7 @@ class TestConfigurability(object):
         ).bind(mock_container, "service_rpc")
 
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
+        rpc_proxy.reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1634,7 +1755,7 @@ class TestConfigurability(object):
         ).bind(mock_container, "service_rpc")
 
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
+        rpc_proxy.reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1675,7 +1796,7 @@ class TestConfigurability(object):
         ).bind(mock_container, "service_rpc")
 
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
+        rpc_proxy.reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
