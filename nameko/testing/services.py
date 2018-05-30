@@ -114,16 +114,17 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 
     Where there parameters are as follows:
 
-        worker_ctx (WorkerContext): WorkerContext of the entrypoint call.
+        `worker_ctx` (WorkerContext): WorkerContext of the entrypoint call.
 
-        result (object): The return value of the entrypoint.
+        `result` (object): The return value of the entrypoint.
 
-        exc_info (tuple): Tuple as returned by `sys.exc_info` if the
+        `exc_info` (tuple): Tuple as returned by `sys.exc_info` if the
             entrypoint raised an exception, otherwise `None`.
 
     **Usage**
 
     ::
+
         class Service(object):
             name = "service"
 

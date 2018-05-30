@@ -999,7 +999,7 @@ class TestPublisherConfigurability(object):
         self, parameter, mock_container, producer
     ):
         """ Verify that most parameters can be specified at instantiation time,
-        and overriden at publish time.
+        and overridden at publish time.
         """
         mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
@@ -1107,7 +1107,7 @@ class TestPublisherConfigurability(object):
 
     def test_use_confirms(self, mock_container, get_producer):
         """ Verify that publish-confirms can be set as a default specified at
-        instantiation time, which can be overriden by a value specified at
+        instantiation time, which can be overridden by a value specified at
         publish time.
         """
         mock_container.config = {'AMQP_URI': 'memory://localhost'}

@@ -23,7 +23,7 @@ class Extension(object):
     Use :meth:`setup` instead.
 
     Furthermore, :meth:`bind` and :func:`iter_extensions` use introspection
-    to find any subextensions that an extension may declare. Any descriptors
+    to find any sub-extensions that an extension may declare. Any descriptors
     on the extension should expect to be called during introspection, which
     happens between `ServiceContainer.__init__` and `ServiceContainer.setup`.
 

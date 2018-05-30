@@ -258,7 +258,7 @@ class Responder(object):
 
 
 class ReplyListener(SharedExtension):
-    """ SharedExtension for comsuming replies to RPC requests.
+    """ SharedExtension for consuming replies to RPC requests.
 
     Creates a queue and consumes from it in a managed thread. RPC requests
     should register their `correlation_id` with
@@ -445,7 +445,7 @@ class Proxy(object):
     """ Helper object for making RPC calls.
 
     The target service and method name may be specified at construction time
-    or by attibute or dict access, for example:
+    or by attribute or dict access, for example:
 
         # target at construction time
         proxy = Proxy(

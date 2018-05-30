@@ -596,7 +596,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     service.dispatch = dispatcher.get_dependency(worker_ctx)
     service.dispatch("eventtype", "msg")
 
-    # test event receieved on manually added queue
+    # test event received on manually added queue
     messages = rabbit_manager.get_messages(vhost, "event-sink")
     assert ['"msg"'] == [msg['payload'] for msg in messages]
 

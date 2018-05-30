@@ -146,9 +146,9 @@ class ReplyListener(object):
 class RpcProxy(object):
     """
     Single-threaded RPC proxy to a cluster of services. The target service
-    and method are specified with attibutes.
+    and method are specified with attributes.
 
-    Method calls on the locsl object are converted into RPC calls to the
+    Method calls on the local object are converted into RPC calls to the
     target service.
 
     Enables services not hosted by nameko to make RPC requests to a nameko
@@ -270,7 +270,7 @@ class ServiceRpcProxy(RpcProxy):
     Single-threaded RPC proxy to a named service.
 
     As per :class:`~nameko.standalone.rpc.RpcProxy` but with a pre-specified
-    target ervice.
+    target service.
     """
 
     def __init__(self, service_name, *args, **kwargs):
