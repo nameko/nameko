@@ -143,3 +143,25 @@ class TestConfigurability(object):
 
         assert producer.publish.call_args[1]['exchange'] == event_exchange
         assert producer.publish.call_args[1]['routing_key'] == event_type
+
+
+class TestSSL(object):
+
+    def test_event_dispatcher_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
+
+            @event_handler("service", "event")
+            def echo(self, event_data):
+                return event_data
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        dispatch = event_dispatcher(rabbit_ssl_config)
+
+        with entrypoint_waiter(container, 'echo') as result:
+            dispatch("service", "event", "payload")
+        assert result.get() == "payload"

@@ -1329,8 +1329,8 @@ class TestResponderDisconnections(object):
 
     @pytest.yield_fixture(autouse=True)
     def toxic_responder(self, toxiproxy):
-        def replacement_constructor(amqp_uri, *args):
-            return Responder(toxiproxy.uri, *args)
+        def replacement_constructor(amqp_uri, *args, **kwargs):
+            return Responder(toxiproxy.uri, *args, **kwargs)
         with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
@@ -1713,3 +1713,62 @@ def test_prefetch_throughput(container_factory, rabbit_config):
 
         with eventlet.Timeout(1):
             [reply.result() for reply in replies]
+
+
+class TestSSL(object):
+
+    @pytest.fixture(params=[True, False])
+    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+        verify_certs = request.param
+        if verify_certs is False:
+            # remove certificate paths from config
+            rabbit_ssl_config['AMQP_SSL'] = True
+        return rabbit_ssl_config
+
+    def test_rpc_entrypoint_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
+
+            @rpc
+            def echo(self, *args, **kwargs):
+                return args, kwargs
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
+            assert proxy.echo("a", "b", foo="bar") == [
+                ['a', 'b'], {'foo': 'bar'}
+            ]
+
+    def test_rpc_proxy_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
+
+            delegate_rpc = RpcProxy('delegate')
+
+            @dummy
+            def echo(self, *args, **kwargs):
+                return self.delegate_rpc.echo(*args, **kwargs)
+
+        class Delegate(object):
+            name = "delegate"
+
+            @rpc
+            def echo(self, *args, **kwargs):
+                return args, kwargs
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        delegate = container_factory(Delegate, rabbit_config)
+        delegate.start()
+
+        with entrypoint_hook(container, 'echo') as echo:
+            assert echo("a", "b", foo="bar") == [
+                ['a', 'b'], {'foo': 'bar'}
+            ]
