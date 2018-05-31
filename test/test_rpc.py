@@ -915,7 +915,7 @@ class TestReplyListenerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the consumer and the
-        rabbit broker times for out `timeout` milliseconds and then closes.
+        rabbit broker times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
@@ -969,7 +969,7 @@ class TestReplyListenerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the rabbit broker and
-        the consumer times for out `timeout` milliseconds and then closes.
+        the consumer times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
@@ -1141,7 +1141,7 @@ class TestRpcConsumerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the consumer and the
-        rabbit broker times for out `timeout` milliseconds and then closes.
+        rabbit broker times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
@@ -1191,7 +1191,7 @@ class TestRpcConsumerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the rabbit broker and
-        the consumer times for out `timeout` milliseconds and then closes.
+        the consumer times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
