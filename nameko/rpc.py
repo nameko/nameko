@@ -490,11 +490,18 @@ class Proxy(object):
         if self.method_name is not None:
             raise AttributeError(name)
 
+        if self.service_name:
+            target_service = self.service_name
+            target_method = name
+        else:
+            target_service = name
+            target_method = None
+
         clone = Proxy(
             self.publish,
             self.register_for_reply,
-            self.service_name or name,
-            self.service_name and name
+            target_service,
+            target_method
         )
         return clone
 
