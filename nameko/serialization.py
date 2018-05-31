@@ -1,3 +1,4 @@
+from collections import namedtuple
 from copy import deepcopy
 
 import kombu.serialization
@@ -8,6 +9,9 @@ from nameko.constants import (
 )
 from nameko.exceptions import ConfigurationError
 from nameko.utils import import_from_path
+
+
+SerializationConfig = namedtuple("SerializationConfig", 'serializer accept')
 
 
 def setup(config):
@@ -30,4 +34,4 @@ def setup(config):
             raise ConfigurationError(
                 'Please register a serializer for "{}" format'.format(name))
 
-    return serializer, accept
+    return SerializationConfig(serializer, accept)

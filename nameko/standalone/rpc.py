@@ -78,7 +78,7 @@ class ReplyListener(object):
         prefetch_count = config.get(
             PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
         )
-        _, accept = serialization.setup(config)
+        accept = serialization.setup(config).accept
 
         queues = [self.queue]
         callbacks = [self.handle_message]
@@ -212,7 +212,7 @@ class RpcProxy(object):
 
         self.reply_listener = ReplyListener(config, queue, timeout=timeout)
 
-        self.serializer, _ = serialization.setup(config)
+        self.serializer = serialization.setup(config).serializer
 
         serializer = publisher_options.pop('serializer', self.serializer)
 

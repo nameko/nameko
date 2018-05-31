@@ -178,7 +178,7 @@ class Consumer(Entrypoint):
             )
         )
         accept = self.consumer_options.pop(
-            'accept', serialization.setup(config)[1]
+            'accept', serialization.setup(config).accept
         )
 
         queues = [self.queue]

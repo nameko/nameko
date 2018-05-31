@@ -90,7 +90,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             )
         )
         accept = self.consumer_options.pop(
-            'accept', serialization.setup(config)[1]
+            'accept', serialization.setup(config).accept
         )
 
         queues = [self.queue]
@@ -329,7 +329,7 @@ class ReplyListener(SharedExtension):
             )
         )
         accept = self.consumer_options.pop(
-            'accept', serialization.setup(config)[1]
+            'accept', serialization.setup(config).accept
         )
 
         queues = [self.queue]
