@@ -189,6 +189,10 @@ class Rpc(Entrypoint):
         service_name = self.container.service_name
         method_name = self.method_name
 
+        # we must spawn a thread here to prevent handle_message blocking
+        # when the worker pool is exhausted; if this happens the AMQP consumer
+        # is also blocked and fails to send heartbeats, eventually causing it
+        # to be disconnected
         # TODO replace global worker pool limits with per-entrypoint limits,
         # then remove this waiter thread
         ident = u"{}.wait_for_worker_pool[{}.{}]".format(
