@@ -1,7 +1,7 @@
 # start a runner with a service that errors. does it hang? or stop?
 # how do we get an individual servicecontainer to blow up?
 import pytest
-from mock import patch
+from mock import ANY, patch, call
 
 from nameko.events import EventDispatcher
 from nameko.exceptions import RemoteError
@@ -50,10 +50,14 @@ def test_error_in_worker(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with entrypoint_hook(container, "broken") as broken:
-        with pytest.raises(ExampleError):
-            broken()
+    with patch('nameko.containers._log') as logger:
+        with entrypoint_hook(container, "broken") as broken:
+            with pytest.raises(ExampleError):
+                broken()
     assert not container._died.ready()
+
+    assert logger.exception.call_args == call(
+        'error handling worker %s: %s', ANY, ANY)
 
 
 def test_error_in_remote_worker(container_factory, rabbit_config):
