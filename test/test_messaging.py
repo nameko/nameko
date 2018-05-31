@@ -19,7 +19,7 @@ from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import (
-    Consumer, HeaderDecoder, HeaderEncoder, Publisher, consume
+    Consumer, Publisher, consume, decode_from_headers, encode_to_headers
 )
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import (
@@ -138,7 +138,7 @@ def test_publish_custom_headers(
     ]
 
 
-def test_header_encoder(empty_config):
+def test_encode_headers(empty_config):
 
     context_data = {
         'foo': 'FOO',
@@ -148,20 +148,15 @@ def test_header_encoder(empty_config):
         'none': None,
     }
 
-    encoder = HeaderEncoder()
-    with patch.object(encoder, 'header_prefix', new="testprefix"):
-
-        worker_ctx = Mock(context_data=context_data)
-
-        res = encoder.get_message_headers(worker_ctx)
-        assert res == {
-            'testprefix.foo': 'FOO',
-            'testprefix.bar': 'BAR',
-            'testprefix.baz': 'BAZ',
-        }
+    res = encode_to_headers(context_data, prefix="testprefix")
+    assert res == {
+        'testprefix.foo': 'FOO',
+        'testprefix.bar': 'BAR',
+        'testprefix.baz': 'BAZ',
+    }
 
 
-def test_header_decoder():
+def test_decode_headers():
 
     headers = {
         'testprefix.foo': 'FOO',
@@ -171,19 +166,14 @@ def test_header_decoder():
         'testprefix.call_id_stack': ['a', 'b', 'c'],
     }
 
-    decoder = HeaderDecoder()
-    with patch.object(decoder, 'header_prefix', new="testprefix"):
-
-        message = Mock(headers=headers)
-
-        res = decoder.unpack_message_headers(message)
-        assert res == {
-            'foo': 'FOO',
-            'bar': 'BAR',
-            'baz': 'BAZ',
-            'call_id_stack': ['a', 'b', 'c'],
-            'differentprefix.foo': 'XXX'
-        }
+    res = decode_from_headers(headers, prefix="testprefix")
+    assert res == {
+        'foo': 'FOO',
+        'bar': 'BAR',
+        'baz': 'BAZ',
+        'call_id_stack': ['a', 'b', 'c'],
+        'differentprefix.foo': 'XXX'
+    }
 
 
 # =============================================================================

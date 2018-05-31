@@ -26,7 +26,7 @@ from nameko.exceptions import (
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
 )
-from nameko.messaging import HeaderDecoder, HeaderEncoder
+from nameko.messaging import decode_from_headers, encode_to_headers
 
 
 _log = getLogger(__name__)
@@ -146,7 +146,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         return result, exc_info
 
 
-class Rpc(Entrypoint, HeaderDecoder):
+class Rpc(Entrypoint):
     """
     A limitation of using a shared queue for all RPC entrypoints is
     that we can't accept per-entrypoint consumer options. The best solution
@@ -172,7 +172,7 @@ class Rpc(Entrypoint, HeaderDecoder):
 
         self.check_signature(args, kwargs)
 
-        context_data = self.unpack_message_headers(message)
+        context_data = decode_from_headers(message.headers)
 
         handle_result = partial(self.handle_result, message)
 
@@ -381,7 +381,7 @@ class ReplyListener(SharedExtension):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-class RpcProxy(DependencyProvider, HeaderEncoder):
+class RpcProxy(DependencyProvider):
     """ DependencyProvider for injecting an RPC proxy into a service.
 
     :Parameters:
@@ -431,7 +431,7 @@ class RpcProxy(DependencyProvider, HeaderEncoder):
 
     def get_dependency(self, worker_ctx):
 
-        extra_headers = self.get_message_headers(worker_ctx)
+        extra_headers = encode_to_headers(worker_ctx.context_data)
 
         publish = partial(self.publisher.publish, extra_headers=extra_headers)
 

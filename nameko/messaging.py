@@ -40,31 +40,7 @@ def decode_from_headers(headers, prefix=HEADER_PREFIX):
     }
 
 
-class HeaderEncoder(object):
-
-    header_prefix = HEADER_PREFIX
-
-    def get_message_headers(self, worker_ctx):
-        data = worker_ctx.context_data
-
-        if None in data.values():
-            _log.warn(
-                'Attempted to publish unserialisable header value. '
-                'Headers with a value of `None` will be dropped from '
-                'the payload. %s', data)
-
-        return encode_to_headers(data, prefix=self.header_prefix)
-
-
-class HeaderDecoder(object):
-
-    header_prefix = HEADER_PREFIX
-
-    def unpack_message_headers(self, message):
-        return decode_from_headers(message.headers, prefix=self.header_prefix)
-
-
-class Publisher(DependencyProvider, HeaderEncoder):
+class Publisher(DependencyProvider):
 
     publisher_cls = PublisherCore
 
@@ -137,7 +113,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         )
 
     def get_dependency(self, worker_ctx):
-        extra_headers = self.get_message_headers(worker_ctx)
+        extra_headers = encode_to_headers(worker_ctx.context_data)
 
         def publish(msg, **kwargs):
             self.publisher.publish(
@@ -147,7 +123,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
         return publish
 
 
-class Consumer(Entrypoint, HeaderDecoder):
+class Consumer(Entrypoint):
 
     consumer_cls = ConsumerCore
 
@@ -225,7 +201,7 @@ class Consumer(Entrypoint, HeaderDecoder):
         args = (body,)
         kwargs = {}
 
-        context_data = self.unpack_message_headers(message)
+        context_data = decode_from_headers(message.headers)
 
         handle_result = partial(self.handle_result, message)
 

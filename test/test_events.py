@@ -17,6 +17,7 @@ from nameko.events import (
     EventHandlerConfigurationError, event_handler
 )
 from nameko.exceptions import ContainerBeingKilled
+from nameko.messaging import encode_to_headers
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import DummyProvider
@@ -42,7 +43,7 @@ def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
     service.dispatch = event_dispatcher.get_dependency(worker_ctx)
     service.dispatch('eventtype', 'msg')
 
-    headers = event_dispatcher.get_message_headers(worker_ctx)
+    headers = encode_to_headers(worker_ctx.context_data)
 
     expected_args = ('msg',)
     expected_kwargs = {
