@@ -1,7 +1,7 @@
 # start a runner with a service that errors. does it hang? or stop?
 # how do we get an individual servicecontainer to blow up?
 import pytest
-from mock import ANY, patch, call
+from mock import ANY, call, patch
 
 from nameko.events import EventDispatcher
 from nameko.exceptions import RemoteError
