@@ -13,8 +13,8 @@ from nameko.amqp import verify_amqp_uri
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
-    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
+    DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
@@ -70,9 +70,11 @@ class ReplyListener(object):
         return self.config[AMQP_URI_CONFIG_KEY]
 
     def start(self):
-        verify_amqp_uri(self.amqp_uri)
-
         config = self.config
+
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
+
+        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
         heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         prefetch_count = config.get(
@@ -84,7 +86,7 @@ class ReplyListener(object):
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
-            self.check_for_lost_replies, self.amqp_uri,
+            self.check_for_lost_replies, self.amqp_uri, ssl=ssl,
             queues=queues, callbacks=callbacks,
             heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept
         )
@@ -99,7 +101,8 @@ class ReplyListener(object):
     def check_for_lost_replies(self):
         if self.pending:
             try:
-                with get_connection(self.amqp_uri) as conn:
+                ssl = self.config.get(AMQP_SSL_CONFIG_KEY)
+                with get_connection(self.amqp_uri, ssl=ssl) as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
             except NotFound:
                 raise ReplyQueueExpiredWithPendingReplies(
@@ -219,8 +222,11 @@ class RpcProxy(object):
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
 
-        publisher = Publisher(
+        ssl = self.config.get(AMQP_SSL_CONFIG_KEY)
+
+        publisher = self.publisher_cls(
             self.amqp_uri,
+            ssl=ssl,
             exchange=exchange,
             serializer=serializer,
             declare=[self.reply_listener.queue],

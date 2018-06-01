@@ -14,10 +14,11 @@ class Consumer(ConsumerMixin):
     """
 
     def __init__(
-        self, amqp_uri, queues=None, callbacks=None, heartbeat=None,
+        self, amqp_uri, ssl=None, queues=None, callbacks=None, heartbeat=None,
         prefetch_count=None, accept=None, **consumer_options
     ):
         self.amqp_uri = amqp_uri
+        self.ssl = ssl
 
         self.queues = queues
         self.callbacks = callbacks or []
@@ -39,7 +40,9 @@ class Consumer(ConsumerMixin):
         that is lazily evaluated. It doesn't represent an established
         connection to the broker at this point.
         """
-        return Connection(self.amqp_uri, heartbeat=self.heartbeat)
+        return Connection(
+            self.amqp_uri, ssl=self.ssl, heartbeat=self.heartbeat
+        )
 
     def stop(self):
         """ Stop this consumer.

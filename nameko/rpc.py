@@ -15,8 +15,9 @@ from nameko import serialization
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, UndeliverableMessage, get_connection
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
-    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
+    DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY,
+    RPC_EXCHANGE_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound,
@@ -81,6 +82,8 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
         config = self.container.config
 
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
+
         heartbeat = self.consumer_options.pop(
             'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         )
@@ -97,7 +100,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
-            self.amqp_uri, queues=queues, callbacks=callbacks,
+            self.amqp_uri, ssl=ssl, queues=queues, callbacks=callbacks,
             heartbeat=heartbeat, prefetch_count=prefetch_count,
             accept=accept
         )
@@ -137,8 +140,9 @@ class RpcConsumer(SharedExtension, ProviderCollector):
     def handle_result(self, message, result, exc_info):
 
         exchange = get_rpc_exchange(self.container.config)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
-        responder = Responder(self.amqp_uri, exchange, message)
+        responder = Responder(self.amqp_uri, exchange, message, ssl=ssl)
         result, exc_info = responder.send_response(result, exc_info)
 
         self.consumer.ack_message(message)
@@ -215,10 +219,11 @@ class Responder(object):
 
     publisher_cls = Publisher
 
-    def __init__(self, amqp_uri, exchange, message):
+    def __init__(self, amqp_uri, exchange, message, ssl=None):
         self.amqp_uri = amqp_uri
         self.message = message
         self.exchange = exchange
+        self.ssl = ssl
 
     def send_response(self, result, exc_info):
 
@@ -248,7 +253,7 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.publisher_cls(self.amqp_uri)
+        publisher = self.publisher_cls(self.amqp_uri, ssl=self.ssl)
 
         publisher.publish(
             payload,
@@ -323,6 +328,7 @@ class ReplyListener(SharedExtension):
         )
 
         config = self.container.config
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         heartbeat = self.consumer_options.pop(
             'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
@@ -340,7 +346,7 @@ class ReplyListener(SharedExtension):
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
-            self.check_for_lost_replies, self.amqp_uri,
+            self.check_for_lost_replies, self.amqp_uri, ssl=ssl,
             queues=queues, callbacks=callbacks,
             heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept
         )
@@ -355,7 +361,8 @@ class ReplyListener(SharedExtension):
     def check_for_lost_replies(self):
         if self.pending:
             try:
-                with get_connection(self.amqp_uri) as conn:
+                ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+                with get_connection(self.amqp_uri, ssl) as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
             except NotFound:
                 raise ReplyQueueExpiredWithPendingReplies(
@@ -424,8 +431,11 @@ class RpcProxy(DependencyProvider):
             'serializer', default_serializer
         )
 
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+
         self.publisher = self.publisher_cls(
             self.amqp_uri,
+            ssl=ssl,
             exchange=exchange,
             serializer=serializer,
             declare=[self.reply_listener.queue],

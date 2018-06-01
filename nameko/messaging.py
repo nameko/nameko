@@ -15,8 +15,9 @@ from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
-    HEADER_PREFIX, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
+    DEFAULT_PREFETCH_COUNT, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
+    PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import DependencyProvider, Entrypoint
@@ -93,9 +94,11 @@ class Publisher(DependencyProvider):
 
     def setup(self):
 
-        verify_amqp_uri(self.amqp_uri)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
-        with get_connection(self.amqp_uri) as conn:
+        verify_amqp_uri(self.amqp_uri, ssl=ssl)
+
+        with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
                 maybe_declare(entity, conn)
 
@@ -106,6 +109,7 @@ class Publisher(DependencyProvider):
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,
+            ssl=ssl,
             serializer=serializer,
             exchange=self.exchange,
             declare=self.declare,
@@ -165,9 +169,11 @@ class Consumer(Entrypoint):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
-        verify_amqp_uri(self.amqp_uri)
-
         config = self.container.config
+
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
+
+        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
         heartbeat = self.consumer_options.pop(
             'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
@@ -185,7 +191,7 @@ class Consumer(Entrypoint):
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
-            self.amqp_uri, queues=queues, callbacks=callbacks,
+            self.amqp_uri, ssl=ssl, queues=queues, callbacks=callbacks,
             heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept,
             **self.consumer_options
         )

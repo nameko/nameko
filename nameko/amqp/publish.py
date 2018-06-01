@@ -15,18 +15,18 @@ class UndeliverableMessage(Exception):
 
 
 @contextmanager
-def get_connection(amqp_uri):
-    conn = Connection(amqp_uri)
+def get_connection(amqp_uri, ssl=None):
+    conn = Connection(amqp_uri, ssl=ssl)
     with connections[conn].acquire(block=True) as connection:
         yield connection
 
 
 @contextmanager
-def get_producer(amqp_uri, confirms=True):
+def get_producer(amqp_uri, confirms=True, ssl=None):
     transport_options = {
         'confirm_publish': confirms
     }
-    conn = Connection(amqp_uri, transport_options=transport_options)
+    conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with producers[conn].acquire(block=True) as producer:
         yield producer
@@ -108,9 +108,11 @@ class Publisher(object):
     def __init__(
         self, amqp_uri, use_confirms=None, serializer=None, compression=None,
         delivery_mode=None, mandatory=None, priority=None, expiration=None,
-        declare=None, retry=None, retry_policy=None, **publish_kwargs
+        declare=None, retry=None, retry_policy=None, ssl=None,
+        **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
+        self.ssl = ssl
 
         # publish confirms
         if use_confirms is not None:
@@ -172,7 +174,7 @@ class Publisher(object):
 
         publish_kwargs.update(kwargs)  # remaining publish-time kwargs win
 
-        with get_producer(self.amqp_uri, use_confirms) as producer:
+        with get_producer(self.amqp_uri, use_confirms, self.ssl) as producer:
 
             producer.publish(
                 payload,

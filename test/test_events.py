@@ -19,10 +19,13 @@ from nameko.events import (
 from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import encode_to_headers
 from nameko.standalone.events import event_dispatcher, get_event_exchange
-from nameko.testing.services import entrypoint_waiter
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import DummyProvider
 from nameko.testing.waiting import wait_for_call
 from nameko.utils.retry import retry
+
+
+EVENTS_TIMEOUT = 5
 
 
 def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
@@ -795,6 +798,66 @@ class TestContainerBeingKilled(object):
 
             with wait_for_call(Consumer, 'requeue_message'):
                 dispatch("service", "eventtype", "payload")
+
+
+class TestSSL(object):
+
+    @pytest.fixture(params=[True, False])
+    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+        verify_certs = request.param
+        if verify_certs is False:
+            # remove certificate paths from config
+            rabbit_ssl_config['AMQP_SSL'] = True
+        return rabbit_ssl_config
+
+    def test_event_handler_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Service(object):
+            name = "service"
+
+            @event_handler("service", "event")
+            def echo(self, event_data):
+                return event_data
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        dispatch = event_dispatcher(rabbit_config)
+
+        with entrypoint_waiter(container, 'echo') as result:
+            dispatch("service", "event", "payload")
+        assert result.get() == "payload"
+
+    def test_event_dispatcher_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config
+    ):
+        class Dispatcher(object):
+            name = "dispatch"
+
+            dispatch = EventDispatcher()
+
+            @dummy
+            def method(self, payload):
+                return self.dispatch("event-type", payload)
+
+        class Handler(object):
+            name = "handler"
+
+            @event_handler("dispatch", "event-type")
+            def echo(self, payload):
+                return payload
+
+        dispatcher = container_factory(Dispatcher, rabbit_ssl_config)
+        dispatcher.start()
+
+        handler = container_factory(Handler, rabbit_config)
+        handler.start()
+
+        with entrypoint_waiter(handler, 'echo') as result:
+            with entrypoint_hook(dispatcher, 'method') as dispatch:
+                dispatch("payload")
+        assert result.get() == "payload"
 
 
 def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
