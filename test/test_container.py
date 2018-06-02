@@ -56,6 +56,7 @@ class CallCollectorMixin(object):
 
 class CallCollectingEntrypoint(CallCollectorMixin, Entrypoint):
     instances = set()
+    expected_exceptions = ()
 
 
 class CallCollectingDependencyProvider(CallCollectorMixin, DependencyProvider):
