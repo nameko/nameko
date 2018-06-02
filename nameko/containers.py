@@ -480,7 +480,7 @@ class ServiceContainer(object):
             _log.debug('%s thread killed by container', self)
 
         except Exception:
-            _log.error('%s thread exited with error', self, exc_info=True)
+            _log.critical('%s thread exited with error', self, exc_info=True)
             # any uncaught error in a thread is unexpected behavior
             # and probably a bug in the extension or container.
             # to be safe we call self.kill() to kill our dependencies and
