@@ -64,7 +64,7 @@ def test_error_in_worker(container_factory, rabbit_config):
         'error handling worker %s: %s', ANY, ANY)
 
 
-def test_exppected_error_in_worker(container_factory, rabbit_config):
+def test_expected_error_in_worker(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
     container.start()
@@ -75,7 +75,7 @@ def test_exppected_error_in_worker(container_factory, rabbit_config):
                 bad()
     assert not container._died.ready()
 
-    assert logger.info.call_args == call(
+    assert logger.warning.call_args == call(
         '(expected) error handling worker %s: %s', ANY, ANY, exc_info=True)
 
 

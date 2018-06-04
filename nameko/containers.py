@@ -391,7 +391,7 @@ class ServiceContainer(object):
                     result = method(*worker_ctx.args, **worker_ctx.kwargs)
             except Exception as exc:
                 if isinstance(exc, worker_ctx.entrypoint.expected_exceptions):
-                    _log.info(
+                    _log.warning(
                         '(expected) error handling worker %s: %s',
                         worker_ctx, exc, exc_info=True)
                 else:
