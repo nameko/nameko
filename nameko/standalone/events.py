@@ -1,8 +1,9 @@
 from kombu import Exchange
 
+from nameko import serialization
 from nameko.amqp.publish import Publisher
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, PERSISTENT, SERIALIZER_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, PERSISTENT
 )
 
 
@@ -22,17 +23,15 @@ def event_dispatcher(nameko_config, **kwargs):
     """
     amqp_uri = nameko_config[AMQP_URI_CONFIG_KEY]
 
-    serializer = kwargs.pop(
-        'serializer',
-        nameko_config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
-    )
+    serializer, _ = serialization.setup(nameko_config)
+    serializer = kwargs.pop('serializer', serializer)
+
+    ssl = nameko_config.get(AMQP_SSL_CONFIG_KEY)
 
     # TODO: standalone event dispatcher should accept context event_data
     # and insert a call id
 
-    publisher = Publisher(amqp_uri, serializer=serializer, **kwargs)
+    publisher = Publisher(amqp_uri, serializer=serializer, ssl=ssl, **kwargs)
 
     def dispatch(service_name, event_type, event_data):
         """ Dispatch an event claiming to originate from `service_name` with

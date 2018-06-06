@@ -94,10 +94,12 @@ pyamqp
 pyrabbit
 pytest
 rabbitmq
+rc
 reconnected
 reconnecting
 reconnection
 redis
+regex
 refactor
 refactored
 refactors
@@ -114,6 +116,7 @@ serialized
 serializers
 serializes
 serializing
+setuptools
 shutdown
 specialization
 specialize
@@ -134,8 +137,10 @@ testability
 timeouts
 traceback
 tracebacks
+transactional
 tuple
 tuples
+twilio
 unconfigured
 unhandled
 unregister

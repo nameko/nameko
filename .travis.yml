@@ -5,8 +5,9 @@ services:
   - docker
 
 before_install:
-    # start rabbitmq
-    - docker run -d --hostname rabbitmq --name rabbitmq -p 15672:15672 -p 5672:5672 -e RABBITMQ_DEFAULT_USER=guest -e RABBITMQ_DEFAULT_PASS=guest rabbitmq:3.6.6-management
+    # start rabbitmq, grab client ssl certs
+    - docker run -d --rm -p 15672:15672 -p 5672:5672 -p 5671:5671 --name nameko-rabbitmq nameko/nameko-rabbitmq:3.6.6
+    - docker cp nameko-rabbitmq:/srv/ssl certs
     # install toxiproxy
     - mkdir $PWD/bin
     - wget -O $PWD/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
@@ -53,6 +54,9 @@ matrix:
       python: 2.7
       env: TOX_ENV=py27-latest-lib
     - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-extra-lib
+    - stage: test
       python: 3.4
       env: TOX_ENV=py34-oldest-lib
     - stage: test
@@ -79,6 +83,9 @@ matrix:
     - stage: test
       python: 3.6
       env: TOX_ENV=py36-latest-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-extra-lib
     - stage: deploy
       script: skip
       deploy:

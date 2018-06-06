@@ -39,8 +39,8 @@ class TestTransport(Transport):
     Connection = ConnectionTester
 
 
-def verify_amqp_uri(amqp_uri):
-    connection = Connection(amqp_uri)
+def verify_amqp_uri(amqp_uri, ssl=None):
+    connection = Connection(amqp_uri, ssl=ssl)
     if connection.transport_cls not in ('amqp', 'pyamqp'):
         # Can't use these heuristics. Fall back to the existing error behaviour
         return

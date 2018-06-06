@@ -11,7 +11,8 @@ from kombu.connection import Connection
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko.amqp import get_producer
+from nameko.amqp.publish import Publisher as PublisherCore
+from nameko.amqp.publish import get_producer
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
@@ -541,7 +542,7 @@ class TestConsumerDisconnections(object):
         queue_consumer = get_extension(container, QueueConsumer)
 
         def reset(args, kwargs, result, exc_info):
-            toxiproxy.reset()
+            toxiproxy.enable()
             return True
 
         with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
@@ -852,33 +853,33 @@ class TestPublisherDisconnections(object):
     def test_down(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        payload1 = "payload1"
-        with pytest.raises(socket.error) as exc_info:
-            with entrypoint_hook(publisher_container, 'send') as send:
-                send(payload1)
-        assert "ECONNREFUSED" in str(exc_info.value)
+            payload1 = "payload1"
+            with pytest.raises(socket.error) as exc_info:
+                with entrypoint_hook(publisher_container, 'send') as send:
+                    send(payload1)
+            assert "ECONNREFUSED" in str(exc_info.value)
 
-        assert tracker.call_args_list == [
-            call("send", payload1),
-        ]
+            assert tracker.call_args_list == [
+                call("send", payload1),
+            ]
 
     @pytest.mark.usefixtures('use_confirms')
     def test_timeout(
         self, publisher_container, consumer_container, tracker, toxiproxy
     ):
-        toxiproxy.set_timeout(500)
+        with toxiproxy.timeout(500):
 
-        payload1 = "payload1"
-        with pytest.raises(IOError) as exc_info:  # socket closed
-            with entrypoint_hook(publisher_container, 'send') as send:
-                send(payload1)
-        assert "Socket closed" in str(exc_info.value)
+            payload1 = "payload1"
+            with pytest.raises(IOError) as exc_info:  # socket closed
+                with entrypoint_hook(publisher_container, 'send') as send:
+                    send(payload1)
+            assert "Socket closed" in str(exc_info.value)
 
-        assert tracker.call_args_list == [
-            call("send", payload1),
-        ]
+            assert tracker.call_args_list == [
+                call("send", payload1),
+            ]
 
     def test_reuse_when_down(
         self, publisher_container, consumer_container, tracker, toxiproxy,
@@ -900,25 +901,25 @@ class TestPublisherDisconnections(object):
             call("recv", payload1),
         ]
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        # call 2 fails
-        payload2 = "payload2"
-        with pytest.raises(IOError) as exc_info:
-            with entrypoint_hook(publisher_container, 'send') as send:
-                send(payload2)
-        assert (
-            # expect the write to raise a BrokenPipe or, if it succeeds,
-            # the socket to be closed on the subsequent confirmation read
-            "Broken pipe" in str(exc_info.value) or
-            "Socket closed" in str(exc_info.value)
-        )
+            # call 2 fails
+            payload2 = "payload2"
+            with pytest.raises(IOError) as exc_info:
+                with entrypoint_hook(publisher_container, 'send') as send:
+                    send(payload2)
+            assert (
+                # expect the write to raise a BrokenPipe or, if it succeeds,
+                # the socket to be closed on the subsequent confirmation read
+                "Broken pipe" in str(exc_info.value) or
+                "Socket closed" in str(exc_info.value)
+            )
 
-        assert tracker.call_args_list == [
-            call("send", payload1),
-            call("recv", payload1),
-            call("send", payload2),
-        ]
+            assert tracker.call_args_list == [
+                call("send", payload1),
+                call("recv", payload1),
+                call("send", payload2),
+            ]
 
     def test_reuse_when_recovered(
         self, publisher_container, consumer_container, tracker, toxiproxy
@@ -940,27 +941,25 @@ class TestPublisherDisconnections(object):
             call("recv", payload1),
         ]
 
-        toxiproxy.disable()
+        with toxiproxy.disabled():
 
-        # call 2 fails
-        payload2 = "payload2"
-        with pytest.raises(IOError) as exc_info:
-            with entrypoint_hook(publisher_container, 'send') as send:
-                send(payload2)
-        assert (
-            # expect the write to raise a BrokenPipe or, if it succeeds,
-            # the socket to be closed on the subsequent confirmation read
-            "Broken pipe" in str(exc_info.value) or
-            "Socket closed" in str(exc_info.value)
-        )
+            # call 2 fails
+            payload2 = "payload2"
+            with pytest.raises(IOError) as exc_info:
+                with entrypoint_hook(publisher_container, 'send') as send:
+                    send(payload2)
+            assert (
+                # expect the write to raise a BrokenPipe or, if it succeeds,
+                # the socket to be closed on the subsequent confirmation read
+                "Broken pipe" in str(exc_info.value) or
+                "Socket closed" in str(exc_info.value)
+            )
 
-        assert tracker.call_args_list == [
-            call("send", payload1),
-            call("recv", payload1),
-            call("send", payload2),
-        ]
-
-        toxiproxy.enable()
+            assert tracker.call_args_list == [
+                call("send", payload1),
+                call("recv", payload1),
+                call("send", payload2),
+            ]
 
         # call 3 succeeds
         payload3 = "payload3"
@@ -1206,9 +1205,74 @@ class TestConfigurability(object):
         publish = publisher.get_dependency(worker_ctx)
 
         publish("payload")
-        (_, use_confirms), _ = get_producer.call_args
+        (_, use_confirms, _), _ = get_producer.call_args
         assert use_confirms is False
 
         publish("payload", use_confirms=True)
-        (_, use_confirms), _ = get_producer.call_args
+        (_, use_confirms, _), _ = get_producer.call_args
         assert use_confirms is True
+
+
+class TestSSL(object):
+
+    @pytest.fixture
+    def queue(self,):
+        queue = Queue(name="queue")
+        return queue
+
+    @pytest.fixture(params=[True, False])
+    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+        verify_certs = request.param
+        if verify_certs is False:
+            # remove certificate paths from config
+            rabbit_ssl_config['AMQP_SSL'] = True
+        return rabbit_ssl_config
+
+    def test_consume_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config, queue
+    ):
+        class Service(object):
+            name = "service"
+
+            @consume(queue)
+            def echo(self, payload):
+                return payload
+
+        container = container_factory(Service, rabbit_ssl_config)
+        container.start()
+
+        publisher = PublisherCore(rabbit_config['AMQP_URI'])
+
+        with entrypoint_waiter(container, 'echo') as result:
+            publisher.publish("payload", routing_key=queue.name)
+        assert result.get() == "payload"
+
+    def test_publisher_over_ssl(
+        self, container_factory, rabbit_ssl_config, rabbit_config, queue
+    ):
+        class PublisherService(object):
+            name = "publisher"
+
+            publish = Publisher()
+
+            @dummy
+            def method(self, payload):
+                return self.publish(payload, routing_key=queue.name)
+
+        class ConsumerService(object):
+            name = "consumer"
+
+            @consume(queue)
+            def echo(self, payload):
+                return payload
+
+        publisher = container_factory(PublisherService, rabbit_ssl_config)
+        publisher.start()
+
+        consumer = container_factory(ConsumerService, rabbit_config)
+        consumer.start()
+
+        with entrypoint_waiter(consumer, 'echo') as result:
+            with entrypoint_hook(publisher, 'method') as publish:
+                publish("payload")
+        assert result.get() == "payload"

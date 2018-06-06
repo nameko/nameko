@@ -100,6 +100,8 @@ def setup_backdoor(runner, port):
             'This would kill your service, not close the backdoor. To exit, '
             'use ctrl-c.')
     socket = eventlet.listen(('localhost', port))
+    # work around https://github.com/celery/kombu/issues/838
+    socket.settimeout(None)
     gt = eventlet.spawn(
         backdoor.backdoor_server,
         socket,

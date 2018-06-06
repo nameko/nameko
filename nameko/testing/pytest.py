@@ -9,7 +9,17 @@ import pytest
 #  https://github.com/eventlet/eventlet/pull/239)
 
 
+def parse_config_option(text):
+    import yaml
+    if '=' in text:
+        key, value = text.strip().split('=', 1)
+        return key, yaml.load(value)
+    else:
+        return text, True
+
+
 def pytest_addoption(parser):
+    import ssl
     parser.addoption(
         '--blocking-detection',
         action='store_true',
@@ -33,6 +43,34 @@ def pytest_addoption(parser):
         dest='RABBIT_API_URI',
         default='http://guest:guest@localhost:15672',
         help=("URI for RabbitMQ management interface.")
+    )
+
+    parser.addoption(
+        '--amqp-ssl-port',
+        action='store',
+        dest='AMQP_SSL_PORT',
+        default=5671,
+        help='Port number for SSL connection')
+
+    parser.addoption(
+        '--amqp-ssl-option',
+        type=parse_config_option,
+        action='append',
+        dest='AMQP_SSL_OPTIONS',
+        metavar='KEY=VALUE',
+        default=[
+            ('ca_certs', 'certs/cacert.pem'),
+            ('certfile', 'certs/clientcert.pem'),
+            ('keyfile', 'certs/clientkey.pem'),
+            ('cert_reqs', ssl.CERT_REQUIRED)
+        ],
+        help=(
+            'SSL connection options for passing to ssl.wrap_socket.'
+            'Multiple options may be given. Values are parsed as YAML, '
+            'hence the following example is valid: \n'
+            '--amqp-ssl-option certfile=clientcert.pem '
+            '--amqp-ssl-option ssl_version=!!python/name:ssl.PROTOCOL_TLSv1_2'
+        )
     )
 
 
@@ -146,6 +184,37 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
         }
 
         yield conf
+
+
+@pytest.fixture()
+def rabbit_ssl_config(request, rabbit_config):
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+    from nameko.amqp.utils import verify_amqp_uri
+
+    ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
+    ssl_options = {key: value for key, value in ssl_options} or True
+
+    amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
+    uri_parts = urlparse(rabbit_config['AMQP_URI'])
+    amqp_ssl_uri = uri_parts._replace(
+        netloc=uri_parts.netloc.replace(
+            str(uri_parts.port),
+            str(amqp_ssl_port))
+    ).geturl()
+
+    conf = {
+        'AMQP_URI': amqp_ssl_uri,
+        'username': rabbit_config['username'],
+        'vhost': rabbit_config['vhost'],
+        'AMQP_SSL': ssl_options,
+    }
+
+    try:
+        verify_amqp_uri(amqp_ssl_uri, ssl=ssl_options)
+    except Exception:  # pragma: no cover
+        pytest.skip("SSL not available or incorrectly configured")
+
+    return conf
 
 
 @pytest.fixture

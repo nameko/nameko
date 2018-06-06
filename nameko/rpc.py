@@ -12,12 +12,12 @@ from kombu import Exchange, Queue
 
 from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER, RPC_EXCHANGE_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER,
+    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
-    ContainerBeingKilled, MalformedRequest, MethodNotFound, RpcConnectionError,
-    UnknownService, UnserializableValueError, deserialize, serialize
+    ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
+    UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
@@ -30,6 +30,7 @@ _log = getLogger(__name__)
 
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
+RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
 
 
 def get_rpc_exchange(config):
@@ -123,8 +124,9 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
         exchange = get_rpc_exchange(self.container.config)
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
-        responder = Responder(amqp_uri, exchange, serializer, message)
+        responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl)
         result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
@@ -176,11 +178,14 @@ class Responder(object):
 
     publisher_cls = Publisher
 
-    def __init__(self, amqp_uri, exchange, serializer, message):
+    def __init__(
+        self, amqp_uri, exchange, serializer, message, ssl=None
+    ):
         self.amqp_uri = amqp_uri
         self.serializer = serializer
         self.message = message
         self.exchange = exchange
+        self.ssl = ssl
 
     def send_response(self, result, exc_info):
 
@@ -188,13 +193,17 @@ class Responder(object):
         if exc_info is not None:
             error = serialize(exc_info[1])
 
+        # send response encoded the same way as was the request message
+        content_type = self.message.properties['content_type']
+        serializer = kombu.serialization.registry.type_to_name[content_type]
+
         # disaster avoidance serialization check: `result` must be
         # serializable, otherwise the container will commit suicide assuming
         # unrecoverable errors (and the message will be requeued for another
         # victim)
 
         try:
-            kombu.serialization.dumps(result, self.serializer)
+            kombu.serialization.dumps(result, serializer)
         except Exception:
             exc_info = sys.exc_info()
             # `error` below is guaranteed to serialize to json
@@ -206,11 +215,11 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.publisher_cls(self.amqp_uri)
+        publisher = self.publisher_cls(self.amqp_uri, ssl=self.ssl)
 
         publisher.publish(
             payload,
-            serializer=self.serializer,
+            serializer=serializer,
             exchange=self.exchange,
             routing_key=routing_key,
             correlation_id=correlation_id
@@ -229,13 +238,13 @@ class ReplyListener(SharedExtension):
 
     def setup(self):
 
-        service_uuid = uuid.uuid4()  # TODO: give srv_ctx a uuid?
+        reply_queue_uuid = uuid.uuid4()
         service_name = self.container.service_name
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
-            service_name, service_uuid)
+            service_name, reply_queue_uuid)
 
-        self.routing_key = str(service_uuid)
+        self.routing_key = str(reply_queue_uuid)
 
         exchange = get_rpc_exchange(self.container.config)
 
@@ -243,8 +252,9 @@ class ReplyListener(SharedExtension):
             queue_name,
             exchange=exchange,
             routing_key=self.routing_key,
-            auto_delete=True,
-            exclusive=True,
+            queue_arguments={
+                'x-expires': RPC_REPLY_QUEUE_TTL
+            }
         )
 
         self.queue_consumer.register_provider(self)
@@ -257,17 +267,6 @@ class ReplyListener(SharedExtension):
         reply_event = Event()
         self._reply_events[correlation_id] = reply_event
         return reply_event
-
-    def on_consume_ready(self):
-        # This is called on re-connection, and is the best hook for detecting
-        # disconnections. If we have any pending reply events, we were
-        # disconnected, and may have lost replies (since reply queues auto
-        # delete).
-        for event in self._reply_events.values():
-            event.send_exception(
-                RpcConnectionError('Disconnected while waiting for reply')
-            )
-        self._reply_events.clear()
 
     def handle_message(self, body, message):
         self.queue_consumer.ack_message(message)
@@ -366,7 +365,7 @@ class MethodProxy(HeaderEncoder):
         serializer = options.pop('serializer', self.serializer)
 
         self.publisher = self.publisher_cls(
-            self.amqp_uri, serializer=serializer, **options
+            self.amqp_uri, serializer=serializer, ssl=self.ssl, **options
         )
 
     def __call__(self, *args, **kwargs):
@@ -381,6 +380,10 @@ class MethodProxy(HeaderEncoder):
     @property
     def amqp_uri(self):
         return self.container.config[AMQP_URI_CONFIG_KEY]
+
+    @property
+    def ssl(self):
+        return self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
     @property
     def serializer(self):
