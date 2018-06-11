@@ -390,8 +390,13 @@ class ServiceContainer(object):
                 with _log_time('ran handler for %s', worker_ctx):
                     result = method(*worker_ctx.args, **worker_ctx.kwargs)
             except Exception as exc:
-                _log.info('error handling worker %s: %s', worker_ctx, exc,
-                          exc_info=True)
+                if isinstance(exc, worker_ctx.entrypoint.expected_exceptions):
+                    _log.warning(
+                        '(expected) error handling worker %s: %s',
+                        worker_ctx, exc, exc_info=True)
+                else:
+                    _log.exception(
+                        'error handling worker %s: %s', worker_ctx, exc)
                 exc_info = sys.exc_info()
 
             if handle_result is not None:
@@ -475,7 +480,7 @@ class ServiceContainer(object):
             _log.debug('%s thread killed by container', self)
 
         except Exception:
-            _log.error('%s thread exited with error', self, exc_info=True)
+            _log.critical('%s thread exited with error', self, exc_info=True)
             # any uncaught error in a thread is unexpected behavior
             # and probably a bug in the extension or container.
             # to be safe we call self.kill() to kill our dependencies and
