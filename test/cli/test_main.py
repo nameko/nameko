@@ -141,6 +141,8 @@ class TestConfigEnvironmentVariables(object):
         ('FOO: "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': '${BAR:foo}'}),
         # quoted values work only with explicit resolver
         ('FOO: !env_var "${BAR:foo}"', {'BAR': 'bar'}, {'FOO': 'bar'}),
+        # quoted values with raw_env_var constructor to avoid yaml parsing
+        ('FOO: !raw_env_var "${BAR}"', {'BAR': '123.0'}, {'FOO': '123.0'}),
         # $ sign can be used
         ('FOO: $bar', {}, {'FOO': '$bar'}),
         # multiple substitutions
