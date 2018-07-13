@@ -21,7 +21,7 @@ setup(
     url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        "eventlet>=0.16.1,<0.22.0",
+        "eventlet>=0.16.1",
         "kombu>=3.0.1,<4",
         "mock>=1.2",
         "path.py>=6.2",
