@@ -171,6 +171,40 @@ class TestConfigEnvironmentVariables(object):
             {'INT': '1', 'FLOAT': '1.1', 'BOOL': 'True'},
             {'FOO': [{'BAR': 1}, {'BAR': 1.1}, {'BAR': True}]}
         ),
+        # quoted default results in string
+        (
+            """
+            FOO:
+                - BAR: ${INT:"1"}
+                - BAR: ${FLOAT:"1.1"}
+                - BAR: ${BOOL:"True"}
+            """,
+            {}, {'FOO': [{'BAR': "1"}, {'BAR': "1.1"}, {'BAR': "True"}]}
+        ),
+        # quoted value results in string
+        # double-quote required
+        (
+            """
+            FOO:
+                - BAR: !env_var "'${INT}'"
+                - BAR: !env_var "'${FLOAT}'"
+                - BAR: !env_var "'${BOOL}'"
+            """,
+            {'INT': '1', 'FLOAT': '1.1', 'BOOL': 'True'},
+            {'FOO': [{'BAR': "1"}, {'BAR': "1.1"}, {'BAR': "True"}]}
+        ),
+        # quoted input results in string
+        # double-quote required
+        (
+            """
+            FOO:
+                - BAR: ${INT}
+                - BAR: ${FLOAT}
+                - BAR: ${BOOL}
+            """,
+            {'INT': '"1"', 'FLOAT': '"1.1"', 'BOOL': '"True"'},
+            {'FOO': [{'BAR': "1"}, {'BAR': "1.1"}, {'BAR': "True"}]}
+        ),
         # list of scalar values
         (
             """
