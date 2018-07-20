@@ -9,11 +9,12 @@ increment the minor version number only.
 Version 2.9.1
 -------------
 
-Released: Pending
+Released: 2018-07-20
 
 * SSL connections now supported by all AMQP extensions, configurable using
-  the `AMQP_SSL` config key.
-* Restore compatibility with eventlet 0.22+
+  the `AMQP_SSL` config key. (#524)
+* Restore compatibility with eventlet 0.22+  (#556)
+* Log unhandled worker exceptions at `ERROR` level instead of `INFO` (#547)
 
 Version 2.9.0
 -------------
