@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from datetime import datetime
+from time import time
 
 import pytest
 from amqp.exceptions import (
@@ -281,7 +281,7 @@ class TestPublisher(object):
     def test_timestamp(
         self, publisher, get_message_from_queue, queue
     ):
-        now = datetime.now().replace(microsecond=0)
+        now = int(time())
         publisher.publish("payload", timestamp=now)
 
         message = get_message_from_queue(queue.name)
