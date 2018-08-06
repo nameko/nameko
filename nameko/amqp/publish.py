@@ -16,7 +16,14 @@ class UndeliverableMessage(Exception):
 
 @contextmanager
 def get_connection(amqp_uri, ssl=None):
-    conn = Connection(amqp_uri, ssl=ssl)
+    transport_options = {
+        'max_retries': 3,
+        'interval_start': 2,
+        'interval_step': 1,
+        'interval_max': 2,
+    }
+    conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
+
     with connections[conn].acquire(block=True) as connection:
         yield connection
 
@@ -24,7 +31,11 @@ def get_connection(amqp_uri, ssl=None):
 @contextmanager
 def get_producer(amqp_uri, confirms=True, ssl=None):
     transport_options = {
-        'confirm_publish': confirms
+        'confirm_publish': confirms,
+        'max_retries': 3,
+        'interval_start': 2,
+        'interval_step': 1,
+        'interval_max': 2,
     }
     conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 

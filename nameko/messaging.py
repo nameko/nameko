@@ -351,8 +351,16 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         heartbeat = self.container.config.get(
             HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
         )
+        transport_options = {
+            'max_retries': 3,
+            'interval_start': 2,
+            'interval_step': 1,
+            'interval_max': 2,
+        }
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        return Connection(self.amqp_uri, heartbeat=heartbeat, ssl=ssl)
+        conn = Connection(self.amqp_uri, transport_options=transport_options, heartbeat=heartbeat, ssl=ssl)
+
+        return conn
 
     def handle_message(self, provider, body, message):
         ident = u"{}.handle_message[{}]".format(

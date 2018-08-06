@@ -8,6 +8,7 @@ import pytest
 from eventlet.semaphore import Semaphore
 from kombu import Exchange, Queue
 from kombu.connection import Connection
+from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
@@ -856,7 +857,7 @@ class TestPublisherDisconnections(object):
         with toxiproxy.disabled():
 
             payload1 = "payload1"
-            with pytest.raises(socket.error) as exc_info:
+            with pytest.raises(OperationalError) as exc_info:
                 with entrypoint_hook(publisher_container, 'send') as send:
                     send(payload1)
             assert "ECONNREFUSED" in str(exc_info.value)
@@ -872,7 +873,7 @@ class TestPublisherDisconnections(object):
         with toxiproxy.timeout(500):
 
             payload1 = "payload1"
-            with pytest.raises(IOError) as exc_info:  # socket closed
+            with pytest.raises(OperationalError) as exc_info:  # socket closed
                 with entrypoint_hook(publisher_container, 'send') as send:
                     send(payload1)
             assert "Socket closed" in str(exc_info.value)
