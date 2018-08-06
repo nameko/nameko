@@ -7,6 +7,7 @@ from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
+from kombu.exceptions import ChannelError
 from mock import Mock, call, create_autospec, patch
 from six.moves import queue
 
@@ -15,7 +16,7 @@ from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
     IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    ReplyQueueExpiredWithPendingReplies, UnknownService
+    ReplyQueueExpiredWithPendingReplies
 )
 from nameko.extensions import DependencyProvider
 from nameko.messaging import QueueConsumer
@@ -487,16 +488,16 @@ def test_rpc_unknown_service(container_factory, rabbit_config):
         with pytest.raises(RemoteError) as exc_info:
             proxy.call_unknown()
 
-    assert exc_info.value.exc_type == "UnknownService"
+    assert "NO_ROUTE" in str(exc_info.value)
 
 
 def test_rpc_unknown_service_standalone(rabbit_config):
 
     with ServiceRpcProxy("unknown_service", rabbit_config) as proxy:
-        with pytest.raises(UnknownService) as exc_info:
+        with pytest.raises(ChannelError) as exc_info:
             proxy.anything()
 
-    assert exc_info.value._service_name == 'unknown_service'
+    assert "NO_ROUTE" in str(exc_info.value)
 
 
 def test_rpc_container_being_killed_retries(

@@ -9,14 +9,13 @@ from amqp.exceptions import (
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.compression import get_encoder
+from kombu.exceptions import ChannelError
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
 from six.moves import queue
 
-from nameko.amqp.publish import (
-    Publisher, UndeliverableMessage, get_connection, get_producer
-)
+from nameko.amqp.publish import Publisher, get_connection, get_producer
 
 
 def test_get_connection(rabbit_config):
@@ -150,7 +149,7 @@ class TestPublisher(object):
 
         # confirms are enabled by default;
         # if a mandatory message cannot be delivered, expect an exception
-        with pytest.raises(UndeliverableMessage):
+        with pytest.raises(ChannelError):
             publisher.publish(
                 "payload", routing_key="missing", use_confirms=True
             )
@@ -169,7 +168,7 @@ class TestPublisher(object):
 
         # requesting mandatory delivery will result in an exception
         # if there is no bound queue to receive the message
-        with pytest.raises(UndeliverableMessage):
+        with pytest.raises(ChannelError):
             publisher.publish("payload", routing_key="missing", mandatory=True)
 
         # no exception will be raised if confirms are disabled,

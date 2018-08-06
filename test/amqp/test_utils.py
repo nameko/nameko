@@ -2,6 +2,7 @@ import socket
 import ssl
 
 import pytest
+from amqp.exceptions import AccessRefused, NotAllowed
 from urllib3.util import Url, parse_url
 
 from nameko.amqp import verify_amqp_uri
@@ -16,22 +17,20 @@ def test_bad_user(rabbit_config):
     scheme, auth, host, port, path, _, _ = parse_url(rabbit_config['AMQP_URI'])
     amqp_uri = Url(scheme, 'invalid:invalid', host, port, path).url
 
-    with pytest.raises(IOError) as exc_info:
+    with pytest.raises(AccessRefused) as exc_info:
         verify_amqp_uri(amqp_uri)
     message = str(exc_info.value)
-    assert 'Error connecting to broker' in message
-    assert 'invalid credentials' in message
+    assert 'Login was refused' in message
 
 
 def test_bad_vhost(rabbit_config):
     scheme, auth, host, port, path, _, _ = parse_url(rabbit_config['AMQP_URI'])
     amqp_uri = Url(scheme, auth, host, port, '/unknown').url
 
-    with pytest.raises(IOError) as exc_info:
+    with pytest.raises(NotAllowed) as exc_info:
         verify_amqp_uri(amqp_uri)
     message = str(exc_info.value)
-    assert 'Error connecting to broker' in message
-    assert 'invalid or unauthorized vhost' in message
+    assert 'access to vhost' in message
 
 
 def test_other_error(rabbit_config):

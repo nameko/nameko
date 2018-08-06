@@ -1,9 +1,9 @@
 import pytest
 from amqp.exceptions import NotFound
+from kombu.exceptions import ChannelError
 from mock import Mock, patch
 from six.moves import queue
 
-from nameko.amqp import UndeliverableMessage
 from nameko.events import event_handler
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
@@ -57,7 +57,7 @@ class TestMandatoryDelivery(object):
         # requesting mandatory delivery will result in an exception
         # if there is no bound queue to receive the message
         dispatch = event_dispatcher(rabbit_config, mandatory=True)
-        with pytest.raises(UndeliverableMessage):
+        with pytest.raises(ChannelError):
             dispatch("srcservice", "bogus", "payload")
 
     def test_mandatory_delivery_no_exchange(self, rabbit_config):
