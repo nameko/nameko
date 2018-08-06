@@ -162,7 +162,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
-                maybe_declare(entity, conn)
+                maybe_declare(entity, conn.channel())
 
         serializer = self.options.pop('serializer', self.serializer)
 
