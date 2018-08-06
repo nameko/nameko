@@ -103,7 +103,7 @@ def test_consume_provider(mock_container):
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    patch_maybe_declare, mock_connection, mock_producer, mock_container
+    patch_maybe_declare, mock_channel, mock_producer, mock_container
 ):
     container = mock_container
     container.config = {'AMQP_URI': 'memory://'}
@@ -117,7 +117,7 @@ def test_publish_to_exchange(
     # test declarations
     publisher.setup()
     assert patch_maybe_declare.call_args_list == [
-        call(foobar_ex, mock_connection)
+        call(foobar_ex, mock_channel)
     ]
 
     # test publish
@@ -151,7 +151,7 @@ def test_publish_to_exchange(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
-    patch_maybe_declare, mock_producer, mock_connection, mock_container
+    patch_maybe_declare, mock_producer, mock_channel, mock_container
 ):
     container = mock_container
     container.config = {'AMQP_URI': 'memory://'}
@@ -168,7 +168,7 @@ def test_publish_to_queue(
     # test declarations
     publisher.setup()
     assert patch_maybe_declare.call_args_list == [
-        call(foobar_queue, mock_connection)
+        call(foobar_queue, mock_channel)
     ]
 
     # test publish
@@ -203,7 +203,7 @@ def test_publish_to_queue(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
-    mock_container, mock_producer, mock_connection, rabbit_config
+    mock_container, mock_producer, rabbit_config
 ):
     container = mock_container
     container.config = rabbit_config

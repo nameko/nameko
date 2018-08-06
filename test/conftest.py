@@ -49,6 +49,13 @@ def mock_connection():
             yield connection
 
 
+@pytest.yield_fixture
+def mock_channel():
+    with patch('nameko.amqp.publish.connections') as patched:
+        with patched[ANY].acquire() as connection:
+            yield connection.channel()
+
+
 @pytest.yield_fixture(scope='session')
 def toxiproxy_server():
     # start a toxiproxy server
