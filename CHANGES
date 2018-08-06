@@ -8,7 +8,7 @@ increment the minor version number only.
 Version 2.10.0
 -------------
 
-Released: Pending
+Released: 2018-08-06
 
 * Bump the minimum supported eventlet version to 0.20.1 (#557)
 
