@@ -22,7 +22,7 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "eventlet>=0.20.1",
-        "kombu>=4,<5",
+        "kombu>=4.2.0,<5",
         "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=3.10",
