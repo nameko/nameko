@@ -5,6 +5,13 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.10.0
+-------------
+
+Released: Pending
+
+* Bump the minimum supported eventlet version to 0.20.1 (#557)
+
 
 Version 2.9.1
 -------------
@@ -52,7 +59,7 @@ Version 2.8.3
 
 Released: 2018-01-12
 
-* Restrict eventlet to <0.22.0 until we're compatible.
+* Restrict eventlet to `<0.22.0` until we're compatible.
 
 Version 2.8.2
 -------------
