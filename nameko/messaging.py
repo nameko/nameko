@@ -358,7 +358,11 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             'interval_max': 2,
         }
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        conn = Connection(self.amqp_uri, transport_options=transport_options, heartbeat=heartbeat, ssl=ssl)
+        conn = Connection(self.amqp_uri,
+                          transport_options=transport_options,
+                          heartbeat=heartbeat,
+                          ssl=ssl
+                          )
 
         return conn
 
