@@ -9,7 +9,7 @@ from amqp.exceptions import (
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.compression import get_encoder
-from kombu.exceptions import ChannelError
+from kombu.exceptions import ChannelError, OperationalError
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
@@ -335,7 +335,7 @@ class TestPublisher(object):
 
         # with retry
         with patch.object(Producer, '_publish', new=mock_publish):
-            with pytest.raises(RecoverableConnectionError):
+            with pytest.raises(OperationalError):
                 publisher.publish("payload", retry=True)
         assert mock_publish.call_count == 1 + expected_retries
 
@@ -359,7 +359,7 @@ class TestPublisher(object):
         expected_retries = retry_policy['max_retries'] + 1
 
         with patch.object(Producer, '_publish', new=mock_publish):
-            with pytest.raises(RecoverableConnectionError):
+            with pytest.raises(OperationalError):
                 publisher.publish("payload", retry_policy=retry_policy)
         assert mock_publish.call_count == 1 + expected_retries
 
