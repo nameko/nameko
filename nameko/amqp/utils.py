@@ -7,9 +7,6 @@ from kombu import Connection
 from kombu.transport.pyamqp import Transport
 
 
-BAD_CREDENTIALS = (
-    'Error connecting to broker, probably caused by invalid credentials'
-)
 BAD_VHOST = (
     'Error connecting to broker, probably caused by using an invalid '
     'or unauthorized vhost'
@@ -25,10 +22,8 @@ class ConnectionTester(amqp.Connection):
         try:
             super(ConnectionTester, self).__init__(*args, **kwargs)
         except IOError as exc:
-            if not hasattr(self, '_wait_tune_ok'):
+            if not hasattr(self, 'on_tune_ok'):
                 raise
-            elif self._wait_tune_ok:
-                six.raise_from(IOError(BAD_CREDENTIALS), exc)
             else:  # pragma: no cover (rabbitmq >= 3.6.0)
                 six.raise_from(IOError(BAD_VHOST), exc)
         except NotAllowed as exc:  # pragma: no cover (rabbitmq < 3.6.0)
