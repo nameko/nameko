@@ -15,6 +15,12 @@ DEFAULT_PARENT_CALLS_TRACKED = 10
 DEFAULT_SERIALIZER = 'json'
 DEFAULT_RETRY_POLICY = {'max_retries': 3}
 DEFAULT_HEARTBEAT = 60
+DEFAULT_TRANSPORT_OPTIONS = {
+    'max_retries': 3,
+    'interval_start': 2,
+    'interval_step': 1,
+    'interval_max': 5
+}
 
 CALL_ID_STACK_CONTEXT_KEY = 'call_id_stack'
 AUTH_TOKEN_CONTEXT_KEY = 'auth_token'

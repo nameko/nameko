@@ -5,7 +5,9 @@ from kombu import Connection
 from kombu.exceptions import ChannelError
 from kombu.pools import connections, producers
 
-from nameko.constants import DEFAULT_RETRY_POLICY, PERSISTENT
+from nameko.constants import (
+    DEFAULT_RETRY_POLICY, DEFAULT_TRANSPORT_OPTIONS, PERSISTENT
+)
 
 
 class UndeliverableMessage(Exception):
@@ -16,12 +18,7 @@ class UndeliverableMessage(Exception):
 
 @contextmanager
 def get_connection(amqp_uri, ssl=None):
-    transport_options = {
-        'max_retries': 3,
-        'interval_start': 2,
-        'interval_step': 1,
-        'interval_max': 2,
-    }
+    transport_options = DEFAULT_TRANSPORT_OPTIONS
     conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with connections[conn].acquire(block=True) as connection:
@@ -30,13 +27,8 @@ def get_connection(amqp_uri, ssl=None):
 
 @contextmanager
 def get_producer(amqp_uri, confirms=True, ssl=None):
-    transport_options = {
-        'confirm_publish': confirms,
-        'max_retries': 3,
-        'interval_start': 2,
-        'interval_step': 1,
-        'interval_max': 2,
-    }
+    transport_options = DEFAULT_TRANSPORT_OPTIONS
+    transport_options['confirm_publish'] = confirms
     conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with producers[conn].acquire(block=True) as producer:
