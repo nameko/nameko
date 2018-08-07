@@ -1,5 +1,6 @@
 import warnings
 from contextlib import contextmanager
+from copy import deepcopy
 
 from kombu import Connection
 from kombu.exceptions import ChannelError
@@ -17,8 +18,9 @@ class UndeliverableMessage(Exception):
 
 
 @contextmanager
-def get_connection(amqp_uri, ssl=None):
-    transport_options = DEFAULT_TRANSPORT_OPTIONS
+def get_connection(amqp_uri, ssl=None, transport_options=None):
+    if not transport_options:
+        transport_options = deepcopy(DEFAULT_TRANSPORT_OPTIONS)
     conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with connections[conn].acquire(block=True) as connection:
@@ -26,9 +28,12 @@ def get_connection(amqp_uri, ssl=None):
 
 
 @contextmanager
-def get_producer(amqp_uri, confirms=True, ssl=None):
-    transport_options = DEFAULT_TRANSPORT_OPTIONS
-    transport_options['confirm_publish'] = confirms
+def get_producer(amqp_uri, confirms=True, ssl=None, transport_options=None):
+    if transport_options:
+        transport_options['confirm_publish'] = confirms
+    else:
+        transport_options = deepcopy(DEFAULT_TRANSPORT_OPTIONS)
+        transport_options['confirm_publish'] = confirms
     conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with producers[conn].acquire(block=True) as producer:
@@ -112,10 +117,11 @@ class Publisher(object):
         self, amqp_uri, use_confirms=None, serializer=None, compression=None,
         delivery_mode=None, mandatory=None, priority=None, expiration=None,
         declare=None, retry=None, retry_policy=None, ssl=None,
-        **publish_kwargs
+        transport_options=None, **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
         self.ssl = ssl
+        self.transport_options = transport_options
 
         # publish confirms
         if use_confirms is not None:
@@ -177,7 +183,11 @@ class Publisher(object):
 
         publish_kwargs.update(kwargs)  # remaining publish-time kwargs win
 
-        with get_producer(self.amqp_uri, use_confirms, self.ssl) as producer:
+        with get_producer(self.amqp_uri,
+                          use_confirms,
+                          self.ssl,
+                          self.transport_options,
+                          ) as producer:
             try:
                 producer.publish(
                     payload,

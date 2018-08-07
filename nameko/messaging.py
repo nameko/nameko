@@ -19,7 +19,8 @@ from nameko.amqp.publish import get_connection
 from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
-    DEFAULT_TRANSPORT_OPTIONS, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY
+    DEFAULT_TRANSPORT_OPTIONS, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
+    TRANSPORT_OPTIONS_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -157,10 +158,13 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def setup(self):
 
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        transport_options = self.container.config.get(
+            TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS
+        )
 
         verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
-        with get_connection(self.amqp_uri, ssl) as conn:
+        with get_connection(self.amqp_uri, ssl, transport_options) as conn:
             for entity in self.declare:
                 maybe_declare(entity, conn.channel())
 
@@ -171,6 +175,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
             serializer=serializer,
             exchange=self.exchange,
             declare=self.declare,
+            transport_options=transport_options,
             ssl=ssl,
             **self.options
         )
@@ -351,7 +356,9 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         heartbeat = self.container.config.get(
             HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
         )
-        transport_options = DEFAULT_TRANSPORT_OPTIONS
+        transport_options = self.container.config.get(
+            TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS
+        )
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
         conn = Connection(self.amqp_uri,
                           transport_options=transport_options,
