@@ -2,6 +2,7 @@ import warnings
 from contextlib import contextmanager
 
 from kombu import Connection
+from kombu.exceptions import ChannelError
 from kombu.pools import connections, producers
 from six.moves import queue as Queue
 
@@ -186,21 +187,25 @@ class Publisher(object):
         publish_kwargs.update(kwargs)  # remaining publish-time kwargs win
 
         with get_producer(self.amqp_uri, use_confirms, self.ssl) as producer:
-
-            producer.publish(
-                payload,
-                headers=headers,
-                delivery_mode=delivery_mode,
-                mandatory=mandatory,
-                priority=priority,
-                expiration=expiration,
-                compression=compression,
-                declare=declare,
-                retry=retry,
-                retry_policy=retry_policy,
-                serializer=serializer,
-                **publish_kwargs
-            )
+            try:
+                producer.publish(
+                    payload,
+                    headers=headers,
+                    delivery_mode=delivery_mode,
+                    mandatory=mandatory,
+                    priority=priority,
+                    expiration=expiration,
+                    compression=compression,
+                    declare=declare,
+                    retry=retry,
+                    retry_policy=retry_policy,
+                    serializer=serializer,
+                    **publish_kwargs
+                )
+            except ChannelError as exc:
+                if "NO_ROUTE" in str(exc):
+                    raise UndeliverableMessage()
+                raise
 
             if mandatory:
                 if not use_confirms:

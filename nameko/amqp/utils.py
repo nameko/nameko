@@ -21,11 +21,8 @@ class ConnectionTester(amqp.Connection):
     def __init__(self, *args, **kwargs):
         try:
             super(ConnectionTester, self).__init__(*args, **kwargs)
-        except IOError as exc:
-            if not hasattr(self, 'on_tune_ok'):
-                raise
-            else:  # pragma: no cover (rabbitmq >= 3.6.0)
-                six.raise_from(IOError(BAD_VHOST), exc)
+        except IOError as exc:  # pragma: no cover (rabbitmq >= 3.6.0)
+            six.raise_from(IOError(BAD_VHOST), exc)
         except NotAllowed as exc:  # pragma: no cover (rabbitmq < 3.6.0)
             six.raise_from(IOError(BAD_VHOST), exc)
 
