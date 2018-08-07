@@ -43,13 +43,6 @@ def mock_producer():
 
 
 @pytest.yield_fixture
-def mock_connection():
-    with patch('nameko.amqp.publish.connections') as patched:
-        with patched[ANY].acquire() as connection:
-            yield connection
-
-
-@pytest.yield_fixture
 def mock_channel():
     with patch('nameko.amqp.publish.connections') as patched:
         with patched[ANY].acquire() as connection:

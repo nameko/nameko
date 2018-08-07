@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from kombu import Connection
 from kombu.exceptions import ChannelError
 from kombu.pools import connections, producers
-from six.moves import queue as Queue
 
 from nameko.constants import DEFAULT_RETRY_POLICY, PERSISTENT
 
@@ -214,10 +213,3 @@ class Publisher(object):
                         "unroutable messages cannot be detected without "
                         "publish confirms enabled."
                     )
-                try:
-                    returned_messages = producer.channel.returned_messages
-                    returned = returned_messages.get_nowait()
-                except Queue.Empty:
-                    pass
-                else:
-                    raise UndeliverableMessage(returned)
