@@ -464,9 +464,9 @@ class TestDefaults(object):
         publisher = Publisher("memory://", use_confirms=False)
 
         publisher.publish("payload")
-        (_, use_confirms, _), _ = get_producer.call_args
+        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
         assert use_confirms is False
 
         publisher.publish("payload", use_confirms=True)
-        (_, use_confirms, _), _ = get_producer.call_args
+        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
         assert use_confirms is True

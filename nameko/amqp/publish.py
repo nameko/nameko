@@ -1,6 +1,5 @@
 import warnings
 from contextlib import contextmanager
-from copy import deepcopy
 
 from kombu import Connection
 from kombu.exceptions import ChannelError
@@ -20,7 +19,7 @@ class UndeliverableMessage(Exception):
 @contextmanager
 def get_connection(amqp_uri, ssl=None, transport_options=None):
     if not transport_options:
-        transport_options = deepcopy(DEFAULT_TRANSPORT_OPTIONS)
+        transport_options = DEFAULT_TRANSPORT_OPTIONS.copy()
     conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with connections[conn].acquire(block=True) as connection:
@@ -29,11 +28,9 @@ def get_connection(amqp_uri, ssl=None, transport_options=None):
 
 @contextmanager
 def get_producer(amqp_uri, confirms=True, ssl=None, transport_options=None):
-    if transport_options:
-        transport_options['confirm_publish'] = confirms
-    else:
-        transport_options = deepcopy(DEFAULT_TRANSPORT_OPTIONS)
-        transport_options['confirm_publish'] = confirms
+    if transport_options is None:
+        transport_options = DEFAULT_TRANSPORT_OPTIONS.copy()
+    transport_options['confirm_publish'] = confirms
     conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl)
 
     with producers[conn].acquire(block=True) as producer:
@@ -54,6 +51,13 @@ class Publisher(object):
     the message was receieved and processed appropriately, and otherwise
     raise. Confirms have a performance penalty but guarantee that messages
     aren't lost, for example due to stale connections.
+    """
+
+    transport_options = DEFAULT_TRANSPORT_OPTIONS.copy()
+    """
+    A dict of additional connection arguments to pass to alternate kombu
+    channel implementations. Consult the transport documentation for
+    available options.
     """
 
     delivery_mode = PERSISTENT
@@ -116,12 +120,10 @@ class Publisher(object):
     def __init__(
         self, amqp_uri, use_confirms=None, serializer=None, compression=None,
         delivery_mode=None, mandatory=None, priority=None, expiration=None,
-        declare=None, retry=None, retry_policy=None, ssl=None,
-        transport_options=None, **publish_kwargs
+        declare=None, retry=None, retry_policy=None, ssl=None, **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
         self.ssl = ssl
-        self.transport_options = transport_options
 
         # publish confirms
         if use_confirms is not None:
@@ -168,6 +170,10 @@ class Publisher(object):
         headers.update(kwargs.pop('extra_headers', {}))
 
         use_confirms = kwargs.pop('use_confirms', self.use_confirms)
+        transport_options = kwargs.pop('transport_options',
+                                       self.transport_options
+                                       )
+        transport_options['confirm_publish'] = use_confirms
 
         delivery_mode = kwargs.pop('delivery_mode', self.delivery_mode)
         mandatory = kwargs.pop('mandatory', self.mandatory)
@@ -186,7 +192,7 @@ class Publisher(object):
         with get_producer(self.amqp_uri,
                           use_confirms,
                           self.ssl,
-                          self.transport_options,
+                          transport_options,
                           ) as producer:
             try:
                 producer.publish(
