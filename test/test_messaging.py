@@ -1205,7 +1205,6 @@ class TestConfigurability(object):
         publish = publisher.get_dependency(worker_ctx)
 
         publish("payload")
-        print(get_producer.call_args)
         use_confirms = get_producer.call_args[0][3].get('confirm_publish')
         assert use_confirms is False
 
