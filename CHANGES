@@ -8,9 +8,10 @@ increment the minor version number only.
 Version 2.11.0
 -------------
 
-Released: TBA
+Released: 2018-08-09
 
-* Bump the minimum supported kombu version to 4.2 (#564)
+* Compatibility with kombu 4 and pyamqp 2+, minimum supported kombu version
+  is now 4.2 (#564)
 
 Version 2.10.0
 -------------
@@ -18,7 +19,6 @@ Version 2.10.0
 Released: 2018-08-06
 
 * Bump the minimum supported eventlet version to 0.20.1 (#557)
-
 
 Version 2.9.1
 -------------
