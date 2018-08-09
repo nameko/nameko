@@ -16,7 +16,6 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
-from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
     DEFAULT_TRANSPORT_OPTIONS, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
@@ -158,7 +157,6 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def setup(self):
 
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
         with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
@@ -220,10 +218,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
         if not self._consumers_ready.ready():
             self._consumers_ready.send_exception(exc)
-
-    def setup(self):
-        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
     def start(self):
         if not self._starting:
