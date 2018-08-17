@@ -4,6 +4,8 @@ about: Suggest an idea for this project
 
 ---
 
+**Please use the [Discourse forum](https://discourse.nameko.io/) for support requests and questions.**
+
 **Is your feature request related to a problem? Please describe.**
 A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 
