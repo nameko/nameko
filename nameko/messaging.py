@@ -174,9 +174,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
         )
 
     def get_dependency(self, worker_ctx):
-        extra_headers = self.get_message_headers(worker_ctx)
 
         def publish(msg, **kwargs):
+            extra_headers = self.get_message_headers(worker_ctx)
             self.publisher.publish(
                 msg, extra_headers=extra_headers, **kwargs
             )
