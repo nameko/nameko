@@ -264,12 +264,8 @@ def test_publish_custom_headers_added_in_current_request(
     publisher = Publisher(queue=foobar_queue).bind(container, "publish")
     publisher.setup()
 
-    # test publish
     msg = "msg"
-    headers = {'nameko.language': 'en',
-               'nameko.customheader1': 'customvalue1',
-               'nameko.customheader2': 'customvalue2',
-               'nameko.call_id_stack': ['srcservice.method.0']}
+
     service.publish = publisher.get_dependency(worker_ctx)
 
     # Simulate adding an additional custom header in the current request,
@@ -278,8 +274,15 @@ def test_publish_custom_headers_added_in_current_request(
 
     service.publish(msg, publish_kwarg="value")
 
+    expected_headers = {
+        'nameko.language': 'en',
+        'nameko.customheader1': 'customvalue1',
+        'nameko.customheader2': 'customvalue2',
+        'nameko.call_id_stack': ['srcservice.method.0']
+    }
+
     _, call_kwargs = mock_producer.publish.call_args
-    assert call_kwargs['headers'] == headers
+    assert call_kwargs['headers'] == expected_headers
 
 
 def test_header_encoder(empty_config):
