@@ -78,7 +78,7 @@ class Timer(Entrypoint):
         # Note that we don't catch ContainerBeingKilled here. If that's raised,
         # there is nothing for us to do anyway. The exception bubbles, and is
         # caught by :meth:`Container._handle_thread_exited`, though the
-        # triggered `kill` is a no-op, since the container is alredy
+        # triggered `kill` is a no-op, since the container is already
         # `_being_killed`.
         self.container.spawn_worker(self, args, kwargs)
 
