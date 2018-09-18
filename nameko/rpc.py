@@ -123,7 +123,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         serializer = self.container.config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
-        exchange = get_rpc_exchange(self.container.config)
+        exchange = message.delivery_info.get('exchange', get_rpc_exchange(self.container.config))
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
         responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl)
