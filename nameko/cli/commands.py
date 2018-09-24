@@ -4,7 +4,6 @@ which we don't want for `shell`)
 
 """
 from .actions import FlagAction
-import yaml
 
 
 class Command(object):
