@@ -4,6 +4,7 @@ which we don't want for `shell`)
 
 """
 from .actions import FlagAction
+import yaml
 
 
 class Command(object):
@@ -60,7 +61,7 @@ class ShowConfig(Command):
     def init_parser(parser):
 
         parser.add_argument(
-            '--config', default='config.yaml',
+            '--config', default='config.yaml', nargs='+',
             help='The YAML configuration file')
 
         return parser
@@ -89,7 +90,7 @@ class Run(Command):
             help='python path to one or more service classes to run')
 
         parser.add_argument(
-            '--config', default='',
+            '--config', default='', nargs='+',
             help='The YAML configuration file')
 
         parser.add_argument(
@@ -132,7 +133,7 @@ class Shell(Command):
             '--interface', choices=cls.SHELLS,
             help='Specify an interactive interpreter interface.')
         parser.add_argument(
-            '--config', default='',
+            '--config', default='', nargs='+',
             help='The YAML configuration file')
         return parser
 

@@ -163,8 +163,10 @@ def main(args):
         sys.path.insert(0, '.')
 
     if args.config:
-        with open(args.config) as fle:
-            config = yaml.load(fle)
+        config = {}
+        for config_file in args.config:
+            with open(config_file) as fle:
+                config.update(yaml.load(fle))
     else:
         config = {
             AMQP_URI_CONFIG_KEY: args.broker

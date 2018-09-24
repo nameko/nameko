@@ -73,8 +73,10 @@ Usage:
 def main(args):
 
     if args.config:
-        with open(args.config) as fle:
-            config = yaml.load(fle)
+        config = {}
+        for config_file in args.config:
+            with open(config_file) as fle:
+                config.update(yaml.load(fle))
         broker_from = " (from --config)"
     else:
         config = {AMQP_URI_CONFIG_KEY: args.broker}
