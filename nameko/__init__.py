@@ -23,6 +23,4 @@ The config can be used straight on service definition level, e.g.::
 
 As a plain dictionary it is normally mutable at any point. After all,
 we're all consenting adults here.)
-
-TODO Maybe add some immutability instead of using a plain dict?
 """
