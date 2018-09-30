@@ -74,6 +74,16 @@ If you need to quote the values in your YAML file, the explicit ``!env_var`` res
     # foobar.yaml
     AMQP_URI: !env_var "pyamqp://${RABBITMQ_USER:guest}:${RABBITMQ_PASSWORD:password}@${RABBITMQ_HOST:localhost}"
 
+If you need to use values as raw strings in your YAML file without them getting converted to native python,
+the explicit ``!raw_env_var`` resolver is required:
+
+.. code-block:: yaml
+
+    # foobar.yaml
+    ENV_THAT_IS_NEEDED_RAW: !raw_env_var "${ENV_THAT_IS_NEEDED_RAW:1234.5660}"
+
+This will turn into the string value ``1234.5660``, instead of a float number.
+
 You can provide many levels of default values
 
 .. code-block:: yaml

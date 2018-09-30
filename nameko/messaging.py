@@ -16,10 +16,10 @@ from kombu.mixins import ConsumerMixin
 
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
-from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
-    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEADER_PREFIX,
-    HEARTBEAT_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
+    DEFAULT_TRANSPORT_OPTIONS, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
+    TRANSPORT_OPTIONS_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import (
@@ -158,11 +158,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
-        verify_amqp_uri(self.amqp_uri, ssl=ssl)
-
         with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
-                maybe_declare(entity, conn)
+                maybe_declare(entity, conn.channel())
 
         serializer = self.options.pop('serializer', self.serializer)
 
@@ -220,10 +218,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
         if not self._consumers_ready.ready():
             self._consumers_ready.send_exception(exc)
-
-    def setup(self):
-        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
     def start(self):
         if not self._starting:
@@ -351,8 +345,17 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         heartbeat = self.container.config.get(
             HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
         )
+        transport_options = self.container.config.get(
+            TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS
+        )
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        return Connection(self.amqp_uri, heartbeat=heartbeat, ssl=ssl)
+        conn = Connection(self.amqp_uri,
+                          transport_options=transport_options,
+                          heartbeat=heartbeat,
+                          ssl=ssl
+                          )
+
+        return conn
 
     def handle_message(self, provider, body, message):
         ident = u"{}.handle_message[{}]".format(
