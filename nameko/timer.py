@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import time
 from logging import getLogger
 
+from eventlet import Timeout
 from eventlet.event import Event
 
 from nameko.extensions import Entrypoint
@@ -35,9 +36,10 @@ class Timer(Entrypoint):
         """
         self.interval = interval
         self.eager = eager
-        self.should_stop = False
+        self.should_stop = Event()
         self.worker_complete = Event()
         self.gt = None
+        super(Timer, self).__init__()
 
     def start(self):
         _log.debug('starting %s', self)
@@ -45,7 +47,7 @@ class Timer(Entrypoint):
 
     def stop(self):
         _log.debug('stopping %s', self)
-        self.should_stop = True
+        self.should_stop.send(True)
         self.gt.wait()
 
     def kill(self):
@@ -59,7 +61,9 @@ class Timer(Entrypoint):
         while True:
             # sleep for `sleep_time`, unless `should_stop` fires, in which
             # case we leave the while loop and stop entirely
-            time.sleep(sleep_time)
+            with Timeout(sleep_time, exception=False):
+                self.should_stop.wait()
+                break
 
             start = time.time()
 
@@ -73,9 +77,6 @@ class Timer(Entrypoint):
             # next time, sleep however long is left of our interval, taking
             # off the time we took to run
             sleep_time = max(self.interval - elapsed_time, 0)
-
-            if self.should_stop:
-                break
 
     def handle_timer_tick(self):
         args = ()
