@@ -48,7 +48,7 @@ class Publisher(object):
     publisher.
 
     The publisher will wait for an acknowledgement from the broker that
-    the message was receieved and processed appropriately, and otherwise
+    the message was received and processed appropriately, and otherwise
     raise. Confirms have a performance penalty but guarantee that messages
     aren't lost, for example due to stale connections.
     """

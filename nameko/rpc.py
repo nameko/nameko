@@ -1,28 +1,33 @@
 from __future__ import absolute_import, unicode_literals
 
 import sys
+import time
 import uuid
-import warnings
 from functools import partial
 from logging import getLogger
 
 import kombu.serialization
+from amqp.exceptions import NotFound
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
-from nameko.amqp.publish import Publisher, UndeliverableMessage
+from nameko import serialization
+from nameko.amqp.consume import Consumer
+from nameko.amqp.publish import Publisher, UndeliverableMessage, get_connection
 from nameko.constants import (
-    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER,
-    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
+    DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY,
+    RPC_EXCHANGE_CONFIG_KEY
 )
 from nameko.exceptions import (
-    ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
+    ContainerBeingKilled, MalformedRequest, MethodNotFound,
+    ReplyQueueExpiredWithPendingReplies, UnknownService,
     UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
 )
-from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
+from nameko.messaging import decode_from_headers, encode_to_headers
 
 
 _log = getLogger(__name__)
@@ -32,8 +37,16 @@ RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
 
+RESTRICTED_PUBLISHER_OPTIONS = (
+    'exchange', 'routing_key', 'mandatory', 'reply_to', 'correlation_id'
+)
+"""
+Publisher options that cannot be overridden when configuring an RPC proxy
+"""
+
 
 def get_rpc_exchange(config):
+    # TODO: refactor this ugliness
     exchange_name = config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
     exchange = Exchange(exchange_name, durable=True, type="topic")
     return exchange
@@ -41,60 +54,67 @@ def get_rpc_exchange(config):
 
 class RpcConsumer(SharedExtension, ProviderCollector):
 
-    queue_consumer = QueueConsumer()
+    consumer_cls = Consumer
 
-    def __init__(self):
-        self._unregistering_providers = set()
-        self._unregistered_from_queue_consumer = Event()
+    def __init__(self, **consumer_options):
         self.queue = None
+        self.consumer_options = consumer_options
         super(RpcConsumer, self).__init__()
 
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
+
     def setup(self):
-        if self.queue is None:
 
-            service_name = self.container.service_name
-            queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
-            routing_key = '{}.*'.format(service_name)
+        service_name = self.container.service_name
+        queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
+        routing_key = '{}.*'.format(service_name)
 
-            exchange = get_rpc_exchange(self.container.config)
+        exchange = get_rpc_exchange(self.container.config)
 
-            self.queue = Queue(
-                queue_name,
-                exchange=exchange,
-                routing_key=routing_key,
-                durable=True)
+        self.queue = Queue(
+            queue_name,
+            exchange=exchange,
+            routing_key=routing_key,
+            durable=True
+        )
 
-            self.queue_consumer.register_provider(self)
-            self._registered = True
+        config = self.container.config
+
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
+
+        heartbeat = self.consumer_options.pop(
+            'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
+        )
+        prefetch_count = self.consumer_options.pop(
+            'prefetch_count', config.get(
+                PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+            )
+        )
+        accept = self.consumer_options.pop(
+            'accept', serialization.setup(config).accept
+        )
+
+        queues = [self.queue]
+        callbacks = [self.handle_message]
+
+        self.consumer = self.consumer_cls(
+            self.amqp_uri, ssl=ssl, queues=queues, callbacks=callbacks,
+            heartbeat=heartbeat, prefetch_count=prefetch_count,
+            accept=accept
+        )
+
+    def start(self):
+        self.container.spawn_managed_thread(self.consumer.run)
+        self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        """ Stop the RpcConsumer.
-
-        The RpcConsumer ordinary unregisters from the QueueConsumer when the
-        last Rpc subclass unregisters from it. If no providers were registered,
-        we should unregister from the QueueConsumer as soon as we're asked
-        to stop.
-        """
-        if not self._providers_registered:
-            self.queue_consumer.unregister_provider(self)
-            self._unregistered_from_queue_consumer.send(True)
+        self.consumer.stop()
+        # super stop? (waits for all other providers)
 
     def unregister_provider(self, provider):
-        """ Unregister a provider.
-
-        Blocks until this RpcConsumer is unregistered from its QueueConsumer,
-        which only happens when all providers have asked to unregister.
-        """
-        self._unregistering_providers.add(provider)
-        remaining_providers = self._providers - self._unregistering_providers
-        if not remaining_providers:
-            _log.debug('unregistering from queueconsumer %s', self)
-            self.queue_consumer.unregister_provider(self)
-            _log.debug('unregistered from queueconsumer %s', self)
-            self._unregistered_from_queue_consumer.send(True)
-
-        _log.debug('waiting for unregister from queue consumer %s', self)
-        self._unregistered_from_queue_consumer.wait()
+        self.stop()
         super(RpcConsumer, self).unregister_provider(provider)
 
     def get_provider_for_method(self, routing_key):
@@ -119,25 +139,26 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
     def handle_result(self, message, result, exc_info):
 
-        amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
-        serializer = self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
         exchange = get_rpc_exchange(self.container.config)
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
-        responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl)
+        responder = Responder(self.amqp_uri, exchange, message, ssl=ssl)
         result, exc_info = responder.send_response(result, exc_info)
 
-        self.queue_consumer.ack_message(message)
+        self.consumer.ack_message(message)
+
         return result, exc_info
 
-    def requeue_message(self, message):
-        self.queue_consumer.requeue_message(message)
 
+class Rpc(Entrypoint):
+    """
+    A limitation of using a shared queue for all RPC entrypoints is
+    that we can't accept per-entrypoint consumer options. The best solution
+    to this is to start using a queue per entrypoint, but this will require
+    a consumer (and if using kombu, a connection) per entrypoint.
 
-class Rpc(Entrypoint, HeaderDecoder):
-
+    For the time being consumer options are not supported in RPC entrypoints.
+    """
     rpc_consumer = RpcConsumer()
 
     def setup(self):
@@ -155,15 +176,33 @@ class Rpc(Entrypoint, HeaderDecoder):
 
         self.check_signature(args, kwargs)
 
-        context_data = self.unpack_message_headers(message)
+        context_data = decode_from_headers(message.headers)
 
         handle_result = partial(self.handle_result, message)
-        try:
-            self.container.spawn_worker(self, args, kwargs,
-                                        context_data=context_data,
-                                        handle_result=handle_result)
-        except ContainerBeingKilled:
-            self.rpc_consumer.requeue_message(message)
+
+        def spawn_worker():
+            try:
+                self.container.spawn_worker(
+                    self, args, kwargs,
+                    context_data=context_data,
+                    handle_result=handle_result
+                )
+            except ContainerBeingKilled:
+                self.rpc_consumer.consumer.requeue_message(message)
+
+        service_name = self.container.service_name
+        method_name = self.method_name
+
+        # we must spawn a thread here to prevent handle_message blocking
+        # when the worker pool is exhausted; if this happens the AMQP consumer
+        # is also blocked and fails to send heartbeats, eventually causing it
+        # to be disconnected
+        # TODO replace global worker pool limits with per-entrypoint limits,
+        # then remove this waiter thread
+        ident = u"{}.wait_for_worker_pool[{}.{}]".format(
+            type(self).__name__, service_name, method_name
+        )
+        self.container.spawn_managed_thread(spawn_worker, identifier=ident)
 
     def handle_result(self, message, worker_ctx, result, exc_info):
         result, exc_info = self.rpc_consumer.handle_result(
@@ -175,14 +214,13 @@ rpc = Rpc.decorator
 
 
 class Responder(object):
+    """ Helper object for publishing replies to RPC calls.
+    """
 
     publisher_cls = Publisher
 
-    def __init__(
-        self, amqp_uri, exchange, serializer, message, ssl=None
-    ):
+    def __init__(self, amqp_uri, exchange, message, ssl=None):
         self.amqp_uri = amqp_uri
-        self.serializer = serializer
         self.message = message
         self.exchange = exchange
         self.ssl = ssl
@@ -229,12 +267,44 @@ class Responder(object):
 
 
 class ReplyListener(SharedExtension):
+    """ SharedExtension for consuming replies to RPC requests.
 
-    queue_consumer = QueueConsumer()
+    Creates a queue and consumes from it in a managed thread. RPC requests
+    should register their `correlation_id` with
+    :meth:`~ReplyListener.register_for_reply` in order for the `ReplyListener`
+    to capture the reply.
+    """
 
-    def __init__(self, **kwargs):
-        self._reply_events = {}
-        super(ReplyListener, self).__init__(**kwargs)
+    class ReplyConsumer(Consumer):
+        """ Subclass Consumer to add disconnection check
+        """
+
+        def __init__(self, check_for_lost_replies, *args, **kwargs):
+            self.check_for_lost_replies = check_for_lost_replies
+            super(ReplyListener.ReplyConsumer, self).__init__(*args, **kwargs)
+
+        def get_consumers(self, consumer_cls, channel):
+            """
+            Check for messages lost while the reply listener was disconnected
+            from the broker.
+            """
+            self.check_for_lost_replies()
+
+            return super(ReplyListener.ReplyConsumer, self).get_consumers(
+                consumer_cls, channel
+            )
+
+    consumer_cls = ReplyConsumer
+
+    def __init__(self, **consumer_options):
+        self.queue = None
+        self.pending = {}
+        self.consumer_options = consumer_options
+        super(ReplyListener, self).__init__()
+
+    @property
+    def amqp_uri(self):
+        return self.container.config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
 
@@ -257,153 +327,226 @@ class ReplyListener(SharedExtension):
             }
         )
 
-        self.queue_consumer.register_provider(self)
+        config = self.container.config
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
+
+        heartbeat = self.consumer_options.pop(
+            'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
+        )
+        prefetch_count = self.consumer_options.pop(
+            'prefetch_count', config.get(
+                PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
+            )
+        )
+        accept = self.consumer_options.pop(
+            'accept', serialization.setup(config).accept
+        )
+
+        queues = [self.queue]
+        callbacks = [self.handle_message]
+
+        self.consumer = self.consumer_cls(
+            self.check_for_lost_replies, self.amqp_uri, ssl=ssl,
+            queues=queues, callbacks=callbacks,
+            heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept
+        )
+
+    def start(self):
+        self.container.spawn_managed_thread(self.consumer.run)
+        self.consumer.wait_until_consumer_ready()
 
     def stop(self):
-        self.queue_consumer.unregister_provider(self)
-        super(ReplyListener, self).stop()
+        self.consumer.stop()
 
-    def get_reply_event(self, correlation_id):
+    def check_for_lost_replies(self):
+        if self.pending:
+            try:
+                ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+                with get_connection(self.amqp_uri, ssl) as conn:
+                    self.queue.bind(conn).queue_declare(passive=True)
+            except NotFound:
+                raise ReplyQueueExpiredWithPendingReplies(
+                    "Lost replies for correlation ids:\n{}".format(
+                        "\n".join(self.pending.keys())
+                    )
+                )
+
+    def register_for_reply(self, correlation_id):
+        """ Register an RPC call with the given `correlation_id` for a reply.
+
+        Returns a function that can be used to retrieve the reply, blocking
+        until it has been received.
+        """
         reply_event = Event()
-        self._reply_events[correlation_id] = reply_event
-        return reply_event
+        self.pending[correlation_id] = reply_event
+        return reply_event.wait
 
     def handle_message(self, body, message):
-        self.queue_consumer.ack_message(message)
+        self.consumer.ack_message(message)
 
         correlation_id = message.properties.get('correlation_id')
-        client_event = self._reply_events.pop(correlation_id, None)
-        if client_event is not None:
-            client_event.send(body)
+        rpc_call = self.pending.pop(correlation_id, None)
+        if rpc_call is not None:
+            rpc_call.send(body)
         else:
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
 class RpcProxy(DependencyProvider):
+    """ DependencyProvider for injecting an RPC proxy into a service.
 
-    rpc_reply_listener = ReplyListener()
-
-    def __init__(self, target_service, **options):
-        self.target_service = target_service
-        self.options = options
-
-    def get_dependency(self, worker_ctx):
-        return ServiceProxy(
-            worker_ctx,
-            self.target_service,
-            self.rpc_reply_listener,
-            **self.options
-        )
-
-
-class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name, reply_listener, **options):
-        self.worker_ctx = worker_ctx
-        self.service_name = service_name
-        self.reply_listener = reply_listener
-        self.options = options
-
-    def __getattr__(self, name):
-        return MethodProxy(
-            self.worker_ctx,
-            self.service_name,
-            name,
-            self.reply_listener,
-            **self.options
-        )
-
-
-class RpcReply(object):
-    resp_body = None
-
-    def __init__(self, reply_event):
-        self.reply_event = reply_event
-
-    def result(self):
-        _log.debug('Waiting for RPC reply event %s', self)
-
-        if self.resp_body is None:
-            self.resp_body = self.reply_event.wait()
-            _log.debug('RPC reply event complete %s %s', self, self.resp_body)
-
-        error = self.resp_body.get('error')
-        if error:
-            raise deserialize(error)
-        return self.resp_body['result']
-
-
-class MethodProxy(HeaderEncoder):
+    :Parameters:
+        target_service : str
+            Target service name
+        **publisher_options
+            Options to configure the :class:`~nameko.amqqp.publish.Publisher`
+            that sends the message.
+    """
 
     publisher_cls = Publisher
 
-    def __init__(
-        self, worker_ctx, service_name, method_name, reply_listener, **options
-    ):
-        """
-            Note that mechanism which raises :class:`UnknownService` exceptions
-            relies on publish confirms being enabled in the proxy.
-        """
+    reply_listener = ReplyListener()
 
-        self.worker_ctx = worker_ctx
-        self.service_name = service_name
-        self.method_name = method_name
-        self.reply_listener = reply_listener
-
-        # backwards compat
-        compat_attrs = ('retry', 'retry_policy', 'use_confirms')
-
-        for compat_attr in compat_attrs:
-            if hasattr(self, compat_attr):
-                warnings.warn(
-                    "'{}' should be specified at RpcProxy instantiation time "
-                    "rather than as a class attribute. See CHANGES, version "
-                    "2.7.0 for more details. This warning will be removed in "
-                    "version 2.9.0.".format(compat_attr), DeprecationWarning
-                )
-                options[compat_attr] = getattr(self, compat_attr)
-
-        serializer = options.pop('serializer', self.serializer)
-
-        self.publisher = self.publisher_cls(
-            self.amqp_uri, serializer=serializer, ssl=self.ssl, **options
-        )
-
-    def __call__(self, *args, **kwargs):
-        reply = self._call(*args, **kwargs)
-        return reply.result()
-
-    @property
-    def container(self):
-        # TODO: seems wrong
-        return self.worker_ctx.container
+    def __init__(self, target_service, **publisher_options):
+        self.target_service = target_service
+        for option in RESTRICTED_PUBLISHER_OPTIONS:
+            publisher_options.pop(option, None)
+        self.publisher_options = publisher_options
 
     @property
     def amqp_uri(self):
         return self.container.config[AMQP_URI_CONFIG_KEY]
 
-    @property
-    def ssl(self):
-        return self.container.config.get(AMQP_SSL_CONFIG_KEY)
+    def setup(self):
 
-    @property
-    def serializer(self):
-        """ Default serializer to use when publishing message payloads.
+        # ReplyListener.setup() runs concurrently in another thread, so
+        # we need to wait here until it's defined its queue
+        while self.reply_listener.queue is None:
+            time.sleep(.1)
 
-        Must be registered as a
-        `kombu serializer <http://bit.do/kombu_serialization>`_.
-        """
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+        exchange = get_rpc_exchange(self.container.config)
+
+        default_serializer = self.container.serializer
+        serializer = self.publisher_options.pop(
+            'serializer', default_serializer
         )
 
+        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+
+        self.publisher = self.publisher_cls(
+            self.amqp_uri,
+            ssl=ssl,
+            exchange=exchange,
+            serializer=serializer,
+            declare=[self.reply_listener.queue],
+            reply_to=self.reply_listener.queue.routing_key,
+            **self.publisher_options
+        )
+
+    def get_dependency(self, worker_ctx):
+
+        extra_headers = encode_to_headers(worker_ctx.context_data)
+
+        publish = partial(self.publisher.publish, extra_headers=extra_headers)
+
+        register_for_reply = self.reply_listener.register_for_reply
+
+        proxy = Proxy(publish, register_for_reply)
+        return getattr(proxy, self.target_service)
+
+
+class Proxy(object):
+    """ Helper object for making RPC calls.
+
+    The target service and method name may be specified at construction time
+    or by attribute or dict access, for example:
+
+        # target at construction time
+        proxy = Proxy(
+            publish, register_for_reply, "target_service", "target_method"
+        )
+        proxy(*args, **kwargs)
+
+        # equivalent with attribute access
+        proxy = Proxy(publish, register_for_reply)
+        proxy = proxy.target_service.target_method  # proxy now fully-specified
+        proxy(*args, **kwargs)
+
+    Calling a fully-specified `Proxy` will make the RPC call and block for the
+    result. The `call_async` method initiates the call but returns an
+    `RpcReply` object that can be used later to retrieve the result.
+
+    :Parameters:
+        publish : callable
+            Function to publish an RPC request
+        register_for_reply : callable
+            Function to register a new call with a reply listener. Returns
+            another function that should be used to retrieve the response.
+        service_name : str
+            Optional target service name, if known
+        method_name : str
+            Optional target method name, if known
+    """
+
+    def __init__(
+        self, publish, register_for_reply, service_name=None, method_name=None
+    ):
+        self.publish = publish
+        self.register_for_reply = register_for_reply
+        self.service_name = service_name
+        self.method_name = method_name
+
+    def __getattr__(self, name):
+        if self.method_name is not None:
+            raise AttributeError(name)
+
+        if self.service_name:
+            target_service = self.service_name
+            target_method = name
+        else:
+            target_service = name
+            target_method = None
+
+        clone = Proxy(
+            self.publish,
+            self.register_for_reply,
+            target_service,
+            target_method
+        )
+        return clone
+
+    @property
+    def fully_specified(self):
+        return (
+            self.service_name is not None and self.method_name is not None
+        )
+
+    @property
+    def identifier(self):
+        return "{}.{}".format(
+            self.service_name or "*",
+            self.method_name or "*"
+        )
+
+    def __getitem__(self, name):
+        """Enable dict-like access on the proxy. """
+        return getattr(self, name)
+
+    def __call__(self, *args, **kwargs):
+        rpc_call = self._call(*args, **kwargs)
+        return rpc_call.result()
+
     def call_async(self, *args, **kwargs):
-        reply = self._call(*args, **kwargs)
-        return reply
+        rpc_call = self._call(*args, **kwargs)
+        return rpc_call
 
     def _call(self, *args, **kwargs):
-        _log.debug('invoking %s', self)
+        if not self.fully_specified:
+            raise ValueError(
+                "Cannot call unspecified method {}".format(self.identifier)
+            )
 
-        msg = {'args': args, 'kwargs': kwargs}
+        _log.debug('invoking %s', self)
 
         # We use the `mandatory` flag in `producer.publish` below to catch rpc
         # calls to non-existent services, which would otherwise wait forever
@@ -424,32 +567,67 @@ class MethodProxy(HeaderEncoder):
         # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
-        exchange = get_rpc_exchange(self.container.config)
-        routing_key = '{}.{}'.format(self.service_name, self.method_name)
-
-        reply_to = self.reply_listener.routing_key
         correlation_id = str(uuid.uuid4())
 
-        extra_headers = self.get_message_headers(self.worker_ctx)
+        send_request = partial(
+            self.publish, routing_key=self.identifier, mandatory=True,
+            correlation_id=correlation_id
+        )
+        get_response = self.register_for_reply(correlation_id)
 
-        reply_event = self.reply_listener.get_reply_event(correlation_id)
+        rpc_call = RpcCall(correlation_id, send_request, get_response)
 
         try:
-            self.publisher.publish(
-                msg,
-                exchange=exchange,
-                routing_key=routing_key,
-                mandatory=True,
-                reply_to=reply_to,
-                correlation_id=correlation_id,
-                extra_headers=extra_headers
-            )
+            rpc_call.send_request(*args, **kwargs)
         except UndeliverableMessage:
             raise UnknownService(self.service_name)
 
-        return RpcReply(reply_event)
+        return rpc_call
 
-    def __repr__(self):
-        service_name = self.service_name
-        method_name = self.method_name
-        return '<proxy method: {}.{}>'.format(service_name, method_name)
+
+class RpcCall(object):
+    """ Encapsulates a single RPC request and response.
+
+    :Parameters:
+        correlation_id : str
+            Identifier for this call
+        send_request : callable
+            Function that initiates the request
+        get_response : callable
+            Function that retrieves the response
+    """
+    _response = None
+
+    def __init__(self, correlation_id, send_request, get_response):
+        self.correlation_id = correlation_id
+        self._send_request = send_request
+        self._get_response = get_response
+
+    def send_request(self, *args, **kwargs):
+        """ Send the RPC request to the remote service
+        """
+        payload = {'args': args, 'kwargs': kwargs}
+        self._send_request(payload)
+
+    def get_response(self):
+        """ Retrieve the response for this RPC call. Blocks if the response
+        has not been received.
+        """
+        if self._response is not None:
+            return self._response
+
+        self._response = self._get_response()
+        return self._response
+
+    def result(self):
+        """ Return the result of this RPC call, blocking if the response
+        has not been received.
+
+        Raises a `RemoteError` if the remote service returned an error
+        response.
+        """
+        response = self.get_response()
+        error = response.get('error')
+        if error:
+            raise deserialize(error)
+        return response['result']

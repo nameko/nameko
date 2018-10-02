@@ -8,10 +8,12 @@ from types import ModuleType
 import eventlet
 import pytest
 import requests
+from kombu.messaging import Queue
 from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
+from nameko.amqp.publish import get_connection
 from nameko.testing.utils import find_free_port
 from nameko.utils.retry import retry
 
@@ -180,3 +182,15 @@ def fake_module():
     sys.modules[module.__name__] = module
     yield module
     del sys.modules[module.__name__]
+
+
+@pytest.fixture
+def queue_info(amqp_uri):
+    # TODO once https://github.com/nameko/nameko/pull/484 lands
+    # we can use the utility in nameko.amqo.utils instead of this
+    def get_queue_info(queue_name):
+        with get_connection(amqp_uri) as conn:
+            queue = Queue(name=queue_name)
+            queue = queue.bind(conn)
+            return queue.queue_declare(passive=True)
+    return get_queue_info

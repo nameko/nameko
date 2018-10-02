@@ -8,27 +8,28 @@ from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
 from kombu.exceptions import OperationalError
-from mock import Mock, call, create_autospec, patch
+from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko.constants import HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+from nameko.amqp.consume import Consumer
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.events import event_handler
 from nameko.exceptions import (
-    IncorrectSignature, MalformedRequest, MethodNotFound, RemoteError,
-    ReplyQueueExpiredWithPendingReplies, UnknownService
+    ContainerBeingKilled, IncorrectSignature, MalformedRequest, MethodNotFound,
+    RemoteError, ReplyQueueExpiredWithPendingReplies, UnknownService
 )
 from nameko.extensions import DependencyProvider
-from nameko.messaging import QueueConsumer
 from nameko.rpc import (
-    MethodProxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+    Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
 )
 from nameko.standalone.rpc import ServiceRpcProxy
-from nameko.testing.services import (
-    dummy, entrypoint_hook, entrypoint_waiter, restrict_entrypoints
-)
-from nameko.testing.utils import get_extension, unpack_mock_call, wait_for_call
-from nameko.testing.waiting import wait_for_call as patch_wait
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
+from nameko.testing.utils import get_extension
+from nameko.testing.waiting import wait_for_call
+from nameko.utils.retry import retry
 
 from test import skip_if_no_toxiproxy
 
@@ -102,19 +103,11 @@ def get_rpc_exchange():
         yield patched
 
 
-@pytest.yield_fixture
-def queue_consumer():
-    replacement = create_autospec(QueueConsumer)
-    with patch.object(QueueConsumer, 'bind') as mock_ext:
-        mock_ext.return_value = replacement
-        yield replacement
-
-
-def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
+def test_rpc_consumer(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = {}
+    container.config = {AMQP_URI_CONFIG_KEY: 'memory://localhost'}
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
 
@@ -128,15 +121,12 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
 
     entrypoint.setup()
     consumer.setup()
-    queue_consumer.setup()
 
     queue = consumer.queue
     assert queue.name == "rpc-exampleservice"
     assert queue.routing_key == "exampleservice.*"
     assert queue.exchange == exchange
     assert queue.durable
-
-    queue_consumer.register_provider.assert_called_once_with(consumer)
 
     consumer.register_provider(entrypoint)
     assert consumer._providers == set([entrypoint])
@@ -152,32 +142,11 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
     assert consumer._providers == set()
 
 
-def test_rpc_consumer_unregisters_if_no_providers(
-    container_factory, rabbit_config
-):
-    class Service(object):
-        name = "service"
-
-        @rpc
-        def method(self):
-            pass  # pragma: no cover
-
-    container = container_factory(Service, rabbit_config)
-    restrict_entrypoints(container)  # disable 'method' entrypoint
-
-    rpc_consumer = get_extension(container, RpcConsumer)
-    with patch.object(rpc_consumer, 'queue_consumer') as queue_consumer:
-        rpc_consumer.stop()
-
-    assert queue_consumer.unregister_provider.called
-    assert rpc_consumer._unregistered_from_queue_consumer.ready()
-
-
-def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
+def test_reply_listener(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = {}
+    container.config = {AMQP_URI_CONFIG_KEY: 'memory://localhost'}
     container.service_name = "exampleservice"
 
     exchange = Mock()
@@ -191,29 +160,28 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
         patched_uuid.uuid4.return_value = forced_uuid
 
         reply_listener.setup()
-        queue_consumer.setup()
 
         queue = reply_listener.queue
         assert queue.name == "rpc.reply-exampleservice-{}".format(forced_uuid)
         assert queue.exchange == exchange
         assert queue.routing_key == forced_uuid
 
-    queue_consumer.register_provider.assert_called_once_with(reply_listener)
-
     correlation_id = 1
-    reply_event = reply_listener.get_reply_event(correlation_id)
+    get_response = reply_listener.register_for_reply(correlation_id)
+    assert correlation_id in reply_listener.pending
 
-    assert reply_listener._reply_events == {1: reply_event}
+    reply_event = reply_listener.pending[correlation_id]
 
+    payload = {"result": "msg", "error": None}
     message = Mock()
     message.properties.get.return_value = correlation_id
-    reply_listener.handle_message("msg", message)
+    reply_listener.handle_message(payload, message)
 
-    queue_consumer.ack_message.assert_called_once_with(message)
+    assert reply_listener.pending == {}
+
     assert reply_event.ready()
-    assert reply_event.wait() == "msg"
-
-    assert reply_listener._reply_events == {}
+    assert reply_event.wait() == payload
+    assert get_response() == payload
 
     with patch('nameko.rpc._log', autospec=True) as log:
         reply_listener.handle_message("msg", message)
@@ -221,30 +189,120 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
             'Unknown correlation id: %s', correlation_id)
 
 
+class TestProxy(object):
+
+    def test_getattr(self):
+        publish = Mock()
+        reply_listener = Mock()
+
+        proxy = Proxy(publish, reply_listener)
+        service_proxy = proxy.service
+        assert proxy != service_proxy
+        assert proxy.publish == service_proxy.publish
+        assert proxy.register_for_reply == service_proxy.register_for_reply
+        assert proxy.service_name is None
+        assert proxy.method_name is None
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+
+        method1_proxy = service_proxy.method1
+        assert service_proxy != method1_proxy
+        assert service_proxy.publish == method1_proxy.publish
+        assert service_proxy.register_for_reply == (
+            method1_proxy.register_for_reply
+        )
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+        assert method1_proxy.service_name == "service"
+        assert method1_proxy.method_name == "method1"
+
+        method2_proxy = service_proxy.method2
+
+        method2_proxy = service_proxy.method2
+        assert service_proxy != method2_proxy
+        assert service_proxy.publish == method2_proxy.publish
+        assert service_proxy.register_for_reply == (
+            method2_proxy.register_for_reply
+        )
+        assert service_proxy.service_name == "service"
+        assert service_proxy.method_name is None
+        assert method2_proxy.service_name == "service"
+        assert method2_proxy.method_name == "method2"
+
+        assert method1_proxy != method2_proxy
+
+        with pytest.raises(AttributeError):
+            method1_proxy.attr
+        with pytest.raises(AttributeError):
+            method2_proxy.attr
+
+    def test_identifier(self):
+        publish = Mock()
+        register_for_reply = Mock()
+
+        proxy = Proxy(publish, register_for_reply)
+        service_proxy = proxy.service
+        method1_proxy = service_proxy.method1
+        method2_proxy = service_proxy.method2
+
+        assert proxy.identifier == "*.*"
+        assert service_proxy.identifier == "service.*"
+        assert method1_proxy.identifier == "service.method1"
+        assert method2_proxy.identifier == "service.method2"
+
+    def test_dict_access(self):
+        publish = Mock()
+        register_for_reply = Mock()
+
+        proxy = Proxy(publish, register_for_reply)
+
+        assert proxy['service'].identifier == "service.*"
+        assert proxy['service']['method'].identifier == "service.method"
+
+    def test_cannot_invoke_unspecified_proxy(self):
+        publish = Mock()
+        register_for_reply = Mock()
+
+        proxy = Proxy(publish, register_for_reply)
+
+        with pytest.raises(ValueError):
+            proxy()
+
+        with pytest.raises(ValueError):
+            proxy.service()
+
+
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
 
 
-def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
-                                              rabbit_manager):
+def test_rpc_consumer_connections(
+    container_factory, rabbit_config, rabbit_manager
+):
+
+    class ExampleService(object):
+        name = 'exampleservice'
+
+        other_rpc = RpcProxy('other')
+
+        @rpc
+        def echo(self, arg):
+            return arg  # pragma: no cover
+
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    # we should have 3 queues:
+    # we should have 2 queues:
     #   * RPC requests
     #   * RPC replies
-    #   * events
     vhost = rabbit_config['vhost']
     queues = rabbit_manager.get_queues(vhost)
-    assert len(queues) == 3
+    assert len(queues) == 2
 
     # each one should have one consumer
     rpc_queue = rabbit_manager.get_queue(vhost, "rpc-exampleservice")
     assert len(rpc_queue['consumer_details']) == 1
-    evt_queue = rabbit_manager.get_queue(
-        vhost, "evt-srcservice-eventtype--exampleservice.async_task")
-    assert len(evt_queue['consumer_details']) == 1
 
     queue_names = [queue['name'] for queue in queues]
     reply_queue_names = [name for name in queue_names if 'rpc.reply' in name]
@@ -253,12 +311,13 @@ def test_rpc_consumer_creates_single_consumer(container_factory, rabbit_config,
     reply_queue = rabbit_manager.get_queue(vhost, reply_queue_name)
     assert len(reply_queue['consumer_details']) == 1
 
-    # and share a single connection
+    # with one connection each
+    # (connection sharing not supported until we migrate away from kombu)
     consumer_connection_names = set(
         queue['consumer_details'][0]['channel_details']['connection_name']
-        for queue in [rpc_queue, evt_queue, reply_queue]
+        for queue in [rpc_queue, reply_queue]
     )
-    assert len(consumer_connection_names) == 1
+    assert len(consumer_connection_names) == 2
 
 
 def test_rpc_args_kwargs(container_factory, rabbit_config):
@@ -296,6 +355,7 @@ def test_rpc_context_data(container_factory, rabbit_config):
 def test_rpc_headers(container_factory, rabbit_config):
 
     container = container_factory(ExampleService, rabbit_config)
+    container.start()
 
     context_data = {
         'language': 'en',
@@ -303,32 +363,27 @@ def test_rpc_headers(container_factory, rabbit_config):
     }
 
     headers = {}
+
     rpc_consumer = get_extension(container, RpcConsumer)
-    handle_message = rpc_consumer.handle_message
 
     with patch.object(
-        rpc_consumer, 'handle_message', autospec=True
-    ) as patched_handler:
+        rpc_consumer, 'handle_result', wraps=rpc_consumer.handle_result
+    ) as patched:
 
-        def side_effect(body, message):
-            headers.update(message.headers)  # extract message headers
-            return handle_message(body, message)
-
-        patched_handler.side_effect = side_effect
-        container.start()
+        patched.side_effect = lambda msg, *args: headers.update(msg.headers)
 
         # use a standalone rpc proxy to call exampleservice.say_hello()
         with ServiceRpcProxy(
             "exampleservice", rabbit_config, context_data
         ) as proxy:
-            proxy.say_hello()
+            assert proxy.say_hello() == "hello"
 
-    # headers as per context data, plus call stack
-    assert headers == {
-        'nameko.language': 'en',
-        'nameko.otherheader': 'othervalue',
-        'nameko.call_id_stack': ['standalone_rpc_proxy.call.0'],
-    }
+        # headers as per context data, plus call stack
+        assert headers == {
+            'nameko.language': 'en',
+            'nameko.otherheader': 'othervalue',
+            'nameko.call_id_stack': ['standalone_rpc_proxy.0.0']
+        }
 
 
 def test_rpc_existing_method(container_factory, rabbit_config):
@@ -500,39 +555,39 @@ def test_rpc_unknown_service_standalone(rabbit_config):
     assert exc_info.value._service_name == 'unknown_service'
 
 
-def test_rpc_container_being_killed_retries(
-        container_factory, rabbit_config):
+class TestContainerBeingKilled(object):
 
-    container = container_factory(ExampleService, rabbit_config)
-    container.start()
+    @pytest.yield_fixture
+    def service_rpc(self, rabbit_config):
+        with ServiceRpcProxy("service", rabbit_config) as proxy:
+            yield proxy
 
-    def wait_for_result():
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
-            return proxy.task_a()
+    def test_container_killed(
+        self, container_factory, rabbit_config, service_rpc
+    ):
+        class Service(object):
+            name = "service"
 
-    container._being_killed = True
+            @rpc
+            def method(self):
+                pass  # pragma: no cover
 
-    rpc_provider = get_extension(container, Rpc, method_name='task_a')
+        container = container_factory(Service, rabbit_config)
+        container.start()
 
-    with patch.object(
-        rpc_provider,
-        'rpc_consumer',
-        wraps=rpc_provider.rpc_consumer,
-    ) as wrapped_consumer:
-        waiter = eventlet.spawn(wait_for_result)
-        with wait_for_call(1, wrapped_consumer.requeue_message):
-            pass  # wait until at least one message has been requeued
-        assert not waiter.dead
+        # check message is requeued if container throws ContainerBeingKilled
+        with patch.object(container, 'spawn_worker') as spawn_worker:
+            spawn_worker.side_effect = ContainerBeingKilled()
 
-    container._being_killed = False
-    assert waiter.wait() == 'result_a'  # now completed
+            with wait_for_call(Consumer, 'requeue_message'):
+                service_rpc.method.call_async()
 
 
 def test_rpc_consumer_sharing(container_factory, rabbit_config,
                               rabbit_manager):
-    """ Verify that the RpcConsumer unregisters from the queueconsumer when
-    the first provider unregisters itself. Otherwise it keeps consuming
-    messages for the unregistered provider, raising MethodNotFound.
+    """ Verify that the RpcConsumer stops when the first provider unregisters
+    itself. Otherwise it would keep consuming messages for the unregistered
+    provider, raising MethodNotFound.
     """
 
     container = container_factory(ExampleService, rabbit_config)
@@ -626,6 +681,71 @@ def test_reply_queue_removed_on_expiry(
     assert reply_queue not in list_queues()
 
 
+@patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
+    """ RpcProxy ReplyListener consumer runs in a thread and prevents the
+    reply queue from expiring. Contrast to the single-threaded equivalent
+    in nameko.standalone.rpc.
+    """
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def echo(self, arg):
+            res = self.delegate_rpc.echo.call_async(arg)
+            eventlet.sleep(0.4)  # sleep for 2x TTL
+            return res.result()
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+
+@patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
+def test_request_longer_than_expiry(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        delegate_rpc = RpcProxy('delegate')
+
+        @dummy
+        def echo(self, arg):
+            return self.delegate_rpc.echo(arg)
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            eventlet.sleep(0.4)  # sleep for 2x TTL
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
@@ -643,7 +763,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 yield conn
 
         with patch.object(
-            QueueConsumer, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
@@ -652,29 +772,25 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
         with patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100):
             yield
 
+    @pytest.yield_fixture
+    def toxic_reply_listener(self, toxiproxy):
+        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
     @pytest.fixture(autouse=True)
     def container(
         self, container_factory, rabbit_config, rabbit_manager, toxiproxy,
-        fast_expiry
+        fast_expiry, toxic_reply_listener
     ):
 
         def enable_after_queue_expires():
-            eventlet.sleep(5)
+            eventlet.sleep(1)
             toxiproxy.enable()
-
-        class ToxicQueueConsumer(QueueConsumer):
-            amqp_uri = toxiproxy.uri
-
-        class ToxicReplyListener(ReplyListener):
-            queue_consumer = ToxicQueueConsumer()
-
-        class ToxicRpcProxy(RpcProxy):
-            rpc_reply_listener = ToxicReplyListener()
 
         class Service(object):
             name = "service"
 
-            delegate_rpc = ToxicRpcProxy('delegate')
+            delegate_rpc = RpcProxy('delegate')
 
             @dummy
             def sleep(self):
@@ -689,9 +805,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 eventlet.spawn_n(enable_after_queue_expires)
                 return "OK"
 
-        # very fast heartbeat
         config = rabbit_config
-        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
 
         container = container_factory(Service, config)
         container.start()
@@ -704,18 +818,6 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
         self, container, toxiproxy
     ):
-        """ Not possible to make this test pass with the current design.
-        We don't have a hook from the ReplyListener into the place where
-        queues are declared (inside consumer creation) because it's delegated
-        to the QueueConsumer, which handles _all_ queues.
-
-        It will be possible once to write test this scenario once the
-        ReplyListener implements the ConsumerMixin itself (by declaring the
-        queue before setting up consumers)
-
-        """
-        pytest.skip("Not possible with current implementation")
-
         with entrypoint_hook(container, 'sleep') as hook:
             with pytest.raises(ReplyQueueExpiredWithPendingReplies):
                 hook()
@@ -739,28 +841,23 @@ class TestReplyListenerDisconnections(object):
                 yield conn
 
         with patch.object(
-            QueueConsumer, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
+            yield
+
+    @pytest.yield_fixture
+    def toxic_reply_listener(self, toxiproxy):
+        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxiproxy
+        self, container_factory, rabbit_config, toxiproxy, toxic_reply_listener
     ):
-
-        class ToxicQueueConsumer(QueueConsumer):
-            amqp_uri = toxiproxy.uri
-
-        class ToxicReplyListener(ReplyListener):
-            queue_consumer = ToxicQueueConsumer()
-
-        class ToxicRpcProxy(RpcProxy):
-            rpc_reply_listener = ToxicReplyListener()
-
         class Service(object):
             name = "service"
 
-            delegate_rpc = ToxicRpcProxy('delegate')
+            delegate_rpc = RpcProxy('delegate')
 
             @dummy
             def echo(self, arg):
@@ -799,13 +896,15 @@ class TestReplyListenerDisconnections(object):
         Attempting to read from the closed socket raises a socket.error
         and the connection is re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.enable()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.disable()
 
         # connection re-established
@@ -817,20 +916,22 @@ class TestReplyListenerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the consumer and the
-        rabbit broker times for out `timeout` milliseconds and then closes.
+        rabbit broker times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
         is longer than twice the heartbeat interval, the behaviour is the same
         as in `test_upstream_blackhole` below.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -849,13 +950,15 @@ class TestReplyListenerDisconnections(object):
         reads from the socket raise a socket.error, so the connection is
         re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -867,7 +970,7 @@ class TestReplyListenerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the rabbit broker and
-        the consumer times for out `timeout` milliseconds and then closes.
+        the consumer times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
@@ -878,13 +981,15 @@ class TestReplyListenerDisconnections(object):
 
         See :meth:`kombu.messsaging.Consumer.__exit__`
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -912,13 +1017,15 @@ class TestReplyListenerDisconnections(object):
         """
         pytest.skip("skip until kombu supports recovery in this scenario")
 
-        queue_consumer = get_extension(container, QueueConsumer)
+        reply_listener = get_extension(container, ReplyListener)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            reply_listener.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established
@@ -945,13 +1052,20 @@ class TestRpcConsumerDisconnections(object):
                 yield conn
 
         with patch.object(
-            QueueConsumer, 'establish_connection', new=establish_connection
+            Consumer, 'establish_connection', new=establish_connection
         ):
             yield
 
     @pytest.yield_fixture
-    def toxic_queue_consumer(self, toxiproxy):
-        with patch.object(QueueConsumer, 'amqp_uri', new=toxiproxy.uri):
+    def toxic_rpc_consumer(self, toxiproxy):
+        with patch.object(RpcConsumer, 'amqp_uri', new=toxiproxy.uri):
+            yield
+
+    @pytest.yield_fixture(autouse=True)
+    def nontoxic_responder(self, rabbit_config):
+        def replacement_constructor(amqp_uri, *args, **kw):
+            return Responder(rabbit_config[AMQP_URI_CONFIG_KEY], *args, **kw)
+        with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
     @pytest.yield_fixture
@@ -969,7 +1083,7 @@ class TestRpcConsumerDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_queue_consumer, lock,
+        self, container_factory, rabbit_config, toxic_rpc_consumer, lock,
         tracker
     ):
 
@@ -990,6 +1104,12 @@ class TestRpcConsumerDisconnections(object):
         container = container_factory(Service, config)
         container.start()
 
+        # we have to let the container connect before disconnecting
+        # otherwise we end up in retry_over_time trying to make the
+        # initial connection; we get stuck there because it has a
+        # function-local copy of "on_connection_error" that is never patched
+        eventlet.sleep(.05)
+
         return container
 
     def test_normal(self, container, service_rpc):
@@ -1004,13 +1124,15 @@ class TestRpcConsumerDisconnections(object):
         Attempting to read from the closed socket raises a socket.error
         and the connection is re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.enable()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.disable()
 
         # connection re-established
@@ -1020,20 +1142,22 @@ class TestRpcConsumerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the consumer and the
-        rabbit broker times for out `timeout` milliseconds and then closes.
+        rabbit broker times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
         is longer than twice the heartbeat interval, the behaviour is the same
         as in `test_upstream_blackhole` below.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=100)
 
         # connection re-established
@@ -1050,13 +1174,15 @@ class TestRpcConsumerDisconnections(object):
         reads from the socket raise a socket.error, so the connection is
         re-established.
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(timeout=0)
 
         # connection re-established
@@ -1066,7 +1192,7 @@ class TestRpcConsumerDisconnections(object):
         """ Verify we detect and recover from sockets timing out.
 
         This failure mode means that the socket between the rabbit broker and
-        the consumer times for out `timeout` milliseconds and then closes.
+        the consumer times out after `timeout` milliseconds and then closes.
 
         Attempting to read from the socket after it's closed raises a
         socket.error and the connection will be re-established. If `timeout`
@@ -1077,13 +1203,15 @@ class TestRpcConsumerDisconnections(object):
 
         See :meth:`kombu.messsaging.Consumer.__exit__`
         """
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=100)
 
         # connection re-established
@@ -1109,13 +1237,15 @@ class TestRpcConsumerDisconnections(object):
         """
         pytest.skip("skip until kombu supports recovery in this scenario")
 
-        queue_consumer = get_extension(container, QueueConsumer)
+        rpc_consumer = get_extension(container, RpcConsumer)
 
         def reset(args, kwargs, result, exc_info):
             toxiproxy.reset_timeout()
             return True
 
-        with patch_wait(queue_consumer, 'on_connection_error', callback=reset):
+        with wait_for_call(
+            rpc_consumer.consumer, 'on_connection_error', callback=reset
+        ):
             toxiproxy.set_timeout(stream="downstream", timeout=0)
 
         # connection re-established
@@ -1184,7 +1314,9 @@ class TestProxyDisconnections(object):
         container.start()
 
     @pytest.fixture(autouse=True)
-    def client_container(self, container_factory, rabbit_config):
+    def client_container(
+        self, container_factory, rabbit_config, toxic_rpc_proxy
+    ):
 
         class Service(object):
             name = "client"
@@ -1205,19 +1337,19 @@ class TestProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
+        with patch.object(RpcProxy.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            MethodProxy.publisher_cls, 'use_confirms', new=request.param
+            RpcProxy.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(RpcProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.mark.usefixtures('use_confirms')
@@ -1310,7 +1442,7 @@ class TestProxyDisconnections(object):
             return True
 
         # call 2 succeeds (after reconnecting via retry policy)
-        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
             with entrypoint_hook(client_container, 'echo') as echo:
                 assert echo(2) == 2
 
@@ -1517,39 +1649,88 @@ class TestResponderDisconnections(object):
             return True
 
         # call 2 succeeds (after reconnecting via retry policy)
-        with patch_wait(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
             assert service_rpc.echo(2) == 2
 
 
-class TestBackwardsCompatClassAttrs(object):
+class TestRpcConsumerConfigurability(object):
 
-    @pytest.mark.parametrize("parameter,value", [
-        ('retry', False),
-        ('retry_policy', {'max_retries': 999}),
-        ('use_confirms', False),
-    ])
-    def test_attrs_are_applied_as_defaults(
-        self, parameter, value, mock_container
-    ):
-        """ Verify that you can specify some fields by subclassing the
-        MethodProxy class.
-        """
-        method_proxy_cls = type(
-            "LegacyMethodProxy", (MethodProxy,), {parameter: value}
-        )
-        with patch('nameko.rpc.warnings') as warnings:
-            worker_ctx = Mock()
-            worker_ctx.container.config = {'AMQP_URI': 'memory://'}
-            reply_listener = Mock()
-            proxy = method_proxy_cls(
-                worker_ctx, "service", "method", reply_listener
-            )
+    def test_heartbeat(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
 
-        assert warnings.warn.called
-        call_args = warnings.warn.call_args
-        assert parameter in unpack_mock_call(call_args).positional[0]
+        value = 999
 
-        assert getattr(proxy.publisher, parameter) == value
+        rpc_consumer = RpcConsumer(heartbeat=value).bind(mock_container)
+        rpc_consumer.setup()
+
+        assert rpc_consumer.consumer.connection.heartbeat == value
+
+    def test_prefetch_count(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        rpc_consumer = RpcConsumer(prefetch_count=value).bind(mock_container)
+        rpc_consumer.setup()
+
+        assert rpc_consumer.consumer.prefetch_count == value
+
+    def test_accept(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = ['yaml', 'json']
+
+        rpc_consumer = RpcConsumer(accept=value).bind(mock_container)
+        rpc_consumer.setup()
+
+        assert rpc_consumer.consumer.accept == value
+
+
+class TestReplyListenerConfigurability(object):
+
+    def test_heartbeat(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        reply_listener = ReplyListener(heartbeat=value).bind(mock_container)
+        reply_listener.setup()
+
+        assert reply_listener.consumer.connection.heartbeat == value
+
+    def test_prefetch_count(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = 999
+
+        reply_listener = ReplyListener(
+            prefetch_count=value
+        ).bind(mock_container)
+        reply_listener.setup()
+
+        assert reply_listener.consumer.prefetch_count == value
+
+    def test_accept(self, mock_container):
+        mock_container.config = {'AMQP_URI': 'memory://localhost'}
+        mock_container.shared_extensions = {}
+        mock_container.service_name = "service"
+
+        value = ['yaml', 'json']
+
+        reply_listener = ReplyListener(accept=value).bind(mock_container)
+        reply_listener.setup()
+
+        assert reply_listener.consumer.accept == value
 
 
 class TestConfigurability(object):
@@ -1599,8 +1780,8 @@ class TestConfigurability(object):
             "service-name", **{parameter: value}
         ).bind(mock_container, "service_rpc")
 
+        rpc_proxy.reply_listener.setup()
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1634,8 +1815,8 @@ class TestConfigurability(object):
             "service-name", **{'headers': value}
         ).bind(mock_container, "service_rpc")
 
+        rpc_proxy.reply_listener.setup()
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1662,9 +1843,7 @@ class TestConfigurability(object):
         worker_ctx.container = mock_container
         worker_ctx.context_data = {}
 
-        uuid1 = uuid.uuid4()
-        uuid2 = uuid.uuid4()
-        patch_uuid.uuid4.side_effect = [uuid1, uuid2]
+        patch_uuid.uuid4.side_effect = ["uuid1", "uuid2"]
 
         restricted_params = (
             'exchange', 'routing_key', 'mandatory',
@@ -1675,8 +1854,8 @@ class TestConfigurability(object):
             "service", **{param: Mock() for param in restricted_params}
         ).bind(mock_container, "service_rpc")
 
+        rpc_proxy.reply_listener.setup()
         rpc_proxy.setup()
-        rpc_proxy.rpc_reply_listener.setup()
 
         service_rpc = rpc_proxy.get_dependency(worker_ctx)
 
@@ -1686,8 +1865,8 @@ class TestConfigurability(object):
         assert publish_params['exchange'].name == "nameko-rpc"
         assert publish_params['routing_key'] == 'service.method'
         assert publish_params['mandatory'] is True
-        assert publish_params['reply_to'] == str(uuid1)
-        assert publish_params['correlation_id'] == str(uuid2)
+        assert publish_params['reply_to'] == "uuid1"
+        assert publish_params['correlation_id'] == "uuid2"
 
 
 def test_prefetch_throughput(container_factory, rabbit_config):
@@ -1714,6 +1893,51 @@ def test_prefetch_throughput(container_factory, rabbit_config):
 
         with eventlet.Timeout(1):
             [reply.result() for reply in replies]
+
+
+def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
+    """ Test behaviour when we stop a container with an active worker.
+
+    Expect the consumer to stop and the message be requeued, but the container
+    to continue running the active worker until it completes.
+
+    This is not desirable behaviour but it is consistent with the old
+    implementation. It would be better to stop the consumer but keep the
+    channel alive until the worker has completed and the message can be
+    ack'd, but we can't do that with kombu or without per-entrypoint worker
+    pools.
+    """
+
+    block = Event()
+
+    class Service(object):
+        name = "service"
+
+        @rpc
+        def method(self):
+            block.wait()
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with ServiceRpcProxy("service", rabbit_config) as service_rpc:
+        service_rpc.method.call_async()
+
+    gt = eventlet.spawn(container.stop)
+
+    @retry
+    def consumer_removed():
+        info = queue_info('rpc-service')
+        assert info.consumer_count == 0
+        assert info.message_count == 1
+
+    consumer_removed()
+
+    assert not gt.dead
+    block.send(True)
+
+    gt.wait()
+    assert gt.dead
 
 
 class TestSSL(object):
