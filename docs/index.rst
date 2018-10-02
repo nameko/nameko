@@ -75,3 +75,4 @@ More Information
    contributing
    license
    release_notes
+   api

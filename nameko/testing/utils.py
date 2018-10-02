@@ -2,8 +2,6 @@
 Common testing utilities.
 """
 import socket
-import warnings
-from collections import namedtuple
 from contextlib import contextmanager
 from functools import partial
 
@@ -56,20 +54,6 @@ def wait_for_call(timeout, mock_method):
     yield mock_method
 
 
-def wait_for_worker_idle(container, timeout=10):
-    """ Blocks until ``container`` has no running workers.
-
-    Raises an :class:`eventlet.Timeout` if the method was not called
-    within ``timeout`` seconds.
-    """
-    warnings.warn(
-        "`wait_for_worker_idle` is deprecated. Use the `entrypoint_waiter` "
-        "to wait for specific entrypoints instead.", DeprecationWarning
-    )
-    with eventlet.Timeout(timeout):
-        container._worker_pool.waitall()
-
-
 def assert_stops_raising(fn, exception_type=Exception, timeout=10,
                          interval=0.1):
     """Assert that ``fn`` returns successfully within ``timeout``
@@ -88,13 +72,6 @@ def assert_stops_raising(fn, exception_type=Exception, timeout=10,
             else:
                 return
             eventlet.sleep(interval)
-
-
-MockCallArgs = namedtuple("MockCallArgs", ["positional", "keyword"])
-
-
-def unpack_mock_call(call):
-    return MockCallArgs(*call)
 
 
 class AnyInstanceOf(object):

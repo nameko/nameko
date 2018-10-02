@@ -73,9 +73,6 @@ class Client(object):
     def get_connections(self):
         return self._get('connections')
 
-    def delete_connection(self, name):
-        return self._delete('connections', name)
-
     def get_exchanges(self, vhost):
         return self._get('exchanges', vhost)
 

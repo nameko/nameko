@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import inspect
 import types
-import warnings
 import weakref
 from functools import partial
 from logging import getLogger
@@ -24,7 +23,7 @@ class Extension(object):
     Use :meth:`setup` instead.
 
     Furthermore, :meth:`bind` and :func:`iter_extensions` use introspection
-    to find any subextensions that an extension may declare. Any descriptors
+    to find any sub-extensions that an extension may declare. Any descriptors
     on the extension should expect to be called during introspection, which
     happens between `ServiceContainer.__init__` and `ServiceContainer.setup`.
 
@@ -68,10 +67,6 @@ class Extension(object):
         Extensions should urgently shut down here. This means
         stopping as soon as possible by omitting cleanup.
         This may be distinct from ``stop()`` for certain dependencies.
-
-        For example, :class:`~messaging.QueueConsumer` tracks messages being
-        processed and pending message acks. Its ``kill`` implementation
-        discards these and disconnects from rabbit as soon as possible.
 
         Extensions should not raise during kill, since the container
         is already dying. Instead they should log what is appropriate and
@@ -278,15 +273,6 @@ class Entrypoint(Extension):
 
                 :seealso: :func:`nameko.utils.get_redacted_args`
         """
-        # backwards compat
-        sensitive_variables = kwargs.pop('sensitive_variables', ())
-        if sensitive_variables:
-            sensitive_arguments = sensitive_variables
-            warnings.warn(
-                "The `sensitive_variables` argument has been renamed to "
-                "`sensitive_arguments`. This warning will be removed in "
-                "version 2.9.0.", DeprecationWarning)
-
         self.expected_exceptions = expected_exceptions
         self.sensitive_arguments = sensitive_arguments
         super(Entrypoint, self).__init__(**kwargs)

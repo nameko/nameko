@@ -114,16 +114,17 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 
     Where there parameters are as follows:
 
-        worker_ctx (WorkerContext): WorkerContext of the entrypoint call.
+        `worker_ctx` (WorkerContext): WorkerContext of the entrypoint call.
 
-        result (object): The return value of the entrypoint.
+        `result` (object): The return value of the entrypoint.
 
-        exc_info (tuple): Tuple as returned by `sys.exc_info` if the
+        `exc_info` (tuple): Tuple as returned by `sys.exc_info` if the
             entrypoint raised an exception, otherwise `None`.
 
     **Usage**
 
     ::
+
         class Service(object):
             name = "service"
 
@@ -475,18 +476,16 @@ class Once(Entrypoint):
     """ Entrypoint that spawns a worker exactly once, as soon as
     the service container started.
     """
+
     def __init__(self, *args, **kwargs):
         expected_exceptions = kwargs.pop('expected_exceptions', ())
         sensitive_arguments = kwargs.pop('sensitive_arguments', ())
-        # backwards compat
-        sensitive_variables = kwargs.pop('sensitive_variables', ())
 
         self.args = args
         self.kwargs = kwargs
         super(Once, self).__init__(
             expected_exceptions=expected_exceptions,
-            sensitive_arguments=sensitive_arguments,
-            sensitive_variables=sensitive_variables
+            sensitive_arguments=sensitive_arguments
         )
 
     def start(self):
