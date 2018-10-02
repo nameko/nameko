@@ -1,10 +1,10 @@
-import socket
 from contextlib import contextmanager
 
 import eventlet
 import pytest
 from eventlet.event import Event
 from kombu.connection import Connection
+from kombu.exceptions import OperationalError
 from kombu.message import Message
 from mock import Mock, patch
 from six.moves import queue
@@ -716,7 +716,7 @@ class TestStandaloneProxyDisconnections(object):
     def test_down(self, service_rpc, toxiproxy):
         toxiproxy.disable()
 
-        with pytest.raises(socket.error) as exc_info:
+        with pytest.raises(OperationalError) as exc_info:
             service_rpc.echo(1)
         assert "ECONNREFUSED" in str(exc_info.value)
 
@@ -724,7 +724,7 @@ class TestStandaloneProxyDisconnections(object):
     def test_timeout(self, service_rpc, toxiproxy):
         toxiproxy.set_timeout()
 
-        with pytest.raises(IOError) as exc_info:
+        with pytest.raises(OperationalError) as exc_info:
             service_rpc.echo(1)
         assert "Socket closed" in str(exc_info.value)
 

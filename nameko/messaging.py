@@ -13,7 +13,6 @@ from nameko import serialization
 from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
-from nameko.amqp.utils import verify_amqp_uri
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
     DEFAULT_PREFETCH_COUNT, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
@@ -96,11 +95,9 @@ class Publisher(DependencyProvider):
 
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
 
-        verify_amqp_uri(self.amqp_uri, ssl=ssl)
-
         with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
-                maybe_declare(entity, conn)
+                maybe_declare(entity, conn.channel())
 
         default_serializer = self.container.serializer
         serializer = self.publisher_options.pop(
@@ -172,8 +169,6 @@ class Consumer(Entrypoint):
         config = self.container.config
 
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
-
-        verify_amqp_uri(self.amqp_uri, ssl=ssl)
 
         heartbeat = self.consumer_options.pop(
             'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)

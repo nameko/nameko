@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from datetime import datetime
+from time import time
 
 import pytest
 from amqp.exceptions import (
@@ -9,6 +9,7 @@ from amqp.exceptions import (
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.compression import get_encoder
+from kombu.exceptions import OperationalError
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
@@ -282,7 +283,7 @@ class TestPublisher(object):
     def test_timestamp(
         self, publisher, get_message_from_queue, queue
     ):
-        now = datetime.now().replace(microsecond=0)
+        now = int(time())
         publisher.publish("payload", timestamp=now)
 
         message = get_message_from_queue(queue.name)
@@ -336,7 +337,7 @@ class TestPublisher(object):
 
         # with retry
         with patch.object(Producer, '_publish', new=mock_publish):
-            with pytest.raises(RecoverableConnectionError):
+            with pytest.raises(OperationalError):
                 publisher.publish("payload", retry=True)
         assert mock_publish.call_count == 1 + expected_retries
 
@@ -360,7 +361,7 @@ class TestPublisher(object):
         expected_retries = retry_policy['max_retries'] + 1
 
         with patch.object(Producer, '_publish', new=mock_publish):
-            with pytest.raises(RecoverableConnectionError):
+            with pytest.raises(OperationalError):
                 publisher.publish("payload", retry_policy=retry_policy)
         assert mock_publish.call_count == 1 + expected_retries
 
@@ -463,9 +464,9 @@ class TestDefaults(object):
         publisher = Publisher("memory://", use_confirms=False)
 
         publisher.publish("payload")
-        (_, use_confirms, _), _ = get_producer.call_args
+        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
         assert use_confirms is False
 
         publisher.publish("payload", use_confirms=True)
-        (_, use_confirms, _), _ = get_producer.call_args
+        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
         assert use_confirms is True

@@ -53,6 +53,10 @@ Extensions
     * `nameko-sendgrid <https://github.com/invictuscapital/nameko-sendgrid>`_
 
         SendGrid dependency for nameko, for sending transactional and marketing emails.
+        
+    * `nameko-cachetools <https://github.com/santiycr/nameko-cachetools>`_
+
+        Tools to cache RPC interactions between your nameko services.
 
 Supplementary Libraries
 -----------------------

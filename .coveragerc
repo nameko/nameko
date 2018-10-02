@@ -1,8 +1,6 @@
 [run]
 concurrency = eventlet
-parallel = true
 branch = ${BRANCH}
-data_file = /tmp/.coverage
 source =
     nameko
     test

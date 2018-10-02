@@ -9,7 +9,6 @@ from kombu.common import maybe_declare
 from kombu.messaging import Queue
 
 from nameko import serialization
-from nameko.amqp import verify_amqp_uri
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
@@ -74,8 +73,6 @@ class ReplyListener(object):
 
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
-        verify_amqp_uri(self.amqp_uri, ssl=ssl)
-
         heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         prefetch_count = config.get(
             PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
@@ -93,7 +90,7 @@ class ReplyListener(object):
 
         # must declare queue because the consumer doesn't start right away
         with self.consumer.connection as conn:
-            maybe_declare(self.queue, conn)
+            maybe_declare(self.queue, conn.channel())
 
     def stop(self):
         self.consumer.stop()

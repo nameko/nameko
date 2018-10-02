@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-import socket
 from contextlib import contextmanager
 
 import eventlet
@@ -9,6 +8,7 @@ from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 from kombu import Exchange, Queue
 from kombu.connection import Connection
+from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
@@ -45,7 +45,7 @@ def patch_maybe_declare():
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
-    patch_maybe_declare, mock_connection, mock_producer, mock_container
+    patch_maybe_declare, mock_channel, mock_producer, mock_container
 ):
     container = mock_container
     container.config = {'AMQP_URI': 'memory://'}
@@ -59,7 +59,7 @@ def test_publish_to_exchange(
     # test declarations
     publisher.setup()
     assert patch_maybe_declare.call_args_list == [
-        call(foobar_ex, mock_connection)
+        call(foobar_ex, mock_channel)
     ]
 
     # test publish
@@ -93,7 +93,7 @@ def test_publish_to_exchange(
 
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_custom_headers(
-    mock_container, mock_producer, mock_connection, rabbit_config
+    mock_container, mock_producer, rabbit_config
 ):
     container = mock_container
     container.config = rabbit_config
@@ -746,7 +746,7 @@ class TestPublisherDisconnections(object):
         with toxiproxy.disabled():
 
             payload1 = "payload1"
-            with pytest.raises(socket.error) as exc_info:
+            with pytest.raises(OperationalError) as exc_info:
                 with entrypoint_hook(publisher_container, 'send') as send:
                     send(payload1)
             assert "ECONNREFUSED" in str(exc_info.value)
@@ -762,7 +762,7 @@ class TestPublisherDisconnections(object):
         with toxiproxy.timeout(500):
 
             payload1 = "payload1"
-            with pytest.raises(IOError) as exc_info:  # socket closed
+            with pytest.raises(OperationalError) as exc_info:  # socket closed
                 with entrypoint_hook(publisher_container, 'send') as send:
                     send(payload1)
             assert "Socket closed" in str(exc_info.value)
@@ -1114,11 +1114,11 @@ class TestPublisherConfigurability(object):
         publish = publisher.get_dependency(worker_ctx)
 
         publish("payload")
-        (_, use_confirms, _), _ = get_producer.call_args
+        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
         assert use_confirms is False
 
         publish("payload", use_confirms=True)
-        (_, use_confirms, _), _ = get_producer.call_args
+        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
         assert use_confirms is True
 
 

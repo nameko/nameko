@@ -7,6 +7,7 @@ from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu.connection import Connection
+from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
@@ -1362,7 +1363,7 @@ class TestProxyDisconnections(object):
     def test_down(self, client_container, toxiproxy):
         with toxiproxy.disabled():
 
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(OperationalError) as exc_info:
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(1)
             assert "ECONNREFUSED" in str(exc_info.value)
@@ -1371,7 +1372,7 @@ class TestProxyDisconnections(object):
     def test_timeout(self, client_container, toxiproxy):
         with toxiproxy.timeout():
 
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(OperationalError) as exc_info:
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(1)
             assert "Socket closed" in str(exc_info.value)
@@ -1555,7 +1556,7 @@ class TestResponderDisconnections(object):
             eventlet.spawn_n(service_rpc.echo, 1)
 
             # the container will raise if the responder cannot reply
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(OperationalError) as exc_info:
                 container.wait()
             assert "ECONNREFUSED" in str(exc_info.value)
 
@@ -1568,7 +1569,7 @@ class TestResponderDisconnections(object):
             eventlet.spawn_n(service_rpc.echo, 1)
 
             # the container will raise if the responder cannot reply
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(OperationalError) as exc_info:
                 container.wait()
             assert "Socket closed" in str(exc_info.value)
 

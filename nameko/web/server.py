@@ -17,6 +17,12 @@ from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
 
 
+try:
+    STATE_IDLE = wsgi.STATE_IDLE
+except AttributeError:  # pragma: no cover
+    STATE_IDLE = None
+
+
 BindAddress = namedtuple("BindAddress", ['address', 'port'])
 
 
@@ -83,7 +89,13 @@ class WebServer(ProviderCollector, SharedExtension):
 
     def process_request(self, sock, address):
         try:
-            self._serv.process_request((sock, address))
+            if STATE_IDLE:  # pragma: no cover
+                # eventlet >= 0.22
+                # see https://github.com/eventlet/eventlet/issues/420
+                self._serv.process_request([address, sock, STATE_IDLE])
+            else:  # pragma: no cover
+                self._serv.process_request((sock, address))
+
         except OSError as exc:
             # OSError("raw readinto() returned invalid length")
             # can be raised when a client disconnects very early as a result

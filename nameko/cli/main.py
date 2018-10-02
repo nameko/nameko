@@ -3,6 +3,7 @@ from __future__ import print_function
 import argparse
 import os
 import re
+from functools import partial
 
 import yaml
 
@@ -85,14 +86,16 @@ def _replace_env_var(match):
     return value
 
 
-def env_var_constructor(loader, node):
+def env_var_constructor(loader, node, raw=False):
     raw_value = loader.construct_scalar(node)
     value = ENV_VAR_MATCHER.sub(_replace_env_var, raw_value)
-    return yaml.safe_load(value)
+    return value if raw else yaml.safe_load(value)
 
 
 def setup_yaml_parser():
     yaml.add_constructor('!env_var', env_var_constructor)
+    yaml.add_constructor('!raw_env_var',
+                         partial(env_var_constructor, raw=True))
     yaml.add_implicit_resolver('!env_var', IMPLICIT_ENV_VAR_MATCHER)
 
 
