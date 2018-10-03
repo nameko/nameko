@@ -23,7 +23,8 @@ from nameko.extensions import (
     ENTRYPOINT_EXTENSIONS_ATTR, is_dependency, iter_extensions
 )
 from nameko.log_helpers import make_timing_logger
-from nameko.utils import SpawningSet, import_from_path
+from nameko.utils import import_from_path
+from nameko.utils.concurrency import SpawningSet
 
 
 _log = getLogger(__name__)
