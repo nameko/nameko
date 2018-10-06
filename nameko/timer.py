@@ -13,7 +13,7 @@ _log = getLogger(__name__)
 
 
 class Timer(Entrypoint):
-    def __init__(self, interval, eager=False):
+    def __init__(self, interval, eager=False, **kwargs):
         """
         Timer entrypoint. Fires every `interval` seconds or as soon as
         the previous worker completes if that took longer.
@@ -39,7 +39,7 @@ class Timer(Entrypoint):
         self.should_stop = Event()
         self.worker_complete = Event()
         self.gt = None
-        super(Timer, self).__init__()
+        super(Timer, self).__init__(**kwargs)
 
     def start(self):
         _log.debug('starting %s', self)
