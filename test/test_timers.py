@@ -21,8 +21,8 @@ def tracker():
     (5, False, 0, 0),
     (5, True, 0, 1),
     # call duration delays second call
-    (0.1, False, 0.2, 1),  # fires at 0.1
-    (0.1, True, 0.2, 1),  # fires at 0, 0.2
+    (0.1, False, 0.3, 1),  # fires at 0.1
+    (0.1, True, 0.3, 1),  # fires at 0, 0.2
     (0.025, False, 0.07, 2),  # fires at 0.25, 0.095, 0.165
     (0.025, True, 0.07, 3),  # fires at 0, 0.07, 0.14
 ])
@@ -159,7 +159,6 @@ def test_expected_error_in_worker(container_factory, caplog):
         container.start()
         with pytest.raises(ExampleError):
             tick()
-    assert not container._died.ready()
 
     assert len(caplog.records) == 1
     assert caplog.records[0].message == (
