@@ -9,7 +9,9 @@ from nameko.containers import ServiceContainer
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc, rpc
 from nameko.testing.services import dummy, entrypoint_hook, get_extension
-from nameko.utils import REDACTED, get_redacted_args, import_from_path
+from nameko.utils import (
+    REDACTED, get_redacted_args, import_from_path, sanitize_url
+)
 from nameko.utils.concurrency import fail_fast_imap
 
 
@@ -240,3 +242,26 @@ class TestImportFromPath(object):
 
     def test_import_function(self):
         assert import_from_path("nameko.rpc.rpc") is rpc
+
+
+@pytest.mark.parametrize('url,expected', [
+    (
+        'amqp://user:supersecret@127.0.0.1:5672//',
+        'amqp://user:{}@127.0.0.1:5672//'.format(REDACTED)
+    ),
+    (
+        'amqp://user@127.0.0.1:5672//',
+        'amqp://user@127.0.0.1:5672//'
+    ),
+    (
+        'amqp://user@127.0.0.1:5672//',
+        'amqp://user@127.0.0.1:5672//'
+    ),
+    (
+        'amqp://127.0.0.1:5672//',
+        'amqp://127.0.0.1:5672//'
+    ),
+])
+def test_sanitize_url(url, expected):
+    actual = sanitize_url(url)
+    assert actual == expected
