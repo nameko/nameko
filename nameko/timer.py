@@ -13,12 +13,14 @@ _log = getLogger(__name__)
 
 
 class Timer(Entrypoint):
-    def __init__(self, interval):
+    def __init__(self, interval, eager=False, **kwargs):
         """
-        Timer entrypoint implementation. Fires every :attr:`self.interval`
-        seconds.
+        Timer entrypoint. Fires every `interval` seconds or as soon as
+        the previous worker completes if that took longer.
 
-        The implementation sleeps first, i.e. does not fire at time 0.
+        The default behaviour is to wait `interval` seconds
+        before firing for the first time. If you want the entrypoint
+        to fire as soon as the service starts, pass `eager=True`.
 
         Example::
 
@@ -33,8 +35,11 @@ class Timer(Entrypoint):
 
         """
         self.interval = interval
+        self.eager = eager
         self.should_stop = Event()
+        self.worker_complete = Event()
         self.gt = None
+        super(Timer, self).__init__(**kwargs)
 
     def start(self):
         _log.debug('starting %s', self)
@@ -51,8 +56,7 @@ class Timer(Entrypoint):
 
     def _run(self):
         """ Runs the interval loop. """
-
-        sleep_time = self.interval
+        sleep_time = 0 if self.eager else self.interval
 
         while True:
             # sleep for `sleep_time`, unless `should_stop` fires, in which
@@ -64,6 +68,9 @@ class Timer(Entrypoint):
             start = time.time()
 
             self.handle_timer_tick()
+
+            self.worker_complete.wait()
+            self.worker_complete.reset()
 
             elapsed_time = (time.time() - start)
 
@@ -78,9 +85,14 @@ class Timer(Entrypoint):
         # Note that we don't catch ContainerBeingKilled here. If that's raised,
         # there is nothing for us to do anyway. The exception bubbles, and is
         # caught by :meth:`Container._handle_thread_exited`, though the
-        # triggered `kill` is a no-op, since the container is alredy
+        # triggered `kill` is a no-op, since the container is already
         # `_being_killed`.
-        self.container.spawn_worker(self, args, kwargs)
+        self.container.spawn_worker(
+            self, args, kwargs, handle_result=self.handle_result)
+
+    def handle_result(self, worker_ctx, result, exc_info):
+        self.worker_complete.send()
+        return result, exc_info
 
 
 timer = Timer.decorator
