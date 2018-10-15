@@ -2,6 +2,7 @@ import inspect
 import re
 from copy import deepcopy
 from pydoc import locate
+from six.moves.urllib.parse import urlparse
 
 import six
 
@@ -121,3 +122,14 @@ def import_from_path(path):
         )
 
     return obj
+
+
+def sanitize_url(url):
+    """Redact password in urls."""
+    parts = urlparse(url)
+    if parts.password is None:
+        return url
+    host_info = parts.netloc.rsplit('@', 1)[-1]
+    parts = parts._replace(netloc='{}:{}@{}'.format(
+        parts.username, REDACTED, host_info))
+    return parts.geturl()
