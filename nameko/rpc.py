@@ -397,7 +397,7 @@ class RpcProxy(DependencyProvider):
 
     :Parameters:
         target_service : str
-            Target service name
+            Optional preconfigured target service name
         **publisher_options
             Options to configure the :class:`~nameko.amqqp.publish.Publisher`
             that sends the message.
@@ -407,7 +407,7 @@ class RpcProxy(DependencyProvider):
 
     reply_listener = ReplyListener()
 
-    def __init__(self, target_service, **publisher_options):
+    def __init__(self, target_service=None, **publisher_options):
         self.target_service = target_service
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
@@ -452,7 +452,9 @@ class RpcProxy(DependencyProvider):
         register_for_reply = self.reply_listener.register_for_reply
 
         proxy = Proxy(publish, register_for_reply)
-        return getattr(proxy, self.target_service)
+        if self.target_service:
+            proxy = getattr(proxy, self.target_service)
+        return proxy
 
 
 class Proxy(object):

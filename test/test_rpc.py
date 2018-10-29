@@ -746,6 +746,42 @@ def test_request_longer_than_expiry(container_factory, rabbit_config):
         assert echo('foo') == 'foo'
 
 
+def test_cluster_proxy(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        cluster_rpc = RpcProxy()
+
+        @dummy
+        def echo(self, arg):
+            return self.cluster_rpc.delegate.echo(arg)
+
+        @dummy
+        def missing(self, arg):
+            return self.cluster_rpc.missing.echo(arg)
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+    with entrypoint_hook(container, 'missing') as missing:
+        with pytest.raises(UnknownService):
+            missing("foo")
+
+
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
