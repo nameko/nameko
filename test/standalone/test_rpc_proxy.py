@@ -18,7 +18,7 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
-    ClusterRpcProxy, ReplyListener, RpcProxy, ServiceRpcProxy
+    ClusterRpcProxy, ReplyListener, ServiceRpc, ServiceRpcProxy
 )
 from nameko.testing.waiting import wait_for_call
 
@@ -129,12 +129,12 @@ def test_call_id(container_factory, rabbit_config):
     with ServiceRpcProxy('foobar', rabbit_config) as foo:
         stack1 = foo.get_context_data('call_id_stack')
         assert stack1 == [
-            'standalone_rpc_proxy.0.0',
+            'standalone_rpc_client.0.0',
             'foobar.get_context_data.1'
         ]
         stack2 = foo.get_context_data('call_id_stack')
         assert stack2 == [
-            'standalone_rpc_proxy.0.2',
+            'standalone_rpc_client.0.2',
             'foobar.get_context_data.3'
         ]
 
@@ -587,7 +587,7 @@ class TestConfigurability(object):
 
         value = Mock()
 
-        rpc_proxy = RpcProxy(
+        rpc_proxy = ClusterRpcProxy(
             config, **{parameter: value}
         )
         with rpc_proxy as proxy:
@@ -605,7 +605,7 @@ class TestConfigurability(object):
 
         value = {'foo': Mock()}
 
-        rpc_proxy = RpcProxy(
+        rpc_proxy = ClusterRpcProxy(
             config, context_data=data, **{'headers': value}
         )
 
@@ -619,7 +619,7 @@ class TestConfigurability(object):
 
         nameko_headers = {
             'nameko.context': 'data',
-            'nameko.call_id_stack': ['standalone_rpc_proxy.0.0'],
+            'nameko.call_id_stack': ['standalone_rpc_client.0.0'],
         }
 
         assert producer.publish.call_args[1]['headers'] == merge_dicts(
@@ -644,7 +644,7 @@ class TestConfigurability(object):
             'correlation_id', 'reply_to'
         )
 
-        rpc_proxy = RpcProxy(
+        rpc_proxy = ClusterRpcProxy(
             config, **{param: Mock() for param in restricted_params}
         )
 
@@ -685,21 +685,21 @@ class TestStandaloneProxyDisconnections(object):
             retry = True
 
         with patch.object(
-            RpcProxy.publisher_cls, 'retry', new=retry
+            ServiceRpc.publisher_cls, 'retry', new=retry
         ):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            RpcProxy.publisher_cls, 'use_confirms',
+            ServiceRpc.publisher_cls, 'use_confirms',
             new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(RpcProxy, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(ServiceRpc, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.yield_fixture

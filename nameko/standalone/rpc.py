@@ -20,7 +20,7 @@ from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
     RESTRICTED_PUBLISHER_OPTIONS, RPC_REPLY_QUEUE_TEMPLATE,
-    RPC_REPLY_QUEUE_TTL, Proxy, get_rpc_exchange
+    RPC_REPLY_QUEUE_TTL, Client, get_rpc_exchange
 )
 
 
@@ -143,9 +143,9 @@ class ReplyListener(object):
         self.pending[correlation_id] = body
 
 
-class RpcProxy(object):
+class ClusterRpc(object):
     """
-    Single-threaded RPC proxy to a cluster of services. The target service
+    Single-threaded RPC client to a cluster of services. The target service
     and method are specified with attributes.
 
     Method calls on the local object are converted into RPC calls to the
@@ -159,19 +159,19 @@ class RpcProxy(object):
 
     As a context manager::
 
-        with RpcProxy(config) as proxy:
-            proxy.target_service.method()
-            proxy.other_service.method()
+        with ClusterRpc(config) as client:
+            client.target_service.method()
+            client.other_service.method()
 
     The equivalent call, manually starting and stopping::
 
-        proxy = RpcProxy(config)
-        proxy = proxy.start()
+        client = ClusterRpc(config)
+        client = client.start()
         try:
-            proxy.target_service.method()
-            proxy.other_service.method()
+            client.target_service.method()
+            client.other_service.method()
         finally:
-            proxy.stop()
+            client.stop()
 
     If you call ``start()`` you must eventually call ``stop()`` to close the
     connection to the broker.
@@ -182,9 +182,9 @@ class RpcProxy(object):
     When the name of the service is not legal in Python, you can also
     use a dict-like syntax::
 
-        with RpcProxy(config) as proxy:
-            proxy['service-name'].method()
-            proxy['other-service'].method()
+        with ClusterRpc(config) as client:
+            client['service-name'].method()
+            client['other-service'].method()
 
     """
 
@@ -199,7 +199,7 @@ class RpcProxy(object):
         exchange = get_rpc_exchange(config)
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
-            "standalone_rpc_proxy", self.uuid
+            "standalone_rpc_client", self.uuid
         )
         queue = Queue(
             queue_name,
@@ -237,7 +237,7 @@ class RpcProxy(object):
 
             context_data = data or {}
             context_data['call_id_stack'] = [
-                'standalone_rpc_proxy.{}.{}'.format(self.uuid, new_call_id())
+                'standalone_rpc_client.{}.{}'.format(self.uuid, new_call_id())
             ]
 
             extra_headers = encode_to_headers(context_data)
@@ -248,7 +248,7 @@ class RpcProxy(object):
 
         get_reply = self.reply_listener.register_for_reply
 
-        self.proxy = Proxy(publish, get_reply)
+        self.client = Client(publish, get_reply)
 
     @property
     def amqp_uri(self):
@@ -262,23 +262,24 @@ class RpcProxy(object):
 
     def start(self):
         self.reply_listener.start()
-        return self.proxy
+        return self.client
 
     def stop(self):
         self.reply_listener.stop()
 
 
-class ServiceRpcProxy(RpcProxy):
+class ServiceRpc(ClusterRpc):
     """
-    Single-threaded RPC proxy to a named service.
+    Single-threaded RPC client to a named service.
 
-    As per :class:`~nameko.standalone.rpc.RpcProxy` but with a pre-specified
+    As per :class:`~nameko.standalone.rpc.ClusterRpc` but with a pre-specified
     target service.
     """
 
     def __init__(self, service_name, *args, **kwargs):
-        super(ServiceRpcProxy, self).__init__(*args, **kwargs)
-        self.proxy = getattr(self.proxy, service_name)
+        super(ServiceRpc, self).__init__(*args, **kwargs)
+        self.client = getattr(self.client, service_name)
 
 
-ClusterRpcProxy = RpcProxy  # backwards compat
+ClusterRpcProxy = ClusterRpc  # backwards compat
+ServiceRpcProxy = ServiceRpc  # backwards compat

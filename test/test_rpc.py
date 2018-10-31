@@ -23,7 +23,8 @@ from nameko.exceptions import (
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import (
-    Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+    ClusterRpc, Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy,
+    rpc
 )
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
@@ -382,7 +383,7 @@ def test_rpc_headers(container_factory, rabbit_config):
         assert headers == {
             'nameko.language': 'en',
             'nameko.otherheader': 'othervalue',
-            'nameko.call_id_stack': ['standalone_rpc_proxy.0.0']
+            'nameko.call_id_stack': ['standalone_rpc_client.0.0']
         }
 
 
@@ -751,7 +752,7 @@ def test_cluster_proxy(container_factory, rabbit_config):
     class Service(object):
         name = "service"
 
-        cluster_rpc = RpcProxy()
+        cluster_rpc = ClusterRpc()
 
         @dummy
         def echo(self, arg):
