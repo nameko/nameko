@@ -23,7 +23,7 @@ from nameko.exceptions import (
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import (
-    ClusterRpc, Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy,
+    ClusterRpc, Proxy, ReplyListener, Responder, Rpc, RpcConsumer, ServiceRpc,
     rpc
 )
 from nameko.standalone.rpc import ServiceRpcClient
@@ -59,8 +59,8 @@ class ExampleService(object):
     name = 'exampleservice'
 
     translate = Translator()
-    example_rpc = RpcProxy('exampleservice')
-    unknown_rpc = RpcProxy('unknown_service')
+    example_rpc = ServiceRpc('exampleservice')
+    unknown_rpc = ServiceRpc('unknown_service')
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -285,7 +285,7 @@ def test_rpc_consumer_connections(
     class ExampleService(object):
         name = 'exampleservice'
 
-        other_rpc = RpcProxy('other')
+        other_rpc = ServiceRpc('other')
 
         @rpc
         def echo(self, arg):
@@ -664,7 +664,7 @@ def test_reply_queue_removed_on_expiry(
     class Service(object):
         name = "service"
 
-        delegate_rpc = RpcProxy('delegate')
+        delegate_rpc = ServiceRpc('delegate')
 
         @dummy
         def method(self, arg):
@@ -684,7 +684,7 @@ def test_reply_queue_removed_on_expiry(
 
 @patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
-    """ RpcProxy ReplyListener consumer runs in a thread and prevents the
+    """ ServiceRpc ReplyListener consumer runs in a thread and prevents the
     reply queue from expiring. Contrast to the single-threaded equivalent
     in nameko.standalone.rpc.
     """
@@ -692,7 +692,7 @@ def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
     class Service(object):
         name = "service"
 
-        delegate_rpc = RpcProxy('delegate')
+        delegate_rpc = ServiceRpc('delegate')
 
         @dummy
         def echo(self, arg):
@@ -723,7 +723,7 @@ def test_request_longer_than_expiry(container_factory, rabbit_config):
     class Service(object):
         name = "service"
 
-        delegate_rpc = RpcProxy('delegate')
+        delegate_rpc = ServiceRpc('delegate')
 
         @dummy
         def echo(self, arg):
@@ -827,7 +827,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
         class Service(object):
             name = "service"
 
-            delegate_rpc = RpcProxy('delegate')
+            delegate_rpc = ServiceRpc('delegate')
 
             @dummy
             def sleep(self):
@@ -894,7 +894,7 @@ class TestReplyListenerDisconnections(object):
         class Service(object):
             name = "service"
 
-            delegate_rpc = RpcProxy('delegate')
+            delegate_rpc = ServiceRpc('delegate')
 
             @dummy
             def echo(self, arg):
@@ -1358,7 +1358,7 @@ class TestProxyDisconnections(object):
         class Service(object):
             name = "client"
 
-            server_rpc = RpcProxy("server")
+            server_rpc = ServiceRpc("server")
 
             @dummy
             def echo(self, arg):
@@ -1374,19 +1374,19 @@ class TestProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(RpcProxy.publisher_cls, 'retry', new=retry):
+        with patch.object(ServiceRpc.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            RpcProxy.publisher_cls, 'use_confirms', new=request.param
+            ServiceRpc.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(RpcProxy, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(ServiceRpc, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.mark.usefixtures('use_confirms')
@@ -1552,7 +1552,7 @@ class TestResponderDisconnections(object):
                     pass
             del gts[:]
 
-        class ThreadSafeRpcProxy(object):
+        class ThreadSafeServiceRpc(object):
             """ The ServiceRpcClient is not thread-safe, so we can't create it
             in a fixture and use it directly from a new greenlet in a test
             (which we need to, because it hangs in many of these tests).
@@ -1577,7 +1577,7 @@ class TestResponderDisconnections(object):
             def abort(self):
                 kill_greenthreads()
 
-        proxy = ThreadSafeRpcProxy()
+        proxy = ThreadSafeServiceRpc()
         yield proxy
         kill_greenthreads()
 
@@ -1772,7 +1772,7 @@ class TestReplyListenerConfigurability(object):
 
 class TestConfigurability(object):
     """
-    Test and demonstrate configuration options for the RpcProxy
+    Test and demonstrate configuration options for the ServiceRpc
     """
 
     @pytest.yield_fixture
@@ -1800,7 +1800,7 @@ class TestConfigurability(object):
     def test_regular_parameters(
         self, parameter, mock_container, producer
     ):
-        """ Verify that most parameters can be specified at RpcProxy
+        """ Verify that most parameters can be specified at ServiceRpc
         instantiation time.
         """
         mock_container.config = {'AMQP_URI': 'memory://localhost'}
@@ -1813,7 +1813,7 @@ class TestConfigurability(object):
 
         value = Mock()
 
-        rpc_proxy = RpcProxy(
+        rpc_proxy = ServiceRpc(
             "service-name", **{parameter: value}
         ).bind(mock_container, "service_rpc")
 
@@ -1848,7 +1848,7 @@ class TestConfigurability(object):
 
         value = {'foo': Mock()}
 
-        rpc_proxy = RpcProxy(
+        rpc_proxy = ServiceRpc(
             "service-name", **{'headers': value}
         ).bind(mock_container, "service_rpc")
 
@@ -1887,7 +1887,7 @@ class TestConfigurability(object):
             'correlation_id', 'reply_to'
         )
 
-        rpc_proxy = RpcProxy(
+        rpc_proxy = ServiceRpc(
             "service", **{param: Mock() for param in restricted_params}
         ).bind(mock_container, "service_rpc")
 
@@ -2011,7 +2011,7 @@ class TestSSL(object):
         class Service(object):
             name = "service"
 
-            delegate_rpc = RpcProxy('delegate')
+            delegate_rpc = ServiceRpc('delegate')
 
             @dummy
             def echo(self, *args, **kwargs):

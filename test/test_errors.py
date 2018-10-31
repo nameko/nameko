@@ -5,7 +5,7 @@ from mock import ANY, call, patch
 
 from nameko.events import EventDispatcher
 from nameko.exceptions import RemoteError
-from nameko.rpc import RpcConsumer, RpcProxy, rpc
+from nameko.rpc import RpcConsumer, ServiceRpc, rpc
 from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_container, get_extension
@@ -19,7 +19,7 @@ class ExampleService(object):
     name = "exampleservice"
 
     dispatch = EventDispatcher()
-    rpcproxy = RpcProxy('exampleservice')
+    rpcproxy = ServiceRpc('exampleservice')
 
     @rpc
     def task(self):

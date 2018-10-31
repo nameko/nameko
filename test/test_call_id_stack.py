@@ -5,7 +5,7 @@ from nameko.constants import PARENT_CALLS_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.events import EventDispatcher, event_handler
 from nameko.extensions import DependencyProvider
-from nameko.rpc import RpcProxy, rpc
+from nameko.rpc import ServiceRpc, rpc
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import DummyProvider, get_container
 
@@ -93,7 +93,7 @@ def test_call_id_stack(
         name = "parent"
 
         stack_logger = StackLogger()
-        child_service = RpcProxy('child')
+        child_service = ServiceRpc('child')
 
         @rpc
         def method(self):
@@ -103,7 +103,7 @@ def test_call_id_stack(
         name = "grandparent"
 
         stack_logger = StackLogger()
-        parent_service = RpcProxy('parent')
+        parent_service = ServiceRpc('parent')
 
         @rpc
         def method(self):

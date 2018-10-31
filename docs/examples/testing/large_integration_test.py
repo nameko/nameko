@@ -18,7 +18,7 @@ import pytest
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
 from nameko.extensions import DependencyProvider
-from nameko.rpc import RpcProxy, rpc
+from nameko.rpc import ServiceRpc, rpc
 from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import replace_dependencies, restrict_entrypoints
 from nameko.testing.utils import get_container
@@ -68,9 +68,9 @@ class AcmeShopService:
     name = "acmeshopservice"
 
     user_basket = ShoppingBasket()
-    stock_rpc = RpcProxy('stockservice')
-    invoice_rpc = RpcProxy('invoiceservice')
-    payment_rpc = RpcProxy('paymentservice')
+    stock_rpc = ServiceRpc('stockservice')
+    invoice_rpc = ServiceRpc('invoiceservice')
+    payment_rpc = ServiceRpc('paymentservice')
 
     fire_event = EventDispatcher()
 

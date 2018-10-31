@@ -12,7 +12,7 @@ from nameko.constants import (
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import ConfigurationError, RemoteError
 from nameko.messaging import consume
-from nameko.rpc import RpcProxy, rpc
+from nameko.rpc import ServiceRpc, rpc
 from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 
@@ -340,7 +340,7 @@ def test_rpc_accepts_multiple_serialization_formats(
 
         name = 'forwarder'
 
-        echoer = RpcProxy('echoer')
+        echoer = ServiceRpc('echoer')
 
         @rpc
         def forward(self, payload):

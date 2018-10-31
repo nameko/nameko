@@ -1,7 +1,7 @@
 """ Service unit testing best practice.
 """
 
-from nameko.rpc import RpcProxy, rpc
+from nameko.rpc import ServiceRpc, rpc
 from nameko.testing.services import worker_factory
 
 
@@ -10,7 +10,7 @@ class ConversionService(object):
     """
     name = "conversions"
 
-    maths_rpc = RpcProxy("maths")
+    maths_rpc = ServiceRpc("maths")
 
     @rpc
     def inches_to_cm(self, inches):

@@ -220,14 +220,14 @@ def worker_factory(service_cls, **dependencies):
     **Usage**
 
     The following example service proxies calls to a "maths" service via
-    an ``RpcProxy`` dependency::
+    an ``ServiceRpc`` dependency::
 
-        from nameko.rpc import RpcProxy, rpc
+        from nameko.rpc import ServiceRpc, rpc
 
         class ConversionService(object):
             name = "conversions"
 
-            maths_rpc = RpcProxy("maths")
+            maths_rpc = ServiceRpc("maths")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -352,13 +352,13 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
     ::
 
-        from nameko.rpc import RpcProxy, rpc
+        from nameko.rpc import ServiceRpc, rpc
         from nameko.standalone.rpc import ServiceRpcClient
 
         class ConversionService(object):
             name = "conversions"
 
-            maths_rpc = RpcProxy("maths")
+            maths_rpc = ServiceRpc("maths")
 
             @rpc
             def inches_to_cm(self, inches):

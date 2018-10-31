@@ -580,7 +580,7 @@ class TestConfigurability(object):
     def test_regular_parameters(
         self, parameter, mock_container, producer
     ):
-        """ Verify that most parameters can be specified at RpcProxy
+        """ Verify that most parameters can be specified at ServiceRpc
         instantiation time.
         """
         config = {'AMQP_URI': 'memory://localhost'}

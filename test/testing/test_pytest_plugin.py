@@ -6,7 +6,7 @@ from six.moves import queue
 
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
-from nameko.rpc import RpcProxy, rpc
+from nameko.rpc import ServiceRpc, rpc
 from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
@@ -348,7 +348,7 @@ def test_predictable_call_ids(runner_factory, rabbit_config):
         name = "x"
 
         capture = CaptureWorkerContext()
-        service_y = RpcProxy("y")
+        service_y = ServiceRpc("y")
 
         @rpc
         def method(self):
