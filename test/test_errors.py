@@ -6,7 +6,7 @@ from mock import ANY, call, patch
 from nameko.events import EventDispatcher
 from nameko.exceptions import RemoteError
 from nameko.rpc import RpcConsumer, RpcProxy, rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_container, get_extension
 
@@ -104,7 +104,7 @@ def test_handle_result_error(container_factory, rabbit_config):
         handle_result.side_effect = Exception(err)
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcClient("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
             proxy.task.call_async()
 
@@ -128,7 +128,7 @@ def test_dependency_call_lifecycle_errors(
         method.side_effect = Exception(err)
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcClient("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
             proxy.task.call_async()
 
@@ -152,7 +152,7 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         handle_result.side_effect = exception
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcClient("exampleservice", rabbit_config) as proxy:
             # proxy.task() will hang forever because it generates an error
             # in the remote container (so never receives a response).
             proxy.task.call_async()
@@ -180,7 +180,7 @@ def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
             handle_result.side_effect = exception
 
             # use a standalone rpc proxy to call exampleservice.task()
-            with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+            with ServiceRpcClient("exampleservice", rabbit_config) as proxy:
                 # proxy.task() will hang forever because it generates an error
                 # in the remote container (so never receives a response).
                 proxy.task.call_async()

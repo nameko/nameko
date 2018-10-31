@@ -281,5 +281,5 @@ class ServiceRpcClient(ClusterRpcClient):
         self.client = getattr(self.client, service_name)
 
 
-ClusterRpcProxy = ClusterRpcClient  # backwards compat
-ServiceRpcProxy = ServiceRpcClient  # backwards compat
+ClusterRpcClient = ClusterRpcClient  # backwards compat
+ServiceRpcClient = ServiceRpcClient  # backwards compat

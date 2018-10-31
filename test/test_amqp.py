@@ -11,7 +11,7 @@ from nameko.events import EventHandler, event_handler
 from nameko.messaging import Consumer, consume
 from nameko.rpc import ReplyListener, RpcConsumer, RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_waiter, once
 from nameko.testing.utils import get_extension
 
@@ -252,7 +252,7 @@ class TestHeartbeatFailure(object):
             container, 'method', callback=lambda *a: next(counter) == 2
         ):
             # make two requests; the second will block on the worker pool
-            with ServiceRpcProxy('service', config) as service_rpc:
+            with ServiceRpcClient('service', config) as service_rpc:
                 service_rpc.method.call_async(1)
                 service_rpc.method.call_async(2)
 

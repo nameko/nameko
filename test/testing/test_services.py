@@ -10,7 +10,7 @@ from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.extensions import DependencyProvider
 from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import (
     entrypoint_hook, entrypoint_waiter, once, replace_dependencies,
     restrict_entrypoints, worker_factory
@@ -276,7 +276,7 @@ def test_replace_dependencies_kwargs(container_factory, rabbit_config):
 
     # verify that the fake dependency collected calls
     msg = "msg"
-    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
+    with ServiceRpcClient("service", rabbit_config) as service_proxy:
         service_proxy.method(msg)
 
     assert fake_foo_proxy.processed == [msg]
@@ -311,7 +311,7 @@ def test_replace_dependencies_args(container_factory, rabbit_config):
 
     # verify that the mock dependency collects calls
     msg = "msg"
-    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
+    with ServiceRpcClient("service", rabbit_config) as service_proxy:
         service_proxy.method(msg)
 
     foo_proxy.remote_method.assert_called_once_with(msg)
@@ -353,7 +353,7 @@ def test_replace_dependencies_args_and_kwargs(container_factory,
 
     # verify that the fake dependency collected calls
     msg = "msg"
-    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
+    with ServiceRpcClient("service", rabbit_config) as service_proxy:
         service_proxy.method(msg)
 
     assert fake_foo_proxy.processed == [msg]
@@ -436,7 +436,7 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     container.start()
 
     # verify the rpc entrypoint on handler_one is disabled
-    with ServiceRpcProxy("service", rabbit_config) as service_proxy:
+    with ServiceRpcClient("service", rabbit_config) as service_proxy:
         with pytest.raises(MethodNotFound) as exc_info:
             service_proxy.handler_one("msg")
         assert str(exc_info.value) == "handler_one"

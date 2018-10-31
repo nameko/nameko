@@ -13,7 +13,7 @@ from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import ConfigurationError, RemoteError
 from nameko.messaging import consume
 from nameko.rpc import RpcProxy, rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 
 
@@ -105,7 +105,7 @@ def test_rpc_serialization(container_factory, rabbit_config,
 
     serialized = serialized_info[serializer]
 
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
+    with ServiceRpcClient('service', rabbit_config) as proxy:
         assert proxy.echo(test_data) == serialized['data']
         assert entrypoint_called.call_args == call(serialized['data'])
 
@@ -118,7 +118,7 @@ def test_rpc_result_serialization_error(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
+    with ServiceRpcClient('service', rabbit_config) as proxy:
         with pytest.raises(RemoteError) as exc:
             proxy.broken()
         assert exc.value.exc_type == "UnserializableValueError"
@@ -131,7 +131,7 @@ def test_rpc_arg_serialization_error(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
+    with ServiceRpcClient('service', rabbit_config) as proxy:
         with pytest.raises(Exception):
             proxy.echo(unserializable)
 
@@ -212,7 +212,7 @@ def test_custom_serializer(container_factory, rabbit_config,
     get_messages = sniffer_queue_factory('nameko-rpc')
 
     # verify RPC works end-to-end
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
+    with ServiceRpcClient('service', rabbit_config) as proxy:
         assert proxy.echo("hello") == "hello"
 
     # verify sniffed messages serialized as expected
@@ -312,7 +312,7 @@ def test_standalone_rpc_accepts_multiple_serialization_formats(
 
     get_messages = sniffer_queue_factory('nameko-rpc')
 
-    with ServiceRpcProxy('echoer', proxy_config) as proxy:
+    with ServiceRpcClient('echoer', proxy_config) as proxy:
         assert proxy.echo(payload) == payload
 
     msg = get_messages().pop()

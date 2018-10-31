@@ -353,7 +353,7 @@ def replace_dependencies(container, *dependencies, **dependency_map):
     ::
 
         from nameko.rpc import RpcProxy, rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.standalone.rpc import ServiceRpcClient
 
         class ConversionService(object):
             name = "conversions"
@@ -374,7 +374,7 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcProxy('conversions', config) as proxy:
+        with ServiceRpcClient('conversions', config) as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the dependency was called as expected
@@ -394,7 +394,7 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcProxy('conversions', config) as proxy:
+        with ServiceRpcClient('conversions', config) as proxy:
             assert proxy.cm_to_inches(127) == 50.0
 
     """

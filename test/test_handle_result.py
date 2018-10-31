@@ -7,7 +7,7 @@ from mock import ANY
 from nameko.exceptions import RemoteError
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_waiter
 
 
@@ -61,7 +61,7 @@ class ExampleService(object):
 
 @pytest.yield_fixture
 def rpc_proxy(rabbit_config):
-    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
+    with ServiceRpcClient('exampleservice', rabbit_config) as proxy:
         yield proxy
 
 

@@ -15,11 +15,11 @@ from collections import defaultdict
 
 import pytest
 
-from nameko.extensions import DependencyProvider
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc, RpcProxy
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.extensions import DependencyProvider
+from nameko.rpc import RpcProxy, rpc
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import replace_dependencies, restrict_entrypoints
 from nameko.testing.utils import get_container
 from nameko.timer import timer
@@ -256,7 +256,7 @@ def rpc_proxy_factory(rabbit_config):
     all_proxies = []
 
     def make_proxy(service_name, **kwargs):
-        proxy = ServiceRpcProxy(service_name, rabbit_config, **kwargs)
+        proxy = ServiceRpcClient(service_name, rabbit_config, **kwargs)
         all_proxies.append(proxy)
         return proxy.start()
 

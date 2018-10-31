@@ -3,16 +3,16 @@
 """
 import os
 
-from mock import call, patch, Mock
-from moto import mock_sqs
 import boto3
 import jwt
 import pytest
+from mock import Mock, call, patch
+from moto import mock_sqs
 
 from nameko.exceptions import RemoteError
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ClusterRpcProxy, ServiceRpcProxy
-from nameko.testing.services import dummy, entrypoint_waiter, entrypoint_hook
+from nameko.standalone.rpc import ClusterRpcClient, ServiceRpcClient
+from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 
 
 class TestHttp(object):
@@ -111,7 +111,7 @@ class TestEvents(object):
         container_a.start()
         container_b.start()
 
-        with ServiceRpcProxy('service_a', rabbit_config) as service_a_rpc:
+        with ServiceRpcClient('service_a', rabbit_config) as service_a_rpc:
 
             with patch.object(ServiceB, 'handle_event') as handle_event:
 
@@ -176,7 +176,7 @@ class TestAnatomy(object):
         container = container_factory(Service, rabbit_config)
         container.start()
 
-        with ServiceRpcProxy('service', rabbit_config) as service_rpc:
+        with ServiceRpcClient('service', rabbit_config) as service_rpc:
             assert service_rpc.method() is None
 
 
@@ -189,7 +189,7 @@ class TestHelloWorld(object):
         container = container_factory(GreetingService, rabbit_config)
         container.start()
 
-        with ServiceRpcProxy('greeting_service', rabbit_config) as greet_rpc:
+        with ServiceRpcClient('greeting_service', rabbit_config) as greet_rpc:
             assert greet_rpc.hello(u"Møtt") == u"Hello, Møtt!"
 
 
@@ -204,7 +204,7 @@ class TestRpc(object):
         container_x.start()
         container_y.start()
 
-        with ServiceRpcProxy('service_x', rabbit_config) as service_x_rpc:
+        with ServiceRpcClient('service_x', rabbit_config) as service_x_rpc:
             assert service_x_rpc.remote_method(u"føø") == u"føø-x-y"
 
     def test_standalone_rpc(self, container_factory, rabbit_config):
@@ -241,7 +241,7 @@ class TestRpc(object):
         # use execfile with a local namespace
         ns = {
             'config': rabbit_config,
-            'ClusterRpcProxy': ClusterRpcProxy
+            'ClusterRpcClient': ClusterRpcClient
         }
 
         dirpath = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -286,7 +286,7 @@ class TestTravis(object):
         container = container_factory(Travis, rabbit_config)
         container.start()
 
-        with ServiceRpcProxy('travis_service', rabbit_config) as travis_rpc:
+        with ServiceRpcClient('travis_service', rabbit_config) as travis_rpc:
             status = travis_rpc.status_message("travis-ci", "cpython-builder")
             assert "Project travis-ci/cpython-builder" in status
 
@@ -451,7 +451,7 @@ class TestExpectedExceptions:
 
         token = jwt.encode({"roles": []}, key=JWT_SECRET)
 
-        with ServiceRpcProxy(
+        with ServiceRpcClient(
             "service", rabbit_config, context_data={"auth": token}
         ) as proxy:
             with pytest.raises(RemoteError) as exc:
@@ -460,7 +460,7 @@ class TestExpectedExceptions:
 
         admin_token = jwt.encode({"roles": ['admin']}, key=JWT_SECRET)
 
-        with ServiceRpcProxy(
+        with ServiceRpcClient(
             "service", rabbit_config, context_data={"auth": admin_token}
         ) as proxy:
             with pytest.raises(RemoteError) as exc:
@@ -477,7 +477,7 @@ class TestSensitiveArguments:
         container = container_factory(Service, rabbit_config)
         container.start()
 
-        with ServiceRpcProxy("service", rabbit_config) as proxy:
+        with ServiceRpcClient("service", rabbit_config) as proxy:
             token = proxy.login("matt", "secret")
             jwt.decode(token, key=JWT_SECRET, verify=True)
             with pytest.raises(RemoteError) as exc:
