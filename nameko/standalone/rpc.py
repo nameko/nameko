@@ -143,7 +143,7 @@ class ReplyListener(object):
         self.pending[correlation_id] = body
 
 
-class ClusterRpc(object):
+class ClusterRpcClient(object):
     """
     Single-threaded RPC client to a cluster of services. The target service
     and method are specified with attributes.
@@ -268,7 +268,7 @@ class ClusterRpc(object):
         self.reply_listener.stop()
 
 
-class ServiceRpc(ClusterRpc):
+class ServiceRpcClient(ClusterRpcClient):
     """
     Single-threaded RPC client to a named service.
 
@@ -277,9 +277,9 @@ class ServiceRpc(ClusterRpc):
     """
 
     def __init__(self, service_name, *args, **kwargs):
-        super(ServiceRpc, self).__init__(*args, **kwargs)
+        super(ServiceRpcClient, self).__init__(*args, **kwargs)
         self.client = getattr(self.client, service_name)
 
 
-ClusterRpcProxy = ClusterRpc  # backwards compat
-ServiceRpcProxy = ServiceRpc  # backwards compat
+ClusterRpcProxy = ClusterRpcClient  # backwards compat
+ServiceRpcProxy = ServiceRpcClient  # backwards compat

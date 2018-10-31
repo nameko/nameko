@@ -393,8 +393,8 @@ class ReplyListener(SharedExtension):
 
 
 class ClusterRpc(DependencyProvider):
-    """ DependencyProvider for injecting an RPC client to a cluster of services into a
-    service.
+    """ DependencyProvider for injecting an RPC client to a cluster of
+    services into a service.
 
     :Parameters:
         **publisher_options
@@ -453,10 +453,11 @@ class ClusterRpc(DependencyProvider):
 
 
 class ServiceRpc(ClusterRpc):
-    """ DependencyProvider for injecting an RPC client to a specific service into a
-    service.
+    """ DependencyProvider for injecting an RPC client to a specific service
+    into a service.
 
-    As per :class:`~nameko.rpc.ClusterRpc` but with a pre-specified target service.
+    As per :class:`~nameko.rpc.ClusterRpc` but with a pre-specified target
+    service.
 
     :Parameters:
         target_service : str
@@ -470,9 +471,6 @@ class ServiceRpc(ClusterRpc):
     def get_dependency(self, worker_ctx):
         client = super(ServiceRpc, self).get_dependency(worker_ctx)
         return getattr(client, self.target_service)
-
-
-
 
 
 class Client(object):
@@ -489,7 +487,7 @@ class Client(object):
 
         # equivalent with attribute access
         client = Client(publish, register_for_reply)
-        client = client.target_service.target_method  # client now fully-specified
+        client = client.target_service.target_method  # now fully-specified
         client(*args, **kwargs)
 
     Calling a fully-specified `Client` will make the RPC call and block for the
@@ -603,7 +601,6 @@ class Client(object):
             raise UnknownService(self.service_name)
 
         return rpc_call
-
 
 
 class RpcCall(object):

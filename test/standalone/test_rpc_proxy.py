@@ -18,7 +18,7 @@ from nameko.exceptions import (
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
 from nameko.standalone.rpc import (
-    ClusterRpcProxy, ReplyListener, ServiceRpc, ServiceRpcProxy
+    ClusterRpcProxy, ReplyListener, ServiceRpcProxy
 )
 from nameko.testing.waiting import wait_for_call
 
@@ -685,21 +685,21 @@ class TestStandaloneProxyDisconnections(object):
             retry = True
 
         with patch.object(
-            ServiceRpc.publisher_cls, 'retry', new=retry
+            ServiceRpcProxy.publisher_cls, 'retry', new=retry
         ):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            ServiceRpc.publisher_cls, 'use_confirms',
+            ServiceRpcProxy.publisher_cls, 'use_confirms',
             new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(ServiceRpc, 'amqp_uri', new=toxiproxy.uri):
+        with patch.object(ServiceRpcProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.yield_fixture
