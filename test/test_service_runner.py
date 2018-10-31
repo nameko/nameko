@@ -218,8 +218,8 @@ def test_multiple_runners_coexist(
 
     # test rpc (only one service will respond)
     arg = "arg"
-    with ServiceRpcClient('service', rabbit_config) as proxy:
-        proxy.handle(arg)
+    with ServiceRpcClient('service', rabbit_config) as client:
+        client.handle(arg)
 
     assert tracker.call_args_list == [
         call(event_data), call(event_data), call(arg)
@@ -250,8 +250,8 @@ def test_runner_with_duplicate_services(
 
     # test rpc
     arg = "arg"
-    with ServiceRpcClient("service", rabbit_config) as proxy:
-        proxy.handle(arg)
+    with ServiceRpcClient("service", rabbit_config) as client:
+        client.handle(arg)
 
     assert tracker.call_args_list == [call(event_data), call(arg)]
 

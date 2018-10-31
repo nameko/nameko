@@ -374,8 +374,8 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcClient('conversions', config) as proxy:
-            proxy.cm_to_inches(100)
+        with ServiceRpcClient('conversions', config) as client:
+            client.cm_to_inches(100)
 
         # assert that the dependency was called as expected
         mock_maths_rpc.divide.assert_called_once_with(100, 2.54)
@@ -394,8 +394,8 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcClient('conversions', config) as proxy:
-            assert proxy.cm_to_inches(127) == 50.0
+        with ServiceRpcClient('conversions', config) as client:
+            assert client.cm_to_inches(127) == 50.0
 
     """
     if set(dependencies).intersection(dependency_map):

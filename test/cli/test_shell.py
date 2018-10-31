@@ -10,12 +10,12 @@ from nameko.cli.shell import make_nameko_helper
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 )
-from nameko.rpc import Proxy
+from nameko.rpc import Client
 
 
 def test_helper_module(rabbit_config):
     helper = make_nameko_helper(rabbit_config)
-    assert isinstance(helper.rpc, Proxy)
+    assert isinstance(helper.rpc, Client)
     helper.disconnect()
 
 

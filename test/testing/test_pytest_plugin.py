@@ -250,8 +250,8 @@ def test_container_factory(
             container = container_factory(ServiceX, rabbit_config)
             container.start()
 
-            with ServiceRpcClient("x", rabbit_config) as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x", rabbit_config) as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -296,8 +296,8 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
             assert isinstance(container, ServiceContainerX)
 
-            with ServiceRpcClient("x", rabbit_config) as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x", rabbit_config) as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -324,8 +324,8 @@ def test_runner_factory(
             runner = runner_factory(rabbit_config, ServiceX)
             runner.start()
 
-            with ServiceRpcClient("x", rabbit_config) as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x", rabbit_config) as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)

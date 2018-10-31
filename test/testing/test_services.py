@@ -209,8 +209,8 @@ def test_worker_factory():
 
     class Service(object):
         name = "service"
-        foo_proxy = ServiceRpc("foo_service")
-        bar_proxy = ServiceRpc("bar_service")
+        foo_client = ServiceRpc("foo_service")
+        bar_client = ServiceRpc("bar_service")
 
     class OtherService(object):
         pass
@@ -218,8 +218,8 @@ def test_worker_factory():
     # simplest case, no overrides
     instance = worker_factory(Service)
     assert isinstance(instance, Service)
-    assert isinstance(instance.foo_proxy, Mock)
-    assert isinstance(instance.bar_proxy, Mock)
+    assert isinstance(instance.foo_client, Mock)
+    assert isinstance(instance.bar_client, Mock)
 
     # no dependencies to replace
     instance = worker_factory(OtherService)
@@ -227,10 +227,10 @@ def test_worker_factory():
 
     # override specific dependency
     bar_dependency = object()
-    instance = worker_factory(Service, bar_proxy=bar_dependency)
+    instance = worker_factory(Service, bar_client=bar_dependency)
     assert isinstance(instance, Service)
-    assert isinstance(instance.foo_proxy, Mock)
-    assert instance.bar_proxy is bar_dependency
+    assert isinstance(instance.foo_client, Mock)
+    assert instance.bar_client is bar_dependency
 
     # non-applicable dependency
     with pytest.raises(ExtensionNotFound):
@@ -241,13 +241,13 @@ def test_replace_dependencies_kwargs(container_factory, rabbit_config):
 
     class Service(object):
         name = "service"
-        foo_proxy = ServiceRpc("foo_service")
-        bar_proxy = ServiceRpc("bar_service")
-        baz_proxy = ServiceRpc("baz_service")
+        foo_client = ServiceRpc("foo_service")
+        bar_client = ServiceRpc("bar_service")
+        baz_client = ServiceRpc("baz_service")
 
         @rpc
         def method(self, arg):
-            self.foo_proxy.remote_method(arg)
+            self.foo_client.remote_method(arg)
 
     class FakeDependency(object):
         def __init__(self):
@@ -259,13 +259,13 @@ def test_replace_dependencies_kwargs(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
 
     # customise a single dependency
-    fake_foo_proxy = FakeDependency()
-    replace_dependencies(container, foo_proxy=fake_foo_proxy)
+    fake_foo_client = FakeDependency()
+    replace_dependencies(container, foo_client=fake_foo_client)
     assert 2 == len([dependency for dependency in container.extensions
                      if isinstance(dependency, ServiceRpc)])
 
     # customise multiple dependencies
-    res = replace_dependencies(container, bar_proxy=Mock(), baz_proxy=Mock())
+    res = replace_dependencies(container, bar_client=Mock(), baz_client=Mock())
     assert list(res) == []
 
     # verify that container.extensions doesn't include an ServiceRpc anymore
@@ -276,31 +276,31 @@ def test_replace_dependencies_kwargs(container_factory, rabbit_config):
 
     # verify that the fake dependency collected calls
     msg = "msg"
-    with ServiceRpcClient("service", rabbit_config) as service_proxy:
-        service_proxy.method(msg)
+    with ServiceRpcClient("service", rabbit_config) as service_client:
+        service_client.method(msg)
 
-    assert fake_foo_proxy.processed == [msg]
+    assert fake_foo_client.processed == [msg]
 
 
 def test_replace_dependencies_args(container_factory, rabbit_config):
 
     class Service(object):
         name = "service"
-        foo_proxy = ServiceRpc("foo_service")
-        bar_proxy = ServiceRpc("bar_service")
-        baz_proxy = ServiceRpc("baz_service")
+        foo_client = ServiceRpc("foo_service")
+        bar_client = ServiceRpc("bar_service")
+        baz_client = ServiceRpc("baz_service")
 
         @rpc
         def method(self, arg):
-            self.foo_proxy.remote_method(arg)
+            self.foo_client.remote_method(arg)
 
     container = container_factory(Service, rabbit_config)
 
     # replace a single dependency
-    foo_proxy = replace_dependencies(container, "foo_proxy")
+    foo_client = replace_dependencies(container, "foo_client")
 
     # replace multiple dependencies
-    replacements = replace_dependencies(container, "bar_proxy", "baz_proxy")
+    replacements = replace_dependencies(container, "bar_client", "baz_client")
     assert len([x for x in replacements]) == 2
 
     # verify that container.extensions doesn't include an ServiceRpc anymore
@@ -311,25 +311,25 @@ def test_replace_dependencies_args(container_factory, rabbit_config):
 
     # verify that the mock dependency collects calls
     msg = "msg"
-    with ServiceRpcClient("service", rabbit_config) as service_proxy:
-        service_proxy.method(msg)
+    with ServiceRpcClient("service", rabbit_config) as service_client:
+        service_client.method(msg)
 
-    foo_proxy.remote_method.assert_called_once_with(msg)
+    foo_client.remote_method.assert_called_once_with(msg)
 
 
 def test_replace_dependencies_args_and_kwargs(container_factory,
                                               rabbit_config):
     class Service(object):
         name = "service"
-        foo_proxy = ServiceRpc("foo_service")
-        bar_proxy = ServiceRpc("bar_service")
-        baz_proxy = ServiceRpc("baz_service")
+        foo_client = ServiceRpc("foo_service")
+        bar_client = ServiceRpc("bar_service")
+        baz_client = ServiceRpc("baz_service")
 
         @rpc
         def method(self, arg):
-            self.foo_proxy.remote_method(arg)
-            self.bar_proxy.bar()
-            self.baz_proxy.baz()
+            self.foo_client.remote_method(arg)
+            self.bar_client.bar()
+            self.baz_client.baz()
 
     class FakeDependency(object):
         def __init__(self):
@@ -340,9 +340,9 @@ def test_replace_dependencies_args_and_kwargs(container_factory,
 
     container = container_factory(Service, rabbit_config)
 
-    fake_foo_proxy = FakeDependency()
-    mock_bar_proxy, mock_baz_proxy = replace_dependencies(
-        container, 'bar_proxy', 'baz_proxy', foo_proxy=fake_foo_proxy
+    fake_foo_client = FakeDependency()
+    mock_bar_client, mock_baz_client = replace_dependencies(
+        container, 'bar_client', 'baz_client', foo_client=fake_foo_client
     )
 
     # verify that container.extensions doesn't include an ServiceRpc anymore
@@ -353,27 +353,27 @@ def test_replace_dependencies_args_and_kwargs(container_factory,
 
     # verify that the fake dependency collected calls
     msg = "msg"
-    with ServiceRpcClient("service", rabbit_config) as service_proxy:
-        service_proxy.method(msg)
+    with ServiceRpcClient("service", rabbit_config) as service_client:
+        service_client.method(msg)
 
-    assert fake_foo_proxy.processed == [msg]
-    assert mock_bar_proxy.bar.call_count == 1
-    assert mock_baz_proxy.baz.call_count == 1
+    assert fake_foo_client.processed == [msg]
+    assert mock_bar_client.bar.call_count == 1
+    assert mock_baz_client.baz.call_count == 1
 
 
 def test_replace_dependencies_in_both_args_and_kwargs_error(container_factory,
                                                             rabbit_config):
     class Service(object):
         name = "service"
-        foo_proxy = ServiceRpc("foo_service")
-        bar_proxy = ServiceRpc("bar_service")
-        baz_proxy = ServiceRpc("baz_service")
+        foo_client = ServiceRpc("foo_service")
+        bar_client = ServiceRpc("bar_service")
+        baz_client = ServiceRpc("baz_service")
 
     container = container_factory(Service, rabbit_config)
 
     with pytest.raises(RuntimeError) as exc:
         replace_dependencies(
-            container, 'bar_proxy', 'foo_proxy', foo_proxy='foo'
+            container, 'bar_client', 'foo_client', foo_client='foo'
         )
     assert "Cannot replace the same dependency" in str(exc)
 
@@ -382,7 +382,7 @@ def test_replace_non_dependency(container_factory, rabbit_config):
 
     class Service(object):
         name = "service"
-        proxy = ServiceRpc("foo_service")
+        client = ServiceRpc("foo_service")
 
         @rpc
         def method(self):
@@ -404,13 +404,13 @@ def test_replace_dependencies_container_already_started(container_factory,
 
     class Service(object):
         name = "service"
-        proxy = ServiceRpc("foo_service")
+        client = ServiceRpc("foo_service")
 
     container = container_factory(Service, rabbit_config)
     container.start()
 
     with pytest.raises(RuntimeError):
-        replace_dependencies(container, "proxy")
+        replace_dependencies(container, "client")
 
 
 def test_restrict_entrypoints(container_factory, rabbit_config):
@@ -436,9 +436,9 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     container.start()
 
     # verify the rpc entrypoint on handler_one is disabled
-    with ServiceRpcClient("service", rabbit_config) as service_proxy:
+    with ServiceRpcClient("service", rabbit_config) as service_client:
         with pytest.raises(MethodNotFound) as exc_info:
-            service_proxy.handler_one("msg")
+            service_client.handler_one("msg")
         assert str(exc_info.value) == "handler_one"
 
     # dispatch an event to handler_two

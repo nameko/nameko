@@ -62,11 +62,11 @@ Usage:
 
     >>> n.dispatch_event('service', 'event_type', 'event_data')
 """
-    proxy = ClusterRpcClient(config)
-    module.rpc = proxy.start()
+    client = ClusterRpcClient(config)
+    module.rpc = client.start()
     module.dispatch_event = event_dispatcher(config)
     module.config = config
-    module.disconnect = proxy.stop
+    module.disconnect = client.stop
     return module
 
 

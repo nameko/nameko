@@ -42,8 +42,8 @@ def test_run(rabbit_config):
         gt = eventlet.spawn(main, args)
 
     # make sure service launches ok
-    with ClusterRpcClient(rabbit_config) as proxy:
-        proxy.service.ping()
+    with ClusterRpcClient(rabbit_config) as client:
+        client.service.ping()
 
     # stop service
     pid = os.getpid()
@@ -123,8 +123,8 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
     with wait_for_call(ServiceRunner, 'start'):
         gt = eventlet.spawn(main, args)
 
-    with ClusterRpcClient(rabbit_config) as proxy:
-        proxy.service.ping()
+    with ClusterRpcClient(rabbit_config) as client:
+        client.service.ping()
 
     pid = os.getpid()
     os.kill(pid, signal.SIGTERM)

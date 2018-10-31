@@ -293,8 +293,8 @@ def predictable_call_ids(request):
     import itertools
     from mock import patch
 
-    with patch('nameko.standalone.rpc.uuid') as proxy_uuid:
-        proxy_uuid.uuid4.side_effect = (str(i) for i in itertools.count())
+    with patch('nameko.standalone.rpc.uuid') as client_uuid:
+        client_uuid.uuid4.side_effect = (str(i) for i in itertools.count())
         with patch('nameko.containers.uuid', autospec=True) as call_uuid:
             call_uuid.uuid4.side_effect = (str(i) for i in itertools.count())
             yield call_uuid.uuid4

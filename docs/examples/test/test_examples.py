@@ -453,18 +453,18 @@ class TestExpectedExceptions:
 
         with ServiceRpcClient(
             "service", rabbit_config, context_data={"auth": token}
-        ) as proxy:
+        ) as client:
             with pytest.raises(RemoteError) as exc:
-                proxy.update(None)
+                client.update(None)
             assert exc.value.exc_type == 'Unauthorized'
 
         admin_token = jwt.encode({"roles": ['admin']}, key=JWT_SECRET)
 
         with ServiceRpcClient(
             "service", rabbit_config, context_data={"auth": admin_token}
-        ) as proxy:
+        ) as client:
             with pytest.raises(RemoteError) as exc:
-                proxy.update(None)
+                client.update(None)
             assert exc.value.exc_type == 'TypeError'
 
 
@@ -477,11 +477,11 @@ class TestSensitiveArguments:
         container = container_factory(Service, rabbit_config)
         container.start()
 
-        with ServiceRpcClient("service", rabbit_config) as proxy:
-            token = proxy.login("matt", "secret")
+        with ServiceRpcClient("service", rabbit_config) as client:
+            token = client.login("matt", "secret")
             jwt.decode(token, key=JWT_SECRET, verify=True)
             with pytest.raises(RemoteError) as exc:
-                proxy.login("matt", "incorrect")
+                client.login("matt", "incorrect")
             assert exc.value.exc_type == "Unauthenticated"
 
 

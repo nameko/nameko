@@ -69,7 +69,7 @@ class CustomWorkerContext(WorkerContext):
     context_keys = ("custom_header",)
 
 
-def test_proxy(container_factory, rabbit_config):
+def test_client(container_factory, rabbit_config):
 
     container = container_factory(FooService, rabbit_config)
     container.start()
@@ -79,34 +79,34 @@ def test_proxy(container_factory, rabbit_config):
         assert foo.spam(ham='eggs') == 'eggs'  # test re-use
 
 
-def test_proxy_manual_start_stop(container_factory, rabbit_config):
+def test_client_manual_start_stop(container_factory, rabbit_config):
 
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    foobar_proxy = ServiceRpcClient('foobar', rabbit_config)
-    foo = foobar_proxy.start()
+    foobar_client = ServiceRpcClient('foobar', rabbit_config)
+    foo = foobar_client.start()
     assert foo.spam(ham='eggs') == 'eggs'
     assert foo.spam(ham='eggs') == 'eggs'  # test re-use
-    foobar_proxy.stop()
+    foobar_client.stop()
 
 
-def test_proxy_stop_start_again(container_factory, rabbit_config):
+def test_client_stop_start_again(container_factory, rabbit_config):
 
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    foobar_proxy = ServiceRpcClient('foobar', rabbit_config)
-    foo1 = foobar_proxy.start()
+    foobar_client = ServiceRpcClient('foobar', rabbit_config)
+    foo1 = foobar_client.start()
     assert foo1.spam(ham='eggs') == 'eggs'
-    foobar_proxy.stop()
+    foobar_client.stop()
 
-    foo2 = foobar_proxy.start()
+    foo2 = foobar_client.start()
     assert foo2.spam(ham='eggs') == 'eggs'  # test re-use
-    foobar_proxy.stop()
+    foobar_client.stop()
 
 
-def test_proxy_context_data(container_factory, rabbit_config):
+def test_client_context_data(container_factory, rabbit_config):
 
     container = container_factory(FooService, rabbit_config)
     container.start()
@@ -139,14 +139,14 @@ def test_call_id(container_factory, rabbit_config):
         ]
 
 
-def test_proxy_remote_error(container_factory, rabbit_config):
+def test_client_remote_error(container_factory, rabbit_config):
 
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient("foobar", rabbit_config) as proxy:
+    with ServiceRpcClient("foobar", rabbit_config) as client:
         with pytest.raises(RemoteError) as exc_info:
-            proxy.broken()
+            client.broken()
         assert exc_info.value.exc_type == "ExampleError"
 
 
@@ -176,7 +176,7 @@ def test_reply_queue_removed_on_expiry(
     assert queues_before != queues_during
     assert queues_after == queues_before
 
-    # check proxy re-use
+    # check client re-use
     with ServiceRpcClient('foobar', rabbit_config) as foo:
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'
@@ -200,7 +200,7 @@ def test_reply_queue_not_removed_while_in_use(
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    # check proxy re-use
+    # check client re-use
     with ServiceRpcClient('foobar', rabbit_config) as foo:
         queues_before = list_queues()
         # sleep for 2x TTL
@@ -264,17 +264,17 @@ class TestDisconnectedWhileWaitingForReply(object):
         return container
 
     @pytest.yield_fixture
-    def toxic_rpc_proxy(self, rabbit_config, toxiproxy):
+    def toxic_rpc_client(self, rabbit_config, toxiproxy):
         config = rabbit_config.copy()
         config['AMQP_URI'] = toxiproxy.uri
-        with ClusterRpcClient(config) as proxy:
-            yield proxy
+        with ClusterRpcClient(config) as client:
+            yield client
 
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
-        self, toxic_rpc_proxy, toxiproxy, container
+        self, toxic_rpc_client, toxiproxy, container
     ):
         with pytest.raises(ReplyQueueExpiredWithPendingReplies):
-            toxic_rpc_proxy.service.sleep()
+            toxic_rpc_client.service.sleep()
 
 
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
@@ -317,11 +317,11 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    service_rpc_proxy = ServiceRpcClient("foobar", rabbit_config)
-    with service_rpc_proxy as proxy:
+    service_rpc_client = ServiceRpcClient("foobar", rabbit_config)
+    with service_rpc_client as client:
 
         message = Message(channel=None, properties={
-            'reply_to': service_rpc_proxy.reply_listener.queue.routing_key,
+            'reply_to': service_rpc_client.reply_listener.queue.routing_key,
             'correlation_id': 'invalid',
             'content_type': 'application/json'
         })
@@ -331,7 +331,7 @@ def test_unexpected_correlation_id(container_factory, rabbit_config):
         responder = Responder(amqp_uri, exchange, message)
         with patch('nameko.standalone.rpc._logger', autospec=True) as logger:
             responder.send_response(None, None)
-            assert proxy.spam(ham='eggs') == 'eggs'
+            assert client.spam(ham='eggs') == 'eggs'
             assert logger.debug.call_count == 1
 
 
@@ -357,11 +357,11 @@ def test_multiple_proxies(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient('foobar', rabbit_config) as proxy1:
-        res1 = proxy1.spam.call_async(ham=1)
+    with ServiceRpcClient('foobar', rabbit_config) as client1:
+        res1 = client1.spam.call_async(ham=1)
 
-        with ServiceRpcClient('foobar', rabbit_config) as proxy2:
-            res2 = proxy2.spam.call_async(ham=2)
+        with ServiceRpcClient('foobar', rabbit_config) as client2:
+            res2 = client2.spam.call_async(ham=2)
 
             assert res1.result() == 1
             assert res2.result() == 2
@@ -371,8 +371,8 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient('foobar', rabbit_config) as proxy:
-        res = proxy.spam.call_async(ham=1)
+    with ServiceRpcClient('foobar', rabbit_config) as client:
+        res = client.spam.call_async(ham=1)
         res.result()
         res.result()
 
@@ -381,13 +381,13 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
 class TestDisconnectWithPendingReply(object):
 
     @pytest.fixture
-    def toxic_rpc_proxy(self, rabbit_config, toxiproxy):
+    def toxic_rpc_client(self, rabbit_config, toxiproxy):
         rabbit_config['AMQP_URI'] = toxiproxy.uri
         return ClusterRpcClient(rabbit_config)
 
     def test_disconnect_and_successfully_reconnect(
         self, container_factory, rabbit_manager, rabbit_config,
-        toxic_rpc_proxy, toxiproxy
+        toxic_rpc_client, toxiproxy
     ):
         block = Event()
 
@@ -402,12 +402,12 @@ class TestDisconnectWithPendingReply(object):
         container = container_factory(Service, rabbit_config)
         container.start()
 
-        with toxic_rpc_proxy as proxy:
+        with toxic_rpc_client as client:
 
             # make an async call that will block,
             # wait for the worker to have spawned
             with wait_for_call(container, 'spawn_worker'):
-                res = proxy.service.method.call_async('msg1')
+                res = client.service.method.call_async('msg1')
 
             # disable toxiproxy to kill connections
             toxiproxy.disable()
@@ -419,14 +419,15 @@ class TestDisconnectWithPendingReply(object):
                 return True
 
             with wait_for_call(
-                toxic_rpc_proxy.reply_listener.consumer, 'on_connection_error',
+                toxic_rpc_client.reply_listener.consumer,
+                'on_connection_error',
                 callback=reconnect
             ):
-                # rpc proxy should recover the message in flight
+                # rpc client should recover the message in flight
                 res.result() == "msg1"
 
-                # proxy should work again after reconnection
-                assert proxy.service.method("msg2") == "msg2"
+                # client should work again after reconnection
+                assert client.service.method("msg2") == "msg2"
 
             # stop container before we stop toxiproxy
             container.stop()
@@ -436,20 +437,20 @@ def test_timeout_not_needed(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient('foobar', rabbit_config, timeout=1) as proxy:
-        assert proxy.sleep() == 0
+    with ServiceRpcClient('foobar', rabbit_config, timeout=1) as client:
+        assert client.sleep() == 0
 
 
 def test_timeout(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient('foobar', rabbit_config, timeout=.5) as proxy:
+    with ServiceRpcClient('foobar', rabbit_config, timeout=.5) as client:
         with pytest.raises(RpcTimeout):
-            proxy.sleep(seconds=2)
+            client.sleep(seconds=2)
 
-        # make sure we can still use the proxy
-        assert proxy.sleep(seconds=0) == 0
+        # make sure we can still use the client
+        assert client.sleep(seconds=0) == 0
 
 
 def test_no_timeout(
@@ -458,10 +459,10 @@ def test_no_timeout(
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient('foobar', rabbit_config) as proxy:
+    with ServiceRpcClient('foobar', rabbit_config) as client:
         with pytest.raises(eventlet.Timeout):
             with eventlet.Timeout(.1):
-                proxy.sleep(seconds=1)
+                client.sleep(seconds=1)
 
 
 def test_async_timeout(
@@ -470,8 +471,8 @@ def test_async_timeout(
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient('foobar', rabbit_config, timeout=.5) as proxy:
-        result = proxy.sleep.call_async(seconds=2)
+    with ServiceRpcClient('foobar', rabbit_config, timeout=.5) as client:
+        result = client.sleep.call_async(seconds=2)
         with pytest.raises(RpcTimeout):
             result.result()
 
@@ -480,17 +481,17 @@ def test_use_after_close(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ServiceRpcClient('foobar', rabbit_config) as proxy:
-        proxy.spam(ham=1)
+    with ServiceRpcClient('foobar', rabbit_config) as client:
+        client.spam(ham=1)
         pass
 
     with pytest.raises(RuntimeError) as exc:
-        proxy.spam(ham=1)
+        client.spam(ham=1)
     assert 'can no longer be used' in str(exc)
 
 
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=100)
-def test_proxy_queue_expired_even_if_unused(rabbit_manager, rabbit_config):
+def test_client_queue_expired_even_if_unused(rabbit_manager, rabbit_config):
     vhost = rabbit_config['vhost']
     with ServiceRpcClient('exampleservice', rabbit_config):
         assert len(rabbit_manager.get_queues(vhost)) == 1
@@ -499,34 +500,36 @@ def test_proxy_queue_expired_even_if_unused(rabbit_manager, rabbit_config):
     assert len(rabbit_manager.get_queues(vhost)) == 0
 
 
-def test_cluster_proxy(container_factory, rabbit_manager, rabbit_config):
+def test_cluster_client(container_factory, rabbit_manager, rabbit_config):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ClusterRpcClient(rabbit_config) as proxy:
-        assert proxy.foobar.spam(ham=1) == 1
+    with ClusterRpcClient(rabbit_config) as client:
+        assert client.foobar.spam(ham=1) == 1
 
 
-def test_cluster_proxy_reuse(container_factory, rabbit_manager, rabbit_config):
-    container = container_factory(FooService, rabbit_config)
-    container.start()
-
-    cluster_proxy = ClusterRpcClient(rabbit_config)
-    with cluster_proxy as proxy:
-        assert proxy.foobar.spam(ham=1) == 1
-
-    with cluster_proxy as second_proxy:
-        assert second_proxy.foobar.spam(ham=1) == 1
-
-
-def test_cluster_proxy_dict_access(
+def test_cluster_client_reuse(
     container_factory, rabbit_manager, rabbit_config
 ):
     container = container_factory(FooService, rabbit_config)
     container.start()
 
-    with ClusterRpcClient(rabbit_config) as proxy:
-        assert proxy['foobar'].spam(ham=3) == 3
+    cluster_client = ClusterRpcClient(rabbit_config)
+    with cluster_client as client:
+        assert client.foobar.spam(ham=1) == 1
+
+    with cluster_client as second_client:
+        assert second_client.foobar.spam(ham=1) == 1
+
+
+def test_cluster_client_dict_access(
+    container_factory, rabbit_manager, rabbit_config
+):
+    container = container_factory(FooService, rabbit_config)
+    container.start()
+
+    with ClusterRpcClient(rabbit_config) as client:
+        assert client['foobar'].spam(ham=3) == 3
 
 
 def test_recover_from_keyboardinterrupt(
@@ -536,23 +539,23 @@ def test_recover_from_keyboardinterrupt(
     container.start()  # create rpc queues
     container.stop()  # but make sure call doesn't complete
 
-    with ServiceRpcClient('foobar', rabbit_config) as proxy:
+    with ServiceRpcClient('foobar', rabbit_config) as client:
 
         with patch('kombu.connection.Connection.drain_events') as drain_events:
             drain_events.side_effect = KeyboardInterrupt('killing from test')
             with pytest.raises(KeyboardInterrupt):
-                proxy.spam(ham=0)
+                client.spam(ham=0)
 
         container = container_factory(FooService, rabbit_config)
         container.start()
 
-        # proxy should still work
-        assert proxy.spam(ham=1) == 1
+        # client should still work
+        assert client.spam(ham=1) == 1
 
 
 class TestConfigurability(object):
     """
-    Test and demonstrate configuration options for the standalone RPC proxy
+    Test and demonstrate configuration options for the standalone RPC client
     """
 
     @pytest.yield_fixture
@@ -587,11 +590,11 @@ class TestConfigurability(object):
 
         value = Mock()
 
-        rpc_proxy = ClusterRpcClient(
+        rpc_client = ClusterRpcClient(
             config, **{parameter: value}
         )
-        with rpc_proxy as proxy:
-            proxy.service.method.call_async()
+        with rpc_client as client:
+            client.service.method.call_async()
         assert producer.publish.call_args[1][parameter] == value
 
     @pytest.mark.usefixtures('predictable_call_ids')
@@ -605,12 +608,12 @@ class TestConfigurability(object):
 
         value = {'foo': Mock()}
 
-        rpc_proxy = ClusterRpcClient(
+        rpc_client = ClusterRpcClient(
             config, context_data=data, **{'headers': value}
         )
 
-        with rpc_proxy as proxy:
-            proxy['service-name'].method.call_async()
+        with rpc_client as client:
+            client['service-name'].method.call_async()
 
         def merge_dicts(base, *updates):
             merged = base.copy()
@@ -644,12 +647,12 @@ class TestConfigurability(object):
             'correlation_id', 'reply_to'
         )
 
-        rpc_proxy = ClusterRpcClient(
+        rpc_client = ClusterRpcClient(
             config, **{param: Mock() for param in restricted_params}
         )
 
-        with rpc_proxy as proxy:
-            proxy.service.method.call_async()
+        with rpc_client as client:
+            client.service.method.call_async()
 
         publish_params = producer.publish.call_args[1]
 
@@ -661,7 +664,7 @@ class TestConfigurability(object):
 
 
 @skip_if_no_toxiproxy
-class TestStandaloneProxyDisconnections(object):
+class TestStandaloneClientDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def container(self, container_factory, rabbit_config):
@@ -698,14 +701,14 @@ class TestStandaloneProxyDisconnections(object):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
-    def toxic_rpc_proxy(self, toxiproxy):
+    def toxic_rpc_client(self, toxiproxy):
         with patch.object(ServiceRpcClient, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.yield_fixture
     def service_rpc(self, rabbit_config):
-        with ServiceRpcClient("service", rabbit_config) as proxy:
-            yield proxy
+        with ServiceRpcClient("service", rabbit_config) as client:
+            yield client
 
     @pytest.mark.usefixtures('use_confirms')
     def test_normal(self, service_rpc):
@@ -796,7 +799,7 @@ class TestStandaloneProxyDisconnections(object):
 
 
 @skip_if_no_toxiproxy
-class TestStandaloneProxyReplyListenerDisconnections(object):
+class TestStandaloneClientReplyListenerDisconnections(object):
 
     @pytest.yield_fixture(autouse=True)
     def fast_reconnects(self):
@@ -841,17 +844,17 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
             yield
 
     @pytest.fixture
-    def rpc_proxy(self, rabbit_config):
+    def rpc_client(self, rabbit_config):
         return ServiceRpcClient('service', rabbit_config)
 
     @pytest.fixture
-    def reply_listener(self, rpc_proxy):
-        return rpc_proxy.reply_listener
+    def reply_listener(self, rpc_client):
+        return rpc_client.reply_listener
 
     @pytest.yield_fixture
-    def service_rpc(self, rpc_proxy):
-        with rpc_proxy as proxy:
-            yield proxy
+    def service_rpc(self, rpc_client):
+        with rpc_client as client:
+            yield client
 
     def test_normal(self, container, service_rpc):
         assert service_rpc.echo("foo") == "foo"
@@ -995,7 +998,7 @@ class TestStandaloneProxyReplyListenerDisconnections(object):
 
 class TestSSL(object):
 
-    def test_rpc_proxy_over_ssl(
+    def test_rpc_client_over_ssl(
         self, container_factory, rabbit_ssl_config, rabbit_config
     ):
         class Service(object):
@@ -1008,7 +1011,7 @@ class TestSSL(object):
         container = container_factory(Service, rabbit_config)
         container.start()
 
-        with ServiceRpcClient("service", rabbit_ssl_config) as proxy:
-            assert proxy.echo("a", "b", foo="bar") == [
+        with ServiceRpcClient("service", rabbit_ssl_config) as client:
+            assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
