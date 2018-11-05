@@ -62,8 +62,7 @@ Getting Started
 Support
 -------
 
-For help, comments or questions, please use the `mailing list
-<https://groups.google.com/forum/#!forum/nameko-dev>`_ on google groups.
+For help, comments or questions, please go to <https://discourse.nameko.io/>. The old mailing list on google groups can be found here - `mailing list <https://groups.google.com/forum/#!forum/nameko-dev>`_ on google groups.
 
 
 Contribute
