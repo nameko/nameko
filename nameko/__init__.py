@@ -1,12 +1,7 @@
 from copy import deepcopy
-from six.moves import UserDict
 
 
-class Config(UserDict):
-    pass
-
-
-config = Config()
+config = {}
 """
 It is possible to set the config by using ``--config`` switch of Nameko
 command line interface.
