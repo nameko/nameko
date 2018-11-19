@@ -535,11 +535,13 @@ def test_unreliable_delivery(
     # stop container, test queue deleted
     unreliable_container.stop()
 
-    @retry
+    @retry(for_exceptions=AssertionError)
     def queue_removed():
-        with pytest.raises(NotFound):
-            queue_info(queue_name)
-    queue_removed()
+        queue_info(queue_name)
+        assert False
+
+    with pytest.raises(NotFound):
+        queue_removed()
 
     # dispatch a second event while nobody is listening
     count = itertools.count(start=1)
