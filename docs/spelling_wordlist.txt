@@ -86,6 +86,7 @@ parallelization
 parallelize
 plugin
 pre
+preconfigured
 prefetch
 programmatically
 pseudocode
@@ -99,10 +100,10 @@ reconnected
 reconnecting
 reconnection
 redis
-regex
 refactor
 refactored
 refactors
+regex
 renderer
 requeue
 requeued

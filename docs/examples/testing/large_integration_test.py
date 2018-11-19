@@ -15,11 +15,11 @@ from collections import defaultdict
 
 import pytest
 
-from nameko.extensions import DependencyProvider
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import RemoteError
-from nameko.rpc import rpc, RpcProxy
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.extensions import DependencyProvider
+from nameko.rpc import ServiceRpc, rpc
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import replace_dependencies, restrict_entrypoints
 from nameko.testing.utils import get_container
 from nameko.timer import timer
@@ -68,9 +68,9 @@ class AcmeShopService:
     name = "acmeshopservice"
 
     user_basket = ShoppingBasket()
-    stock_rpc = RpcProxy('stockservice')
-    invoice_rpc = RpcProxy('invoiceservice')
-    payment_rpc = RpcProxy('paymentservice')
+    stock_rpc = ServiceRpc('stockservice')
+    invoice_rpc = ServiceRpc('invoiceservice')
+    payment_rpc = ServiceRpc('paymentservice')
 
     fire_event = EventDispatcher()
 
@@ -246,33 +246,33 @@ class PaymentService:
 
 
 @pytest.yield_fixture
-def rpc_proxy_factory(rabbit_config):
-    """ Factory fixture for standalone RPC proxies.
+def rpc_client_factory(rabbit_config):
+    """ Factory fixture for standalone RPC clients.
 
-    Proxies are started automatically so they can be used without a ``with``
-    statement. All created proxies are stopped at the end of the test, when
+    Clients are started automatically so they can be used without a ``with``
+    statement. All created clients are stopped at the end of the test, when
     this fixture closes.
     """
-    all_proxies = []
+    all_clients = []
 
-    def make_proxy(service_name, **kwargs):
-        proxy = ServiceRpcProxy(service_name, rabbit_config, **kwargs)
-        all_proxies.append(proxy)
-        return proxy.start()
+    def make_client(service_name, **kwargs):
+        client = ServiceRpcClient(service_name, rabbit_config, **kwargs)
+        all_clients.append(client)
+        return client.start()
 
-    yield make_proxy
+    yield make_client
 
-    for proxy in all_proxies:
-        proxy.stop()
+    for client in all_clients:
+        client.stop()
 
 
 def test_shop_checkout_integration(
-    rabbit_config, runner_factory, rpc_proxy_factory
+    rabbit_config, runner_factory, rpc_client_factory
 ):
     """ Simulate a checkout flow as an integration test.
 
     Requires instances of AcmeShopService, StockService and InvoiceService
-    to be running. Explicitly replaces the rpc proxy to PaymentService so
+    to be running. Explicitly replaces the rpc client to PaymentService so
     that service doesn't need to be hosted.
 
     Also replaces the event dispatcher dependency on AcmeShopService and
@@ -281,7 +281,7 @@ def test_shop_checkout_integration(
     eliminates undesirable side-effects (e.g. processing events unnecessarily).
     """
     context_data = {'user_id': 'wile_e_coyote'}
-    shop = rpc_proxy_factory('acmeshopservice', context_data=context_data)
+    shop = rpc_client_factory('acmeshopservice', context_data=context_data)
 
     runner = runner_factory(
         rabbit_config, AcmeShopService, StockService, InvoiceService)

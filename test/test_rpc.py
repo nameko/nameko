@@ -23,9 +23,10 @@ from nameko.exceptions import (
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import (
-    Proxy, ReplyListener, Responder, Rpc, RpcConsumer, RpcProxy, rpc
+    Client, ClusterRpc, ReplyListener, Responder, Rpc, RpcConsumer, ServiceRpc,
+    rpc
 )
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import get_extension
 from nameko.testing.waiting import wait_for_call
@@ -58,8 +59,8 @@ class ExampleService(object):
     name = 'exampleservice'
 
     translate = Translator()
-    example_rpc = RpcProxy('exampleservice')
-    unknown_rpc = RpcProxy('unknown_service')
+    example_rpc = ServiceRpc('exampleservice')
+    unknown_rpc = ServiceRpc('unknown_service')
 
     @rpc
     def task_a(self, *args, **kwargs):
@@ -189,87 +190,87 @@ def test_reply_listener(get_rpc_exchange, mock_container):
             'Unknown correlation id: %s', correlation_id)
 
 
-class TestProxy(object):
+class TestClient(object):
 
     def test_getattr(self):
         publish = Mock()
         reply_listener = Mock()
 
-        proxy = Proxy(publish, reply_listener)
-        service_proxy = proxy.service
-        assert proxy != service_proxy
-        assert proxy.publish == service_proxy.publish
-        assert proxy.register_for_reply == service_proxy.register_for_reply
-        assert proxy.service_name is None
-        assert proxy.method_name is None
-        assert service_proxy.service_name == "service"
-        assert service_proxy.method_name is None
+        client = Client(publish, reply_listener)
+        service_client = client.service
+        assert client != service_client
+        assert client.publish == service_client.publish
+        assert client.register_for_reply == service_client.register_for_reply
+        assert client.service_name is None
+        assert client.method_name is None
+        assert service_client.service_name == "service"
+        assert service_client.method_name is None
 
-        method1_proxy = service_proxy.method1
-        assert service_proxy != method1_proxy
-        assert service_proxy.publish == method1_proxy.publish
-        assert service_proxy.register_for_reply == (
-            method1_proxy.register_for_reply
+        method1_client = service_client.method1
+        assert service_client != method1_client
+        assert service_client.publish == method1_client.publish
+        assert service_client.register_for_reply == (
+            method1_client.register_for_reply
         )
-        assert service_proxy.service_name == "service"
-        assert service_proxy.method_name is None
-        assert method1_proxy.service_name == "service"
-        assert method1_proxy.method_name == "method1"
+        assert service_client.service_name == "service"
+        assert service_client.method_name is None
+        assert method1_client.service_name == "service"
+        assert method1_client.method_name == "method1"
 
-        method2_proxy = service_proxy.method2
+        method2_client = service_client.method2
 
-        method2_proxy = service_proxy.method2
-        assert service_proxy != method2_proxy
-        assert service_proxy.publish == method2_proxy.publish
-        assert service_proxy.register_for_reply == (
-            method2_proxy.register_for_reply
+        method2_client = service_client.method2
+        assert service_client != method2_client
+        assert service_client.publish == method2_client.publish
+        assert service_client.register_for_reply == (
+            method2_client.register_for_reply
         )
-        assert service_proxy.service_name == "service"
-        assert service_proxy.method_name is None
-        assert method2_proxy.service_name == "service"
-        assert method2_proxy.method_name == "method2"
+        assert service_client.service_name == "service"
+        assert service_client.method_name is None
+        assert method2_client.service_name == "service"
+        assert method2_client.method_name == "method2"
 
-        assert method1_proxy != method2_proxy
+        assert method1_client != method2_client
 
         with pytest.raises(AttributeError):
-            method1_proxy.attr
+            method1_client.attr
         with pytest.raises(AttributeError):
-            method2_proxy.attr
+            method2_client.attr
 
     def test_identifier(self):
         publish = Mock()
         register_for_reply = Mock()
 
-        proxy = Proxy(publish, register_for_reply)
-        service_proxy = proxy.service
-        method1_proxy = service_proxy.method1
-        method2_proxy = service_proxy.method2
+        client = Client(publish, register_for_reply)
+        service_client = client.service
+        method1_client = service_client.method1
+        method2_client = service_client.method2
 
-        assert proxy.identifier == "*.*"
-        assert service_proxy.identifier == "service.*"
-        assert method1_proxy.identifier == "service.method1"
-        assert method2_proxy.identifier == "service.method2"
+        assert client.identifier == "*.*"
+        assert service_client.identifier == "service.*"
+        assert method1_client.identifier == "service.method1"
+        assert method2_client.identifier == "service.method2"
 
     def test_dict_access(self):
         publish = Mock()
         register_for_reply = Mock()
 
-        proxy = Proxy(publish, register_for_reply)
+        client = Client(publish, register_for_reply)
 
-        assert proxy['service'].identifier == "service.*"
-        assert proxy['service']['method'].identifier == "service.method"
+        assert client['service'].identifier == "service.*"
+        assert client['service']['method'].identifier == "service.method"
 
-    def test_cannot_invoke_unspecified_proxy(self):
+    def test_cannot_invoke_unspecified_client(self):
         publish = Mock()
         register_for_reply = Mock()
 
-        proxy = Proxy(publish, register_for_reply)
+        client = Client(publish, register_for_reply)
 
         with pytest.raises(ValueError):
-            proxy()
+            client()
 
         with pytest.raises(ValueError):
-            proxy.service()
+            client.service()
 
 
 # =============================================================================
@@ -284,7 +285,7 @@ def test_rpc_consumer_connections(
     class ExampleService(object):
         name = 'exampleservice'
 
-        other_rpc = RpcProxy('other')
+        other_rpc = ServiceRpc('other')
 
         @rpc
         def echo(self, arg):
@@ -372,17 +373,17 @@ def test_rpc_headers(container_factory, rabbit_config):
 
         patched.side_effect = lambda msg, *args: headers.update(msg.headers)
 
-        # use a standalone rpc proxy to call exampleservice.say_hello()
-        with ServiceRpcProxy(
+        # use a standalone rpc client to call exampleservice.say_hello()
+        with ServiceRpcClient(
             "exampleservice", rabbit_config, context_data
-        ) as proxy:
-            assert proxy.say_hello() == "hello"
+        ) as client:
+            assert client.say_hello() == "hello"
 
         # headers as per context data, plus call stack
         assert headers == {
             'nameko.language': 'en',
             'nameko.otherheader': 'othervalue',
-            'nameko.call_id_stack': ['standalone_rpc_proxy.0.0']
+            'nameko.call_id_stack': ['standalone_rpc_client.0.0']
         }
 
 
@@ -391,9 +392,9 @@ def test_rpc_existing_method(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
-        assert proxy.task_a() == "result_a"
-        assert proxy.task_b() == "result_b"
+    with ServiceRpcClient("exampleservice", rabbit_config) as client:
+        assert client.task_a() == "result_a"
+        assert client.task_b() == "result_b"
 
 
 def test_async_rpc(container_factory, rabbit_config):
@@ -468,8 +469,8 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
 
         method_name, args, kwargs = signature
 
-        with ServiceRpcProxy("service", rabbit_config) as proxy:
-            method = getattr(proxy, method_name)
+        with ServiceRpcClient("service", rabbit_config) as client:
+            method = getattr(client, method_name)
 
             if not is_valid_call:
                 with pytest.raises(IncorrectSignature):
@@ -483,9 +484,9 @@ def test_rpc_missing_method(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+    with ServiceRpcClient("exampleservice", rabbit_config) as client:
         with pytest.raises(MethodNotFound) as exc_info:
-            proxy.task_c()
+            client.task_c()
     assert str(exc_info.value) == "task_c"
 
 
@@ -504,8 +505,8 @@ def test_handle_message_raise_malformed_request(
     with pytest.raises(MalformedRequest):
         with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = MalformedRequest('bad request')
-            with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
-                proxy.task_a()
+            with ServiceRpcClient("exampleservice", rabbit_config) as client:
+                client.task_a()
 
 
 def test_handle_message_raise_other_exception(
@@ -516,8 +517,8 @@ def test_handle_message_raise_other_exception(
     with pytest.raises(RemoteError):
         with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = Exception('broken')
-            with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
-                proxy.task_a()
+            with ServiceRpcClient("exampleservice", rabbit_config) as client:
+                client.task_a()
 
 
 def test_rpc_method_that_raises(container_factory, rabbit_config):
@@ -525,9 +526,9 @@ def test_rpc_method_that_raises(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+    with ServiceRpcClient("exampleservice", rabbit_config) as client:
         with pytest.raises(RemoteError) as exc_info:
-            proxy.raises()
+            client.raises()
     assert exc_info.value.exc_type == "ExampleError"
 
 
@@ -535,22 +536,22 @@ def test_rpc_unknown_service(container_factory, rabbit_config):
     container = container_factory(ExampleService, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+    with ServiceRpcClient("exampleservice", rabbit_config) as client:
         # success
-        assert proxy.task_a()
+        assert client.task_a()
 
         # failure
         with pytest.raises(RemoteError) as exc_info:
-            proxy.call_unknown()
+            client.call_unknown()
 
     assert exc_info.value.exc_type == "UnknownService"
 
 
 def test_rpc_unknown_service_standalone(rabbit_config):
 
-    with ServiceRpcProxy("unknown_service", rabbit_config) as proxy:
+    with ServiceRpcClient("unknown_service", rabbit_config) as client:
         with pytest.raises(UnknownService) as exc_info:
-            proxy.anything()
+            client.anything()
 
     assert exc_info.value._service_name == 'unknown_service'
 
@@ -559,8 +560,8 @@ class TestContainerBeingKilled(object):
 
     @pytest.yield_fixture
     def service_rpc(self, rabbit_config):
-        with ServiceRpcProxy("service", rabbit_config) as proxy:
-            yield proxy
+        with ServiceRpcClient("service", rabbit_config) as client:
+            yield client
 
     def test_container_killed(
         self, container_factory, rabbit_config, service_rpc
@@ -619,10 +620,10 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
         # try to call task_a.
         # should timeout, rather than raising MethodNotFound
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcClient("exampleservice", rabbit_config) as client:
             with pytest.raises(eventlet.Timeout):
                 with eventlet.Timeout(1):
-                    proxy.task_a()
+                    client.task_a()
 
     # kill the container so we don't have to wait for task_b to stop
     container.kill()
@@ -663,7 +664,7 @@ def test_reply_queue_removed_on_expiry(
     class Service(object):
         name = "service"
 
-        delegate_rpc = RpcProxy('delegate')
+        delegate_rpc = ServiceRpc('delegate')
 
         @dummy
         def method(self, arg):
@@ -683,7 +684,7 @@ def test_reply_queue_removed_on_expiry(
 
 @patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
-    """ RpcProxy ReplyListener consumer runs in a thread and prevents the
+    """ ServiceRpc ReplyListener consumer runs in a thread and prevents the
     reply queue from expiring. Contrast to the single-threaded equivalent
     in nameko.standalone.rpc.
     """
@@ -691,7 +692,7 @@ def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
     class Service(object):
         name = "service"
 
-        delegate_rpc = RpcProxy('delegate')
+        delegate_rpc = ServiceRpc('delegate')
 
         @dummy
         def echo(self, arg):
@@ -722,7 +723,7 @@ def test_request_longer_than_expiry(container_factory, rabbit_config):
     class Service(object):
         name = "service"
 
-        delegate_rpc = RpcProxy('delegate')
+        delegate_rpc = ServiceRpc('delegate')
 
         @dummy
         def echo(self, arg):
@@ -744,6 +745,42 @@ def test_request_longer_than_expiry(container_factory, rabbit_config):
 
     with entrypoint_hook(container, 'echo') as echo:
         assert echo('foo') == 'foo'
+
+
+def test_cluster_rpc_dependency(container_factory, rabbit_config):
+
+    class Service(object):
+        name = "service"
+
+        cluster_rpc = ClusterRpc()
+
+        @dummy
+        def echo(self, arg):
+            return self.cluster_rpc.delegate.echo(arg)
+
+        @dummy
+        def missing(self, arg):
+            return self.cluster_rpc.missing.echo(arg)
+
+    class DelegateService(object):
+        name = "delegate"
+
+        @rpc
+        def echo(self, arg):
+            return arg
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container.start()
+
+    with entrypoint_hook(container, 'echo') as echo:
+        assert echo('foo') == 'foo'
+
+    with entrypoint_hook(container, 'missing') as missing:
+        with pytest.raises(UnknownService):
+            missing("foo")
 
 
 @skip_if_no_toxiproxy
@@ -790,7 +827,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
         class Service(object):
             name = "service"
 
-            delegate_rpc = RpcProxy('delegate')
+            delegate_rpc = ServiceRpc('delegate')
 
             @dummy
             def sleep(self):
@@ -857,7 +894,7 @@ class TestReplyListenerDisconnections(object):
         class Service(object):
             name = "service"
 
-            delegate_rpc = RpcProxy('delegate')
+            delegate_rpc = ServiceRpc('delegate')
 
             @dummy
             def echo(self, arg):
@@ -1070,8 +1107,8 @@ class TestRpcConsumerDisconnections(object):
 
     @pytest.yield_fixture
     def service_rpc(self, rabbit_config):
-        with ServiceRpcProxy('service', rabbit_config) as proxy:
-            yield proxy
+        with ServiceRpcClient('service', rabbit_config) as client:
+            yield client
 
     @pytest.fixture
     def lock(self):
@@ -1286,7 +1323,7 @@ class TestRpcConsumerDisconnections(object):
 
 
 @skip_if_no_toxiproxy
-class TestProxyDisconnections(object):
+class TestClientDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
 
     Publisher confirms must be enabled for some of these tests to pass. Without
@@ -1315,13 +1352,13 @@ class TestProxyDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def client_container(
-        self, container_factory, rabbit_config, toxic_rpc_proxy
+        self, container_factory, rabbit_config, toxic_service_rpc
     ):
 
         class Service(object):
             name = "client"
 
-            server_rpc = RpcProxy("server")
+            server_rpc = ServiceRpc("server")
 
             @dummy
             def echo(self, arg):
@@ -1337,19 +1374,19 @@ class TestProxyDisconnections(object):
         if "publish_retry" in request.keywords:
             retry = True
 
-        with patch.object(RpcProxy.publisher_cls, 'retry', new=retry):
+        with patch.object(ServiceRpc.publisher_cls, 'retry', new=retry):
             yield
 
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
-            RpcProxy.publisher_cls, 'use_confirms', new=request.param
+            ServiceRpc.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
     @pytest.yield_fixture(autouse=True)
-    def toxic_rpc_proxy(self, toxiproxy):
-        with patch.object(RpcProxy, 'amqp_uri', new=toxiproxy.uri):
+    def toxic_service_rpc(self, toxiproxy):
+        with patch.object(ServiceRpc, 'amqp_uri', new=toxiproxy.uri):
             yield
 
     @pytest.mark.usefixtures('use_confirms')
@@ -1515,22 +1552,22 @@ class TestResponderDisconnections(object):
                     pass
             del gts[:]
 
-        class ThreadSafeRpcProxy(object):
-            """ The ServiceRpcProxy is not thread-safe, so we can't create it
+        class ThreadSafeServiceRpc(object):
+            """ The ServiceRpcClient is not thread-safe, so we can't create it
             in a fixture and use it directly from a new greenlet in a test
             (which we need to, because it hangs in many of these tests).
 
-            Instead we fake the interface and make the underlying proxy call
+            Instead we fake the interface and make the underlying rpc call
             in a dedicated thread, ensuring it's never shared.
             """
 
             def __getattr__(self, name):
                 def method(*args, **kwargs):
                     def call():
-                        with ServiceRpcProxy(
+                        with ServiceRpcClient(
                             "service", rabbit_config
-                        ) as proxy:
-                            return getattr(proxy, name)(*args, **kwargs)
+                        ) as client:
+                            return getattr(client, name)(*args, **kwargs)
 
                     gt = eventlet.spawn(call)
                     gts.append(gt)
@@ -1540,8 +1577,8 @@ class TestResponderDisconnections(object):
             def abort(self):
                 kill_greenthreads()
 
-        proxy = ThreadSafeRpcProxy()
-        yield proxy
+        client = ThreadSafeServiceRpc()
+        yield client
         kill_greenthreads()
 
     @pytest.mark.usefixtures('use_confirms')
@@ -1735,7 +1772,7 @@ class TestReplyListenerConfigurability(object):
 
 class TestConfigurability(object):
     """
-    Test and demonstrate configuration options for the RpcProxy
+    Test and demonstrate configuration options for the ServiceRpc
     """
 
     @pytest.yield_fixture
@@ -1763,7 +1800,7 @@ class TestConfigurability(object):
     def test_regular_parameters(
         self, parameter, mock_container, producer
     ):
-        """ Verify that most parameters can be specified at RpcProxy
+        """ Verify that most parameters can be specified at ServiceRpc
         instantiation time.
         """
         mock_container.config = {'AMQP_URI': 'memory://localhost'}
@@ -1776,14 +1813,14 @@ class TestConfigurability(object):
 
         value = Mock()
 
-        rpc_proxy = RpcProxy(
+        service_rpc = ServiceRpc(
             "service-name", **{parameter: value}
         ).bind(mock_container, "service_rpc")
 
-        rpc_proxy.reply_listener.setup()
-        rpc_proxy.setup()
+        service_rpc.reply_listener.setup()
+        service_rpc.setup()
 
-        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+        service_rpc = service_rpc.get_dependency(worker_ctx)
 
         service_rpc.method.call_async()
         assert producer.publish.call_args[1][parameter] == value
@@ -1811,14 +1848,14 @@ class TestConfigurability(object):
 
         value = {'foo': Mock()}
 
-        rpc_proxy = RpcProxy(
+        service_rpc = ServiceRpc(
             "service-name", **{'headers': value}
         ).bind(mock_container, "service_rpc")
 
-        rpc_proxy.reply_listener.setup()
-        rpc_proxy.setup()
+        service_rpc.reply_listener.setup()
+        service_rpc.setup()
 
-        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+        service_rpc = service_rpc.get_dependency(worker_ctx)
 
         def merge_dicts(base, *updates):
             merged = base.copy()
@@ -1850,14 +1887,14 @@ class TestConfigurability(object):
             'correlation_id', 'reply_to'
         )
 
-        rpc_proxy = RpcProxy(
+        service_rpc = ServiceRpc(
             "service", **{param: Mock() for param in restricted_params}
         ).bind(mock_container, "service_rpc")
 
-        rpc_proxy.reply_listener.setup()
-        rpc_proxy.setup()
+        service_rpc.reply_listener.setup()
+        service_rpc.setup()
 
-        service_rpc = rpc_proxy.get_dependency(worker_ctx)
+        service_rpc = service_rpc.get_dependency(worker_ctx)
 
         service_rpc.method.call_async()
         publish_params = producer.publish.call_args[1]
@@ -1887,9 +1924,9 @@ def test_prefetch_throughput(container_factory, rabbit_config):
     container.start()
 
     replies = []
-    with ServiceRpcProxy("service", rabbit_config) as proxy:
+    with ServiceRpcClient("service", rabbit_config) as client:
         for _ in range(5):
-            replies.append(proxy.method.call_async())
+            replies.append(client.method.call_async())
 
         with eventlet.Timeout(1):
             [reply.result() for reply in replies]
@@ -1920,7 +1957,7 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy("service", rabbit_config) as service_rpc:
+    with ServiceRpcClient("service", rabbit_config) as service_rpc:
         service_rpc.method.call_async()
 
     gt = eventlet.spawn(container.stop)
@@ -1963,18 +2000,18 @@ class TestSSL(object):
         container = container_factory(Service, rabbit_ssl_config)
         container.start()
 
-        with ServiceRpcProxy("service", rabbit_config) as proxy:
-            assert proxy.echo("a", "b", foo="bar") == [
+        with ServiceRpcClient("service", rabbit_config) as client:
+            assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
 
-    def test_rpc_proxy_over_ssl(
+    def test_rpc_client_over_ssl(
         self, container_factory, rabbit_ssl_config, rabbit_config
     ):
         class Service(object):
             name = "service"
 
-            delegate_rpc = RpcProxy('delegate')
+            delegate_rpc = ServiceRpc('delegate')
 
             @dummy
             def echo(self, *args, **kwargs):

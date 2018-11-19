@@ -9,9 +9,9 @@ from nameko.amqp.publish import Publisher
 from nameko.constants import DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 from nameko.events import EventHandler, event_handler
 from nameko.messaging import Consumer, consume
-from nameko.rpc import ReplyListener, RpcConsumer, RpcProxy, rpc
+from nameko.rpc import ReplyListener, RpcConsumer, ServiceRpc, rpc
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_waiter, once
 from nameko.testing.utils import get_extension
 
@@ -45,7 +45,7 @@ class TestDeadlockRegression(object):
         class Service(object):
             name = "downsteam"
 
-            upstream_rpc = RpcProxy("upstream")
+            upstream_rpc = ServiceRpc("upstream")
 
             @event_handler('service', 'event1')
             def handle_event1(self, event_data):
@@ -99,7 +99,7 @@ class TestHeartbeats(object):
         class Service(object):
             name = "service"
 
-            upstream_rpc = RpcProxy("upstream")
+            upstream_rpc = ServiceRpc("upstream")
 
             @consume(queue=Queue(name="queue"))
             @event_handler("service", "event")
@@ -252,7 +252,7 @@ class TestHeartbeatFailure(object):
             container, 'method', callback=lambda *a: next(counter) == 2
         ):
             # make two requests; the second will block on the worker pool
-            with ServiceRpcProxy('service', config) as service_rpc:
+            with ServiceRpcClient('service', config) as service_rpc:
                 service_rpc.method.call_async(1)
                 service_rpc.method.call_async(2)
 

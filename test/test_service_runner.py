@@ -5,7 +5,7 @@ from nameko.events import BROADCAST, event_handler
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_waiter
 from nameko.testing.utils import assert_stops_raising, get_container
 
@@ -218,8 +218,8 @@ def test_multiple_runners_coexist(
 
     # test rpc (only one service will respond)
     arg = "arg"
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
-        proxy.handle(arg)
+    with ServiceRpcClient('service', rabbit_config) as client:
+        client.handle(arg)
 
     assert tracker.call_args_list == [
         call(event_data), call(event_data), call(arg)
@@ -250,8 +250,8 @@ def test_runner_with_duplicate_services(
 
     # test rpc
     arg = "arg"
-    with ServiceRpcProxy("service", rabbit_config) as proxy:
-        proxy.handle(arg)
+    with ServiceRpcClient("service", rabbit_config) as client:
+        client.handle(arg)
 
     assert tracker.call_args_list == [call(event_data), call(arg)]
 

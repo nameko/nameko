@@ -1,7 +1,7 @@
 """ Service unit testing best practice.
 """
 
-from nameko.rpc import RpcProxy, rpc
+from nameko.rpc import ServiceRpc, rpc
 from nameko.testing.services import worker_factory
 
 
@@ -10,7 +10,7 @@ class ConversionService(object):
     """
     name = "conversions"
 
-    maths_rpc = RpcProxy("maths")
+    maths_rpc = ServiceRpc("maths")
 
     @rpc
     def inches_to_cm(self, inches):
@@ -25,7 +25,7 @@ def test_conversion_service():
     # create worker with mock dependencies
     service = worker_factory(ConversionService)
 
-    # add side effects to the mock proxy to the "maths" service
+    # add side effects to the mock rpc dependency on the "maths" service
     service.maths_rpc.multiply.side_effect = lambda x, y: x * y
     service.maths_rpc.divide.side_effect = lambda x, y: x / y
 

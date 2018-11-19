@@ -6,8 +6,8 @@ from six.moves import queue
 
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
-from nameko.rpc import RpcProxy, rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.rpc import ServiceRpc, rpc
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
 from nameko.web.handlers import http
@@ -237,7 +237,7 @@ def test_container_factory(
     testdir.makepyfile(
         """
         from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.standalone.rpc import ServiceRpcClient
 
         class ServiceX(object):
             name = "x"
@@ -250,8 +250,8 @@ def test_container_factory(
             container = container_factory(ServiceX, rabbit_config)
             container.start()
 
-            with ServiceRpcProxy("x", rabbit_config) as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x", rabbit_config) as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -273,7 +273,7 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
     testdir.makepyfile(
         """
         from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.standalone.rpc import ServiceRpcClient
 
         from container_module import ServiceContainerX
 
@@ -296,8 +296,8 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
             assert isinstance(container, ServiceContainerX)
 
-            with ServiceRpcProxy("x", rabbit_config) as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x", rabbit_config) as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -311,7 +311,7 @@ def test_runner_factory(
     testdir.makepyfile(
         """
         from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.standalone.rpc import ServiceRpcClient
 
         class ServiceX(object):
             name = "x"
@@ -324,8 +324,8 @@ def test_runner_factory(
             runner = runner_factory(rabbit_config, ServiceX)
             runner.start()
 
-            with ServiceRpcProxy("x", rabbit_config) as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x", rabbit_config) as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -348,7 +348,7 @@ def test_predictable_call_ids(runner_factory, rabbit_config):
         name = "x"
 
         capture = CaptureWorkerContext()
-        service_y = RpcProxy("y")
+        service_y = ServiceRpc("y")
 
         @rpc
         def method(self):
@@ -366,7 +366,7 @@ def test_predictable_call_ids(runner_factory, rabbit_config):
     runner = runner_factory(rabbit_config, ServiceX, ServiceY)
     runner.start()
 
-    with ServiceRpcProxy("x", rabbit_config) as service_x:
+    with ServiceRpcClient("x", rabbit_config) as service_x:
         service_x.method()
 
     call_ids = [worker_ctx.call_id for worker_ctx in worker_contexts]

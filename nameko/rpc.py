@@ -41,7 +41,7 @@ RESTRICTED_PUBLISHER_OPTIONS = (
     'exchange', 'routing_key', 'mandatory', 'reply_to', 'correlation_id'
 )
 """
-Publisher options that cannot be overridden when configuring an RPC proxy
+Publisher options that cannot be overridden when configuring an RPC client
 """
 
 
@@ -392,12 +392,11 @@ class ReplyListener(SharedExtension):
             _log.debug("Unknown correlation id: %s", correlation_id)
 
 
-class RpcProxy(DependencyProvider):
-    """ DependencyProvider for injecting an RPC proxy into a service.
+class ClusterRpc(DependencyProvider):
+    """ DependencyProvider for injecting an RPC client to a cluster of
+    services into a service.
 
     :Parameters:
-        target_service : str
-            Target service name
         **publisher_options
             Options to configure the :class:`~nameko.amqqp.publish.Publisher`
             that sends the message.
@@ -407,8 +406,7 @@ class RpcProxy(DependencyProvider):
 
     reply_listener = ReplyListener()
 
-    def __init__(self, target_service, **publisher_options):
-        self.target_service = target_service
+    def __init__(self, **publisher_options):
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
         self.publisher_options = publisher_options
@@ -451,28 +449,48 @@ class RpcProxy(DependencyProvider):
 
         register_for_reply = self.reply_listener.register_for_reply
 
-        proxy = Proxy(publish, register_for_reply)
-        return getattr(proxy, self.target_service)
+        return Client(publish, register_for_reply)
 
 
-class Proxy(object):
+class ServiceRpc(ClusterRpc):
+    """ DependencyProvider for injecting an RPC client to a specific service
+    into a service.
+
+    As per :class:`~nameko.rpc.ClusterRpc` but with a pre-specified target
+    service.
+
+    :Parameters:
+        target_service : str
+            Target service name
+    """
+
+    def __init__(self, target_service, **kwargs):
+        self.target_service = target_service
+        super(ServiceRpc, self).__init__(**kwargs)
+
+    def get_dependency(self, worker_ctx):
+        client = super(ServiceRpc, self).get_dependency(worker_ctx)
+        return getattr(client, self.target_service)
+
+
+class Client(object):
     """ Helper object for making RPC calls.
 
     The target service and method name may be specified at construction time
     or by attribute or dict access, for example:
 
         # target at construction time
-        proxy = Proxy(
+        client = Client(
             publish, register_for_reply, "target_service", "target_method"
         )
-        proxy(*args, **kwargs)
+        client(*args, **kwargs)
 
         # equivalent with attribute access
-        proxy = Proxy(publish, register_for_reply)
-        proxy = proxy.target_service.target_method  # proxy now fully-specified
-        proxy(*args, **kwargs)
+        client = Client(publish, register_for_reply)
+        client = client.target_service.target_method  # now fully-specified
+        client(*args, **kwargs)
 
-    Calling a fully-specified `Proxy` will make the RPC call and block for the
+    Calling a fully-specified `Client` will make the RPC call and block for the
     result. The `call_async` method initiates the call but returns an
     `RpcReply` object that can be used later to retrieve the result.
 
@@ -507,7 +525,7 @@ class Proxy(object):
             target_service = name
             target_method = None
 
-        clone = Proxy(
+        clone = Client(
             self.publish,
             self.register_for_reply,
             target_service,
@@ -529,7 +547,7 @@ class Proxy(object):
         )
 
     def __getitem__(self, name):
-        """Enable dict-like access on the proxy. """
+        """Enable dict-like access on the client. """
         return getattr(self, name)
 
     def __call__(self, *args, **kwargs):
@@ -563,7 +581,7 @@ class Proxy(object):
         # first, so by the time kombu returns (after waiting for the confim)
         # we can reliably check for returned messages.
 
-        # Note that deactivating publish-confirms in the RpcProxy will disable
+        # Note that deactivating publish-confirms in the Client will disable
         # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
@@ -631,3 +649,7 @@ class RpcCall(object):
         if error:
             raise deserialize(error)
         return response['result']
+
+
+ServiceRpc = ServiceRpc  # backwards compat
+Proxy = Client  # backwards compat

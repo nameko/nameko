@@ -8,12 +8,12 @@ initiate some action inside a nameko cluster.
 Examples:
 
 
-Use the RPC proxy to perform some addition on ``mathsservice``::
+Use the RPC client to perform some addition on ``mathsservice``::
 
-    >>> from nameko.standalone.rpc import rpc_proxy
+    >>> from nameko.standalone.rpc import ServiceRpcClient
     >>>
-    >>> with rpc_proxy("mathsservice", config) as proxy:
-    ...     result = proxy.add(2, 2)
+    >>> with ServiceRpcClient("mathsservice", config) as client:
+    ...     result = client.add(2, 2)
     ...
     >>> print result
     4

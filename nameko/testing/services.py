@@ -220,14 +220,14 @@ def worker_factory(service_cls, **dependencies):
     **Usage**
 
     The following example service proxies calls to a "maths" service via
-    an ``RpcProxy`` dependency::
+    an ``ServiceRpc`` dependency::
 
-        from nameko.rpc import RpcProxy, rpc
+        from nameko.rpc import ServiceRpc, rpc
 
         class ConversionService(object):
             name = "conversions"
 
-            maths_rpc = RpcProxy("maths")
+            maths_rpc = ServiceRpc("maths")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -352,13 +352,13 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
     ::
 
-        from nameko.rpc import RpcProxy, rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.rpc import ServiceRpc, rpc
+        from nameko.standalone.rpc import ServiceRpcClient
 
         class ConversionService(object):
             name = "conversions"
 
-            maths_rpc = RpcProxy("maths")
+            maths_rpc = ServiceRpc("maths")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -374,8 +374,8 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcProxy('conversions', config) as proxy:
-            proxy.cm_to_inches(100)
+        with ServiceRpcClient('conversions', config) as client:
+            client.cm_to_inches(100)
 
         # assert that the dependency was called as expected
         mock_maths_rpc.divide.assert_called_once_with(100, 2.54)
@@ -394,8 +394,8 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcProxy('conversions', config) as proxy:
-            assert proxy.cm_to_inches(127) == 50.0
+        with ServiceRpcClient('conversions', config) as client:
+            assert client.cm_to_inches(127) == 50.0
 
     """
     if set(dependencies).intersection(dependency_map):
