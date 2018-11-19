@@ -538,7 +538,7 @@ def test_unreliable_delivery(
     @retry(for_exceptions=AssertionError)
     def queue_removed():
         queue_info(queue_name)
-        assert False
+        assert False  # pragma: no cover
 
     with pytest.raises(NotFound):
         queue_removed()
