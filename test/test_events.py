@@ -534,12 +534,11 @@ def test_unreliable_delivery(
 
     # stop container, test queue deleted
     unreliable_container.stop()
-
-    @retry
-    def queue_removed():
-        with pytest.raises(NotFound):
+    with pytest.raises(NotFound):
+        # queue_info may not raise on the first call
+        for _ in range(3):
             queue_info(queue_name)
-    queue_removed()
+            eventlet.sleep(1)  # pragma: no cover
 
     # dispatch a second event while nobody is listening
     count = itertools.count(start=1)
