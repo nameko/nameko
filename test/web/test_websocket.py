@@ -11,7 +11,7 @@ from nameko.exceptions import (
 )
 from nameko.testing.services import dummy, entrypoint_hook, get_extension
 from nameko.testing.websocket import make_virtual_socket
-from nameko.web.websocket import WebSocketHubProvider, rpc
+from nameko.web.websocket import WebSocketHubProvider, WebSocketRpc, rpc
 
 
 class ExampleService(object):
@@ -239,3 +239,27 @@ def test_client_closing_connection(container, web_config_port):
     gt.kill()
 
     assert container.stop() is None
+
+
+class TestEntrypointArguments:
+
+    def test_expected_exceptions_and_sensitive_arguments(
+        self, container_factory, web_config
+    ):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @rpc(expected_exceptions=Boom, sensitive_arguments=["arg"])
+            def method(self, arg):
+                pass  # pragma: no cover
+
+        container = container_factory(Service, web_config)
+        container.start()
+
+        entrypoint = get_extension(container, WebSocketRpc)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["arg"]

@@ -140,3 +140,31 @@ def test_lifecycle(container_factory, web_config):
     with patch.object(http.server, 'unregister_provider') as unregister:
         container.stop()
         unregister.assert_called_with(http)
+
+
+class TestEntrypointArguments:
+
+    def test_expected_exceptions_and_sensitive_arguments(
+        self, container_factory, web_config
+    ):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @http(
+                "GET", "/method",
+                expected_exceptions=Boom,
+                sensitive_arguments=["request"]
+            )
+            def method(self, request):
+                pass  # pragma: no cover
+
+        container = container_factory(Service, web_config)
+        container.start()
+
+        entrypoint = get_extension(container, HttpRequestHandler)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["request"]

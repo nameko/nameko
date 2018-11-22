@@ -128,7 +128,10 @@ class Consumer(Entrypoint):
 
     consumer_cls = ConsumerCore
 
-    def __init__(self, queue, requeue_on_error=False, **consumer_options):
+    def __init__(
+        self, queue, requeue_on_error=False,
+        expected_exceptions=(), sensitive_arguments=(), **consumer_options
+    ):
         """
         Decorates a method as a message consumer.
 
@@ -158,8 +161,11 @@ class Consumer(Entrypoint):
         self.queue = queue
         self.requeue_on_error = requeue_on_error
         self.consumer_options = consumer_options
-        # TODO it's bad that we eat all the keyword arguments as consumer opts
-        super(Consumer, self).__init__()
+        # TODO it's bad that we eat all the remaining keyword arguments as consumer opts
+        super(Consumer, self).__init__(
+            expected_exceptions=expected_exceptions,
+            sensitive_arguments=sensitive_arguments
+        )
 
     @property
     def amqp_uri(self):

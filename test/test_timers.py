@@ -3,8 +3,8 @@ from eventlet import Timeout
 from mock import create_autospec
 
 from nameko.containers import ServiceContainer
-from nameko.testing.utils import wait_for_call
-from nameko.timer import Timer
+from nameko.testing.utils import get_extension, wait_for_call
+from nameko.timer import Timer, timer
 
 
 def spawn_managed_thread(fn, identifier=None):
@@ -64,3 +64,25 @@ def test_kill_stops_timer():
     # to trigger
     eventlet.sleep(0.1)
     assert container.spawn_worker.call_count == 1
+
+
+class TestEntrypointArguments:
+
+    def test_expected_exceptions_and_sensitive_arguments(self, container_factory):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @timer(1, expected_exceptions=Boom, sensitive_arguments=["arg"])
+            def method(self, arg):
+                pass  # pragma: no cover
+
+        container = container_factory(Service, {})
+        container.start()
+
+        entrypoint = get_extension(container, Timer)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["arg"]
