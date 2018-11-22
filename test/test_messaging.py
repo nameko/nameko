@@ -1321,3 +1321,31 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
 
     gt.wait()
     assert gt.dead
+
+
+class TestEntrypointArguments:
+
+    def test_expected_exceptions_and_sensitive_arguments(
+        self, container_factory, rabbit_config
+    ):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @consume(
+                Queue(name="queue"),
+                expected_exceptions=Boom,
+                sensitive_arguments=["payload"]
+            )
+            def method(self, payload):
+                pass  # pragma: no cover
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        entrypoint = get_extension(container, Consumer)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["payload"]

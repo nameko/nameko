@@ -2034,3 +2034,27 @@ class TestSSL(object):
             assert echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
+
+
+class TestEntrypointArguments:
+
+    def test_expected_exceptions_and_sensitive_arguments(
+        self, container_factory, rabbit_config
+    ):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @rpc(expected_exceptions=Boom, sensitive_arguments=["arg"])
+            def method(self, arg):
+                pass  # pragma: no cover
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        entrypoint = get_extension(container, Rpc)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["arg"]

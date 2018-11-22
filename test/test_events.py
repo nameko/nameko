@@ -20,7 +20,7 @@ from nameko.exceptions import ContainerBeingKilled
 from nameko.messaging import encode_to_headers
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
-from nameko.testing.utils import DummyProvider
+from nameko.testing.utils import DummyProvider, get_extension
 from nameko.testing.waiting import wait_for_call
 from nameko.utils.retry import retry
 
@@ -904,3 +904,30 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
 
     gt.wait()
     assert gt.dead
+
+
+class TestEntrypointArguments:
+
+    def test_expected_exceptions_and_sensitive_arguments(
+        self, container_factory, rabbit_config
+    ):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @event_handler(
+                "service", "event",
+                expected_exceptions=Boom, sensitive_arguments=["event_data"]
+            )
+            def method(self, event_data):
+                pass  # pragma: no cover
+
+        container = container_factory(Service, rabbit_config)
+        container.start()
+
+        entrypoint = get_extension(container, EventHandler)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["event_data"]
