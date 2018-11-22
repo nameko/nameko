@@ -50,6 +50,7 @@ class TestConsumer(object):
         next(consumer.consume())
 
         assert consumer.ready.is_set()
+        gt.wait()  # make sure gt gets scheduled and has chance to exit
         assert gt.dead
 
     def test_ack_message_ignores_connection_errors(
