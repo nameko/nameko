@@ -651,5 +651,5 @@ class RpcCall(object):
         return response['result']
 
 
-ServiceRpc = ServiceRpc  # backwards compat
+RpcProxy = ServiceRpc  # backwards compat
 Proxy = Client  # backwards compat
