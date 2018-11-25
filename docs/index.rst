@@ -24,18 +24,19 @@ A nameko service is just a class:
         def hello(self, name):
             return "Hello, {}!".format(name)
 
-Specific example requires `RabbitMQ <https://www.rabbitmq.com>`_, because
-it's using the built-in AMQP RPC features. `RabbitMQ installation guidelines <https://www.rabbitmq.com/download.html>`_
-offer several installation options, but you can quickly install and run it
-using `Docker <https://docs.docker.com/install/>`_.
+.. note::
+    The example above requires `RabbitMQ <https://www.rabbitmq.com>`_, because
+    it's using the built-in AMQP RPC features. `RabbitMQ installation guidelines <https://www.rabbitmq.com/download.html>`_
+    offer several installation options, but you can quickly install and run it
+    using `Docker <https://docs.docker.com/install/>`_.
 
-To install and run RabbitMQ using docker:
+    To install and run RabbitMQ using docker:
 
-.. code-block:: shell
+    .. code-block:: shell
 
-   $ docker run -d -p 5672:5672 rabbitmq:3
+       $ docker run -d -p 5672:5672 rabbitmq:3
 
-| *You might need to use sudo to do that.*
+    | *You might need to use sudo to do that.*
 
 You can run it in a shell:
 
