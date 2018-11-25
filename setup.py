@@ -33,6 +33,7 @@ setup(
     ],
     extras_require={
         'dev': [
+            "astroid==1.6.5",
             "coverage==4.5.1",
             "flake8==3.3.0",
             "isort==4.2.15",
