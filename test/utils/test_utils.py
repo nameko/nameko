@@ -47,6 +47,7 @@ def test_fail_fast_imap():
 
 class TestGetRedactedArgs(object):
 
+    @pytest.mark.usefixtures("rabbit_config")
     @pytest.mark.parametrize("sensitive_arguments, expected", [
         (tuple(), {'a': 'A', 'b': 'B'}),  # no sensitive arguments
         ("a", {'a': REDACTED, 'b': 'B'}),
@@ -54,9 +55,7 @@ class TestGetRedactedArgs(object):
         (("a", "b"), {'a': REDACTED, 'b': REDACTED}),
         (("c"), {'a': 'A', 'b': 'B'}),  # 'c' not a valid argument; ignored
     ])
-    def test_get_redacted_args(
-        self, sensitive_arguments, expected, rabbit_config
-    ):
+    def test_get_redacted_args(self, sensitive_arguments, expected):
 
         class Service(object):
             name = "service"
@@ -68,18 +67,19 @@ class TestGetRedactedArgs(object):
         args = ("A", "B")
         kwargs = {}
 
-        container = ServiceContainer(Service, rabbit_config)
+        container = ServiceContainer(Service)
         entrypoint = get_extension(container, Rpc)
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
 
+    @pytest.mark.usefixtures("rabbit_config")
     @pytest.mark.parametrize("args, kwargs", [
         (('A', "B"), {}),  # all args
         (('A',), {'b': "B"}),
         (tuple(), {'a': "A", 'b': "B"}),  # all kwargs
     ])
-    def test_get_redacted_args_invocation(self, args, kwargs, rabbit_config):
+    def test_get_redacted_args_invocation(self, args, kwargs):
 
         class Service(object):
             name = "service"
@@ -90,12 +90,13 @@ class TestGetRedactedArgs(object):
 
         expected = {'a': REDACTED, 'b': 'B'}
 
-        container = ServiceContainer(Service, rabbit_config)
+        container = ServiceContainer(Service)
         entrypoint = get_extension(container, Rpc)
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
         assert redacted == expected
 
+    @pytest.mark.usefixtures("rabbit_config")
     @pytest.mark.parametrize("sensitive_arguments, expected", [
         (
             ("b.foo",),  # dict key
@@ -140,9 +141,7 @@ class TestGetRedactedArgs(object):
             }
         ),
     ])
-    def test_get_redacted_args_partial(
-        self, sensitive_arguments, expected, rabbit_config
-    ):
+    def test_get_redacted_args_partial(self, sensitive_arguments, expected):
 
         class Service(object):
             name = "service"
@@ -159,7 +158,7 @@ class TestGetRedactedArgs(object):
         args = ("A", complex_arg)
         kwargs = {}
 
-        container = ServiceContainer(Service, rabbit_config)
+        container = ServiceContainer(Service)
         entrypoint = get_extension(container, Rpc)
 
         redacted = get_redacted_args(entrypoint, *args, **kwargs)
@@ -195,7 +194,7 @@ class TestGetRedactedArgs(object):
                     "b": b
                 }
 
-        container = container_factory(Service, {})
+        container = container_factory(Service)
 
         complex_arg = {
             'foo': [1, 2, 3],
