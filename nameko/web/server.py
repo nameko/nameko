@@ -12,6 +12,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
 
+from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
@@ -75,7 +76,7 @@ class WebServer(ProviderCollector, SharedExtension):
 
     @property
     def bind_addr(self):
-        address_str = self.container.config.get(
+        address_str = config.get(
             WEB_SERVER_CONFIG_KEY, '0.0.0.0:8000')
         return parse_address(address_str)
 
