@@ -47,7 +47,7 @@ class ShellRunner(object):
         self.plain()
 
 
-def make_nameko_helper(config):
+def make_nameko_helper():
     """Create a fake module that provides some convenient access to nameko
     standalone functionality for interactive shell usage.
     """
@@ -61,9 +61,9 @@ Usage:
 
     >>> n.dispatch_event('service', 'event_type', 'event_data')
 """
-    proxy = ClusterRpcProxy(config)
+    proxy = ClusterRpcProxy()
     module.rpc = proxy.start()
-    module.dispatch_event = event_dispatcher(config)
+    module.dispatch_event = event_dispatcher()
     module.config = config
     module.disconnect = proxy.stop
     return module
@@ -85,7 +85,7 @@ def main(args):
     )
 
     ctx = {}
-    ctx['n'] = make_nameko_helper(config)
+    ctx['n'] = make_nameko_helper()
 
     runner = ShellRunner(banner, ctx)
     runner.start_shell(name=args.interface)

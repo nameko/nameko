@@ -113,8 +113,8 @@ def setup_backdoor(runner, port):
     return socket, gt
 
 
-def run(services, config, backdoor_port=None):
-    service_runner = ServiceRunner(config)
+def run(services, backdoor_port=None):
+    service_runner = ServiceRunner()
     for service_cls in services:
         service_runner.add_service(service_cls)
 
@@ -176,4 +176,4 @@ def main(args):
             import_service(path)
         )
 
-    run(services, config, backdoor_port=args.backdoor_port)
+    run(services, backdoor_port=args.backdoor_port)

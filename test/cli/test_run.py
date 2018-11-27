@@ -17,6 +17,7 @@ from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
 from nameko.testing.waiting import wait_for_call
+from nameko import config
 
 from test.sample import Service
 
@@ -26,20 +27,18 @@ TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
 
 def test_run(command, rabbit_config):
 
-    broker = rabbit_config['AMQP_URI']
-
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, 'start'):
         gt = eventlet.spawn(
             command,
             'nameko', 'run',
-            '--broker', broker,
+            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--backdoor-port', 0,
             'test.sample:Service',
         )
 
     # make sure service launches ok
-    with ClusterRpcProxy(rabbit_config) as proxy:
+    with ClusterRpcProxy() as proxy:
         proxy.service.ping()
 
     # stop service
@@ -50,59 +49,56 @@ def test_run(command, rabbit_config):
 
 def test_main_with_config(command, rabbit_config, tmpdir):
 
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join('config.yaml')
+    config_file.write("""
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
-        AMQP_URI: '{}'
         serializer: 'json'
-    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+    """)
+
+    assert WEB_SERVER_CONFIG_KEY not in config
+    assert SERIALIZER_CONFIG_KEY not in config
 
     with patch('nameko.cli.run.run') as run:
 
         command(
             'nameko', 'run',
-            '--config', config.strpath,
+            '--config', config_file.strpath,
             'test.sample',
         )
 
         assert run.call_count == 1
-        (_, config) = run.call_args[0]
 
-        assert config == {
-            WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-            AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
-            SERIALIZER_CONFIG_KEY: 'json'
-        }
+    assert config[WEB_SERVER_CONFIG_KEY] == '0.0.0.0:8001'
+    assert config[SERIALIZER_CONFIG_KEY] == 'json'
 
 
 def test_main_with_config_options(command, rabbit_config, tmpdir):
 
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join('config.yaml')
+    config_file.write("""
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
-        AMQP_URI: '{}'
         serializer: 'json'
-    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+    """)
+
+    assert WEB_SERVER_CONFIG_KEY not in config
+    assert SERIALIZER_CONFIG_KEY not in config
+    assert 'EGG' not in config
 
     with patch('nameko.cli.run.run') as run:
 
         command(
             'nameko', 'run',
-            '--config', config.strpath,
+            '--config', config_file.strpath,
             '--define', 'serializer=pickle',
             '--define', 'EGG=[{"spam": True}]',
             'test.sample',
         )
 
         assert run.call_count == 1
-        (_, config) = run.call_args[0]
 
-        assert config == {
-            WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-            AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
-            SERIALIZER_CONFIG_KEY: 'pickle',
-            'EGG': [{'spam': True}],
-        }
+    assert config[WEB_SERVER_CONFIG_KEY] == '0.0.0.0:8001'
+    assert config[SERIALIZER_CONFIG_KEY] == 'pickle'
+    assert config['EGG'] == [{'spam': True}]
 
 
 def test_main_with_logging_config(command, rabbit_config, tmpdir):
@@ -147,7 +143,7 @@ def test_main_with_logging_config(command, rabbit_config, tmpdir):
             'test.sample',
         )
 
-    with ClusterRpcProxy(rabbit_config) as proxy:
+    with ClusterRpcProxy() as proxy:
         proxy.service.ping()
 
     pid = os.getpid()
@@ -233,7 +229,7 @@ def test_stopping(rabbit_config):
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, [Service], rabbit_config)
+        gt = eventlet.spawn(run, [Service])
         gt.wait()
         # should complete
 
@@ -250,7 +246,7 @@ def test_stopping_twice(rabbit_config):
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
 
-            gt = eventlet.spawn(run, [Service], rabbit_config)
+            gt = eventlet.spawn(run, [Service])
             gt.wait()
 
 
@@ -264,7 +260,7 @@ def test_os_error_for_signal(rabbit_config):
         # don't actually start the service -- we're not firing a real signal
         # so the signal handler won't stop it again
         with patch.object(ServiceRunner, 'start'):
-            gt = eventlet.spawn(run, [Service], rabbit_config)
+            gt = eventlet.spawn(run, [Service])
             gt.wait()
         # should complete
 
@@ -279,6 +275,6 @@ def test_other_errors_propagate(rabbit_config):
         # don't actually start the service -- there's no real OSError that
         # would otherwise kill the whole process
         with patch.object(ServiceRunner, 'start'):
-            gt = eventlet.spawn(run, [Service], rabbit_config)
+            gt = eventlet.spawn(run, [Service])
             with pytest.raises(OSError):
                 gt.wait()

@@ -6,8 +6,8 @@ from mock import patch
 @patch('nameko.cli.main.os')
 def test_main(mock_os, tmpdir, capsys, command):
 
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join('config.yaml')
+    config_file.write("""
         FOO: ${FOO:foobar}
         BAR: ${BAR}
     """)
@@ -18,7 +18,7 @@ def test_main(mock_os, tmpdir, capsys, command):
 
     command(
         'nameko', 'show-config',
-        '--config', config.strpath,
+        '--config', config_file.strpath,
     )
 
     out, _ = capsys.readouterr()

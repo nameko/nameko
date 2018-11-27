@@ -4,6 +4,7 @@ import sys
 import pytest
 from mock import Mock, patch
 
+from nameko import config
 from nameko.cli.shell import make_nameko_helper
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
@@ -12,7 +13,7 @@ from nameko.standalone.rpc import ClusterProxy
 
 
 def test_helper_module(rabbit_config):
-    helper = make_nameko_helper(rabbit_config)
+    helper = make_nameko_helper()
     assert isinstance(helper.rpc, ClusterProxy)
     helper.disconnect()
 
@@ -45,7 +46,7 @@ def test_basic(command, rabbit_config, pystartup):
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
-            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY]
+            '--broker', config[AMQP_URI_CONFIG_KEY]
         )
 
     _, kwargs = code.interact.call_args
@@ -59,7 +60,7 @@ def test_plain(command, rabbit_config, pystartup):
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
-            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'plain'
         )
 
@@ -89,7 +90,7 @@ def test_bpython(command, rabbit_config, pystartup):
     with patch('bpython.embed') as embed:
         command(
             'nameko', 'shell',
-            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'bpython'
         )
 
@@ -104,7 +105,7 @@ def test_ipython(command, rabbit_config, pystartup):
     with patch('IPython.embed') as embed:
         command(
             'nameko', 'shell',
-            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'ipython'
         )
 
@@ -117,43 +118,38 @@ def test_ipython(command, rabbit_config, pystartup):
 
 def test_config(command, pystartup, rabbit_config, tmpdir):
 
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join('config.yaml')
+    config_file.write("""
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
-        AMQP_URI: '{}'
         serializer: 'json'
-    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+    """)
 
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
-            '--config', config.strpath,
+            '--config', config_file.strpath,
         )
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
     assert 'n' in local.keys()
-    assert local['n'].config == {
-        WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-        AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
-        SERIALIZER_CONFIG_KEY: 'json'
-    }
+    assert local['n'].config[WEB_SERVER_CONFIG_KEY] == '0.0.0.0:8001'
+    assert local['n'].config[SERIALIZER_CONFIG_KEY] == 'json'
     local['n'].disconnect()
 
 
 def test_config_options(command, pystartup, rabbit_config, tmpdir):
 
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join('config.yaml')
+    config_file.write("""
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
-        AMQP_URI: '{}'
         serializer: 'json'
-    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+    """)
 
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
-            '--config', config.strpath,
+            '--config', config_file.strpath,
             '--define', 'serializer=pickle',
             '--define', 'EGG=[{"spam": True}]',
         )
@@ -161,12 +157,9 @@ def test_config_options(command, pystartup, rabbit_config, tmpdir):
     _, kwargs = code.interact.call_args
     local = kwargs['local']
     assert 'n' in local.keys()
-    assert local['n'].config == {
-        WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-        AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
-        SERIALIZER_CONFIG_KEY: 'pickle',  # overrides config file value
-        'EGG': [{'spam': True}],
-    }
+    assert local['n'].config[WEB_SERVER_CONFIG_KEY] == '0.0.0.0:8001'
+    assert local['n'].config[SERIALIZER_CONFIG_KEY] == 'pickle'
+    assert local['n'].config['EGG'] == [{'spam': True}]
     local['n'].disconnect()
 
 
@@ -197,8 +190,8 @@ class TestBanner(object):
 
         amqp_uri = "amqp://broker/config"
 
-        config = tmpdir.join('config.yaml')
-        config.write("""
+        config_file = tmpdir.join('config.yaml')
+        config_file.write("""
             WEB_SERVER_ADDRESS: '0.0.0.0:8001'
             AMQP_URI: '{}'
             serializer: 'json'
@@ -207,7 +200,7 @@ class TestBanner(object):
         with patch('nameko.cli.shell.ShellRunner') as shell_runner:
             command(
                 'nameko', 'shell',
-                '--config', config.strpath
+                '--config', config_file.strpath
             )
 
         expected_message = (

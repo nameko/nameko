@@ -9,7 +9,6 @@ from nameko.cli.main import main
 
 @pytest.fixture
 def command():
-    config.clear()
 
     def _command(*argv):
         with patch.object(sys, 'argv', argv):
