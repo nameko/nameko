@@ -14,6 +14,7 @@ from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.mixins import ConsumerMixin
 
+from nameko import config
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.constants import (
@@ -143,7 +144,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     @property
     def serializer(self):
@@ -156,7 +157,7 @@ class Publisher(DependencyProvider, HeaderEncoder):
 
     def setup(self):
 
-        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
@@ -199,7 +200,7 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     @property
     def prefetch_count(self):
@@ -342,13 +343,13 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
         that is lazily evaluated. It doesn't represent an established
         connection to the broker at this point.
         """
-        heartbeat = self.container.config.get(
+        heartbeat = config.get(
             HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT
         )
-        transport_options = self.container.config.get(
+        transport_options = config.get(
             TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS
         )
-        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
         conn = Connection(self.amqp_uri,
                           transport_options=transport_options,
                           heartbeat=heartbeat,

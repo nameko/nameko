@@ -11,6 +11,7 @@ from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
+from nameko import config, config_update
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_producer
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
@@ -40,6 +41,7 @@ def patch_maybe_declare():
         yield patched
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 def test_consume_provider(mock_container):
 
     container = mock_container
@@ -101,12 +103,12 @@ def test_consume_provider(mock_container):
     queue_consumer.requeue_message.assert_called_once_with(message)
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
     patch_maybe_declare, mock_channel, mock_producer, mock_container
 ):
     container = mock_container
-    container.config = {'AMQP_URI': 'memory://'}
     container.service_name = "srcservice"
 
     service = Mock()
@@ -149,12 +151,12 @@ def test_publish_to_exchange(
     ]
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_queue(
     patch_maybe_declare, mock_producer, mock_channel, mock_container
 ):
     container = mock_container
-    container.config = {'AMQP_URI': 'memory://'}
     container.shared_extensions = {}
     container.service_name = "srcservice"
 
@@ -201,12 +203,10 @@ def test_publish_to_queue(
     ]
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_custom_headers(
-    mock_container, mock_producer, rabbit_config
-):
+def test_publish_custom_headers(mock_container, mock_producer):
     container = mock_container
-    container.config = rabbit_config
     container.service_name = "srcservice"
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
@@ -306,7 +306,6 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
     container = mock_container
     container.service_name = "service"
-    container.config = rabbit_config
 
     ctx_data = {'language': 'en', 'customheader': 'customvalue'}
     service = Mock()
@@ -352,7 +351,6 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
 
     container = mock_container
     container.service_name = "service"
-    container.config = rabbit_config
     container.spawn_managed_thread = eventlet.spawn
 
     ctx_data = {'language': 'en', 'customheader': None}
@@ -378,7 +376,7 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
     }
 
 
-def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
+def test_consume_from_rabbit(rabbit_config, rabbit_manager, mock_container):
 
     vhost = rabbit_config['vhost']
 
@@ -386,7 +384,6 @@ def test_consume_from_rabbit(rabbit_manager, rabbit_config, mock_container):
     container.shared_extensions = {}
     container.worker_ctx_cls = WorkerContext
     container.service_name = "service"
-    container.config = rabbit_config
     container.max_workers = 10
 
     content_type = 'application/data'
@@ -515,12 +512,10 @@ class TestConsumerDisconnections(object):
                 tracker(arg)
                 return arg
 
-        # very fast heartbeat
-        config = rabbit_config
-        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
-
-        container = container_factory(Service, config)
-        container.start()
+        # very fast heartbeat (2 seconds)
+        with config_update({HEARTBEAT_CONFIG_KEY: 2}):
+            container = container_factory(Service)
+            container.start()
 
         return container
 
@@ -1020,6 +1015,7 @@ class TestPublisherDisconnections(object):
 
 class TestBackwardsCompatClassAttrs(object):
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter,value", [
         ('retry', False),
         ('retry_policy', {'max_retries': 999}),
@@ -1035,7 +1031,6 @@ class TestBackwardsCompatClassAttrs(object):
             "LegacPublisher", (Publisher,), {parameter: value}
         )
         with patch('nameko.messaging.warnings') as warnings:
-            mock_container.config = {'AMQP_URI': 'memory://'}
             mock_container.service_name = "service"
             publisher = publisher_cls().bind(mock_container, "publish")
         assert warnings.warn.called
@@ -1063,6 +1058,7 @@ class TestConfigurability(object):
         producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
         return producer
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter", [
         # routing
         'exchange', 'routing_key',
@@ -1081,7 +1077,6 @@ class TestConfigurability(object):
         """ Verify that most parameters can be specified at instantiation time,
         and overriden at publish time.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         worker_ctx = Mock()
@@ -1103,14 +1098,12 @@ class TestConfigurability(object):
         publish("payload", **{parameter: publish_value})
         assert producer.publish.call_args[1][parameter] == publish_value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.usefixtures('predictable_call_ids')
     def test_headers(self, mock_container, producer):
         """ Headers provided at publish time are merged with any provided
         at instantiation time. Nameko headers are always present.
         """
-        mock_container.config = {
-            'AMQP_URI': 'memory://localhost'
-        }
         mock_container.service_name = "service"
 
         # use a real worker context so nameko headers are generated
@@ -1150,14 +1143,12 @@ class TestConfigurability(object):
             nameko_headers, instantiation_value, publish_value
         )
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_declare(self, mock_container, producer):
         """ Declarations provided at publish time are merged with any provided
         at instantiation time. Any provided exchange and queue are always
         declared.
         """
-        mock_container.config = {
-            'AMQP_URI': 'memory://localhost'
-        }
         mock_container.service_name = "service"
 
         worker_ctx = Mock()
@@ -1186,12 +1177,12 @@ class TestConfigurability(object):
             instantiation_value + [exchange, queue] + publish_value
         )
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_use_confirms(self, mock_container, get_producer):
         """ Verify that publish-confirms can be set as a default specified at
         instantiation time, which can be overriden by a value specified at
         publish time.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         worker_ctx = Mock()
@@ -1220,17 +1211,19 @@ class TestSSL(object):
         queue = Queue(name="queue")
         return queue
 
-    @pytest.fixture(params=[True, False])
+    @pytest.yield_fixture(params=[True, False])
     def rabbit_ssl_config(self, request, rabbit_ssl_config):
         verify_certs = request.param
         if verify_certs is False:
             # remove certificate paths from config
-            rabbit_ssl_config['AMQP_SSL'] = True
-        return rabbit_ssl_config
+            conf = {'AMQP_SSL': True}
+        else:
+            conf = {}
+        with config_update(conf):
+            yield
 
-    def test_consume_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config, queue
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_consume_over_ssl(self, container_factory, queue):
         class Service(object):
             name = "service"
 
@@ -1238,18 +1231,17 @@ class TestSSL(object):
             def echo(self, payload):
                 return payload
 
-        container = container_factory(Service, rabbit_ssl_config)
+        container = container_factory(Service)
         container.start()
 
-        publisher = PublisherCore(rabbit_config['AMQP_URI'])
+        publisher = PublisherCore(config['AMQP_URI'])
 
         with entrypoint_waiter(container, 'echo') as result:
             publisher.publish("payload", routing_key=queue.name)
         assert result.get() == "payload"
 
-    def test_publisher_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config, queue
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_publisher_over_ssl(self, container_factory, queue):
         class PublisherService(object):
             name = "publisher"
 
@@ -1266,10 +1258,10 @@ class TestSSL(object):
             def echo(self, payload):
                 return payload
 
-        publisher = container_factory(PublisherService, rabbit_ssl_config)
+        publisher = container_factory(PublisherService)
         publisher.start()
 
-        consumer = container_factory(ConsumerService, rabbit_config)
+        consumer = container_factory(ConsumerService)
         consumer.start()
 
         with entrypoint_waiter(consumer, 'echo') as result:
