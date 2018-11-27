@@ -18,7 +18,7 @@ class ServiceRunner(object):
 
     Example::
 
-        runner = ServiceRunner(config)
+        runner = ServiceRunner()
         runner.add_service(Foobar)
         runner.add_service(Spam)
 
@@ -28,11 +28,10 @@ class ServiceRunner(object):
 
         runner.wait()
     """
-    def __init__(self, config):
+    def __init__(self):
         self.service_map = {}
-        self.config = config
 
-        self.container_cls = get_container_cls(config)
+        self.container_cls = get_container_cls()
 
     @property
     def service_names(self):
@@ -48,7 +47,7 @@ class ServiceRunner(object):
         Service classes must be registered before calling start()
         """
         service_name = get_service_name(cls)
-        container = self.container_cls(cls, self.config)
+        container = self.container_cls(cls)
         self.service_map[service_name] = container
 
     def start(self):
@@ -102,7 +101,7 @@ class ServiceRunner(object):
 
 
 @contextmanager
-def run_services(config, *services, **kwargs):
+def run_services(*services, **kwargs):
     """ Serves a number of services for a contextual block.
     The caller can specify a number of service classes then serve them either
     stopping (default) or killing them on exiting the contextual block.
@@ -110,7 +109,7 @@ def run_services(config, *services, **kwargs):
 
     Example::
 
-        with run_services(config, Foobar, Spam) as runner:
+        with run_services(Foobar, Spam) as runner:
             # interact with services and stop them on exiting the block
 
         # services stopped
@@ -119,14 +118,12 @@ def run_services(config, *services, **kwargs):
     Additional configuration available to :class:``ServiceRunner`` instances
     can be specified through keyword arguments::
 
-        with run_services(config, Foobar, Spam, kill_on_exit=True):
+        with run_services(Foobar, Spam, kill_on_exit=True):
             # interact with services
 
         # services killed
 
     :Parameters:
-        config : dict
-            Configuration to instantiate the service containers with
         services : service definitions
             Services to be served for the contextual block
         kill_on_exit : bool (default=False)
@@ -139,7 +136,7 @@ def run_services(config, *services, **kwargs):
     """
     kill_on_exit = kwargs.pop('kill_on_exit', False)
 
-    runner = ServiceRunner(config)
+    runner = ServiceRunner()
     for service in services:
         runner.add_service(service)
 
