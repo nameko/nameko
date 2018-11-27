@@ -8,6 +8,7 @@ from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
+from nameko import config
 from nameko import serialization
 from nameko.constants import AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY
 from nameko.containers import WorkerContext
@@ -112,11 +113,10 @@ class PollingQueueConsumer(object):
     def register_provider(self, provider):
         self.provider = provider
 
-        self.serializer, self.accept = serialization.setup(
-            provider.container.config)
+        self.serializer, self.accept = serialization.setup()
 
-        amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
-        ssl = provider.container.config.get(AMQP_SSL_CONFIG_KEY)
+        amqp_uri = config[AMQP_URI_CONFIG_KEY]
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
         self.connection = Connection(amqp_uri, ssl=ssl)
 
         self.queue = provider.queue
@@ -197,8 +197,7 @@ class StandaloneProxyBase(object):
         """
         service_name = "standalone_rpc_proxy"
 
-        def __init__(self, config):
-            self.config = config
+        def __init__(self):
             self.shared_extensions = {}
 
     class Dummy(Entrypoint):
@@ -207,10 +206,10 @@ class StandaloneProxyBase(object):
     _proxy = None
 
     def __init__(
-        self, config, context_data=None, timeout=None,
+        self, context_data=None, timeout=None,
         reply_listener_cls=SingleThreadedReplyListener
     ):
-        container = self.ServiceContainer(config)
+        container = self.ServiceContainer()
 
         self._worker_ctx = WorkerContext(
             container, service=None, entrypoint=self.Dummy,
@@ -246,12 +245,12 @@ class ServiceRpcProxy(StandaloneProxyBase):
 
     As a context manager::
 
-        with ServiceRpcProxy('targetservice', config) as proxy:
+        with ServiceRpcProxy('targetservice') as proxy:
             proxy.method()
 
     The equivalent call, manually starting and stopping::
 
-        targetservice_proxy = ServiceRpcProxy('targetservice', config)
+        targetservice_proxy = ServiceRpcProxy('targetservice')
         proxy = targetservice_proxy.start()
         proxy.method()
         targetservice_proxy.stop()
@@ -288,13 +287,13 @@ class ClusterProxy(object):
 
     As a context manager::
 
-        with ClusterRpcProxy(config) as proxy:
+        with ClusterRpcProxy() as proxy:
             proxy.service.method()
             proxy.other_service.method()
 
     The equivalent call, manually starting and stopping::
 
-        proxy = ClusterRpcProxy(config)
+        proxy = ClusterRpcProxy()
         proxy = proxy.start()
         proxy.targetservice.method()
         proxy.other_service.method()
@@ -310,7 +309,7 @@ class ClusterProxy(object):
     When the name of the service is not legal in Python, you can also
     use a dict-like syntax::
 
-        with ClusterRpcProxy(config) as proxy:
+        with ClusterRpcProxy() as proxy:
             proxy['service-name'].method()
             proxy['other-service'].method()
 
