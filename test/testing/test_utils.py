@@ -59,7 +59,8 @@ def test_wait_for_call():
             pass  # pragma: no cover
 
 
-def test_get_extension(rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_get_extension():
 
     from nameko.messaging import QueueConsumer
     from nameko.rpc import Rpc, RpcConsumer
@@ -76,7 +77,7 @@ def test_get_extension(rabbit_config):
         def bar(self):
             pass  # pragma: no cover
 
-    container = ServiceContainer(Service, rabbit_config)
+    container = ServiceContainer(Service)
 
     rpc_consumer = get_extension(container, RpcConsumer)
     queue_consumer = get_extension(container, QueueConsumer)
@@ -87,7 +88,8 @@ def test_get_extension(rabbit_config):
     assert extensions == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
 
 
-def test_get_container(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_get_container(runner_factory):
 
     class ServiceX(object):
         name = "service_x"
@@ -95,7 +97,7 @@ def test_get_container(runner_factory, rabbit_config):
     class ServiceY(object):
         name = "service_y"
 
-    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner = runner_factory(ServiceX, ServiceY)
 
     assert get_container(runner, ServiceX).service_cls is ServiceX
     assert get_container(runner, ServiceY).service_cls is ServiceY
@@ -168,7 +170,8 @@ def test_reset_rabbit_connection_errors():
         reset_rabbit_connections("vhost_name", rabbit_manager)
 
 
-def test_wait_for_worker_idle(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_wait_for_worker_idle(container_factory):
 
     event = Event()
 
@@ -179,7 +182,7 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
         def wait_for_event(self):
             event.wait()
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     max_workers = DEFAULT_MAX_WORKERS

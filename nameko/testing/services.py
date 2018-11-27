@@ -131,7 +131,7 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
             def handle_event(self, msg):
                 return msg
 
-        container = ServiceContainer(Service, config)
+        container = ServiceContainer(Service)
         container.start()
 
         # basic
@@ -367,13 +367,13 @@ def replace_dependencies(container, *dependencies, **dependency_map):
             def cm_to_inches(self, cms):
                 return self.maths_rpc.divide(cms, 2.54)
 
-        container = ServiceContainer(ConversionService, config)
+        container = ServiceContainer(ConversionService)
         mock_maths_rpc = replace_dependencies(container, "maths_rpc")
         mock_maths_rpc.divide.return_value = 39.37
 
         container.start()
 
-        with ServiceRpcProxy('conversions', config) as proxy:
+        with ServiceRpcProxy('conversions') as proxy:
             proxy.cm_to_inches(100)
 
         # assert that the dependency was called as expected
@@ -393,7 +393,7 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcProxy('conversions', config) as proxy:
+        with ServiceRpcProxy('conversions') as proxy:
             assert proxy.cm_to_inches(127) == 50.0
 
     """
@@ -441,7 +441,7 @@ def restrict_entrypoints(container, *entrypoints):
             def baz(self, arg):
                 pass
 
-        container = ServiceContainer(Service, config)
+        container = ServiceContainer(Service)
 
     To disable the timer entrypoint on ``foo``, leaving just the RPC
     entrypoints:

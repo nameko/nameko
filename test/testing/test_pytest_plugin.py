@@ -4,6 +4,7 @@ import time
 import pytest
 from six.moves import queue
 
+from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
 from nameko.rpc import RpcProxy, rpc
@@ -123,7 +124,7 @@ class TestOptions(object):
 
 
 def test_empty_config(empty_config):
-    assert empty_config == {}
+    assert config == {}
 
 
 def test_rabbit_manager(rabbit_manager):
@@ -138,10 +139,12 @@ def test_amqp_uri(testdir):
     testdir.makeconftest(
         """
         import pytest
+        from nameko import config_update
 
-        @pytest.fixture
+        @pytest.yield_fixture
         def rabbit_config():
-            return dict(AMQP_URI='{}')
+            with config_update(dict(AMQP_URI="{}")):
+                yield
         """.format(amqp_uri)
     )
 
@@ -377,6 +380,8 @@ def test_container_factory(
 
     testdir.makepyfile(
         """
+        import pytest
+
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcProxy
 
@@ -387,11 +392,12 @@ def test_container_factory(
             def method(self):
                 return "OK"
 
-        def test_container_factory(container_factory, rabbit_config):
-            container = container_factory(ServiceX, rabbit_config)
+        @pytest.mark.usefixtures('rabbit_config')
+        def test_container_factory(container_factory):
+            container = container_factory(ServiceX)
             container.start()
 
-            with ServiceRpcProxy("x", rabbit_config) as proxy:
+            with ServiceRpcProxy("x") as proxy:
                 assert proxy.method() == "OK"
         """
     )
@@ -413,6 +419,9 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
     testdir.makepyfile(
         """
+        import pytest
+
+        from nameko import config_update
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcProxy
 
@@ -425,20 +434,18 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
             def method(self):
                 return "OK"
 
-        def test_container_factory(
-            container_factory, rabbit_config
-        ):
-            rabbit_config['SERVICE_CONTAINER_CLS'] = (
-                "container_module.ServiceContainerX"
-            )
+        @pytest.mark.usefixtures('rabbit_config')
+        def test_container_factory(container_factory):
+            with config_update({
+                'SERVICE_CONTAINER_CLS': "container_module.ServiceContainerX"
+            }):
+                container = container_factory(ServiceX)
+                container.start()
 
-            container = container_factory(ServiceX, rabbit_config)
-            container.start()
+                assert isinstance(container, ServiceContainerX)
 
-            assert isinstance(container, ServiceContainerX)
-
-            with ServiceRpcProxy("x", rabbit_config) as proxy:
-                assert proxy.method() == "OK"
+                with ServiceRpcProxy("x") as proxy:
+                    assert proxy.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -451,6 +458,8 @@ def test_runner_factory(
 
     testdir.makepyfile(
         """
+        import pytest
+
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcProxy
 
@@ -461,11 +470,12 @@ def test_runner_factory(
             def method(self):
                 return "OK"
 
-        def test_runner(runner_factory, rabbit_config):
-            runner = runner_factory(rabbit_config, ServiceX)
+        @pytest.mark.usefixtures('rabbit_config')
+        def test_runner(runner_factory):
+            runner = runner_factory(ServiceX)
             runner.start()
 
-            with ServiceRpcProxy("x", rabbit_config) as proxy:
+            with ServiceRpcProxy("x") as proxy:
                 assert proxy.method() == "OK"
         """
     )
@@ -476,8 +486,9 @@ def test_runner_factory(
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @pytest.mark.usefixtures('predictable_call_ids')
-def test_predictable_call_ids(runner_factory, rabbit_config):
+def test_predictable_call_ids(runner_factory):
 
     worker_contexts = []
 
@@ -504,25 +515,27 @@ def test_predictable_call_ids(runner_factory, rabbit_config):
         def method(self):
             pass
 
-    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner = runner_factory(ServiceX, ServiceY)
     runner.start()
 
-    with ServiceRpcProxy("x", rabbit_config) as service_x:
+    with ServiceRpcProxy("x") as service_x:
         service_x.method()
 
     call_ids = [worker_ctx.call_id for worker_ctx in worker_contexts]
     assert call_ids == ["x.method.1", "y.method.2"]
 
 
-def test_web_config(web_config):
-    assert WEB_SERVER_CONFIG_KEY in web_config
+@pytest.mark.usefixtures('web_config')
+def test_web_config():
+    assert WEB_SERVER_CONFIG_KEY in config
 
-    bind_address = parse_address(web_config[WEB_SERVER_CONFIG_KEY])
+    bind_address = parse_address(config[WEB_SERVER_CONFIG_KEY])
     sock = socket.socket()
     sock.bind(bind_address)
 
 
-def test_web_session(web_config, container_factory, web_session):
+@pytest.mark.usefixtures('web_config')
+def test_web_session(container_factory, web_session):
 
     class Service(object):
         name = "web"
@@ -531,13 +544,14 @@ def test_web_session(web_config, container_factory, web_session):
         def method(self, request):
             return "OK"
 
-    container = container_factory(Service, web_config)
+    container = container_factory(Service)
     container.start()
 
     assert web_session.get("/foo").status_code == 200
 
 
-def test_websocket(web_config, container_factory, websocket):
+@pytest.mark.usefixtures('web_config')
+def test_websocket(container_factory, websocket):
 
     class Service(object):
         name = "ws"
@@ -546,7 +560,7 @@ def test_websocket(web_config, container_factory, websocket):
         def uppercase(self, socket_id, arg):
             return arg.upper()
 
-    container = container_factory(Service, web_config)
+    container = container_factory(Service)
     container.start()
 
     ws = websocket()
