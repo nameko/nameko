@@ -49,9 +49,10 @@ class SecondService(object):
         return 'task_result'  # pragma: no cover
 
 
-def test_error_in_worker(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_error_in_worker(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     with patch('nameko.containers._log') as logger:
@@ -64,9 +65,10 @@ def test_error_in_worker(container_factory, rabbit_config):
         'error handling worker %s: %s', ANY, ANY)
 
 
-def test_expected_error_in_worker(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_expected_error_in_worker(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     with patch('nameko.containers._log') as logger:
@@ -79,9 +81,10 @@ def test_expected_error_in_worker(container_factory, rabbit_config):
         '(expected) error handling worker %s: %s', ANY, ANY, exc_info=True)
 
 
-def test_error_in_remote_worker(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_error_in_remote_worker(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     with entrypoint_hook(container, "proxy") as proxy:
@@ -91,9 +94,10 @@ def test_error_in_remote_worker(container_factory, rabbit_config):
     assert not container._died.ready()
 
 
-def test_handle_result_error(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_handle_result_error(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     rpc_consumer = get_extension(container, RpcConsumer)
@@ -104,7 +108,7 @@ def test_handle_result_error(container_factory, rabbit_config):
         handle_result.side_effect = Exception(err)
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice") as proxy:
             # proxy.task() will hang forever because it generates an error
             proxy.task.call_async()
 
@@ -114,12 +118,13 @@ def test_handle_result_error(container_factory, rabbit_config):
         assert str(exc_info.value) == err
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.parametrize("method_name",
                          ["worker_setup", "worker_result", "worker_teardown"])
 def test_dependency_call_lifecycle_errors(
         container_factory, rabbit_config, method_name):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     dependency = get_extension(container, EventDispatcher)
@@ -128,7 +133,7 @@ def test_dependency_call_lifecycle_errors(
         method.side_effect = Exception(err)
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice") as proxy:
             # proxy.task() will hang forever because it generates an error
             proxy.task.call_async()
 
@@ -138,9 +143,10 @@ def test_dependency_call_lifecycle_errors(
         assert str(exc_info.value) == err
 
 
-def test_runner_catches_container_errors(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_runner_catches_container_errors(runner_factory):
 
-    runner = runner_factory(rabbit_config, ExampleService)
+    runner = runner_factory(ExampleService)
     runner.start()
 
     container = get_container(runner, ExampleService)
@@ -152,7 +158,7 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         handle_result.side_effect = exception
 
         # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+        with ServiceRpcProxy("exampleservice") as proxy:
             # proxy.task() will hang forever because it generates an error
             # in the remote container (so never receives a response).
             proxy.task.call_async()
@@ -163,9 +169,10 @@ def test_runner_catches_container_errors(runner_factory, rabbit_config):
         assert exc_info.value == exception
 
 
-def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_graceful_stop_on_one_container_error(runner_factory):
 
-    runner = runner_factory(rabbit_config, ExampleService, SecondService)
+    runner = runner_factory(ExampleService, SecondService)
     runner.start()
 
     container = get_container(runner, ExampleService)
@@ -180,7 +187,7 @@ def test_graceful_stop_on_one_container_error(runner_factory, rabbit_config):
             handle_result.side_effect = exception
 
             # use a standalone rpc proxy to call exampleservice.task()
-            with ServiceRpcProxy("exampleservice", rabbit_config) as proxy:
+            with ServiceRpcProxy("exampleservice") as proxy:
                 # proxy.task() will hang forever because it generates an error
                 # in the remote container (so never receives a response).
                 proxy.task.call_async()
