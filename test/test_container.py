@@ -10,6 +10,7 @@ from eventlet import Timeout, sleep, spawn
 from eventlet.event import Event
 from mock import ANY, Mock, call, patch
 
+from nameko import config_setup
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.containers import ServiceContainer, get_service_name
 from nameko.exceptions import ConfigurationError
@@ -101,7 +102,7 @@ class Service(object):
 
 @pytest.fixture
 def container():
-    container = ServiceContainer(Service, config={})
+    container = ServiceContainer(Service)
     for ext in container.extensions:
         ext._reset_calls()
 
@@ -211,7 +212,9 @@ def test_container_doesnt_exhaust_max_workers(container):
             spam_called.send(a)
             spam_continue.wait()
 
-    container = ServiceContainer(Service, config={MAX_WORKERS_CONFIG_KEY: 1})
+
+    with config_setup({MAX_WORKERS_CONFIG_KEY: 1}):
+        container = ServiceContainer(Service)
 
     dep = get_extension(container, Entrypoint)
 
@@ -290,7 +293,7 @@ def test_kill_container_with_active_workers(container_factory):
             waiting.send(None)
             wait_forever.wait()
 
-    container = container_factory(Service, {})
+    container = container_factory(Service)
     dep = get_extension(container, Entrypoint)
 
     # start the first worker, which should wait for spam_continue
