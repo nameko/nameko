@@ -12,6 +12,7 @@ from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
+from nameko import config_update
 from nameko.testing.utils import find_free_port
 from nameko.utils.retry import retry
 
@@ -29,6 +30,12 @@ def pytest_configure(config):
         "markers",
         "behavioural: distinguish behavioural tests"
     )
+
+
+@pytest.yield_fixture
+def memory_rabbit_config(rabbit_config):
+    with config_update({'AMQP_URI': 'memory://localhost'}):
+        yield
 
 
 @pytest.yield_fixture

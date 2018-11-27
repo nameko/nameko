@@ -87,7 +87,7 @@ def test_idle_disconnect(container_factory, rabbit_manager, rabbit_config):
     """ Break the connection to rabbit while a service is started but idle
     (i.e. without active workers)
     """
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     vhost = rabbit_config['vhost']
@@ -104,8 +104,8 @@ def test_proxy_disconnect_with_active_worker(
     on a reply).
     """
     # ExampleService is the target; ProxyService has the rpc_proxy;
-    proxy_container = container_factory(ProxyService, rabbit_config)
-    example_container = container_factory(ExampleService, rabbit_config)
+    proxy_container = container_factory(ProxyService)
+    example_container = container_factory(ExampleService)
 
     proxy_container.start()
 
@@ -140,7 +140,7 @@ def test_service_disconnect_with_active_async_worker(
     """ Break the connection between a service's queue consumer and rabbit
     while the service has an active async worker (e.g. event handler).
     """
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     # get the service's queue consumer connection while we know it's the
@@ -155,7 +155,7 @@ def test_service_disconnect_with_active_async_worker(
 
     # dispatch an event
     data = uuid.uuid4().hex
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     dispatch('srcservice', 'exampleevent', data)
 
     # `handle` will have been called twice with the same the `data`, because
@@ -173,7 +173,7 @@ def test_service_disconnect_with_active_rpc_worker(
     """ Break the connection between a service's queue consumer and rabbit
     while the service has an active rpc worker (i.e. response required).
     """
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     # get the service's queue consumer connection while we know it's the
@@ -223,8 +223,8 @@ def test_service_disconnect_with_active_rpc_worker_via_service_proxy(
     the duplicate response and discard it.
     """
     # ExampleService is the target; ProxyService has the rpc_proxy;
-    proxy_container = container_factory(ProxyService, rabbit_config)
-    service_container = container_factory(ExampleService, rabbit_config)
+    proxy_container = container_factory(ProxyService)
+    service_container = container_factory(ExampleService)
 
     service_container.start()
 

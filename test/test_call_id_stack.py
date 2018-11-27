@@ -1,6 +1,7 @@
 import pytest
 from mock import Mock, call
 
+from nameko import config_setup
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.events import EventDispatcher, event_handler
@@ -16,7 +17,7 @@ def test_worker_context_gets_stack(container_factory):
     class FooService(object):
         name = 'baz'
 
-    container = container_factory(FooService, {})
+    container = container_factory(FooService)
     service = FooService()
 
     context = WorkerContext(container, service, DummyProvider("bar"))
@@ -47,7 +48,7 @@ def test_short_call_stack(container_factory):
     class FooService(object):
         name = 'baz'
 
-    container = container_factory(FooService, {PARENT_CALLS_CONFIG_KEY: 1})
+    container = container_factory(FooService)
     service = FooService()
 
     # Trim stack
@@ -56,7 +57,9 @@ def test_short_call_stack(container_factory):
         container, service, DummyProvider("long"),
         data={'call_id_stack': many_ids}
     )
-    assert context.call_id_stack == ['99', 'baz.long.0']
+
+    with config_setup({PARENT_CALLS_CONFIG_KEY: 1}):
+        assert context.call_id_stack == ['99', 'baz.long.0']
 
 
 @pytest.fixture
@@ -109,7 +112,7 @@ def test_call_id_stack(
         def method(self):
             return self.parent_service.method()
 
-    runner = runner_factory(rabbit_config)
+    runner = runner_factory()
     runner.add_service(Child)
     runner.add_service(Parent)
     runner.add_service(Grandparent)
@@ -166,7 +169,7 @@ def test_call_id_over_events(
         def say_hello(self):
             self.dispatch('hello', self.name)
 
-    runner = runner_factory(rabbit_config)
+    runner = runner_factory()
     runner.add_service(EventListeningServiceOne)
     runner.add_service(EventListeningServiceTwo)
     runner.add_service(EventRaisingService)

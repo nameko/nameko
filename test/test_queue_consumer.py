@@ -10,6 +10,7 @@ from kombu import Connection, Exchange, Queue
 from kombu.exceptions import TimeoutError
 from mock import ANY, Mock, call, patch
 
+from nameko import config_update
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 )
@@ -58,7 +59,6 @@ def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = rabbit_config
     container.max_workers = 3
     container.spawn_managed_thread.side_effect = spawn_managed_thread
     content_type = 'application/data'
@@ -107,10 +107,10 @@ def test_lifecycle(rabbit_manager, rabbit_config, mock_container):
     queue_consumer.kill()
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 def test_reentrant_start_stops(mock_container):
     container = mock_container
     container.shared_extensions = {}
-    container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -127,12 +127,12 @@ def test_reentrant_start_stops(mock_container):
     queue_consumer.kill()
 
 
-def test_stop_while_starting(rabbit_config, mock_container):
+@pytest.mark.usefixtures("rabbit_config")
+def test_stop_while_starting(mock_container):
     started = Event()
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = rabbit_config
     container.max_workers = 3
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -175,10 +175,10 @@ def test_stop_while_starting(rabbit_config, mock_container):
         assert queue_consumer._gt.dead
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 def test_error_stops_consumer_thread(mock_container):
     container = mock_container
     container.shared_extensions = {}
-    container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 3
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -200,10 +200,10 @@ def test_error_stops_consumer_thread(mock_container):
     assert exc_info.value.args == ('test',)
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 def test_on_consume_error_kills_consumer(mock_container):
     container = mock_container
     container.shared_extensions = {}
-    container.config = {AMQP_URI_CONFIG_KEY: 'memory://'}
     container.max_workers = 1
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -221,11 +221,11 @@ def test_on_consume_error_kills_consumer(mock_container):
             queue_consumer._gt.wait()
 
 
-def test_reconnect_on_socket_error(rabbit_config, mock_container):
+@pytest.mark.usefixtures("rabbit_config")
+def test_reconnect_on_socket_error(mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = rabbit_config
     container.max_workers = 1
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -283,33 +283,35 @@ def test_prefetch_count(rabbit_manager, rabbit_config, container_factory):
         def handle(self, payload):
             pass
 
-    rabbit_config['max_workers'] = 1
-    container = container_factory(Service, rabbit_config)
-    container.start()
+    with config_update({'max_workers': 1}):
+        container = container_factory(Service)
+        container.start()
 
-    consumer_continue = Event()
+        consumer_continue = Event()
 
-    # the two handlers would ordinarily take alternating messages, but are
-    # limited to holding one un-ACKed message. Since Handler1 never ACKs, it
-    # only ever gets one message, and Handler2 gets the others.
+        # the two handlers would ordinarily take alternating messages, but are
+        # limited to holding one un-ACKed message. Since Handler1 never ACKs,
+        # it only ever gets one message, and Handler2 gets the others.
 
-    def wait_for_expected(worker_ctx, res, exc_info):
-        return {'m3', 'm4', 'm5'}.issubset(set(messages))
+        def wait_for_expected(worker_ctx, res, exc_info):
+            return {'m3', 'm4', 'm5'}.issubset(set(messages))
 
-    with entrypoint_waiter(container, 'handle', callback=wait_for_expected):
-        vhost = rabbit_config['vhost']
-        properties = {'content_type': 'application/data'}
-        for message in ('m1', 'm2', 'm3', 'm4', 'm5'):
-            rabbit_manager.publish(
-                vhost, 'spam', '', message, properties=properties
-            )
+        with entrypoint_waiter(
+            container, 'handle', callback=wait_for_expected
+        ):
+            vhost = rabbit_config['vhost']
+            properties = {'content_type': 'application/data'}
+            for message in ('m1', 'm2', 'm3', 'm4', 'm5'):
+                rabbit_manager.publish(
+                    vhost, 'spam', '', message, properties=properties
+                )
 
-    # we don't know which handler picked up the first message,
-    # but all the others should've been handled by Handler2
-    assert messages[-3:] == ['m3', 'm4', 'm5']
+        # we don't know which handler picked up the first message,
+        # but all the others should've been handled by Handler2
+        assert messages[-3:] == ['m3', 'm4', 'm5']
 
-    # release the waiting consumer
-    consumer_continue.send(None)
+        # release the waiting consumer
+        consumer_continue.send(None)
 
 
 def test_kill_closes_connections(rabbit_manager, rabbit_config,
@@ -317,7 +319,6 @@ def test_kill_closes_connections(rabbit_manager, rabbit_config,
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = rabbit_config
     container.max_workers = 1
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -362,36 +363,36 @@ class TestHeartbeats(object):
 
         return Service
 
-    def test_default(self, service_cls, container_factory, rabbit_config):
+    @pytest.mark.usefixtures("rabbit_config")
+    def test_default(self, service_cls, container_factory):
 
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
 
         queue_consumer = get_extension(container, QueueConsumer)
         assert queue_consumer.connection.heartbeat == DEFAULT_HEARTBEAT
 
+    @pytest.mark.usefixtures("rabbit_config")
     @pytest.mark.parametrize("heartbeat", [30, None])
     def test_config_value(
-        self, heartbeat, service_cls, container_factory, rabbit_config
+        self, heartbeat, service_cls, container_factory
     ):
-        rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
+        with config_update({HEARTBEAT_CONFIG_KEY: heartbeat}):
+            container = container_factory(service_cls)
+            container.start()
 
-        container = container_factory(service_cls, rabbit_config)
-        container.start()
-
-        queue_consumer = get_extension(container, QueueConsumer)
-        assert queue_consumer.connection.heartbeat == heartbeat
+            queue_consumer = get_extension(container, QueueConsumer)
+            assert queue_consumer.connection.heartbeat == heartbeat
 
 
 class TestDeadlockRegression(object):
     """ Regression test for https://github.com/nameko/nameko/issues/428
     """
 
-    @pytest.fixture
+    @pytest.yield_fixture
     def config(self, rabbit_config):
-        config = rabbit_config.copy()
-        config['max_workers'] = 2
-        return config
+        with config_update({'max_workers': 2}):
+            yield
 
     @pytest.fixture
     def upstream(self, container_factory, config):
@@ -403,7 +404,7 @@ class TestDeadlockRegression(object):
             def method(self):
                 time.sleep(.5)
 
-        container = container_factory(Service, config)
+        container = container_factory(Service)
         container.start()
 
     @pytest.fixture
@@ -424,9 +425,10 @@ class TestDeadlockRegression(object):
 
         return Service
 
+    @pytest.mark.usefixtures("config")
     @pytest.mark.usefixtures('upstream')
     def test_deadlock_due_to_slow_workers(
-        self, service_cls, container_factory, config
+        self, service_cls, container_factory
     ):
         """ Deadlock will occur if the unack'd messages grows beyond the
         size of the worker pool at any point. The QueueConsumer will block
@@ -434,12 +436,12 @@ class TestDeadlockRegression(object):
         Any running workers therefore never complete, and the worker pool
         remains exhausted.
         """
-        container = container_factory(service_cls, config)
+        container = container_factory(service_cls)
         container.start()
 
         count = 2
 
-        dispatch = event_dispatcher(config)
+        dispatch = event_dispatcher()
         for _ in range(count):
             dispatch("service", "event1", 1)
             dispatch("service", "event2", 1)
@@ -456,7 +458,8 @@ class TestDeadlockRegression(object):
             pass
 
 
-def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
+@pytest.mark.usefixtures("rabbit_config")
+def test_greenthread_raise_in_kill(container_factory, logger):
 
     class Service(object):
         name = "service"
@@ -465,7 +468,7 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
         def echo(self, arg):
             return arg  # pragma: no cover
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     queue_consumer = get_extension(container, QueueConsumer)
 
     # an error in the queue_consumer's greenthread will bubble up to the
@@ -481,7 +484,7 @@ def test_greenthread_raise_in_kill(container_factory, rabbit_config, logger):
 
         container.start()
 
-        with ServiceRpcProxy('service', rabbit_config) as service_rpc:
+        with ServiceRpcProxy('service') as service_rpc:
             # async because `echo` will never respond
             service_rpc.echo.call_async("foo")
 

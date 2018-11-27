@@ -10,6 +10,7 @@ import kombu.serialization
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
+from nameko import config
 from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER,
@@ -33,9 +34,11 @@ RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
 RPC_REPLY_QUEUE_TTL = 300000  # ms (5 mins)
 
 
-def get_rpc_exchange(config):
-    exchange_name = config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc')
-    exchange = Exchange(exchange_name, durable=True, type="topic")
+def get_rpc_exchange():
+    exchange = Exchange(
+        config.get(RPC_EXCHANGE_CONFIG_KEY, 'nameko-rpc'),
+        durable=True,
+        type="topic")
     return exchange
 
 
@@ -56,7 +59,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
 
-            exchange = get_rpc_exchange(self.container.config)
+            exchange = get_rpc_exchange()
 
             self.queue = Queue(
                 queue_name,
@@ -119,12 +122,12 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
     def handle_result(self, message, result, exc_info):
 
-        amqp_uri = self.container.config[AMQP_URI_CONFIG_KEY]
-        serializer = self.container.config.get(
+        amqp_uri = config[AMQP_URI_CONFIG_KEY]
+        serializer = config.get(
             SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
         )
-        exchange = get_rpc_exchange(self.container.config)
-        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        exchange = get_rpc_exchange()
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl)
         result, exc_info = responder.send_response(result, exc_info)
@@ -246,7 +249,7 @@ class ReplyListener(SharedExtension):
 
         self.routing_key = str(reply_queue_uuid)
 
-        exchange = get_rpc_exchange(self.container.config)
+        exchange = get_rpc_exchange()
 
         self.queue = Queue(
             queue_name,
@@ -379,11 +382,11 @@ class MethodProxy(HeaderEncoder):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     @property
     def ssl(self):
-        return self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        return config.get(AMQP_SSL_CONFIG_KEY)
 
     @property
     def serializer(self):
@@ -392,9 +395,7 @@ class MethodProxy(HeaderEncoder):
         Must be registered as a
         `kombu serializer <http://bit.do/kombu_serialization>`_.
         """
-        return self.container.config.get(
-            SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-        )
+        return config.get(SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER)
 
     def call_async(self, *args, **kwargs):
         reply = self._call(*args, **kwargs)
@@ -424,7 +425,7 @@ class MethodProxy(HeaderEncoder):
         # this functionality and therefore :class:`UnknownService` will never
         # be raised (and the caller will hang).
 
-        exchange = get_rpc_exchange(self.container.config)
+        exchange = get_rpc_exchange()
         routing_key = '{}.{}'.format(self.service_name, self.method_name)
 
         reply_to = self.reply_listener.routing_key
