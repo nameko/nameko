@@ -29,10 +29,10 @@ def queue_consumer():
         yield replacement
 
 
-def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_event_dispatcher(mock_container, mock_producer):
 
     container = mock_container
-    container.config = rabbit_config
     container.service_name = "srcservice"
 
     service = Mock()
@@ -326,7 +326,7 @@ def start_containers(request, container_factory, rabbit_config, reset_state):
                 service = service_factory(prefix, base)
                 services[key] = service
             service_cls = services.get(key)
-            ct = container_factory(service_cls, rabbit_config)
+            ct = container_factory(service_cls)
             containers.append(ct)
             ct.start()
 
@@ -569,7 +569,7 @@ def test_reliable_delivery(
     class ServicePool(ServicePoolHandler):
         name = "service-pool"
 
-    container = container_factory(ServicePool, rabbit_config)
+    container = container_factory(ServicePool)
     with entrypoint_waiter(container, 'handle'):
         container.start()
 
@@ -641,13 +641,14 @@ def test_unreliable_delivery(rabbit_manager, rabbit_config, start_containers):
     assert services['unreliable'][1].events == ["msg_3"]
 
 
-def test_custom_event_handler(rabbit_manager, rabbit_config, start_containers):
+@pytest.mark.usefixtures("rabbit_config")
+def test_custom_event_handler(rabbit_manager, start_containers):
     """Uses a custom handler subclass for the event_handler entrypoint"""
 
     (container,) = start_containers(CustomHandler, ('custom-events',))
 
     payload = {'custom': 'data'}
-    dispatch = standalone_dispatcher(rabbit_config)
+    dispatch = standalone_dispatcher()
 
     with entrypoint_waiter(container, 'handle'):
         dispatch('srcservice', "eventtype", payload)
