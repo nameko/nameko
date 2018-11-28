@@ -101,7 +101,7 @@ def empty_config():
 
 
 @pytest.yield_fixture
-def mock_container(request, empty_config):
+def mock_container(request):
     from mock import create_autospec
     from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
     from nameko.containers import ServiceContainer
