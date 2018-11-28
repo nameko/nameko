@@ -693,6 +693,7 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
 class TestBackwardsCompatClassAttrs(object):
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter,value", [
         ('retry', False),
         ('retry_policy', {'max_retries': 999}),
@@ -708,7 +709,6 @@ class TestBackwardsCompatClassAttrs(object):
             "LegacyEventDispatcher", (EventDispatcher,), {parameter: value}
         )
         with patch('nameko.messaging.warnings') as warnings:
-            mock_container.config = {'AMQP_URI': 'memory://'}
             mock_container.service_name = "service"
             dispatcher = dispatcher_cls().bind(mock_container, "dispatch")
         assert warnings.warn.called
@@ -736,6 +736,7 @@ class TestConfigurability(object):
         producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
         return producer
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter", [
         # delivery options
         'delivery_mode', 'mandatory', 'priority', 'expiration',
@@ -751,7 +752,6 @@ class TestConfigurability(object):
     ):
         """ Verify that most parameters can be specified at instantiation time.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         worker_ctx = Mock()
@@ -769,14 +769,12 @@ class TestConfigurability(object):
         dispatch("event-type", "event-data")
         assert producer.publish.call_args[1][parameter] == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.usefixtures('predictable_call_ids')
     def test_headers(self, mock_container, producer):
         """ Headers can be provided at instantiation time, and are merged with
         Nameko headers.
         """
-        mock_container.config = {
-            'AMQP_URI': 'memory://localhost'
-        }
         mock_container.service_name = "service"
 
         # use a real worker context so nameko headers are generated
@@ -810,13 +808,13 @@ class TestConfigurability(object):
             nameko_headers, value
         )
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_restricted_parameters(
         self, mock_container, producer
     ):
         """ Verify that providing routing parameters at instantiation
         time has no effect.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         worker_ctx = Mock()
