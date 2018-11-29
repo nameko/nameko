@@ -12,8 +12,8 @@ from nameko.constants import (
 from nameko.events import EventDispatcher, event_handler
 from nameko.exceptions import ConfigurationError, RemoteError
 from nameko.messaging import consume
-from nameko.rpc import RpcProxy, rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.rpc import ServiceRpc, rpc
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 
 
@@ -105,8 +105,8 @@ def test_rpc_serialization(container_factory, rabbit_config,
 
     serialized = serialized_info[serializer]
 
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
-        assert proxy.echo(test_data) == serialized['data']
+    with ServiceRpcClient('service', rabbit_config) as client:
+        assert client.echo(test_data) == serialized['data']
         assert entrypoint_called.call_args == call(serialized['data'])
 
     msg = get_messages()[0]
@@ -118,12 +118,12 @@ def test_rpc_result_serialization_error(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
+    with ServiceRpcClient('service', rabbit_config) as client:
         with pytest.raises(RemoteError) as exc:
-            proxy.broken()
+            client.broken()
         assert exc.value.exc_type == "UnserializableValueError"
 
-        assert proxy.echo('foo') == "foo"  # subsequent calls ok
+        assert client.echo('foo') == "foo"  # subsequent calls ok
 
 
 def test_rpc_arg_serialization_error(container_factory, rabbit_config):
@@ -131,11 +131,11 @@ def test_rpc_arg_serialization_error(container_factory, rabbit_config):
     container = container_factory(Service, rabbit_config)
     container.start()
 
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
+    with ServiceRpcClient('service', rabbit_config) as client:
         with pytest.raises(Exception):
-            proxy.echo(unserializable)
+            client.echo(unserializable)
 
-        assert proxy.echo('foo') == "foo"  # subsequent calls ok
+        assert client.echo('foo') == "foo"  # subsequent calls ok
 
 
 @pytest.mark.parametrize("serializer", ['json', 'pickle'])
@@ -212,8 +212,8 @@ def test_custom_serializer(container_factory, rabbit_config,
     get_messages = sniffer_queue_factory('nameko-rpc')
 
     # verify RPC works end-to-end
-    with ServiceRpcProxy('service', rabbit_config) as proxy:
-        assert proxy.echo("hello") == "hello"
+    with ServiceRpcClient('service', rabbit_config) as client:
+        assert client.echo("hello") == "hello"
 
     # verify sniffed messages serialized as expected
     msg = get_messages()[0]
@@ -307,13 +307,13 @@ def test_standalone_rpc_accepts_multiple_serialization_formats(
 
     payload = {'spam': 'ham'}
 
-    proxy_config = rabbit_config.copy()
-    proxy_config[SERIALIZER_CONFIG_KEY] = serializer
+    client_config = rabbit_config.copy()
+    client_config[SERIALIZER_CONFIG_KEY] = serializer
 
     get_messages = sniffer_queue_factory('nameko-rpc')
 
-    with ServiceRpcProxy('echoer', proxy_config) as proxy:
-        assert proxy.echo(payload) == payload
+    with ServiceRpcClient('echoer', client_config) as client:
+        assert client.echo(payload) == payload
 
     msg = get_messages().pop()
     assert encode(payload) in msg['payload']
@@ -340,7 +340,7 @@ def test_rpc_accepts_multiple_serialization_formats(
 
         name = 'forwarder'
 
-        echoer = RpcProxy('echoer')
+        echoer = ServiceRpc('echoer')
 
         @rpc
         def forward(self, payload):

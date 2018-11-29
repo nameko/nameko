@@ -389,8 +389,8 @@ class TestDefaults(object):
     ])
     def test_precedence(self, param, producer):
         """ Verify that a default specified as a class attribute can be
-        overriden by a default specified at instantiation time, which can
-        further be overriden by a value specified when used.
+        overridden by a default specified at instantiation time, which can
+        further be overridden by a value specified when used.
         """
         publisher_cls = type("Publisher", (Publisher,), {param: "value"})
         publisher = publisher_cls("memory://", **{param: True})
@@ -457,7 +457,7 @@ class TestDefaults(object):
 
     def test_use_confirms(self, get_producer):
         """ Verify that publish-confirms can be set as a default specified at
-        instantiation time, which can be overriden by a value specified at
+        instantiation time, which can be overridden by a value specified at
         publish time.
         """
         publisher = Publisher("memory://", use_confirms=False)

@@ -1,4 +1,4 @@
-with ClusterRpcProxy(config) as cluster_rpc:
+with ClusterRpcClient(config) as cluster_rpc:
     hello_res = cluster_rpc.service_x.remote_method.call_async("hello")
     world_res = cluster_rpc.service_x.remote_method.call_async("world")
     # do work while waiting

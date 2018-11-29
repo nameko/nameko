@@ -114,16 +114,17 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
 
     Where there parameters are as follows:
 
-        worker_ctx (WorkerContext): WorkerContext of the entrypoint call.
+        `worker_ctx` (WorkerContext): WorkerContext of the entrypoint call.
 
-        result (object): The return value of the entrypoint.
+        `result` (object): The return value of the entrypoint.
 
-        exc_info (tuple): Tuple as returned by `sys.exc_info` if the
+        `exc_info` (tuple): Tuple as returned by `sys.exc_info` if the
             entrypoint raised an exception, otherwise `None`.
 
     **Usage**
 
     ::
+
         class Service(object):
             name = "service"
 
@@ -219,14 +220,14 @@ def worker_factory(service_cls, **dependencies):
     **Usage**
 
     The following example service proxies calls to a "maths" service via
-    an ``RpcProxy`` dependency::
+    an ``ServiceRpc`` dependency::
 
-        from nameko.rpc import RpcProxy, rpc
+        from nameko.rpc import ServiceRpc, rpc
 
         class ConversionService(object):
             name = "conversions"
 
-            maths_rpc = RpcProxy("maths")
+            maths_rpc = ServiceRpc("maths")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -351,13 +352,13 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
     ::
 
-        from nameko.rpc import RpcProxy, rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.rpc import ServiceRpc, rpc
+        from nameko.standalone.rpc import ServiceRpcClient
 
         class ConversionService(object):
             name = "conversions"
 
-            maths_rpc = RpcProxy("maths")
+            maths_rpc = ServiceRpc("maths")
 
             @rpc
             def inches_to_cm(self, inches):
@@ -373,8 +374,8 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcProxy('conversions') as proxy:
-            proxy.cm_to_inches(100)
+        with ServiceRpcClient('conversions') as client:
+            client.cm_to_inches(100)
 
         # assert that the dependency was called as expected
         mock_maths_rpc.divide.assert_called_once_with(100, 2.54)
@@ -393,8 +394,8 @@ def replace_dependencies(container, *dependencies, **dependency_map):
 
         container.start()
 
-        with ServiceRpcProxy('conversions') as proxy:
-            assert proxy.cm_to_inches(127) == 50.0
+        with ServiceRpcClient('conversions') as client:
+            assert client.cm_to_inches(127) == 50.0
 
     """
     if set(dependencies).intersection(dependency_map):
@@ -475,18 +476,16 @@ class Once(Entrypoint):
     """ Entrypoint that spawns a worker exactly once, as soon as
     the service container started.
     """
+
     def __init__(self, *args, **kwargs):
         expected_exceptions = kwargs.pop('expected_exceptions', ())
         sensitive_arguments = kwargs.pop('sensitive_arguments', ())
-        # backwards compat
-        sensitive_variables = kwargs.pop('sensitive_variables', ())
 
         self.args = args
         self.kwargs = kwargs
         super(Once, self).__init__(
             expected_exceptions=expected_exceptions,
-            sensitive_arguments=sensitive_arguments,
-            sensitive_variables=sensitive_variables
+            sensitive_arguments=sensitive_arguments
         )
 
     def start(self):

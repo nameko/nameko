@@ -53,7 +53,7 @@ Extensions
     * `nameko-sendgrid <https://github.com/invictuscapital/nameko-sendgrid>`_
 
         SendGrid dependency for nameko, for sending transactional and marketing emails.
-        
+
     * `nameko-cachetools <https://github.com/santiycr/nameko-cachetools>`_
 
         Tools to cache RPC interactions between your nameko services.
@@ -71,7 +71,7 @@ Supplementary Libraries
 
     * `nameko-proxy <https://github.com/fraglab/nameko-proxy>`_
 
-        Standalone async proxy to communicate with Nameko microservices.
+        Standalone async client to communicate with Nameko microservices.
 
 Search PyPi for more `nameko packages <https://pypi.python.org/pypi?%3Aaction=search&term=nameko&submit=search>`_
 

@@ -7,8 +7,8 @@ from six.moves import queue
 from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
-from nameko.rpc import RpcProxy, rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.rpc import ServiceRpc, rpc
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
 from nameko.web.handlers import http
@@ -233,147 +233,6 @@ class TestGetMessageFromQueue(object):
         assert message.payload == payload
 
 
-class TestFastTeardown(object):
-
-    def test_order(self, testdir):
-
-        testdir.makeconftest(
-            """
-            from mock import Mock
-            import pytest
-
-            @pytest.fixture(scope='session')
-            def tracker():
-                return Mock()
-
-            @pytest.yield_fixture
-            def rabbit_config(tracker):
-                tracker("rabbit_config", "up")
-                yield
-                tracker("rabbit_config", "down")
-
-            @pytest.yield_fixture
-            def container_factory(tracker):
-                tracker("container_factory", "up")
-                yield
-                tracker("container_factory", "down")
-            """
-        )
-
-        testdir.makepyfile(
-            """
-            from mock import call
-
-            def test_foo(container_factory, rabbit_config):
-                pass  # factory first
-
-            def test_bar(rabbit_config, container_factory):
-                pass  # rabbit first
-
-            def test_check(tracker):
-                assert tracker.call_args_list == [
-                    # test_foo
-                    call("container_factory", "up"),
-                    call("rabbit_config", "up"),
-                    call("rabbit_config", "down"),
-                    call("container_factory", "down"),
-                    # test_bar
-                    call("container_factory", "up"),
-                    call("rabbit_config", "up"),
-                    call("rabbit_config", "down"),
-                    call("container_factory", "down"),
-                ]
-            """
-        )
-        result = testdir.runpytest()
-        assert result.ret == 0
-
-    def test_only_affects_used_fixtures(self, testdir):
-
-        testdir.makeconftest(
-            """
-            from mock import Mock
-            import pytest
-
-            @pytest.fixture(scope='session')
-            def tracker():
-                return Mock()
-
-            @pytest.yield_fixture
-            def rabbit_config(tracker):
-                tracker("rabbit_config", "up")
-                yield
-                tracker("rabbit_config", "down")
-
-            @pytest.yield_fixture
-            def container_factory(tracker):
-                tracker("container_factory", "up")
-                yield
-                tracker("container_factory", "down")
-            """
-        )
-
-        testdir.makepyfile(
-            """
-            from mock import call
-
-            def test_no_rabbit(container_factory):
-                pass  # factory first
-
-            def test_check(tracker):
-                assert tracker.call_args_list == [
-                    call("container_factory", "up"),
-                    call("container_factory", "down"),
-                ]
-            """
-        )
-        result = testdir.runpytest()
-        assert result.ret == 0
-
-    def test_consumer_mixin_patch(self, testdir):
-
-        testdir.makeconftest(
-            """
-            from kombu.mixins import ConsumerMixin
-            import pytest
-
-            consumers = []
-
-            @pytest.fixture(autouse=True)
-            def fast_teardown(patch_checker, fast_teardown):
-                ''' Shadow the fast_teardown fixture to set fixture order:
-
-                Setup:
-
-                    1. patch_checker
-                    2. original fast_teardown (applies monkeypatch)
-                    3. this fixture (creates consumer)
-
-                Teardown:
-
-                    1. this fixture (creates consumer)
-                    2. original fast_teardown (removes patch; sets attribute)
-                    3. patch_checker (verifies consumer was stopped)
-                '''
-                consumers.append(ConsumerMixin())
-
-            @pytest.yield_fixture
-            def patch_checker():
-                yield
-                assert consumers[0].should_stop is True
-            """
-        )
-
-        testdir.makepyfile(
-            """
-            def test_mixin_patch(patch_checker):
-                pass
-            """
-        )
-        result = testdir.runpytest()
-        assert result.ret == 0
-
-
 def test_container_factory(
     testdir, rabbit_config, rabbit_manager, plugin_options
 ):
@@ -383,7 +242,7 @@ def test_container_factory(
         import pytest
 
         from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.standalone.rpc import ServiceRpcClient
 
         class ServiceX(object):
             name = "x"
@@ -397,8 +256,8 @@ def test_container_factory(
             container = container_factory(ServiceX)
             container.start()
 
-            with ServiceRpcProxy("x") as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x") as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -423,7 +282,7 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
         from nameko import config_update
         from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.standalone.rpc import ServiceRpcClient
 
         from container_module import ServiceContainerX
 
@@ -444,8 +303,8 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
                 assert isinstance(container, ServiceContainerX)
 
-                with ServiceRpcProxy("x") as proxy:
-                    assert proxy.method() == "OK"
+            with ServiceRpcClient("x") as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -461,7 +320,7 @@ def test_runner_factory(
         import pytest
 
         from nameko.rpc import rpc
-        from nameko.standalone.rpc import ServiceRpcProxy
+        from nameko.standalone.rpc import ServiceRpcClient
 
         class ServiceX(object):
             name = "x"
@@ -475,8 +334,8 @@ def test_runner_factory(
             runner = runner_factory(ServiceX)
             runner.start()
 
-            with ServiceRpcProxy("x") as proxy:
-                assert proxy.method() == "OK"
+            with ServiceRpcClient("x") as client:
+                assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
@@ -500,7 +359,7 @@ def test_predictable_call_ids(runner_factory):
         name = "x"
 
         capture = CaptureWorkerContext()
-        service_y = RpcProxy("y")
+        service_y = ServiceRpc("y")
 
         @rpc
         def method(self):
@@ -518,7 +377,7 @@ def test_predictable_call_ids(runner_factory):
     runner = runner_factory(ServiceX, ServiceY)
     runner.start()
 
-    with ServiceRpcProxy("x") as service_x:
+    with ServiceRpcClient("x") as service_x:
         service_x.method()
 
     call_ids = [worker_ctx.call_id for worker_ctx in worker_contexts]

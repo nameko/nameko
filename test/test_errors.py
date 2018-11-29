@@ -5,8 +5,8 @@ from mock import ANY, call, patch
 
 from nameko.events import EventDispatcher
 from nameko.exceptions import RemoteError
-from nameko.rpc import RpcConsumer, RpcProxy, rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.rpc import RpcConsumer, ServiceRpc, rpc
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_hook
 from nameko.testing.utils import get_container, get_extension
 
@@ -19,7 +19,7 @@ class ExampleService(object):
     name = "exampleservice"
 
     dispatch = EventDispatcher()
-    rpcproxy = RpcProxy('exampleservice')
+    exampleservice_rpc = ServiceRpc('exampleservice')
 
     @rpc
     def task(self):
@@ -35,10 +35,10 @@ class ExampleService(object):
 
     @rpc
     def proxy(self, method, *args):
-        """ Proxies RPC calls to ``method`` on itself, so we can test handling
+        """ Makes RPC calls to ``method`` on itself, so we can test handling
         of errors in remote services.
         """
-        getattr(self.rpcproxy, method)(*args)
+        getattr(self.exampleservice_rpc, method)(*args)
 
 
 class SecondService(object):
@@ -107,10 +107,10 @@ def test_handle_result_error(container_factory):
         err = "error in handle_result"
         handle_result.side_effect = Exception(err)
 
-        # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice") as proxy:
-            # proxy.task() will hang forever because it generates an error
-            proxy.task.call_async()
+        # use a standalone rpc client to call exampleservice.task()
+        with ServiceRpcClient("exampleservice") as client:
+            # client.task() will hang forever because it generates an error
+            client.task.call_async()
 
         with pytest.raises(Exception) as exc_info:
             container.wait()
@@ -132,10 +132,10 @@ def test_dependency_call_lifecycle_errors(
         err = "error in {}".format(method_name)
         method.side_effect = Exception(err)
 
-        # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice") as proxy:
-            # proxy.task() will hang forever because it generates an error
-            proxy.task.call_async()
+        # use a standalone rpc client to call exampleservice.task()
+        with ServiceRpcClient("exampleservice") as client:
+            # client.task() will hang forever because it generates an error
+            client.task.call_async()
 
         # verify that the error bubbles up to container.wait()
         with pytest.raises(Exception) as exc_info:
@@ -157,11 +157,11 @@ def test_runner_catches_container_errors(runner_factory):
         exception = Exception("error")
         handle_result.side_effect = exception
 
-        # use a standalone rpc proxy to call exampleservice.task()
-        with ServiceRpcProxy("exampleservice") as proxy:
-            # proxy.task() will hang forever because it generates an error
+        # use a standalone rpc client to call exampleservice.task()
+        with ServiceRpcClient("exampleservice") as client:
+            # client.task() will hang forever because it generates an error
             # in the remote container (so never receives a response).
-            proxy.task.call_async()
+            client.task.call_async()
 
         # verify that the error bubbles up to runner.wait()
         with pytest.raises(Exception) as exc_info:
@@ -186,11 +186,11 @@ def test_graceful_stop_on_one_container_error(runner_factory):
             exception = Exception("error")
             handle_result.side_effect = exception
 
-            # use a standalone rpc proxy to call exampleservice.task()
-            with ServiceRpcProxy("exampleservice") as proxy:
-                # proxy.task() will hang forever because it generates an error
+            # use a standalone rpc client to call exampleservice.task()
+            with ServiceRpcClient("exampleservice") as client:
+                # client.task() will hang forever because it generates an error
                 # in the remote container (so never receives a response).
-                proxy.task.call_async()
+                client.task.call_async()
 
             # verify that the error bubbles up to runner.wait()
             with pytest.raises(Exception) as exc_info:

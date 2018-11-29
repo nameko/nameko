@@ -63,7 +63,7 @@ class WebServer(ProviderCollector, SharedExtension):
     requests.
 
     WebServer can be subclassed to add additional WSGI functionality through
-    overriding the get_wsgi_server and get_wsgi_app methods.
+    overriding the `get_wsgi_server` and `get_wsgi_app` methods.
     """
 
     def __init__(self):
@@ -118,7 +118,7 @@ class WebServer(ProviderCollector, SharedExtension):
     def get_wsgi_app(self):
         """Get the WSGI application used to process requests.
 
-        This method can be overriden to apply WSGI middleware or replace
+        This method can be overridden to apply WSGI middleware or replace
         the WSGI application all together.
         """
         return WsgiApp(self)

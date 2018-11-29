@@ -1,4 +1,5 @@
-from nameko.rpc import rpc, RpcProxy
+from nameko.rpc import ServiceRpc, rpc
+
 
 class ServiceY:
     name = "service_y"
@@ -11,7 +12,7 @@ class ServiceY:
 class ServiceX:
     name = "service_x"
 
-    y = RpcProxy("service_y")
+    y = ServiceRpc("service_y")
 
     @rpc
     def remote_method(self, value):

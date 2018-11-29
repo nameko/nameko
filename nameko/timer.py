@@ -13,7 +13,7 @@ _log = getLogger(__name__)
 
 
 class Timer(Entrypoint):
-    def __init__(self, interval):
+    def __init__(self, interval, **kwargs):
         """
         Timer entrypoint implementation. Fires every :attr:`self.interval`
         seconds.
@@ -35,6 +35,7 @@ class Timer(Entrypoint):
         self.interval = interval
         self.should_stop = Event()
         self.gt = None
+        super(Timer, self).__init__(**kwargs)
 
     def start(self):
         _log.debug('starting %s', self)

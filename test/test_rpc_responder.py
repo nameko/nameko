@@ -26,7 +26,7 @@ def test_responder(message, mock_producer):
 
     exchange = Mock()
 
-    responder = Responder('amqp://localhost', exchange, 'json', message)
+    responder = Responder('amqp://localhost', exchange, message)
 
     # serialisable result
     result, exc_info = responder.send_response(True, None)
@@ -45,7 +45,7 @@ def test_responder_worker_exc(message, mock_producer):
 
     exchange = Mock()
 
-    responder = Responder('amqp://localhost', exchange, 'json', message)
+    responder = Responder('amqp://localhost', exchange, message)
 
     # serialisable exception
     worker_exc = Exception('error')
@@ -67,18 +67,18 @@ def test_responder_worker_exc(message, mock_producer):
     assert msg == expected_msg
 
 
-@pytest.mark.parametrize("serializer,content_type,exception_info_string", [
-    ('json', 'application/json', "is not JSON serializable"),
-    ('pickle', 'application/x-python-serialize', "Can't pickle")])
+@pytest.mark.parametrize("content_type,exception_info_string", [
+    ('application/json', "is not JSON serializable"),
+    ('application/x-python-serialize', "Can't pickle")])
 def test_responder_unserializable_result(
         message, mock_producer, unserializable,
-        serializer, content_type, exception_info_string):
+        content_type, exception_info_string):
 
     message.properties['content_type'] = content_type
 
     exchange = Mock()
 
-    responder = Responder('amqp://localhost', exchange, serializer, message)
+    responder = Responder('amqp://localhost', exchange, message)
 
     # unserialisable result
     worker_result = unserializable
@@ -110,7 +110,7 @@ def test_responder_cannot_unicode_exc(message, mock_producer):
 
     exchange = Mock()
 
-    responder = Responder('amqp://localhost', exchange, 'json', message)
+    responder = Responder('amqp://localhost', exchange, message)
 
     class CannotUnicode(object):
         def __str__(self):
@@ -127,7 +127,7 @@ def test_responder_cannot_repr_exc(message, mock_producer):
 
     exchange = Mock()
 
-    responder = Responder('amqp://localhost', exchange, 'json', message)
+    responder = Responder('amqp://localhost', exchange, message)
 
     class CannotRepr(object):
         def __repr__(self):

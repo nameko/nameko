@@ -35,7 +35,7 @@ from logging import getLogger
 
 from kombu import Queue
 
-from nameko.messaging import Consumer, Publisher
+from nameko.messaging import Consumer, Publisher, encode_to_headers
 from nameko.standalone.events import get_event_exchange
 
 
@@ -86,7 +86,7 @@ class EventDispatcher(Publisher):
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        extra_headers = self.get_message_headers(worker_ctx)
+        extra_headers = encode_to_headers(worker_ctx.context_data)
 
         def dispatch(event_type, event_data):
             self.publisher.publish(

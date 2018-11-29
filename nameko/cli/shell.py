@@ -6,7 +6,7 @@ from types import ModuleType
 from nameko import config
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.standalone.events import event_dispatcher
-from nameko.standalone.rpc import ClusterRpcProxy
+from nameko.standalone.rpc import ClusterRpcClient
 
 from .commands import Shell
 
@@ -61,11 +61,11 @@ Usage:
 
     >>> n.dispatch_event('service', 'event_type', 'event_data')
 """
-    proxy = ClusterRpcProxy()
-    module.rpc = proxy.start()
+    client = ClusterRpcClient()
+    module.rpc = client.start()
     module.dispatch_event = event_dispatcher()
     module.config = config
-    module.disconnect = proxy.stop
+    module.disconnect = client.stop
     return module
 
 
