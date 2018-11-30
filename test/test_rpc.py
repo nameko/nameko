@@ -1928,7 +1928,6 @@ def test_prefetch_throughput(container_factory):
 
     with config_update({MAX_WORKERS_CONFIG_KEY: 1}):
 
-
         container = container_factory(Service)
         container.start()
 

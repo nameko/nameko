@@ -3,7 +3,6 @@ import sys
 import pytest
 from mock import patch
 
-from nameko import config
 from nameko.cli.main import main
 
 

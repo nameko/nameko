@@ -64,6 +64,7 @@ def rpc_client(rabbit_config):
     with ServiceRpcClient('exampleservice') as client:
         yield client
 
+
 @pytest.mark.usefixtures("rabbit_config")
 def test_handle_result(
     container_factory, rabbit_manager, rpc_client

@@ -103,9 +103,7 @@ def empty_config():
 @pytest.yield_fixture
 def mock_container(request):
     from mock import create_autospec
-    from nameko.constants import (
-        AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-    )
+    from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
     from nameko.containers import ServiceContainer
 
     container = create_autospec(ServiceContainer)
@@ -192,7 +190,7 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
         }
 
         with config_setup(conf):
-            yield config # FIXME stop yielding config
+            yield config  # FIXME stop yielding config
 
 
 @pytest.yield_fixture()
@@ -218,7 +216,7 @@ def rabbit_ssl_config(request, rabbit_config):
     }
 
     with config_setup(conf):
-        return conf # FIXME stop yielding config
+        return conf  # FIXME stop yielding config
 
 
 @pytest.fixture

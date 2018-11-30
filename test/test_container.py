@@ -212,7 +212,6 @@ def test_container_doesnt_exhaust_max_workers(container):
             spam_called.send(a)
             spam_continue.wait()
 
-
     with config_setup({MAX_WORKERS_CONFIG_KEY: 1}):
         container = ServiceContainer(Service)
 

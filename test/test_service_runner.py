@@ -171,8 +171,6 @@ def test_runner_waits_raises_error(fake_module):
 
     fake_module.ServiceContainer = Container
 
-    config = {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
-
     with config_update(
         {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
     ):
