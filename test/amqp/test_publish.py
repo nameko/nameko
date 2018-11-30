@@ -17,10 +17,10 @@ from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
 from nameko import config
-from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer
 )
+from nameko.constants import AMQP_URI_CONFIG_KEY
 
 
 def test_get_connection(amqp_uri):

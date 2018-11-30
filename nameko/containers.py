@@ -13,8 +13,7 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
 
-from nameko import config
-from nameko import serialization
+from nameko import config, serialization
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, MAX_WORKERS_CONFIG_KEY,

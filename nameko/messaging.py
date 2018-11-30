@@ -9,8 +9,7 @@ from logging import getLogger
 
 from kombu.common import maybe_declare
 
-from nameko import config
-from nameko import serialization
+from nameko import config, serialization
 from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection

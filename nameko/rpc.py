@@ -11,8 +11,7 @@ from amqp.exceptions import NotFound
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
-from nameko import config
-from nameko import serialization
+from nameko import config, serialization
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, UndeliverableMessage, get_connection
 from nameko.constants import (

@@ -8,8 +8,7 @@ from amqp.exceptions import NotFound
 from kombu.common import maybe_declare
 from kombu.messaging import Queue
 
-from nameko import config
-from nameko import serialization
+from nameko import config, serialization
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
