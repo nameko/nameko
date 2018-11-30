@@ -1,6 +1,9 @@
+import pytest
+
 from nameko import config, config_setup, config_update
 
 
+@pytest.mark.usefixtures("empty_config")
 def test_config_setup():
 
     assert config == {}
@@ -14,6 +17,7 @@ def test_config_setup():
     assert config == {}
 
 
+@pytest.mark.usefixtures("empty_config")
 def test_config_setup_context_manager():
 
     with config_setup({"spam": "ham"}):
@@ -30,6 +34,7 @@ def test_config_setup_context_manager():
     assert config == {}
 
 
+@pytest.mark.usefixtures("empty_config")
 def test_config_setup_replaces_whole_config():
 
     config_setup({"spam": "ham", "egg": "spam"})
@@ -40,6 +45,7 @@ def test_config_setup_replaces_whole_config():
     assert config == {"spam": "ham", "egg": "spam"}
 
 
+@pytest.mark.usefixtures("empty_config")
 def test_config_update():
 
     config_setup({"spam": "ham", "egg": "spam"})

@@ -80,7 +80,7 @@ class TestEntrypointArguments:
             def method(self, arg):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, {})
+        container = container_factory(Service)
         container.start()
 
         entrypoint = get_extension(container, Timer)
