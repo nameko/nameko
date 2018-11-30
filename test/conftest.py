@@ -201,3 +201,12 @@ def queue_info(amqp_uri):
             queue = queue.bind(conn)
             return queue.queue_declare(passive=True)
     return get_queue_info
+
+
+@pytest.fixture
+def get_vhost():
+    def parse(uri):
+        from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+        uri_parts = urlparse(uri)
+        return uri_parts.path[1:]
+    return parse

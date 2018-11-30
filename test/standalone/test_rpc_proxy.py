@@ -157,12 +157,13 @@ def test_client_remote_error(container_factory):
         assert exc_info.value.exc_type == "ExampleError"
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_removed_on_expiry(
-    rabbit_manager, rabbit_config, container_factory
+    rabbit_manager, get_vhost, container_factory
 ):
     def list_queues():
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         return [
             queue['name']
             for queue in rabbit_manager.get_queues(vhost=vhost)
@@ -193,12 +194,13 @@ def test_reply_queue_removed_on_expiry(
     assert queues_after == queues_before
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
 def test_reply_queue_not_removed_while_in_use(
-    rabbit_manager, rabbit_config, container_factory
+    rabbit_manager, get_vhost, container_factory
 ):
     def list_queues():
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         return [
             queue['name']
             for queue in rabbit_manager.get_queues(vhost=vhost)
@@ -503,9 +505,10 @@ def test_use_after_close(container_factory, rabbit_manager):
     assert 'can no longer be used' in str(exc)
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=100)
-def test_client_queue_expired_even_if_unused(rabbit_manager, rabbit_config):
-    vhost = rabbit_config['vhost']
+def test_client_queue_expired_even_if_unused(rabbit_manager, get_vhost):
+    vhost = get_vhost(config['AMQP_URI'])
     with ServiceRpcClient('exampleservice'):
         assert len(rabbit_manager.get_queues(vhost)) == 1
 

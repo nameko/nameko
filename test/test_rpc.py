@@ -279,8 +279,9 @@ class TestClient(object):
 # =============================================================================
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_rpc_consumer_connections(
-    container_factory, rabbit_config, rabbit_manager
+    container_factory, get_vhost, rabbit_manager
 ):
 
     class ExampleService(object):
@@ -298,7 +299,7 @@ def test_rpc_consumer_connections(
     # we should have 2 queues:
     #   * RPC requests
     #   * RPC replies
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
     queues = rabbit_manager.get_queues(vhost)
     assert len(queues) == 2
 
@@ -661,12 +662,13 @@ def test_rpc_consumer_cannot_exit_with_providers(container_factory):
     container.kill()
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
 def test_reply_queue_removed_on_expiry(
-    container_factory, rabbit_config, rabbit_manager
+    container_factory, get_vhost, rabbit_manager
 ):
     def list_queues():
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         return [
             queue['name']
             for queue in rabbit_manager.get_queues(vhost=vhost)

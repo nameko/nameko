@@ -180,10 +180,11 @@ def test_decode_headers():
 # INTEGRATION TESTS
 # =============================================================================
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
+def test_publish_to_rabbit(rabbit_manager, get_vhost, mock_container):
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
 
     container = mock_container
     container.service_name = "service"
@@ -225,10 +226,11 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     }
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
+def test_unserialisable_headers(rabbit_manager, get_vhost, mock_container):
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
 
     container = mock_container
     container.service_name = "service"
@@ -257,9 +259,10 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
     }
 
 
-def test_consume_from_rabbit(rabbit_config, rabbit_manager, mock_container):
+@pytest.mark.usefixtures("rabbit_config")
+def test_consume_from_rabbit(get_vhost, rabbit_manager, mock_container):
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
 
     container = mock_container
     container.shared_extensions = {}
@@ -1113,9 +1116,12 @@ class TestPublisherConfigurability(object):
 
 class TestPrefetchCount(object):
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_prefetch_count(
-        self, rabbit_manager, rabbit_config, container_factory
+        self, rabbit_manager, get_vhost, container_factory
     ):
+
+        vhost = get_vhost(config['AMQP_URI'])
 
         messages = []
 
@@ -1158,7 +1164,6 @@ class TestPrefetchCount(object):
         with entrypoint_waiter(
             container, 'handle', callback=wait_for_expected
         ):
-            vhost = rabbit_config['vhost']
             properties = {'content_type': 'application/data'}
             for message in ('m1', 'm2', 'm3', 'm4', 'm5'):
                 rabbit_manager.publish(

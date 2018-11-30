@@ -10,6 +10,7 @@ from eventlet.event import Event
 from mock import ANY, Mock, patch
 from six.moves import queue
 
+from nameko import config
 from nameko.amqp.consume import Consumer
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -332,9 +333,12 @@ def test_singleton_events(container_factory, queue_info, tracker):
     )
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_broadcast_events(
-    container_factory, rabbit_config, queue_info, tracker, rabbit_manager
+    container_factory, get_vhost, queue_info, tracker, rabbit_manager
 ):
+
+    vhost = get_vhost(config['AMQP_URI'])
 
     class Base(object):
 
@@ -356,8 +360,6 @@ def test_broadcast_events(
     for service_cls in (FooService, FooService, BarService):
         container = container_factory(service_cls)
         container.start()
-
-    vhost = rabbit_config['vhost']
 
     # each broadcast queue should have one consumer
     queues = rabbit_manager.get_queues(vhost)
@@ -569,14 +571,14 @@ def test_unreliable_delivery(container_factory, queue_info, tracker):
     assert worker_counts[UnreliableService] == 2
 
 
-def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
+@pytest.mark.usefixtures("rabbit_config")
+def test_dispatch_to_rabbit(rabbit_manager, get_vhost, mock_container):
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
 
     container = mock_container
     container.shared_extensions = {}
     container.service_name = "srcservice"
-    container.config = rabbit_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider())
@@ -594,7 +596,11 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     # manually add a queue to capture the events
     rabbit_manager.create_queue(vhost, "event-sink", auto_delete=True)
     rabbit_manager.create_queue_binding(
-        vhost, "srcservice.events", "event-sink", routing_key="eventtype")
+        vhost,
+        "srcservice.events",
+        "event-sink",
+        routing_key="eventtype"
+    )
 
     service.dispatch = dispatcher.get_dependency(worker_ctx)
     service.dispatch("eventtype", "msg")

@@ -1,7 +1,7 @@
 import pytest
 from mock import Mock, call
 
-from nameko import config_update
+from nameko import config, config_update
 from nameko.events import BROADCAST, event_handler
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
@@ -183,8 +183,9 @@ def test_runner_waits_raises_error(fake_module):
         assert exc_info.value.args == ('error in container',)
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_multiple_runners_coexist(
-    runner_factory, rabbit_config, rabbit_manager, service_cls, tracker
+    runner_factory, get_vhost, rabbit_manager, service_cls, tracker
 ):
 
     runner1 = runner_factory(service_cls)
@@ -193,7 +194,7 @@ def test_multiple_runners_coexist(
     runner2 = runner_factory(service_cls)
     runner2.start()
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
 
     # verify there are two event queues with a single consumer each
     def check_consumers():

@@ -183,14 +183,10 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
             uri=uri_parts, vhost=vhost
         )
 
-        conf = {
-            'AMQP_URI': amqp_uri,
-            'username': username,  # FIXME this should not be here
-            'vhost': vhost  # FIXME this should not be here
-        }
+        conf = {'AMQP_URI': amqp_uri}
 
         with config_setup(conf):
-            yield config  # FIXME stop yielding config
+            yield
 
 
 @pytest.yield_fixture()
@@ -216,7 +212,7 @@ def rabbit_ssl_config(request, rabbit_config):
     }
 
     with config_setup(conf):
-        return conf  # FIXME stop yielding config
+        return
 
 
 @pytest.fixture
@@ -313,7 +309,7 @@ def web_config():
     port = find_free_port()
 
     with config_setup({WEB_SERVER_CONFIG_KEY: "127.0.0.1:{}".format(port)}):
-        yield config  # FIXME stop yielding config
+        yield
 
 
 @pytest.fixture()

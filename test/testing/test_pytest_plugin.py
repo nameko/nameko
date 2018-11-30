@@ -169,8 +169,10 @@ class TestGetMessageFromQueue(object):
         return "queue"
 
     @pytest.fixture
-    def publish_message(self, rabbit_manager, rabbit_config, queue_name):
-        vhost = rabbit_config['vhost']
+    def publish_message(
+        self, rabbit_manager, rabbit_config, get_vhost, queue_name
+    ):
+        vhost = get_vhost(config['AMQP_URI'])
         rabbit_manager.create_queue(vhost, queue_name, durable=True)
 
         def publish(payload, **properties):
@@ -180,9 +182,10 @@ class TestGetMessageFromQueue(object):
 
         return publish
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_get_message(
         self, publish_message, get_message_from_queue, queue_name,
-        rabbit_manager, rabbit_config
+        rabbit_manager, get_vhost
     ):
         payload = "payload"
         publish_message(payload)
@@ -190,12 +193,13 @@ class TestGetMessageFromQueue(object):
         message = get_message_from_queue(queue_name)
         assert message.payload == payload
 
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_requeue(
         self, publish_message, get_message_from_queue, queue_name,
-        rabbit_manager, rabbit_config
+        rabbit_manager, get_vhost
     ):
         payload = "payload"
         publish_message(payload)
@@ -204,7 +208,7 @@ class TestGetMessageFromQueue(object):
         assert message.payload == payload
 
         time.sleep(1)  # TODO: use retry decorator rather than sleep
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 1
 
     def test_non_blocking(
@@ -233,8 +237,9 @@ class TestGetMessageFromQueue(object):
         assert message.payload == payload
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_container_factory(
-    testdir, rabbit_config, rabbit_manager, plugin_options
+    testdir, get_vhost, rabbit_manager, plugin_options
 ):
 
     testdir.makepyfile(
@@ -263,7 +268,7 @@ def test_container_factory(
     result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
@@ -311,8 +316,9 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
     assert result.ret == 0
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_runner_factory(
-    testdir, plugin_options, rabbit_config, rabbit_manager
+    testdir, plugin_options, get_vhost, rabbit_manager
 ):
 
     testdir.makepyfile(
@@ -341,7 +347,7 @@ def test_runner_factory(
     result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
