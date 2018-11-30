@@ -1,5 +1,7 @@
 import pytest
+from mock import call, patch
 
+from nameko import config_update
 from nameko.dependency_providers import Config
 from nameko.rpc import rpc
 from nameko.testing.services import entrypoint_hook
@@ -19,14 +21,20 @@ class TestConfig:
 
         return Service
 
+    @pytest.mark.usefixtures("rabbit_config")
+    @patch("nameko.dependency_providers.warnings.warn")
     def test_get_config_value(
-        self, rabbit_config, container_factory, service_cls
+        self, warn, rabbit_config, container_factory, service_cls
     ):
-        config = rabbit_config
-        config["FOO"] = "bar"
+        with config_update({"FOO": "bar"}):
 
-        container = container_factory(service_cls, config)
-        container.start()
+            container = container_factory(service_cls)
+            container.start()
 
-        with entrypoint_hook(container, "foo") as foo:
-            assert foo() == "bar"
+            with entrypoint_hook(container, "foo") as foo:
+                assert foo() == "bar"
+
+        assert (
+            warn.call_args ==
+            call("Use ``nameko.config`` instead.", DeprecationWarning)
+        )
