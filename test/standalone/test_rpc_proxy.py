@@ -219,7 +219,6 @@ def test_reply_queue_not_removed_while_in_use(
     assert queues_before == queues_between == queues_after
 
 
-@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):
 
@@ -248,7 +247,7 @@ class TestDisconnectedWhileWaitingForReply(object):
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_manager, toxiproxy,
+        self, container_factory, rabbit_manager, rabbit_config, toxiproxy,
         fast_expiry
     ):
 
@@ -271,11 +270,12 @@ class TestDisconnectedWhileWaitingForReply(object):
         return container
 
     @pytest.yield_fixture
-    def toxic_rpc_client(self, toxiproxy):
+    def toxic_rpc_client(self, toxiproxy, rabbit_config):
         with config_update({'AMQP_URI': toxiproxy.uri}):
             with ClusterRpcClient(config) as client:
                 yield client
 
+    @pytest.mark.usefixtures('rabbit_config')
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
         self, toxic_rpc_client, toxiproxy, container
     ):

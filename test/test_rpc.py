@@ -11,7 +11,7 @@ from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko import config_update
+from nameko import config, config_update
 from nameko.amqp.consume import Consumer
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
@@ -797,6 +797,7 @@ def test_cluster_rpc_dependency(container_factory):
             missing("foo")
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
@@ -830,7 +831,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, rabbit_manager, toxiproxy,
+        self, container_factory, rabbit_manager, toxiproxy,
         fast_expiry, toxic_reply_listener
     ):
 
@@ -874,6 +875,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 hook()
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestReplyListenerDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -903,7 +905,7 @@ class TestReplyListenerDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxiproxy, toxic_reply_listener
+        self, container_factory, toxiproxy, toxic_reply_listener
     ):
         class Service(object):
             name = "service"
@@ -1083,6 +1085,7 @@ class TestReplyListenerDisconnections(object):
             assert echo(msg) == msg
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestRpcConsumerDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -1111,14 +1114,14 @@ class TestRpcConsumerDisconnections(object):
             yield
 
     @pytest.yield_fixture(autouse=True)
-    def nontoxic_responder(self, rabbit_config):
+    def nontoxic_responder(self):
         def replacement_constructor(amqp_uri, *args, **kw):
             return Responder(config[AMQP_URI_CONFIG_KEY], *args, **kw)
         with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
     @pytest.yield_fixture
-    def service_rpc(self, rabbit_config):
+    def service_rpc(self):
         with ServiceRpcClient('service') as client:
             yield client
 
@@ -1132,7 +1135,7 @@ class TestRpcConsumerDisconnections(object):
 
     @pytest.yield_fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_rpc_consumer, lock,
+        self, container_factory, toxic_rpc_consumer, lock,
         tracker
     ):
 
@@ -1332,6 +1335,7 @@ class TestRpcConsumerDisconnections(object):
         assert service_rpc.echo("msg2") == "msg2"
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestClientDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -1346,7 +1350,7 @@ class TestClientDisconnections(object):
     """
 
     @pytest.fixture(autouse=True)
-    def server_container(self, container_factory, rabbit_config):
+    def server_container(self, container_factory):
 
         class Service(object):
             name = "server"
@@ -1359,9 +1363,7 @@ class TestClientDisconnections(object):
         container.start()
 
     @pytest.fixture(autouse=True)
-    def client_container(
-        self, container_factory, rabbit_config, toxic_service_rpc
-    ):
+    def client_container(self, container_factory, toxic_service_rpc):
 
         class Service(object):
             name = "client"
@@ -1492,6 +1494,7 @@ class TestClientDisconnections(object):
                 assert echo(2) == 2
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestResponderDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -1545,7 +1548,7 @@ class TestResponderDisconnections(object):
         return container
 
     @pytest.yield_fixture
-    def service_rpc(self, rabbit_config):
+    def service_rpc(self):
 
         gts = []
 
