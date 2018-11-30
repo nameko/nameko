@@ -170,11 +170,9 @@ class Consumer(Entrypoint):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
-        config = self.container.config
-
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         heartbeat = self.consumer_options.pop(
@@ -186,7 +184,7 @@ class Consumer(Entrypoint):
             )
         )
         accept = self.consumer_options.pop(
-            'accept', serialization.setup(config).accept
+            'accept', serialization.setup().accept
         )
 
         queues = [self.queue]

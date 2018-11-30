@@ -64,7 +64,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
 
@@ -81,8 +81,6 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             durable=True
         )
 
-        config = self.container.config
-
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         heartbeat = self.consumer_options.pop(
@@ -94,7 +92,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
             )
         )
         accept = self.consumer_options.pop(
-            'accept', serialization.setup(config).accept
+            'accept', serialization.setup().accept
         )
 
         queues = [self.queue]
@@ -305,7 +303,7 @@ class ReplyListener(SharedExtension):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
 
@@ -328,7 +326,6 @@ class ReplyListener(SharedExtension):
             }
         )
 
-        config = self.container.config
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         heartbeat = self.consumer_options.pop(
@@ -340,7 +337,7 @@ class ReplyListener(SharedExtension):
             )
         )
         accept = self.consumer_options.pop(
-            'accept', serialization.setup(config).accept
+            'accept', serialization.setup().accept
         )
 
         queues = [self.queue]
@@ -362,7 +359,7 @@ class ReplyListener(SharedExtension):
     def check_for_lost_replies(self):
         if self.pending:
             try:
-                ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+                ssl = config.get(AMQP_SSL_CONFIG_KEY)
                 with get_connection(self.amqp_uri, ssl) as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
             except NotFound:
@@ -414,7 +411,7 @@ class ClusterRpc(DependencyProvider):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
 
@@ -423,14 +420,14 @@ class ClusterRpc(DependencyProvider):
         while self.reply_listener.queue is None:
             time.sleep(.1)
 
-        exchange = get_rpc_exchange(self.container.config)
+        exchange = get_rpc_exchange()
 
         default_serializer = self.container.serializer
         serializer = self.publisher_options.pop(
             'serializer', default_serializer
         )
 
-        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,

@@ -243,8 +243,9 @@ def test_client_closing_connection(container, web_config_port):
 
 class TestEntrypointArguments:
 
+    @pytest.mark.usefixtures("web_config")
     def test_expected_exceptions_and_sensitive_arguments(
-        self, container_factory, web_config
+        self, container_factory
     ):
 
         class Boom(Exception):
@@ -257,7 +258,7 @@ class TestEntrypointArguments:
             def method(self, arg):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, web_config)
+        container = container_factory(Service)
         container.start()
 
         entrypoint = get_extension(container, WebSocketRpc)

@@ -44,6 +44,7 @@ def patch_maybe_declare():
         yield patched
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.usefixtures("predictable_call_ids")
 def test_publish_to_exchange(
     patch_maybe_declare, mock_channel, mock_producer, mock_container
@@ -136,7 +137,8 @@ def test_publish_custom_headers(mock_container, mock_producer):
     ]
 
 
-def test_encode_headers(empty_config):
+@pytest.mark.usefixtures('empty_config')
+def test_encode_headers():
 
     context_data = {
         'foo': 'FOO',
@@ -1140,9 +1142,9 @@ class TestPrefetchCount(object):
             def handle(self, payload):
                 pass
 
-        rabbit_config['PREFETCH_COUNT'] = 1
-        container = container_factory(Service, rabbit_config)
-        container.start()
+        with config_update({'PREFETCH_COUNT': 1}):
+            container = container_factory(Service)
+            container.start()
 
         consumer_continue = Event()
 
@@ -1177,9 +1179,8 @@ class TestContainerBeingKilled(object):
     def publisher(self, amqp_uri):
         return PublisherCore(amqp_uri)
 
-    def test_container_killed(
-        self, container_factory, rabbit_config, publisher
-    ):
+    @pytest.mark.usefixtures("rabbit_config")
+    def test_container_killed(self, container_factory, publisher):
         queue = Queue('queue')
 
         class Service(object):
@@ -1189,7 +1190,7 @@ class TestContainerBeingKilled(object):
             def method(self, payload):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         # check message is requeued if container throws ContainerBeingKilled
@@ -1266,7 +1267,8 @@ class TestSSL(object):
         assert result.get() == "payload"
 
 
-def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
+@pytest.mark.usefixtures("rabbit_config")
+def test_stop_with_active_worker(container_factory, queue_info):
     """ Test behaviour when we stop a container with an active worker.
 
     Expect the consumer to stop and the message be requeued, but the container
@@ -1288,10 +1290,10 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
         def method(self, payload):
             block.wait()
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    publisher = PublisherCore(rabbit_config['AMQP_URI'])
+    publisher = PublisherCore(config['AMQP_URI'])
     publisher.publish("payload", routing_key="queue")
 
     gt = eventlet.spawn(container.stop)
@@ -1313,8 +1315,9 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
 
 class TestEntrypointArguments:
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_expected_exceptions_and_sensitive_arguments(
-        self, container_factory, rabbit_config
+        self, container_factory
     ):
 
         class Boom(Exception):
@@ -1331,7 +1334,7 @@ class TestEntrypointArguments:
             def method(self, payload):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         entrypoint = get_extension(container, Consumer)

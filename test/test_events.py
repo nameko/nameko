@@ -71,6 +71,7 @@ def test_event_dispatcher(mock_container, mock_producer):
     assert kwargs['exchange'].name == 'srcservice.events'
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_event_handler(mock_container):
 
     container = mock_container
@@ -149,6 +150,7 @@ def test_event_handler(mock_container):
     assert event_handler.queue.auto_delete is False
 
 
+@pytest.mark.usefixtures("rabbit_config")
 class TestReliableDeliveryEventHandlerConfigurationError():
 
     def test_raises_with_default_broadcast_identity(
@@ -195,8 +197,9 @@ def tracker():
     return Mock(events=[], workers=[])
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_service_pooled_events(
-    container_factory, rabbit_config, queue_info, tracker
+    container_factory, queue_info, tracker
 ):
 
     class Base(object):
@@ -214,7 +217,7 @@ def test_service_pooled_events(
         name = "bar"
 
     for service_cls in (FooService, FooService, BarService):
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
 
     # foo service pool queue should have two consumers
@@ -225,7 +228,7 @@ def test_service_pooled_events(
     bar_queue_name = "evt-srcservice-eventtype--bar.handle"
     assert queue_info(bar_queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     count = itertools.count(start=1)
     with wait_for_call(
@@ -244,8 +247,9 @@ def test_service_pooled_events(
     }
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_service_pooled_events_multiple_handlers(
-    container_factory, rabbit_config, queue_info, tracker
+    container_factory, queue_info, tracker
 ):
 
     class Service(object):
@@ -263,7 +267,7 @@ def test_service_pooled_events_multiple_handlers(
         def handle_2(self, evt):
             self.handle(evt)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     # we should have two queues with a consumer each
@@ -272,7 +276,7 @@ def test_service_pooled_events_multiple_handlers(
     queue_2_name = "evt-srcservice-eventtype--double.handle_2"
     assert queue_info(queue_2_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     with entrypoint_waiter(container, 'handle_1'):
         with entrypoint_waiter(container, 'handle_2'):
@@ -286,9 +290,8 @@ def test_service_pooled_events_multiple_handlers(
     assert {type(worker) for worker in tracker.workers} == {Service}
 
 
-def test_singleton_events(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_singleton_events(container_factory, queue_info, tracker):
 
     class Base(object):
 
@@ -305,13 +308,13 @@ def test_singleton_events(
         name = "bar"
 
     for service_cls in (FooService, FooService, BarService):
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
 
     # the singleton queue should have three consumers
     assert queue_info("evt-srcservice-eventtype").consumer_count == 3
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     count = itertools.count(start=1)
     with wait_for_call(
@@ -351,7 +354,7 @@ def test_broadcast_events(
         name = "bar"
 
     for service_cls in (FooService, FooService, BarService):
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
 
     vhost = rabbit_config['vhost']
@@ -370,7 +373,7 @@ def test_broadcast_events(
         queue = rabbit_manager.get_queue(vhost, name)
         assert len(queue['consumer_details']) == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     count = itertools.count(start=1)
     with wait_for_call(
@@ -389,9 +392,8 @@ def test_broadcast_events(
     assert worker_counts[BarService] == 1
 
 
-def test_requeue_on_error(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_requeue_on_error(container_factory, queue_info, tracker):
 
     class Service(object):
         name = "requeue"
@@ -403,14 +405,14 @@ def test_requeue_on_error(
             tracker.workers.append(self)
             raise Exception("Error")
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     # the queue should been created and have one consumer
     queue_name = "evt-srcservice-eventtype--requeue.handle"
     assert queue_info(queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     counter = itertools.count(start=1)
     with entrypoint_waiter(
@@ -426,9 +428,8 @@ def test_requeue_on_error(
     assert len(tracker.workers) > 1
 
 
-def test_reliable_delivery(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_reliable_delivery(container_factory, queue_info, tracker):
     """ Events sent to queues declared by ``reliable_delivery`` handlers
     should be received even if no service was listening when they were
     dispatched.
@@ -442,14 +443,14 @@ def test_reliable_delivery(
             tracker.events.append(evt)
             tracker.workers.append(self)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--reliable.handle"
     assert queue_info(queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     # dispatch an event
     with entrypoint_waiter(container, 'handle'):
@@ -480,9 +481,8 @@ def test_reliable_delivery(
     assert tracker.events == ["msg_1", "msg_2"]
 
 
-def test_unreliable_delivery(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_unreliable_delivery(container_factory, queue_info, tracker):
     """ Events sent to queues declared by non- ``reliable_delivery`` handlers
     should be lost if no service was listening when they were dispatched.
     """
@@ -496,7 +496,7 @@ def test_unreliable_delivery(
             tracker.events.append(evt)
             tracker.workers.append(self)
 
-    unreliable_container = container_factory(UnreliableService, rabbit_config)
+    unreliable_container = container_factory(UnreliableService)
     unreliable_container.start()
 
     class ReliableService(object):
@@ -508,14 +508,14 @@ def test_unreliable_delivery(
             tracker.events.append(evt)
             tracker.workers.append(self)
 
-    reliable_container = container_factory(ReliableService, rabbit_config)
+    reliable_container = container_factory(ReliableService)
     reliable_container.start()
 
     # test unreliable queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--unreliable.handle"
     assert queue_info(queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     # dispatch an event
     count = itertools.count(start=1)
@@ -548,7 +548,7 @@ def test_unreliable_delivery(
         dispatch("srcservice", "eventtype", "msg_2")
 
     # start another container
-    unreliable_container = container_factory(UnreliableService, rabbit_config)
+    unreliable_container = container_factory(UnreliableService)
     unreliable_container.start()
 
     # verify the queue is recreated, with one consumer
@@ -609,8 +609,8 @@ class TestHandlerConfigurability(object):
     Test and demonstrate configuration options for the EventHandler
     """
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_heartbeat(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         value = 999
@@ -622,8 +622,8 @@ class TestHandlerConfigurability(object):
 
         assert handler.consumer.connection.heartbeat == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_prefetch_count(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         value = 999
@@ -635,8 +635,8 @@ class TestHandlerConfigurability(object):
 
         assert handler.consumer.prefetch_count == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_accept(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         value = ['yaml', 'json']
@@ -774,11 +774,9 @@ class TestContainerBeingKilled(object):
 
     @pytest.fixture
     def dispatch(self, rabbit_config):
-        return event_dispatcher(rabbit_config)
+        return event_dispatcher()
 
-    def test_container_killed(
-        self, container_factory, rabbit_config, dispatch
-    ):
+    def test_container_killed(self, container_factory, dispatch):
         class Service(object):
             name = "service"
 
@@ -786,7 +784,7 @@ class TestContainerBeingKilled(object):
             def method(self, event_data):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         # check message is requeued if container throws ContainerBeingKilled
@@ -857,7 +855,8 @@ class TestSSL(object):
         assert result.get() == "payload"
 
 
-def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
+@pytest.mark.usefixtures("rabbit_config")
+def test_stop_with_active_worker(container_factory, queue_info):
     """ Test behaviour when we stop a container with an active worker.
 
     Expect the consumer to stop and the message be requeued, but the container
@@ -879,10 +878,10 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
         def method(self, event_data):
             block.wait()
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     dispatch("service", "event", "payload")
 
     gt = eventlet.spawn(container.stop)
@@ -905,8 +904,9 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
 
 class TestEntrypointArguments:
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_expected_exceptions_and_sensitive_arguments(
-        self, container_factory, rabbit_config
+        self, container_factory
     ):
 
         class Boom(Exception):
@@ -922,7 +922,7 @@ class TestEntrypointArguments:
             def method(self, event_data):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         entrypoint = get_extension(container, EventHandler)
