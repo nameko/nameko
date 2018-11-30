@@ -9,6 +9,7 @@ import eventlet
 import pytest
 from mock import patch
 
+from nameko import config
 from nameko.cli.run import import_service, run, setup_backdoor
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
@@ -17,7 +18,6 @@ from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcClient
 from nameko.testing.waiting import wait_for_call
-from nameko import config
 
 from test.sample import Service
 
@@ -25,7 +25,8 @@ from test.sample import Service
 TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
 
 
-def test_run(command, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_run(command):
 
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, 'start'):
@@ -47,7 +48,8 @@ def test_run(command, rabbit_config):
     gt.wait()
 
 
-def test_main_with_config(command, rabbit_config, tmpdir):
+@pytest.mark.usefixtures("rabbit_config")
+def test_main_with_config(command, tmpdir):
 
     config_file = tmpdir.join('config.yaml')
     config_file.write("""
@@ -72,7 +74,8 @@ def test_main_with_config(command, rabbit_config, tmpdir):
     assert config[SERIALIZER_CONFIG_KEY] == 'json'
 
 
-def test_main_with_config_options(command, rabbit_config, tmpdir):
+@pytest.mark.usefixtures("rabbit_config")
+def test_main_with_config_options(command, tmpdir):
 
     config_file = tmpdir.join('config.yaml')
     config_file.write("""
@@ -101,9 +104,10 @@ def test_main_with_config_options(command, rabbit_config, tmpdir):
     assert config['EGG'] == [{'spam': True}]
 
 
-def test_main_with_logging_config(command, rabbit_config, tmpdir):
+@pytest.mark.usefixtures("rabbit_config")
+def test_main_with_logging_config(command, tmpdir):
 
-    config = """
+    config_content = """
         AMQP_URI: {amqp_uri}
         LOGGING:
             version: 1
@@ -126,9 +130,9 @@ def test_main_with_logging_config(command, rabbit_config, tmpdir):
 
     config_file = tmpdir.join('config.yaml')
     config_file.write(
-        dedent(config.format(
+        dedent(config_content.format(
             capture_file=capture_file.strpath,
-            amqp_uri=rabbit_config['AMQP_URI']
+            amqp_uri=config['AMQP_URI']
         ))
     )
 
@@ -142,7 +146,6 @@ def test_main_with_logging_config(command, rabbit_config, tmpdir):
             config_file.strpath,
             'test.sample',
         )
-        gt = eventlet.spawn(main, args)
 
     with ClusterRpcClient() as client:
         client.service.ping()

@@ -42,7 +42,8 @@ def fake_alternative_interpreters():
         yield
 
 
-def test_basic(command, rabbit_config, pystartup):
+@pytest.mark.usefixtures('rabbit_config')
+def test_basic(command, pystartup):
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
@@ -56,7 +57,8 @@ def test_basic(command, rabbit_config, pystartup):
     local['n'].disconnect()
 
 
-def test_plain(command, rabbit_config, pystartup):
+@pytest.mark.usefixtures('rabbit_config')
+def test_plain(command, pystartup):
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
@@ -71,11 +73,12 @@ def test_plain(command, rabbit_config, pystartup):
     local['n'].disconnect()
 
 
-def test_plain_fallback(command, rabbit_config, pystartup):
+@pytest.mark.usefixtures('rabbit_config')
+def test_plain_fallback(command, pystartup):
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
-            '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'bpython'
         )
 
@@ -86,7 +89,8 @@ def test_plain_fallback(command, rabbit_config, pystartup):
     local['n'].disconnect()
 
 
-def test_bpython(command, rabbit_config, pystartup):
+@pytest.mark.usefixtures('rabbit_config')
+def test_bpython(command, pystartup):
     with patch('bpython.embed') as embed:
         command(
             'nameko', 'shell',
@@ -101,7 +105,8 @@ def test_bpython(command, rabbit_config, pystartup):
     local['n'].disconnect()
 
 
-def test_ipython(command, rabbit_config, pystartup):
+@pytest.mark.usefixtures('rabbit_config')
+def test_ipython(command, pystartup):
     with patch('IPython.embed') as embed:
         command(
             'nameko', 'shell',
@@ -116,7 +121,8 @@ def test_ipython(command, rabbit_config, pystartup):
     local['n'].disconnect()
 
 
-def test_config(command, pystartup, rabbit_config, tmpdir):
+@pytest.mark.usefixtures('rabbit_config')
+def test_config(command, pystartup, tmpdir):
 
     config_file = tmpdir.join('config.yaml')
     config_file.write("""
@@ -138,7 +144,8 @@ def test_config(command, pystartup, rabbit_config, tmpdir):
     local['n'].disconnect()
 
 
-def test_config_options(command, pystartup, rabbit_config, tmpdir):
+@pytest.mark.usefixtures('rabbit_config')
+def test_config_options(command, pystartup, tmpdir):
 
     config_file = tmpdir.join('config.yaml')
     config_file.write("""
@@ -163,6 +170,7 @@ def test_config_options(command, pystartup, rabbit_config, tmpdir):
     local['n'].disconnect()
 
 
+@pytest.mark.usefixtures('empty_config')
 class TestBanner(object):
 
     @pytest.yield_fixture(autouse=True)
