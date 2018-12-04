@@ -208,9 +208,9 @@ class ClusterRpcClient(object):
 
         self.reply_listener = ReplyListener(queue, timeout=timeout)
 
-        self.serializer = serialization.setup().serializer
-
-        serializer = publisher_options.pop('serializer', self.serializer)
+        self.serializer = publisher_options.pop(
+            'serializer', serialization.setup().serializer
+        )
 
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
@@ -221,7 +221,7 @@ class ClusterRpcClient(object):
             self.amqp_uri,
             ssl=ssl,
             exchange=exchange,
-            serializer=serializer,
+            serializer=self.serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
             **publisher_options

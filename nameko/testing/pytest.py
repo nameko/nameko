@@ -184,7 +184,7 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
 
         conf = {'AMQP_URI': amqp_uri}
 
-        with config_setup(conf):
+        with config_update(conf):
             yield
 
 
@@ -210,7 +210,7 @@ def rabbit_ssl_config(request, rabbit_config):
         'AMQP_SSL': ssl_options,
     }
 
-    with config_setup(conf):
+    with config_update(conf):
         return
 
 
@@ -307,7 +307,7 @@ def web_config():
 
     port = find_free_port()
 
-    with config_setup({WEB_SERVER_CONFIG_KEY: "127.0.0.1:{}".format(port)}):
+    with config_update({WEB_SERVER_CONFIG_KEY: "127.0.0.1:{}".format(port)}):
         yield
 
 
