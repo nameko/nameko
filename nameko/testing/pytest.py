@@ -175,7 +175,6 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
-    username = uri_parts.username
 
     with vhost_pipeline.get() as vhost:
 
