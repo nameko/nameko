@@ -10,7 +10,7 @@ from eventlet.event import Event
 from mock import ANY, Mock, patch
 from six.moves import queue
 
-from nameko import config
+from nameko import config, config_update
 from nameko.amqp.consume import Consumer
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -804,16 +804,17 @@ class TestContainerBeingKilled(object):
 class TestSSL(object):
 
     @pytest.fixture(params=[True, False])
-    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+    def rabbit_ssl_options(self, request, rabbit_ssl_options):
         verify_certs = request.param
         if verify_certs is False:
             # remove certificate paths from config
-            rabbit_ssl_config['AMQP_SSL'] = True
-        return rabbit_ssl_config
+            options = True
+        else:
+            options = rabbit_ssl_options
+        return options
 
-    def test_event_handler_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_event_handler_over_ssl(self, container_factory, rabbit_uri):
         class Service(object):
             name = "service"
 
@@ -821,22 +822,23 @@ class TestSSL(object):
             def echo(self, event_data):
                 return event_data
 
-        container = container_factory(Service, rabbit_ssl_config)
+        container = container_factory(Service)
         container.start()
 
-        dispatch = event_dispatcher(rabbit_config)
+        dispatch = event_dispatcher(uri=rabbit_uri, ssl=None)
 
         with entrypoint_waiter(container, 'echo') as result:
             dispatch("service", "event", "payload")
         assert result.get() == "payload"
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_event_dispatcher_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
+        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
     ):
         class Dispatcher(object):
             name = "dispatch"
 
-            dispatch = EventDispatcher()
+            dispatch = EventDispatcher(uri=rabbit_ssl_uri, ssl=rabbit_ssl_options)
 
             @dummy
             def method(self, payload):
@@ -849,10 +851,10 @@ class TestSSL(object):
             def echo(self, payload):
                 return payload
 
-        dispatcher = container_factory(Dispatcher, rabbit_ssl_config)
+        dispatcher = container_factory(Dispatcher)
         dispatcher.start()
 
-        handler = container_factory(Handler, rabbit_config)
+        handler = container_factory(Handler)
         handler.start()
 
         with entrypoint_waiter(handler, 'echo') as result:

@@ -404,13 +404,13 @@ class ClusterRpc(DependencyProvider):
     reply_listener = ReplyListener()
 
     def __init__(self, **publisher_options):
+
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
         self.publisher_options = publisher_options
 
-    @property
-    def amqp_uri(self):
-        return config[AMQP_URI_CONFIG_KEY]
+        default_uri = config.get(AMQP_URI_CONFIG_KEY)
+        self.amqp_uri = self.publisher_options.get('uri', default_uri)
 
     def setup(self):
 
@@ -426,7 +426,10 @@ class ClusterRpc(DependencyProvider):
             'serializer', default_serializer
         )
 
-        ssl = config.get(AMQP_SSL_CONFIG_KEY)
+        default_ssl = config.get(AMQP_SSL_CONFIG_KEY)
+        ssl = self.publisher_options.pop('ssl', default_ssl)
+
+        self.publisher_options.pop('uri', None)
 
         self.publisher = self.publisher_cls(
             self.amqp_uri,

@@ -87,13 +87,13 @@ class Publisher(DependencyProvider):
         if self.exchange:
             self.declare.append(self.exchange)
 
-    @property
-    def amqp_uri(self):
-        return config[AMQP_URI_CONFIG_KEY]
+        default_uri = config.get(AMQP_URI_CONFIG_KEY)
+        self.amqp_uri = self.publisher_options.pop('uri', default_uri)
 
     def setup(self):
 
-        ssl = config.get(AMQP_SSL_CONFIG_KEY)
+        default_ssl = config.get(AMQP_SSL_CONFIG_KEY)
+        ssl = self.publisher_options.pop('ssl', default_ssl)
 
         with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:

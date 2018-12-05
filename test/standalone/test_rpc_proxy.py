@@ -1001,8 +1001,9 @@ class TestStandaloneClientReplyListenerDisconnections(object):
 
 class TestSSL(object):
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_rpc_client_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
+        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
     ):
         class Service(object):
             name = "service"
@@ -1011,10 +1012,13 @@ class TestSSL(object):
             def echo(self, *args, **kwargs):
                 return args, kwargs
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
-        with ServiceRpcClient("service", rabbit_ssl_config) as client:
+        ssl = rabbit_ssl_options
+        uri = rabbit_ssl_uri
+
+        with ServiceRpcClient("service", uri=uri, ssl=ssl) as client:
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]

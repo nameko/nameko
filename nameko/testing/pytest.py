@@ -170,7 +170,7 @@ def vhost_pipeline(request, rabbit_manager):
 
 
 @pytest.yield_fixture()
-def rabbit_config(request, vhost_pipeline, rabbit_manager):
+def rabbit_uri(request, vhost_pipeline):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
@@ -182,36 +182,47 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
             uri=uri_parts, vhost=vhost
         )
 
-        conf = {'AMQP_URI': amqp_uri}
-
-        with config_update(conf):
-            yield
+        yield amqp_uri
 
 
 @pytest.yield_fixture()
-def rabbit_ssl_config(request, rabbit_config):
-    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+def rabbit_config(rabbit_uri):
+    with config_update({'AMQP_URI': rabbit_uri}):
+        yield
 
+
+@pytest.fixture
+def rabbit_ssl_options(request):
     ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
     ssl_options = {key: value for key, value in ssl_options} or True
+    return ssl_options
+
+
+@pytest.fixture
+def rabbit_ssl_uri(request, rabbit_uri):
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
-    uri_parts = urlparse(rabbit_config['AMQP_URI'])
+    uri_parts = urlparse(rabbit_uri)
     amqp_ssl_uri = uri_parts._replace(
         netloc=uri_parts.netloc.replace(
             str(uri_parts.port),
             str(amqp_ssl_port))
     ).geturl()
 
+    return amqp_ssl_uri
+
+
+@pytest.yield_fixture()
+def rabbit_ssl_config(request, rabbit_ssl_uri, rabbit_ssl_options):
+
     conf = {
-        'AMQP_URI': amqp_ssl_uri,
-        'username': rabbit_config['username'],
-        'vhost': rabbit_config['vhost'],
-        'AMQP_SSL': ssl_options,
+        'AMQP_URI': rabbit_ssl_uri,
+        'AMQP_SSL': rabbit_ssl_options,
     }
 
     with config_update(conf):
-        return
+        yield
 
 
 @pytest.fixture

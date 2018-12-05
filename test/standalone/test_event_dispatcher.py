@@ -142,8 +142,9 @@ class TestConfigurability(object):
 
 class TestSSL(object):
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_event_dispatcher_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
+        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
     ):
         class Service(object):
             name = "service"
@@ -152,10 +153,10 @@ class TestSSL(object):
             def echo(self, event_data):
                 return event_data
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
-        dispatch = event_dispatcher(rabbit_ssl_config)
+        dispatch = event_dispatcher(uri=rabbit_ssl_uri, ssl=rabbit_ssl_options)
 
         with entrypoint_waiter(container, 'echo') as result:
             dispatch("service", "event", "payload")

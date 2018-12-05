@@ -1991,16 +1991,18 @@ def test_stop_with_active_worker(container_factory, queue_info):
 class TestSSL(object):
 
     @pytest.fixture(params=[True, False])
-    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+    def rabbit_ssl_options(self, request, rabbit_ssl_options):
         verify_certs = request.param
         if verify_certs is False:
             # remove certificate paths from config
-            rabbit_ssl_config['AMQP_SSL'] = True
-        return rabbit_ssl_config
+            options = True
+        else:
+            options = rabbit_ssl_options
+        return options
 
-    def test_rpc_entrypoint_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_rpc_entrypoint_over_ssl(self, container_factory, rabbit_uri):
+
         class Service(object):
             name = "service"
 
@@ -2008,21 +2010,26 @@ class TestSSL(object):
             def echo(self, *args, **kwargs):
                 return args, kwargs
 
-        container = container_factory(Service, rabbit_ssl_config)
+        container = container_factory(Service)
         container.start()
 
-        with ServiceRpcClient("service", rabbit_config) as client:
+        with ServiceRpcClient("service", uri=rabbit_uri, ssl=None) as client:
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_rpc_client_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
+        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
     ):
         class Service(object):
             name = "service"
 
-            delegate_rpc = ServiceRpc('delegate')
+            delegate_rpc = ServiceRpc(
+                'delegate',
+                uri=rabbit_ssl_uri,
+                ssl=rabbit_ssl_options
+            )
 
             @dummy
             def echo(self, *args, **kwargs):
@@ -2035,10 +2042,10 @@ class TestSSL(object):
             def echo(self, *args, **kwargs):
                 return args, kwargs
 
-        container = container_factory(Service, rabbit_ssl_config)
+        container = container_factory(Service)
         container.start()
 
-        delegate = container_factory(Delegate, rabbit_config)
+        delegate = container_factory(Delegate)
         delegate.start()
 
         with entrypoint_hook(container, 'echo') as echo:

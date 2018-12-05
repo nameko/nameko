@@ -22,11 +22,13 @@ def event_dispatcher(**kwargs):
     """ Return a function that dispatches nameko events.
     """
     amqp_uri = config[AMQP_URI_CONFIG_KEY]
+    amqp_uri = kwargs.pop('uri', amqp_uri)
 
     serializer, _ = serialization.setup()
     serializer = kwargs.pop('serializer', serializer)
 
     ssl = config.get(AMQP_SSL_CONFIG_KEY)
+    ssl = kwargs.pop('ssl', ssl)
 
     # TODO: standalone event dispatcher should accept context event_data
     # and insert a call id

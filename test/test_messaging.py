@@ -1213,19 +1213,19 @@ class TestSSL(object):
         queue = Queue(name="queue")
         return queue
 
-    @pytest.yield_fixture(params=[True, False])
-    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+    @pytest.fixture(params=[True, False])
+    def rabbit_ssl_options(self, request, rabbit_ssl_options):
         verify_certs = request.param
         if verify_certs is False:
             # remove certificate paths from config
-            conf = {'AMQP_SSL': True}
+            options = True
         else:
-            conf = {}
-        with config_update(conf):
-            yield
+            options = rabbit_ssl_options
+        return options
 
     @pytest.mark.usefixtures("rabbit_ssl_config")
-    def test_consume_over_ssl(self, container_factory, queue):
+    def test_consume_over_ssl(self, container_factory, queue, rabbit_uri):
+
         class Service(object):
             name = "service"
 
@@ -1236,18 +1236,20 @@ class TestSSL(object):
         container = container_factory(Service)
         container.start()
 
-        publisher = PublisherCore(config['AMQP_URI'])
+        publisher = PublisherCore(rabbit_uri)
 
         with entrypoint_waiter(container, 'echo') as result:
             publisher.publish("payload", routing_key=queue.name)
         assert result.get() == "payload"
 
-    @pytest.mark.usefixtures("rabbit_ssl_config")
-    def test_publisher_over_ssl(self, container_factory, queue):
+    @pytest.mark.usefixtures("rabbit_config")
+    def test_publisher_over_ssl(
+        self, container_factory, queue, rabbit_ssl_uri, rabbit_ssl_options
+    ):
         class PublisherService(object):
             name = "publisher"
 
-            publish = Publisher()
+            publish = Publisher(uri=rabbit_ssl_uri, ssl=rabbit_ssl_options)
 
             @dummy
             def method(self, payload):

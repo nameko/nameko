@@ -81,7 +81,12 @@ class TestOptions(object):
             import re
             import ssl
 
-            def test_ssl_options(request, rabbit_ssl_config):
+            import pytest
+
+            from nameko import config
+
+            @pytest.mark.usefixtures("rabbit_ssl_config")
+            def test_ssl_options(request):
                 assert request.config.getoption('AMQP_SSL_OPTIONS') == [
                     # defaults
                     ('ca_certs', 'certs/cacert.pem'),
@@ -110,7 +115,7 @@ class TestOptions(object):
                     'lookup': ssl.CERT_REQUIRED,
                     'keyonly': True,
                 }
-                assert rabbit_ssl_config['AMQP_SSL'] == expected_ssl_options
+                assert config['AMQP_SSL'] == expected_ssl_options
             """
         )
         args = []
