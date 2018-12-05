@@ -304,37 +304,6 @@ class TestWebsocketRpc(object):
         assert ws.rpc('echo', value=u"hellø") == u'hellø'
 
 
-class TestConfig:
-
-    def test_config_value_not_set(
-        self, container_factory, web_config, web_session
-    ):
-        from examples.config_dependency_provider import Service
-
-        container = container_factory(Service, web_config)
-        container.start()
-
-        res = web_session.get('/foo')
-        assert res.status_code == 403
-        assert res.text == "FeatureNotEnabled"
-
-    def test_can_get_config_value(
-        self, container_factory, web_config, web_session
-    ):
-        from examples.config_dependency_provider import Service
-
-        config = web_config
-
-        config["FOO_FEATURE_ENABLED"] = True
-
-        container = container_factory(Service, config)
-        container.start()
-
-        res = web_session.get('/foo')
-        assert res.status_code == 200
-        assert res.text == "foo"
-
-
 class TestAuth:
 
     @pytest.fixture
