@@ -10,7 +10,7 @@ from eventlet.event import Event
 from mock import ANY, Mock, patch
 from six.moves import queue
 
-from nameko import config, config_update
+from nameko import config
 from nameko.amqp.consume import Consumer
 from nameko.containers import WorkerContext
 from nameko.events import (

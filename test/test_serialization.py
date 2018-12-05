@@ -204,7 +204,7 @@ def test_custom_serializer(container_factory, sniffer_queue_factory):
 
     with config_update({
         SERIALIZER_CONFIG_KEY: "upperjson",
-        SERIALIZERS_CONFIG_KEY:  {
+        SERIALIZERS_CONFIG_KEY: {
             'upperjson': {
                 'encoder': 'test.test_serialization.upperjson_encode',
                 'decoder': 'test.test_serialization.upperjson_decode',
