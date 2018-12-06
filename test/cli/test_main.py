@@ -22,15 +22,15 @@ else:  # pragma: no cover
 
 
 @pytest.yield_fixture(autouse=True)
-def fake_argv():
+def fake_argv(empty_config):
     with patch.object(
         sys,
         'argv',
         [
             'nameko',
             'run',
-            '--broker',
-            'my_broker',
+            '--define',
+            'AMQP_URI=pyamqp://someuser:*****@somehost/',
             'test.sample:Service',
         ],
     ):
@@ -42,7 +42,7 @@ def test_run():
         main()
     assert run.call_count == 1
     (args,), _ = run.call_args
-    assert args.broker == 'my_broker'
+    assert args.define == [('AMQP_URI', 'pyamqp://someuser:*****@somehost/')]
 
 
 @pytest.mark.parametrize('exception', (CommandError, ConfigurationError))

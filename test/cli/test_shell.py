@@ -4,7 +4,6 @@ import sys
 import pytest
 from mock import Mock, patch
 
-from nameko import config
 from nameko.cli.shell import make_nameko_helper
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
@@ -45,10 +44,7 @@ def fake_alternative_interpreters():
 @pytest.mark.usefixtures('rabbit_config')
 def test_basic(command, pystartup):
     with patch('nameko.cli.shell.code') as code:
-        command(
-            'nameko', 'shell',
-            '--broker', config[AMQP_URI_CONFIG_KEY]
-        )
+        command('nameko', 'shell')
 
     _, kwargs = code.interact.call_args
     local = kwargs['local']
@@ -62,7 +58,6 @@ def test_plain(command, pystartup):
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
-            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'plain'
         )
 
@@ -78,7 +73,6 @@ def test_plain_fallback(command, pystartup):
     with patch('nameko.cli.shell.code') as code:
         command(
             'nameko', 'shell',
-            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'bpython'
         )
 
@@ -94,7 +88,6 @@ def test_bpython(command, pystartup):
     with patch('bpython.embed') as embed:
         command(
             'nameko', 'shell',
-            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'bpython'
         )
 
@@ -110,7 +103,6 @@ def test_ipython(command, pystartup):
     with patch('IPython.embed') as embed:
         command(
             'nameko', 'shell',
-            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--interface', 'ipython'
         )
 
@@ -178,23 +170,7 @@ class TestBanner(object):
         with patch('nameko.cli.shell.make_nameko_helper'):
             yield
 
-    def test_broker_as_param(self, command):
-
-        amqp_uri = "amqp://broker/param"
-
-        with patch('nameko.cli.shell.ShellRunner') as shell_runner:
-            command(
-                'nameko', 'shell',
-                '--broker', amqp_uri,
-            )
-
-        expected_message = (
-            "Broker: {}".format(amqp_uri)
-        )
-        (banner, _), _ = shell_runner.call_args
-        assert expected_message in banner
-
-    def test_broker_from_config(self, command, tmpdir):
+    def test_banner(self, command, tmpdir):
 
         amqp_uri = "amqp://broker/config"
 
@@ -212,7 +188,26 @@ class TestBanner(object):
             )
 
         expected_message = (
-            "Broker: {} (from --config)".format(amqp_uri)
+            "Broker: {}".format(amqp_uri)
         )
         (banner, _), _ = shell_runner.call_args
         assert expected_message in banner
+
+
+@pytest.mark.usefixtures('empty_config')
+def test_broker_option_deprecated(command, rabbit_uri):
+
+    with patch('nameko.cli.shell.code') as code:
+        with patch('nameko.cli.main.warnings') as warnings:
+            command(
+                'nameko', 'shell',
+                '--broker', rabbit_uri,
+            )
+
+    _, kwargs = code.interact.call_args
+    local = kwargs['local']
+    assert 'n' in local.keys()
+    assert local['n'].config[AMQP_URI_CONFIG_KEY] == rabbit_uri
+    local['n'].disconnect()
+
+    assert warnings.warn.call_count

@@ -12,7 +12,7 @@ from mock import patch
 from nameko import config
 from nameko.cli.run import import_service, run, setup_backdoor
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+    SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 )
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
@@ -33,7 +33,6 @@ def test_run(command):
         gt = eventlet.spawn(
             command,
             'nameko', 'run',
-            '--broker', config[AMQP_URI_CONFIG_KEY],
             '--backdoor-port', 0,
             'test.sample:Service',
         )
@@ -282,3 +281,19 @@ def test_other_errors_propagate(rabbit_config):
             gt = eventlet.spawn(run, [Service])
             with pytest.raises(OSError):
                 gt.wait()
+
+
+@pytest.mark.usefixtures('empty_config')
+def test_broker_option_deprecated(command, rabbit_uri):
+
+    with patch('nameko.cli.run.run') as run:
+        with patch('nameko.cli.main.warnings') as warnings:
+            command(
+                'nameko', 'run',
+                '--broker', rabbit_uri,
+                'test.sample',
+            )
+
+    assert run.call_count == 1
+
+    assert warnings.warn.call_count

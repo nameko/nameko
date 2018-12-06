@@ -71,17 +71,10 @@ Usage:
 
 def main(args):
 
-    if AMQP_URI_CONFIG_KEY not in config:
-        config.update({AMQP_URI_CONFIG_KEY: args.broker})
-        broker_from = ""
-    else:
-        broker_from = " (from --config)"
-
-    banner = 'Nameko Python %s shell on %s\nBroker: %s%s' % (
+    banner = 'Nameko Python %s shell on %s\nBroker: %s' % (
         sys.version,
         sys.platform,
         config[AMQP_URI_CONFIG_KEY],
-        broker_from
     )
 
     ctx = {}

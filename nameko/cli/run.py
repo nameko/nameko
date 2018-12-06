@@ -16,7 +16,6 @@ import six
 from eventlet import backdoor
 
 from nameko import config
-from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
@@ -161,9 +160,6 @@ def run(services, backdoor_port=None):
 def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
-
-    if AMQP_URI_CONFIG_KEY not in config:
-        config.update({AMQP_URI_CONFIG_KEY: args.broker})
 
     if "LOGGING" in config:
         logging.config.dictConfig(config['LOGGING'])

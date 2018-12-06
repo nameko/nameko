@@ -85,7 +85,11 @@ class Run(Command):
 
         parser.add_argument(
             '--broker', default='pyamqp://guest:guest@localhost',
-            help='RabbitMQ broker url')
+            help=(
+                'Deprecated option for setting up RabbitMQ broker URI. '
+                'Use --define or --config and set AMQP_URI instead.'
+            )
+        )
 
         parser.add_argument(
             '--backdoor-port', type=int,
@@ -118,7 +122,11 @@ class Shell(Command):
     def init_parser(cls, parser):
         parser.add_argument(
             '--broker', default='pyamqp://guest:guest@localhost',
-            help='RabbitMQ broker url')
+            help=(
+                'Deprecated option for setting up RabbitMQ broker URI. '
+                'Use --define or --config and set up AMQP_URI instead.'
+            )
+        )
         parser.add_argument(
             '--interface', choices=cls.SHELLS,
             help='Specify an interactive interpreter interface.')

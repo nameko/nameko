@@ -3,11 +3,13 @@ from __future__ import print_function
 import argparse
 import os
 import re
+import warnings
 from functools import partial
 
 import yaml
 
 from nameko import config
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError, ConfigurationError
 
 from . import commands
@@ -128,6 +130,16 @@ def setup_config(args):
     setup_yaml_parser()
     if args.config:
         config.update(load_config(args.config))
+    if hasattr(args, "broker") and args.broker:
+        warnings.warn(
+            (
+                "--broker option is going to be removed. ",
+                "Use --config or --define and set AMQP_URI instead."
+            ),
+            DeprecationWarning
+        )
+        if AMQP_URI_CONFIG_KEY not in config:
+            config.update({AMQP_URI_CONFIG_KEY: args.broker})
     if args.define:
         config.update(args.define)
 
