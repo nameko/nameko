@@ -256,7 +256,7 @@ def rpc_client_factory(rabbit_config):
     all_clients = []
 
     def make_client(service_name, **kwargs):
-        client = ServiceRpcClient(service_name, rabbit_config, **kwargs)
+        client = ServiceRpcClient(service_name, **kwargs)
         all_clients.append(client)
         return client.start()
 
@@ -266,9 +266,7 @@ def rpc_client_factory(rabbit_config):
         client.stop()
 
 
-def test_shop_checkout_integration(
-    rabbit_config, runner_factory, rpc_client_factory
-):
+def test_shop_checkout_integration(runner_factory, rpc_client_factory):
     """ Simulate a checkout flow as an integration test.
 
     Requires instances of AcmeShopService, StockService and InvoiceService
@@ -283,8 +281,7 @@ def test_shop_checkout_integration(
     context_data = {'user_id': 'wile_e_coyote'}
     shop = rpc_client_factory('acmeshopservice', context_data=context_data)
 
-    runner = runner_factory(
-        rabbit_config, AcmeShopService, StockService, InvoiceService)
+    runner = runner_factory(AcmeShopService, StockService, InvoiceService)
 
     # replace ``event_dispatcher`` and ``payment_rpc``  dependencies on
     # AcmeShopService with ``MockDependencyProvider``\s

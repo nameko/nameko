@@ -13,12 +13,13 @@ class ServiceB:
         print("service b received", payload)
 
 
-def test_event_interface(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_event_interface(container_factory):
 
-    container = container_factory(ServiceB, rabbit_config)
+    container = container_factory(ServiceB)
     container.start()
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     # prints "service b received payload" before "exited"
     with entrypoint_waiter(container, 'handle_event'):

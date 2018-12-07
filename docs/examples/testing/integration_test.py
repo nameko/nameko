@@ -29,10 +29,10 @@ class ServiceY:
         return "{}-y".format(value)
 
 
-def test_service_x_y_integration(runner_factory, rabbit_config):
+def test_service_x_y_integration(runner_factory):
 
     # run services in the normal manner
-    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner = runner_factory(ServiceX, ServiceY)
     runner.start()
 
     # artificially fire the "remote_method" entrypoint on ServiceX
