@@ -108,10 +108,7 @@ def mock_container(request):
 
     container = create_autospec(ServiceContainer)
 
-    # FIXME maybe use memory rabbit?
-
     with config_update({SERIALIZER_CONFIG_KEY: DEFAULT_SERIALIZER}):
-        # FIXME maybe these should have defaults on the container itself, not here
         container.serializer = config[SERIALIZER_CONFIG_KEY]
         container.accept = [DEFAULT_SERIALIZER]
         yield container
