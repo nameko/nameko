@@ -127,12 +127,10 @@ def vhost_pipeline(request, rabbit_manager):
     from collections import Iterable
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
-    import socket
     import string
     from kombu.pools import connections
     from nameko.testing.utils import ResourcePipeline
     from nameko.utils.retry import retry
-    from requests.exceptions import HTTPError
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
@@ -148,7 +146,7 @@ def vhost_pipeline(request, rabbit_manager):
         )
         return vhost
 
-    @retry(for_exceptions=(HTTPError, socket.timeout), delay=1, max_attempts=9)
+    @retry(for_exceptions=Exception, delay=1, max_attempts=9)
     def destroy(vhost):
         rabbit_manager.delete_vhost(vhost)
 
@@ -166,7 +164,7 @@ def vhost_pipeline(request, rabbit_manager):
         yield vhosts
 
 
-@pytest.yield_fixture()
+@pytest.yield_fixture
 def rabbit_uri(request, vhost_pipeline):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
@@ -182,7 +180,7 @@ def rabbit_uri(request, vhost_pipeline):
         yield amqp_uri
 
 
-@pytest.yield_fixture()
+@pytest.yield_fixture
 def rabbit_config(rabbit_uri):
     with config_update({'AMQP_URI': rabbit_uri}):
         yield
