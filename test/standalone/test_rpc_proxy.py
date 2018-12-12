@@ -250,7 +250,7 @@ class TestDisconnectedWhileWaitingForReply(object):
     @pytest.fixture(autouse=True)
     def container(
         self, container_factory, rabbit_manager, rabbit_config, toxiproxy,
-        fast_expiry
+        fast_expiry, toxic_reply_listener
     ):
 
         def enable_after_queue_expires():
@@ -272,17 +272,17 @@ class TestDisconnectedWhileWaitingForReply(object):
         return container
 
     @pytest.yield_fixture
-    def toxic_rpc_client(self, toxiproxy, rabbit_config):
-        with config_update({'AMQP_URI': toxiproxy.uri}):
-            with ClusterRpcClient(config) as client:
-                yield client
+    def toxic_reply_listener(self, toxiproxy):
+        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
+            yield
 
     @pytest.mark.usefixtures('rabbit_config')
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
-        self, toxic_rpc_client, toxiproxy, container
+        self, container
     ):
         with pytest.raises(ReplyQueueExpiredWithPendingReplies):
-            toxic_rpc_client.service.sleep()
+            with ClusterRpcClient() as client:
+                client.service.sleep()
 
 
 @pytest.mark.usefixtures('rabbit_config')
@@ -398,7 +398,7 @@ class TestDisconnectWithPendingReply(object):
     @pytest.yield_fixture
     def toxic_rpc_client(self, rabbit_config, toxiproxy):
         with config_update({'AMQP_URI': toxiproxy.uri}):
-            yield ClusterRpcClient(rabbit_config)
+            yield ClusterRpcClient()
 
     def test_disconnect_and_successfully_reconnect(
         self, container_factory, rabbit_manager, toxic_rpc_client, toxiproxy
@@ -707,14 +707,9 @@ class TestStandaloneClientDisconnections(object):
         ):
             yield request.param
 
-    @pytest.yield_fixture(autouse=True)
-    def toxic_rpc_client(self, toxiproxy):
-        with patch.object(ServiceRpcClient, 'amqp_uri', new=toxiproxy.uri):
-            yield
-
     @pytest.yield_fixture
-    def service_rpc(self, rabbit_config):
-        with ServiceRpcClient("service") as client:
+    def service_rpc(self, rabbit_config, toxiproxy):
+        with ServiceRpcClient("service", uri=toxiproxy.uri) as client:
             yield client
 
     @pytest.mark.usefixtures('use_confirms')

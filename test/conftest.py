@@ -13,7 +13,7 @@ from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
-from nameko import config_update
+from nameko import config, config_update
 from nameko.amqp.publish import get_connection
 from nameko.testing.utils import find_free_port
 from nameko.utils.retry import retry
@@ -91,7 +91,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     """
 
     # extract rabbit connection details
-    amqp_uri = rabbit_config['AMQP_URI']
+    amqp_uri = config['AMQP_URI']
     uri = urlparse(amqp_uri)
     rabbit_port = uri.port
 

@@ -659,11 +659,6 @@ class TestPublisherDisconnections(object):
     def tracker(self):
         return Mock()
 
-    @pytest.yield_fixture(autouse=True)
-    def toxic_publisher(self, toxiproxy):
-        with patch.object(Publisher, 'amqp_uri', new=toxiproxy.uri):
-            yield
-
     @pytest.yield_fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
@@ -673,7 +668,7 @@ class TestPublisherDisconnections(object):
 
     @pytest.yield_fixture
     def publisher_container(
-        self, request, container_factory, tracker, rabbit_config
+        self, request, container_factory, tracker, rabbit_config, toxiproxy
     ):
         retry = False
         if "publish_retry" in request.keywords:
@@ -682,7 +677,7 @@ class TestPublisherDisconnections(object):
         class Service(object):
             name = "publish"
 
-            publish = Publisher()
+            publish = Publisher(uri=toxiproxy.uri)
 
             @dummy
             def send(self, payload):

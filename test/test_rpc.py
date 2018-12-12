@@ -1365,12 +1365,12 @@ class TestClientDisconnections(object):
         container.start()
 
     @pytest.fixture(autouse=True)
-    def client_container(self, container_factory, toxic_service_rpc):
+    def client_container(self, container_factory, toxiproxy):
 
         class Service(object):
             name = "client"
 
-            server_rpc = ServiceRpc("server")
+            server_rpc = ServiceRpc("server", uri=toxiproxy.uri)
 
             @dummy
             def echo(self, arg):
@@ -1395,11 +1395,6 @@ class TestClientDisconnections(object):
             ServiceRpc.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
-
-    @pytest.yield_fixture(autouse=True)
-    def toxic_service_rpc(self, toxiproxy):
-        with patch.object(ServiceRpc, 'amqp_uri', new=toxiproxy.uri):
-            yield
 
     @pytest.mark.usefixtures('use_confirms')
     def test_normal(self, client_container):
