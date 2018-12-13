@@ -84,7 +84,7 @@ class Run(Command):
             help='python path to one or more service classes to run')
 
         parser.add_argument(
-            '--broker', default='pyamqp://guest:guest@localhost',
+            '--broker', default=None,
             help=(
                 'Deprecated option for setting up RabbitMQ broker URI. '
                 'Use --define or --config and set AMQP_URI instead.'
@@ -121,7 +121,7 @@ class Shell(Command):
     @classmethod
     def init_parser(cls, parser):
         parser.add_argument(
-            '--broker', default='pyamqp://guest:guest@localhost',
+            '--broker', default=None,
             help=(
                 'Deprecated option for setting up RabbitMQ broker URI. '
                 'Use --define or --config and set up AMQP_URI instead.'
