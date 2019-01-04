@@ -29,7 +29,6 @@ from nameko.utils.retry import retry
 EVENTS_TIMEOUT = 5
 
 
-@pytest.mark.usefixtures("rabbit_config")
 def test_event_dispatcher(mock_container, mock_producer):
 
     container = mock_container
