@@ -212,8 +212,9 @@ class ClusterRpcClient(object):
             'uri', config[AMQP_URI_CONFIG_KEY]
         )
 
+        serialization_config = serialization.setup()
         self.serializer = publisher_options.pop(
-            'serializer', serialization.setup().serializer
+            'serializer', serialization_config.serializer
         )
 
         for option in RESTRICTED_PUBLISHER_OPTIONS:
