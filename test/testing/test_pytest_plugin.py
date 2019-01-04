@@ -144,11 +144,11 @@ def test_amqp_uri(testdir):
     testdir.makeconftest(
         """
         import pytest
-        from nameko import config_update
+        from nameko import update_config
 
         @pytest.yield_fixture
         def rabbit_config():
-            with config_update(dict(AMQP_URI="{}")):
+            with update_config(dict(AMQP_URI="{}")):
                 yield
         """.format(amqp_uri)
     )
@@ -290,7 +290,7 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
         """
         import pytest
 
-        from nameko import config_update
+        from nameko import update_config
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcClient
 
@@ -305,7 +305,7 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
         @pytest.mark.usefixtures('rabbit_config')
         def test_container_factory(container_factory):
-            with config_update({
+            with update_config({
                 'SERVICE_CONTAINER_CLS': "container_module.ServiceContainerX"
             }):
                 container = container_factory(ServiceX)

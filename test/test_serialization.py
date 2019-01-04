@@ -6,7 +6,7 @@ import yaml
 from kombu import Exchange, Queue
 from mock import Mock, call
 
-from nameko import config, config_update
+from nameko import config, update_config
 from nameko.constants import (
     ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY, SERIALIZERS_CONFIG_KEY
 )
@@ -97,7 +97,7 @@ def sniffer_queue_factory(rabbit_config, rabbit_manager, get_vhost):
 @pytest.mark.parametrize("serializer", ['json', 'pickle'])
 def test_rpc_serialization(container_factory, sniffer_queue_factory, serializer):
 
-    with config_update({SERIALIZER_CONFIG_KEY: serializer}):
+    with update_config({SERIALIZER_CONFIG_KEY: serializer}):
         container = container_factory(Service)
         container.start()
 
@@ -159,7 +159,7 @@ def test_event_serialization(
         def handle_event(self, event_data):
             handler_called(event_data)
 
-    with config_update({SERIALIZER_CONFIG_KEY: serializer}):
+    with update_config({SERIALIZER_CONFIG_KEY: serializer}):
 
         container = container_factory(Service)
         container.start()
@@ -202,7 +202,7 @@ def test_custom_serializer(container_factory, sniffer_queue_factory):
         def echo(self, arg):
             return arg
 
-    with config_update({
+    with update_config({
         SERIALIZER_CONFIG_KEY: "upperjson",
         SERIALIZERS_CONFIG_KEY: {
             'upperjson': {
@@ -241,7 +241,7 @@ def test_custom_serializer(container_factory, sniffer_queue_factory):
 )
 def test_missing_serializers(container_factory, config):
 
-    with config_update(config):
+    with update_config(config):
         with pytest.raises(ConfigurationError) as exc:
             container_factory(Service)
 
@@ -252,7 +252,7 @@ def test_missing_serializers(container_factory, config):
 
 @pytest.yield_fixture
 def multi_serializer_config():
-    with config_update({ACCEPT_CONFIG_KEY: ['json', 'yaml']}):
+    with update_config({ACCEPT_CONFIG_KEY: ['json', 'yaml']}):
         yield
 
 

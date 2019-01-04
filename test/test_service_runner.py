@@ -1,7 +1,7 @@
 import pytest
 from mock import Mock, call
 
-from nameko import config, config_update
+from nameko import config, update_config
 from nameko.events import BROADCAST, event_handler
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
@@ -63,7 +63,7 @@ def test_runner_lifecycle(fake_module):
 
     fake_module.ServiceContainer = Container
 
-    with config_update(
+    with update_config(
         {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
     ):
         runner = ServiceRunner()
@@ -119,7 +119,7 @@ def test_contextual_lifecycle(fake_module):
 
     fake_module.ServiceContainer = Container
 
-    with config_update(
+    with update_config(
         {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
     ):
 
@@ -171,7 +171,7 @@ def test_runner_waits_raises_error(fake_module):
 
     fake_module.ServiceContainer = Container
 
-    with config_update(
+    with update_config(
         {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
     ):
         runner = ServiceRunner()

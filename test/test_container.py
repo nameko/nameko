@@ -10,7 +10,7 @@ from eventlet import Timeout, sleep, spawn
 from eventlet.event import Event
 from mock import ANY, Mock, call, patch
 
-from nameko import config, config_setup
+from nameko import config, setup_config
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.containers import ServiceContainer, get_service_name
 from nameko.exceptions import ConfigurationError
@@ -212,7 +212,7 @@ def test_container_doesnt_exhaust_max_workers(container):
             spam_called.send(a)
             spam_continue.wait()
 
-    with config_setup({MAX_WORKERS_CONFIG_KEY: 1}):
+    with setup_config({MAX_WORKERS_CONFIG_KEY: 1}):
         container = ServiceContainer(Service)
 
     dep = get_extension(container, Entrypoint)
@@ -565,7 +565,7 @@ def test_logging_managed_threads(container, logger):
 
 def test_container_config_deprecated(container):
 
-    with config_setup({'spam': 'ham'}):
+    with setup_config({'spam': 'ham'}):
         with patch('nameko.containers.warnings') as warnings:
             container.config == config
 

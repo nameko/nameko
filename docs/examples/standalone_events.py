@@ -1,7 +1,7 @@
-from nameko import config_setup
+from nameko import setup_config
 from nameko.standalone.events import event_dispatcher
 
-config_setup({
+setup_config({
     'AMQP_URI': AMQP_URI  # e.g. "pyamqp://guest:guest@localhost"
 })
 

@@ -1,7 +1,7 @@
 import pytest
 from mock import Mock, call
 
-from nameko import config_setup
+from nameko import setup_config
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.events import EventDispatcher, event_handler
@@ -58,7 +58,7 @@ def test_short_call_stack(container_factory):
         data={'call_id_stack': many_ids}
     )
 
-    with config_setup({PARENT_CALLS_CONFIG_KEY: 1}):
+    with setup_config({PARENT_CALLS_CONFIG_KEY: 1}):
         assert context.call_id_stack == ['99', 'baz.long.0']
 
 

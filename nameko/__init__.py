@@ -29,7 +29,7 @@ we're all consenting adults here.)
 """
 
 
-class config_setup:
+class setup_config:
     """
     A context manager for setting up a complete config for the given context
 
@@ -37,7 +37,7 @@ class config_setup:
 
         @pytest.yield_fixture
         def config():
-            with config_setup({"spam": "ham"}):
+            with setup_config({"spam": "ham"}):
                 yield
 
     """
@@ -55,7 +55,7 @@ class config_setup:
         config.update(self.original_data)
 
 
-class config_update(config_setup):
+class update_config(setup_config):
     """
     A context manager for updating config just for the given context
 
@@ -63,7 +63,7 @@ class config_update(config_setup):
 
         @pytest.yield_fixture
         def memory_rabbit_config():
-            with config_update({"AMQP_URI": "memory://"}):
+            with update_config({"AMQP_URI": "memory://"}):
                 yield
     """
 

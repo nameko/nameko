@@ -12,7 +12,7 @@ from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko import config, config_update
+from nameko import config, update_config
 from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_producer
@@ -390,7 +390,7 @@ class TestConsumerDisconnections(object):
                 return arg
 
         # very fast heartbeat (2 seconds)
-        with config_update({HEARTBEAT_CONFIG_KEY: 2}):
+        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
             container = container_factory(Service)
             container.start()
 
@@ -1143,7 +1143,7 @@ class TestPrefetchCount(object):
             def handle(self, payload):
                 pass
 
-        with config_update({'PREFETCH_COUNT': 1}):
+        with update_config({'PREFETCH_COUNT': 1}):
             container = container_factory(Service)
             container.start()
 
