@@ -71,18 +71,22 @@ def test_flag_action(param, value):
 @pytest.mark.parametrize(
     ('text', 'expected_key', 'expected_value'),
     (
+        # strings
         ('SPAM=ham', 'SPAM', 'ham'),
         ('  SPAM=ham  ', 'SPAM', 'ham'),
         ('SPAM="ham"', 'SPAM', 'ham'),
         ("SPAM='ham'", 'SPAM', 'ham'),
-        ('SPAM=1', 'SPAM', 1),
         ('SPAM="1"', 'SPAM', "1"),
+        # simple types
+        ('SPAM=1', 'SPAM', 1),
         ('SPAM=1.0', 'SPAM', 1.0),
         ('SPAM=True', 'SPAM', True),
         ('SPAM=False', 'SPAM', False),
-        ('SPAM=[{"egg": "ham"}]', 'SPAM', [{'egg': 'ham'}]),
-        ('SPAM=', 'SPAM', None),
         ('SPAM', 'SPAM', True),
+        ('SPAM=', 'SPAM', None),
+        # structure
+        ('SPAM=[{"egg": "ham"}]', 'SPAM', [{'egg': 'ham'}]),
+        # deals with equal signs in value
         ('SPAM=EGG=HAM', 'SPAM', 'EGG=HAM'),
     )
 )
