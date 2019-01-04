@@ -61,17 +61,18 @@ class ExampleService(object):
 
 @pytest.yield_fixture
 def rpc_client(rabbit_config):
-    with ServiceRpcClient('exampleservice', rabbit_config) as client:
+    with ServiceRpcClient('exampleservice') as client:
         yield client
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_handle_result(
-    container_factory, rabbit_manager, rabbit_config, rpc_client
+    container_factory, rabbit_manager, rpc_client
 ):
     """ Verify that `handle_result` can modify the return values of the worker,
     such that other dependencies see the updated values.
     """
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     assert rpc_client.echo("hello") == "hello"

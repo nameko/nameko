@@ -6,11 +6,13 @@ import pytest
 from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
+from kombu import Exchange
 from kombu.connection import Connection
 from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
+from nameko import config, update_config
 from nameko.amqp.consume import Consumer
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
@@ -104,15 +106,15 @@ def get_rpc_exchange():
         yield patched
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 def test_rpc_consumer(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = {AMQP_URI_CONFIG_KEY: 'memory://localhost'}
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
 
-    exchange = Mock()
+    exchange = Exchange("some_exchange")
     get_rpc_exchange.return_value = exchange
 
     consumer = RpcConsumer().bind(container)
@@ -143,14 +145,14 @@ def test_rpc_consumer(get_rpc_exchange, mock_container):
     assert consumer._providers == set()
 
 
+@pytest.mark.usefixtures("memory_rabbit_config")
 def test_reply_listener(get_rpc_exchange, mock_container):
 
     container = mock_container
     container.shared_extensions = {}
-    container.config = {AMQP_URI_CONFIG_KEY: 'memory://localhost'}
     container.service_name = "exampleservice"
 
-    exchange = Mock()
+    exchange = Exchange("some_exchange")
     get_rpc_exchange.return_value = exchange
 
     reply_listener = ReplyListener().bind(container)
@@ -278,8 +280,9 @@ class TestClient(object):
 # =============================================================================
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_rpc_consumer_connections(
-    container_factory, rabbit_config, rabbit_manager
+    container_factory, get_vhost, rabbit_manager
 ):
 
     class ExampleService(object):
@@ -291,13 +294,13 @@ def test_rpc_consumer_connections(
         def echo(self, arg):
             return arg  # pragma: no cover
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     # we should have 2 queues:
     #   * RPC requests
     #   * RPC replies
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
     queues = rabbit_manager.get_queues(vhost)
     assert len(queues) == 2
 
@@ -321,9 +324,10 @@ def test_rpc_consumer_connections(
     assert len(consumer_connection_names) == 2
 
 
-def test_rpc_args_kwargs(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_args_kwargs(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     with entrypoint_hook(container, 'echo') as echo:
@@ -333,9 +337,10 @@ def test_rpc_args_kwargs(container_factory, rabbit_config):
         assert echo("arg", kwarg="kwarg") == (("arg",), {'kwarg': 'kwarg'})
 
 
-def test_rpc_context_data(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_context_data(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     context_data = {
@@ -352,10 +357,11 @@ def test_rpc_context_data(container_factory, rabbit_config):
         assert say_hello() == "bonjour"
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.usefixtures("predictable_call_ids")
-def test_rpc_headers(container_factory, rabbit_config):
+def test_rpc_headers(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     context_data = {
@@ -375,7 +381,7 @@ def test_rpc_headers(container_factory, rabbit_config):
 
         # use a standalone rpc client to call exampleservice.say_hello()
         with ServiceRpcClient(
-            "exampleservice", rabbit_config, context_data
+            "exampleservice", context_data
         ) as client:
             assert client.say_hello() == "hello"
 
@@ -387,26 +393,29 @@ def test_rpc_headers(container_factory, rabbit_config):
         }
 
 
-def test_rpc_existing_method(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_existing_method(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
-    with ServiceRpcClient("exampleservice", rabbit_config) as client:
+    with ServiceRpcClient("exampleservice") as client:
         assert client.task_a() == "result_a"
         assert client.task_b() == "result_b"
 
 
-def test_async_rpc(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_async_rpc(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     with entrypoint_hook(container, 'call_async') as call_async:
         assert call_async() == ["result_b", "result_a", [[], {}]]
 
 
-def test_rpc_incorrect_signature(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_incorrect_signature(container_factory):
 
     class Service(object):
         name = "service"
@@ -439,7 +448,7 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
         def args_star_kwargs(self, a, **kwargs):
             pass
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     method_calls = [
@@ -469,7 +478,7 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
 
         method_name, args, kwargs = signature
 
-        with ServiceRpcClient("service", rabbit_config) as client:
+        with ServiceRpcClient("service") as client:
             method = getattr(client, method_name)
 
             if not is_valid_call:
@@ -479,12 +488,13 @@ def test_rpc_incorrect_signature(container_factory, rabbit_config):
                 method(*args, **kwargs)  # no raise
 
 
-def test_rpc_missing_method(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_missing_method(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
-    with ServiceRpcClient("exampleservice", rabbit_config) as client:
+    with ServiceRpcClient("exampleservice") as client:
         with pytest.raises(MethodNotFound) as exc_info:
             client.task_c()
     assert str(exc_info.value) == "task_c"
@@ -497,46 +507,48 @@ def test_rpc_invalid_message():
     assert 'Message missing `args` or `kwargs`' in str(exc)
 
 
-def test_handle_message_raise_malformed_request(
-        container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
+@pytest.mark.usefixtures("rabbit_config")
+def test_handle_message_raise_malformed_request(container_factory):
+    container = container_factory(ExampleService)
     container.start()
 
     with pytest.raises(MalformedRequest):
         with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = MalformedRequest('bad request')
-            with ServiceRpcClient("exampleservice", rabbit_config) as client:
+            with ServiceRpcClient("exampleservice") as client:
                 client.task_a()
 
 
-def test_handle_message_raise_other_exception(
-        container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
+@pytest.mark.usefixtures("rabbit_config")
+def test_handle_message_raise_other_exception(container_factory):
+    container = container_factory(ExampleService)
     container.start()
 
     with pytest.raises(RemoteError):
         with patch('nameko.rpc.Rpc.handle_message') as handle_message:
             handle_message.side_effect = Exception('broken')
-            with ServiceRpcClient("exampleservice", rabbit_config) as client:
+            with ServiceRpcClient("exampleservice") as client:
                 client.task_a()
 
 
-def test_rpc_method_that_raises(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_method_that_raises(container_factory):
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
-    with ServiceRpcClient("exampleservice", rabbit_config) as client:
+    with ServiceRpcClient("exampleservice") as client:
         with pytest.raises(RemoteError) as exc_info:
             client.raises()
     assert exc_info.value.exc_type == "ExampleError"
 
 
-def test_rpc_unknown_service(container_factory, rabbit_config):
-    container = container_factory(ExampleService, rabbit_config)
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_unknown_service(container_factory):
+    container = container_factory(ExampleService)
     container.start()
 
-    with ServiceRpcClient("exampleservice", rabbit_config) as client:
+    with ServiceRpcClient("exampleservice") as client:
         # success
         assert client.task_a()
 
@@ -547,9 +559,10 @@ def test_rpc_unknown_service(container_factory, rabbit_config):
     assert exc_info.value.exc_type == "UnknownService"
 
 
-def test_rpc_unknown_service_standalone(rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_unknown_service_standalone():
 
-    with ServiceRpcClient("unknown_service", rabbit_config) as client:
+    with ServiceRpcClient("unknown_service") as client:
         with pytest.raises(UnknownService) as exc_info:
             client.anything()
 
@@ -560,11 +573,12 @@ class TestContainerBeingKilled(object):
 
     @pytest.yield_fixture
     def service_rpc(self, rabbit_config):
-        with ServiceRpcClient("service", rabbit_config) as client:
+        with ServiceRpcClient("service") as client:
             yield client
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_container_killed(
-        self, container_factory, rabbit_config, service_rpc
+        self, container_factory, service_rpc
     ):
         class Service(object):
             name = "service"
@@ -573,7 +587,7 @@ class TestContainerBeingKilled(object):
             def method(self):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         # check message is requeued if container throws ContainerBeingKilled
@@ -584,14 +598,14 @@ class TestContainerBeingKilled(object):
                 service_rpc.method.call_async()
 
 
-def test_rpc_consumer_sharing(container_factory, rabbit_config,
-                              rabbit_manager):
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_consumer_sharing(container_factory, rabbit_manager):
     """ Verify that the RpcConsumer stops when the first provider unregisters
     itself. Otherwise it would keep consuming messages for the unregistered
     provider, raising MethodNotFound.
     """
 
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
     task_a = get_extension(container, Rpc, method_name="task_a")
@@ -620,7 +634,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
 
         # try to call task_a.
         # should timeout, rather than raising MethodNotFound
-        with ServiceRpcClient("exampleservice", rabbit_config) as client:
+        with ServiceRpcClient("exampleservice") as client:
             with pytest.raises(eventlet.Timeout):
                 with eventlet.Timeout(1):
                     client.task_a()
@@ -629,10 +643,9 @@ def test_rpc_consumer_sharing(container_factory, rabbit_config,
     container.kill()
 
 
-def test_rpc_consumer_cannot_exit_with_providers(
-    container_factory, rabbit_config
-):
-    container = container_factory(ExampleService, rabbit_config)
+@pytest.mark.usefixtures("rabbit_config")
+def test_rpc_consumer_cannot_exit_with_providers(container_factory):
+    container = container_factory(ExampleService)
     container.start()
 
     task_a = get_extension(container, Rpc, method_name="task_a")
@@ -650,12 +663,13 @@ def test_rpc_consumer_cannot_exit_with_providers(
     container.kill()
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100)
 def test_reply_queue_removed_on_expiry(
-    container_factory, rabbit_config, rabbit_manager
+    container_factory, get_vhost, rabbit_manager
 ):
     def list_queues():
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         return [
             queue['name']
             for queue in rabbit_manager.get_queues(vhost=vhost)
@@ -670,7 +684,7 @@ def test_reply_queue_removed_on_expiry(
         def method(self, arg):
             pass  # pragma: no cover
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     reply_queue = [
@@ -682,8 +696,9 @@ def test_reply_queue_removed_on_expiry(
     assert reply_queue not in list_queues()
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=200)
-def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
+def test_async_wait_longer_than_expiry(container_factory):
     """ ServiceRpc ReplyListener consumer runs in a thread and prevents the
     reply queue from expiring. Contrast to the single-threaded equivalent
     in nameko.standalone.rpc.
@@ -707,18 +722,19 @@ def test_async_wait_longer_than_expiry(container_factory, rabbit_config):
         def echo(self, arg):
             return arg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container = container_factory(DelegateService)
     delegate_container.start()
 
     with entrypoint_hook(container, 'echo') as echo:
         assert echo('foo') == 'foo'
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=200)
-def test_request_longer_than_expiry(container_factory, rabbit_config):
+def test_request_longer_than_expiry(container_factory):
 
     class Service(object):
         name = "service"
@@ -737,17 +753,18 @@ def test_request_longer_than_expiry(container_factory, rabbit_config):
             eventlet.sleep(0.4)  # sleep for 2x TTL
             return arg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container = container_factory(DelegateService)
     delegate_container.start()
 
     with entrypoint_hook(container, 'echo') as echo:
         assert echo('foo') == 'foo'
 
 
-def test_cluster_rpc_dependency(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_cluster_rpc_dependency(container_factory):
 
     class Service(object):
         name = "service"
@@ -769,10 +786,10 @@ def test_cluster_rpc_dependency(container_factory, rabbit_config):
         def echo(self, arg):
             return arg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    delegate_container = container_factory(DelegateService, rabbit_config)
+    delegate_container = container_factory(DelegateService)
     delegate_container.start()
 
     with entrypoint_hook(container, 'echo') as echo:
@@ -783,6 +800,7 @@ def test_cluster_rpc_dependency(container_factory, rabbit_config):
             missing("foo")
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
@@ -816,7 +834,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, rabbit_manager, toxiproxy,
+        self, container_factory, rabbit_manager, toxiproxy,
         fast_expiry, toxic_reply_listener
     ):
 
@@ -842,15 +860,15 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 eventlet.spawn_n(enable_after_queue_expires)
                 return "OK"
 
-        config = rabbit_config
+        # very fast heartbeat (2 seconds)
+        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+            container = container_factory(Service)
+            container.start()
 
-        container = container_factory(Service, config)
-        container.start()
+            delegate_container = container_factory(DelegateService)
+            delegate_container.start()
 
-        delegate_container = container_factory(DelegateService, config)
-        delegate_container.start()
-
-        return container
+            yield container
 
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
         self, container, toxiproxy
@@ -860,6 +878,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 hook()
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestReplyListenerDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -889,7 +908,7 @@ class TestReplyListenerDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxiproxy, toxic_reply_listener
+        self, container_factory, toxiproxy, toxic_reply_listener
     ):
         class Service(object):
             name = "service"
@@ -907,17 +926,15 @@ class TestReplyListenerDisconnections(object):
             def echo(self, arg):
                 return arg
 
-        # very fast heartbeat
-        config = rabbit_config
-        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
+        # very fast heartbeat (2 seconds)
+        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+            container = container_factory(Service)
+            container.start()
 
-        container = container_factory(Service, config)
-        container.start()
+            delegate_container = container_factory(DelegateService)
+            delegate_container.start()
 
-        delegate_container = container_factory(DelegateService, config)
-        delegate_container.start()
-
-        return container
+            yield container
 
     def test_normal(self, container):
         msg = "foo"
@@ -1071,6 +1088,7 @@ class TestReplyListenerDisconnections(object):
             assert echo(msg) == msg
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestRpcConsumerDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -1099,15 +1117,15 @@ class TestRpcConsumerDisconnections(object):
             yield
 
     @pytest.yield_fixture(autouse=True)
-    def nontoxic_responder(self, rabbit_config):
+    def nontoxic_responder(self):
         def replacement_constructor(amqp_uri, *args, **kw):
-            return Responder(rabbit_config[AMQP_URI_CONFIG_KEY], *args, **kw)
+            return Responder(config[AMQP_URI_CONFIG_KEY], *args, **kw)
         with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
     @pytest.yield_fixture
-    def service_rpc(self, rabbit_config):
-        with ServiceRpcClient('service', rabbit_config) as client:
+    def service_rpc(self):
+        with ServiceRpcClient('service') as client:
             yield client
 
     @pytest.fixture
@@ -1118,9 +1136,9 @@ class TestRpcConsumerDisconnections(object):
     def tracker(self):
         return Mock()
 
-    @pytest.fixture(autouse=True)
+    @pytest.yield_fixture(autouse=True)
     def container(
-        self, container_factory, rabbit_config, toxic_rpc_consumer, lock,
+        self, container_factory, toxic_rpc_consumer, lock,
         tracker
     ):
 
@@ -1134,20 +1152,18 @@ class TestRpcConsumerDisconnections(object):
                 tracker(arg)
                 return arg
 
-        # very fast heartbeat
-        config = rabbit_config
-        config[HEARTBEAT_CONFIG_KEY] = 2  # seconds
+        # very fast heartbeat (2 seconds)
+        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+            container = container_factory(Service)
+            container.start()
 
-        container = container_factory(Service, config)
-        container.start()
+            # we have to let the container connect before disconnecting
+            # otherwise we end up in retry_over_time trying to make the
+            # initial connection; we get stuck there because it has a
+            # function-local copy of "on_connection_error" that is never patched
+            eventlet.sleep(.05)
 
-        # we have to let the container connect before disconnecting
-        # otherwise we end up in retry_over_time trying to make the
-        # initial connection; we get stuck there because it has a
-        # function-local copy of "on_connection_error" that is never patched
-        eventlet.sleep(.05)
-
-        return container
+            yield container
 
     def test_normal(self, container, service_rpc):
         assert service_rpc.echo("foo") == "foo"
@@ -1322,6 +1338,7 @@ class TestRpcConsumerDisconnections(object):
         assert service_rpc.echo("msg2") == "msg2"
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestClientDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -1336,7 +1353,7 @@ class TestClientDisconnections(object):
     """
 
     @pytest.fixture(autouse=True)
-    def server_container(self, container_factory, rabbit_config):
+    def server_container(self, container_factory):
 
         class Service(object):
             name = "server"
@@ -1345,26 +1362,22 @@ class TestClientDisconnections(object):
             def echo(self, arg):
                 return arg
 
-        config = rabbit_config
-
-        container = container_factory(Service, config)
+        container = container_factory(Service)
         container.start()
 
     @pytest.fixture(autouse=True)
-    def client_container(
-        self, container_factory, rabbit_config, toxic_service_rpc
-    ):
+    def client_container(self, container_factory, toxiproxy):
 
         class Service(object):
             name = "client"
 
-            server_rpc = ServiceRpc("server")
+            server_rpc = ServiceRpc("server", uri=toxiproxy.uri)
 
             @dummy
             def echo(self, arg):
                 return self.server_rpc.echo(arg)
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
         return container
 
@@ -1383,11 +1396,6 @@ class TestClientDisconnections(object):
             ServiceRpc.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
-
-    @pytest.yield_fixture(autouse=True)
-    def toxic_service_rpc(self, toxiproxy):
-        with patch.object(ServiceRpc, 'amqp_uri', new=toxiproxy.uri):
-            yield
 
     @pytest.mark.usefixtures('use_confirms')
     def test_normal(self, client_container):
@@ -1484,6 +1492,7 @@ class TestClientDisconnections(object):
                 assert echo(2) == 2
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestResponderDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
@@ -1532,15 +1541,12 @@ class TestResponderDisconnections(object):
 
     @pytest.fixture(autouse=True)
     def container(self, container_factory, service_cls, rabbit_config):
-
-        config = rabbit_config
-
-        container = container_factory(service_cls, config)
+        container = container_factory(service_cls)
         container.start()
         return container
 
     @pytest.yield_fixture
-    def service_rpc(self, rabbit_config):
+    def service_rpc(self):
 
         gts = []
 
@@ -1564,9 +1570,7 @@ class TestResponderDisconnections(object):
             def __getattr__(self, name):
                 def method(*args, **kwargs):
                     def call():
-                        with ServiceRpcClient(
-                            "service", rabbit_config
-                        ) as client:
+                        with ServiceRpcClient("service") as client:
                             return getattr(client, name)(*args, **kwargs)
 
                     gt = eventlet.spawn(call)
@@ -1664,7 +1668,7 @@ class TestResponderDisconnections(object):
             )
 
         # create new container
-        replacement_container = container_factory(service_cls, rabbit_config)
+        replacement_container = container_factory(service_cls)
         replacement_container.start()
 
         assert service_rpc.echo(3) == 3
@@ -1692,8 +1696,8 @@ class TestResponderDisconnections(object):
 
 class TestRpcConsumerConfigurability(object):
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_heartbeat(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1704,8 +1708,8 @@ class TestRpcConsumerConfigurability(object):
 
         assert rpc_consumer.consumer.connection.heartbeat == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_prefetch_count(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1716,8 +1720,8 @@ class TestRpcConsumerConfigurability(object):
 
         assert rpc_consumer.consumer.prefetch_count == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_accept(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1731,8 +1735,8 @@ class TestRpcConsumerConfigurability(object):
 
 class TestReplyListenerConfigurability(object):
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_heartbeat(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1743,8 +1747,8 @@ class TestReplyListenerConfigurability(object):
 
         assert reply_listener.consumer.connection.heartbeat == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_prefetch_count(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1757,8 +1761,8 @@ class TestReplyListenerConfigurability(object):
 
         assert reply_listener.consumer.prefetch_count == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_accept(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1787,6 +1791,7 @@ class TestConfigurability(object):
         producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
         return producer
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter", [
         # delivery options
         'delivery_mode', 'priority', 'expiration',
@@ -1803,7 +1808,6 @@ class TestConfigurability(object):
         """ Verify that most parameters can be specified at ServiceRpc
         instantiation time.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1825,12 +1829,12 @@ class TestConfigurability(object):
         service_rpc.method.call_async()
         assert producer.publish.call_args[1][parameter] == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.usefixtures('predictable_call_ids')
     def test_headers(self, mock_container, producer):
         """ Headers can be provided at instantiation time, and are merged with
         Nameko headers.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service-name"
 
@@ -1867,12 +1871,12 @@ class TestConfigurability(object):
             nameko_headers, value
         )
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @patch('nameko.rpc.uuid')
     def test_restricted_parameters(self, patch_uuid, mock_container, producer):
         """ Verify that providing routing parameters at instantiation
         time has no effect.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.shared_extensions = {}
         mock_container.service_name = "service"
 
@@ -1906,7 +1910,8 @@ class TestConfigurability(object):
         assert publish_params['correlation_id'] == "uuid2"
 
 
-def test_prefetch_throughput(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_prefetch_throughput(container_factory):
     """Make sure even max_workers=1 can consumer faster than 1 msg/second
 
     Regression test for https://github.com/nameko/nameko/issues/417
@@ -1919,20 +1924,22 @@ def test_prefetch_throughput(container_factory, rabbit_config):
         def method(self):
             pass
 
-    rabbit_config[MAX_WORKERS_CONFIG_KEY] = 1
-    container = container_factory(Service, rabbit_config)
-    container.start()
+    with update_config({MAX_WORKERS_CONFIG_KEY: 1}):
 
-    replies = []
-    with ServiceRpcClient("service", rabbit_config) as client:
-        for _ in range(5):
-            replies.append(client.method.call_async())
+        container = container_factory(Service)
+        container.start()
 
-        with eventlet.Timeout(1):
-            [reply.result() for reply in replies]
+        replies = []
+        with ServiceRpcClient("service") as client:
+            for _ in range(5):
+                replies.append(client.method.call_async())
+
+            with eventlet.Timeout(1):
+                [reply.result() for reply in replies]
 
 
-def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
+@pytest.mark.usefixtures("rabbit_config")
+def test_stop_with_active_worker(container_factory, queue_info):
     """ Test behaviour when we stop a container with an active worker.
 
     Expect the consumer to stop and the message be requeued, but the container
@@ -1954,10 +1961,10 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
         def method(self):
             block.wait()
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    with ServiceRpcClient("service", rabbit_config) as service_rpc:
+    with ServiceRpcClient("service") as service_rpc:
         service_rpc.method.call_async()
 
     gt = eventlet.spawn(container.stop)
@@ -1980,16 +1987,18 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
 class TestSSL(object):
 
     @pytest.fixture(params=[True, False])
-    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+    def rabbit_ssl_options(self, request, rabbit_ssl_options):
         verify_certs = request.param
         if verify_certs is False:
             # remove certificate paths from config
-            rabbit_ssl_config['AMQP_SSL'] = True
-        return rabbit_ssl_config
+            options = True
+        else:
+            options = rabbit_ssl_options
+        return options
 
-    def test_rpc_entrypoint_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_rpc_entrypoint_over_ssl(self, container_factory, rabbit_uri):
+
         class Service(object):
             name = "service"
 
@@ -1997,21 +2006,26 @@ class TestSSL(object):
             def echo(self, *args, **kwargs):
                 return args, kwargs
 
-        container = container_factory(Service, rabbit_ssl_config)
+        container = container_factory(Service)
         container.start()
 
-        with ServiceRpcClient("service", rabbit_config) as client:
+        with ServiceRpcClient("service", uri=rabbit_uri, ssl=None) as client:
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_rpc_client_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
+        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
     ):
         class Service(object):
             name = "service"
 
-            delegate_rpc = ServiceRpc('delegate')
+            delegate_rpc = ServiceRpc(
+                'delegate',
+                uri=rabbit_ssl_uri,
+                ssl=rabbit_ssl_options
+            )
 
             @dummy
             def echo(self, *args, **kwargs):
@@ -2024,10 +2038,10 @@ class TestSSL(object):
             def echo(self, *args, **kwargs):
                 return args, kwargs
 
-        container = container_factory(Service, rabbit_ssl_config)
+        container = container_factory(Service)
         container.start()
 
-        delegate = container_factory(Delegate, rabbit_config)
+        delegate = container_factory(Delegate)
         delegate.start()
 
         with entrypoint_hook(container, 'echo') as echo:
@@ -2038,6 +2052,7 @@ class TestSSL(object):
 
 class TestEntrypointArguments:
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_expected_exceptions_and_sensitive_arguments(
         self, container_factory, rabbit_config
     ):
@@ -2052,7 +2067,7 @@ class TestEntrypointArguments:
             def method(self, arg):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         entrypoint = get_extension(container, Rpc)

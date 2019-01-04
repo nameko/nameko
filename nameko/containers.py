@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import inspect
 import sys
 import uuid
+import warnings
 from collections import deque
 from logging import getLogger
 
@@ -12,7 +13,7 @@ from eventlet.event import Event
 from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
 
-from nameko import serialization
+from nameko import config, serialization
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, MAX_WORKERS_CONFIG_KEY,
@@ -48,7 +49,7 @@ def get_service_name(service_cls):
     return service_name
 
 
-def get_container_cls(config):
+def get_container_cls():
     class_path = config.get('SERVICE_CONTAINER_CLS')
     return import_from_path(class_path) or ServiceContainer
 
@@ -67,7 +68,6 @@ class WorkerContext(object):
         self, container, service, entrypoint, args=None, kwargs=None, data=None
     ):
         self.container = container
-        self.config = self.container.config
 
         self.service = service
         self.entrypoint = entrypoint
@@ -84,7 +84,7 @@ class WorkerContext(object):
     @property
     def call_id_stack(self):
         if self._call_id_stack is None:
-            parent_calls_tracked = self.container.config.get(
+            parent_calls_tracked = config.get(
                 PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED
             )
             stack_length = parent_calls_tracked + 1
@@ -128,10 +128,9 @@ class WorkerContext(object):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, config):
+    def __init__(self, service_cls):
 
         self.service_cls = service_cls
-        self.config = config
 
         self.service_name = get_service_name(service_cls)
         self.shared_extensions = {}
@@ -139,7 +138,7 @@ class ServiceContainer(object):
         self.max_workers = (
             config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
-        self.serializer, self.accept = serialization.setup(self.config)
+        self.serializer, self.accept = serialization.setup()
 
         self.entrypoints = SpawningSet()
         self.dependencies = SpawningSet()
@@ -165,6 +164,11 @@ class ServiceContainer(object):
         self._managed_threads = {}
         self._being_killed = False
         self._died = Event()
+
+    @property
+    def config(self):
+        warnings.warn("Use ``nameko.config`` instead.", DeprecationWarning)
+        return config
 
     @property
     def extensions(self):

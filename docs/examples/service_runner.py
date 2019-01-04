@@ -8,7 +8,7 @@ class ServiceB:
     name = "service_b"
 
 # create a runner for ServiceA and ServiceB
-runner = ServiceRunner(config={})
+runner = ServiceRunner()
 runner.add_service(ServiceA)
 runner.add_service(ServiceB)
 

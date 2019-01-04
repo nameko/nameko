@@ -5,6 +5,7 @@ import pytest
 from kombu.messaging import Queue
 from mock import Mock
 
+from nameko import config, update_config
 from nameko.amqp.publish import Publisher
 from nameko.constants import DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 from nameko.events import EventHandler, event_handler
@@ -20,11 +21,10 @@ class TestDeadlockRegression(object):
     """ Regression test for https://github.com/nameko/nameko/issues/428
     """
 
-    @pytest.fixture
+    @pytest.yield_fixture
     def config(self, rabbit_config):
-        config = rabbit_config.copy()
-        config['max_workers'] = 2
-        return config
+        with update_config({'max_workers': 2}):
+            yield
 
     @pytest.fixture
     def upstream(self, container_factory, config):
@@ -36,7 +36,7 @@ class TestDeadlockRegression(object):
             def method(self):
                 time.sleep(.5)
 
-        container = container_factory(Service, config)
+        container = container_factory(Service)
         container.start()
 
     @pytest.fixture
@@ -57,9 +57,10 @@ class TestDeadlockRegression(object):
 
         return Service
 
+    @pytest.mark.usefixtures('config')
     @pytest.mark.usefixtures('upstream')
     def test_deadlock_due_to_slow_workers(
-        self, service_cls, container_factory, config
+        self, service_cls, container_factory
     ):
         """
         Implementation has now changed, but keeping this test as a regression.
@@ -70,12 +71,12 @@ class TestDeadlockRegression(object):
         Any running workers therefore never complete, and the worker pool
         remains exhausted.
         """
-        container = container_factory(service_cls, config)
+        container = container_factory(service_cls)
         container.start()
 
         count = 2
 
-        dispatch = event_dispatcher(config)
+        dispatch = event_dispatcher()
         for _ in range(count):
             dispatch("service", "event1", 1)
             dispatch("service", "event2", 1)
@@ -109,51 +110,51 @@ class TestHeartbeats(object):
 
         return Service
 
+    @pytest.mark.usefixtures('rabbit_config')
     @pytest.mark.parametrize(
         'extension_cls', [Consumer, EventHandler, RpcConsumer, ReplyListener]
     )
-    def test_default(
-        self, extension_cls, service_cls, container_factory, rabbit_config
-    ):
+    def test_default(self, extension_cls, service_cls, container_factory):
 
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
 
         extension = get_extension(container, extension_cls)
         assert extension.consumer.heartbeat == DEFAULT_HEARTBEAT
 
+    @pytest.mark.usefixtures('rabbit_config')
     @pytest.mark.parametrize("heartbeat", [30, None])
     @pytest.mark.parametrize(
         'extension_cls', [Consumer, EventHandler, RpcConsumer, ReplyListener]
     )
     def test_config_value(
-        self, extension_cls, heartbeat, service_cls, container_factory,
-        rabbit_config
+        self, extension_cls, heartbeat, service_cls, container_factory
     ):
-        rabbit_config[HEARTBEAT_CONFIG_KEY] = heartbeat
+        with update_config({HEARTBEAT_CONFIG_KEY: heartbeat}):
+            container = container_factory(service_cls)
+            container.start()
 
-        container = container_factory(service_cls, rabbit_config)
-        container.start()
-
-        extension = get_extension(container, extension_cls)
-        assert extension.consumer.heartbeat == heartbeat
+            extension = get_extension(container, extension_cls)
+            assert extension.consumer.heartbeat == heartbeat
 
 
 class TestHeartbeatFailure(object):
 
     @pytest.fixture
     def config(self, rabbit_config):
-        config = rabbit_config.copy()
-        config['max_workers'] = 2
-        config[HEARTBEAT_CONFIG_KEY] = 3  # minimum reliable heartbeat
-        return config
+        with update_config({
+            'max_workers': 2,
+            HEARTBEAT_CONFIG_KEY: 3  # minimum reliable heartbeat
+        }):
+            yield
 
     @pytest.fixture
     def tracker(self):
         return Mock()
 
+    @pytest.mark.usefixtures('config')
     def test_event_handler(
-        self, container_factory, config, tracker, queue_info
+        self, container_factory, tracker, queue_info
     ):
 
         class Service(object):
@@ -169,7 +170,7 @@ class TestHeartbeatFailure(object):
                 time.sleep(9)  # >2x heartbeat
                 tracker(event_data)
 
-        container = container_factory(Service, config)
+        container = container_factory(Service)
         container.start()
 
         # wait for service to handle two requests
@@ -178,7 +179,7 @@ class TestHeartbeatFailure(object):
             container, 'handle', callback=lambda *a: next(counter) == 2
         ):
             # dispatch two messages; the second will block on the worker pool
-            dispatch = event_dispatcher(config)
+            dispatch = event_dispatcher()
             dispatch("service", "event", 1)
             dispatch("service", "event", 2)
 
@@ -190,7 +191,8 @@ class TestHeartbeatFailure(object):
             "evt-service-event--service.handle"
         ).message_count == 0
 
-    def test_consumer(self, container_factory, config, tracker, queue_info):
+    @pytest.mark.usefixtures('config')
+    def test_consumer(self, container_factory, tracker, queue_info):
 
         queue = Queue(name="queue")
 
@@ -207,7 +209,7 @@ class TestHeartbeatFailure(object):
                 time.sleep(9)  # >3x heartbeat
                 tracker(payload)
 
-        container = container_factory(Service, config)
+        container = container_factory(Service)
         container.start()
 
         # wait for service to handle two requests
@@ -228,7 +230,8 @@ class TestHeartbeatFailure(object):
         assert tracker.call_count == 2
         assert queue_info(queue.name).message_count == 0
 
-    def test_rpc(self, container_factory, config, tracker, queue_info):
+    @pytest.mark.usefixtures('config')
+    def test_rpc(self, container_factory, tracker, queue_info):
 
         class Service(object):
             name = "service"
@@ -243,7 +246,7 @@ class TestHeartbeatFailure(object):
                 time.sleep(9)  # >2x heartbeat
                 tracker(arg)
 
-        container = container_factory(Service, config)
+        container = container_factory(Service)
         container.start()
 
         # wait for service to handle two requests
@@ -252,7 +255,7 @@ class TestHeartbeatFailure(object):
             container, 'method', callback=lambda *a: next(counter) == 2
         ):
             # make two requests; the second will block on the worker pool
-            with ServiceRpcClient('service', config) as service_rpc:
+            with ServiceRpcClient('service') as service_rpc:
                 service_rpc.method.call_async(1)
                 service_rpc.method.call_async(2)
 

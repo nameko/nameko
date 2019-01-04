@@ -35,7 +35,7 @@ def test_simple_sharing(container_factory):
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 
-    container = container_factory(Service, {})
+    container = container_factory(Service)
     container.start()
 
     assert len(container.extensions) == 3
@@ -63,7 +63,7 @@ def test_custom_sharing_key(container_factory):
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 
-    container = container_factory(Service, {})
+    container = container_factory(Service)
     container.start()
 
     assert len(container.extensions) == 4
@@ -97,7 +97,7 @@ def test_shared_intermediate(container_factory):
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 
-    container = container_factory(Service, {})
+    container = container_factory(Service)
     container.start()
 
     assert len(container.extensions) == 4
@@ -120,8 +120,8 @@ def test_shared_extension_uniqueness(container_factory):
         dep_1 = SimpleDependencyProvider()
         dep_2 = SimpleDependencyProvider()
 
-    c1 = container_factory(Service, {})
-    c2 = container_factory(Service, {})
+    c1 = container_factory(Service)
+    c2 = container_factory(Service)
 
     # extension declarations are identical between containers
     assert c1.service_cls.dep_1.ext == c2.service_cls.dep_1.ext

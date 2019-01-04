@@ -13,10 +13,9 @@ import signal
 import sys
 
 import six
-import yaml
 from eventlet import backdoor
 
-from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko import config
 from nameko.exceptions import CommandError
 from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 from nameko.runners import ServiceRunner
@@ -113,8 +112,8 @@ def setup_backdoor(runner, port):
     return socket, gt
 
 
-def run(services, config, backdoor_port=None):
-    service_runner = ServiceRunner(config)
+def run(services, backdoor_port=None):
+    service_runner = ServiceRunner()
     for service_cls in services:
         service_runner.add_service(service_cls)
 
@@ -162,14 +161,6 @@ def main(args):
     if '.' not in sys.path:
         sys.path.insert(0, '.')
 
-    if args.config:
-        with open(args.config) as fle:
-            config = yaml.load(fle)
-    else:
-        config = {
-            AMQP_URI_CONFIG_KEY: args.broker
-        }
-
     if "LOGGING" in config:
         logging.config.dictConfig(config['LOGGING'])
     else:
@@ -181,4 +172,4 @@ def main(args):
             import_service(path)
         )
 
-    run(services, config, backdoor_port=args.backdoor_port)
+    run(services, backdoor_port=args.backdoor_port)

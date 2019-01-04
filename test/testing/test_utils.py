@@ -58,7 +58,8 @@ def test_wait_for_call():
             pass  # pragma: no cover
 
 
-def test_get_extension(rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_get_extension():
 
     class Service(object):
         name = "service"
@@ -71,7 +72,7 @@ def test_get_extension(rabbit_config):
         def bar(self):
             pass  # pragma: no cover
 
-    container = ServiceContainer(Service, rabbit_config)
+    container = ServiceContainer(Service)
 
     rpc_consumer = get_extension(container, RpcConsumer)
     foo_rpc = get_extension(container, Rpc, method_name="foo")
@@ -81,7 +82,8 @@ def test_get_extension(rabbit_config):
     assert extensions == set([rpc_consumer, foo_rpc, bar_rpc])
 
 
-def test_get_container(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_get_container(runner_factory):
 
     class ServiceX(object):
         name = "service_x"
@@ -89,7 +91,7 @@ def test_get_container(runner_factory, rabbit_config):
     class ServiceY(object):
         name = "service_y"
 
-    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner = runner_factory(ServiceX, ServiceY)
 
     assert get_container(runner, ServiceX).service_cls is ServiceX
     assert get_container(runner, ServiceY).service_cls is ServiceY

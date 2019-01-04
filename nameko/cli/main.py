@@ -3,10 +3,13 @@ from __future__ import print_function
 import argparse
 import os
 import re
+import warnings
 from functools import partial
 
 import yaml
 
+from nameko import config
+from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.exceptions import CommandError, ConfigurationError
 
 from . import commands
@@ -64,9 +67,20 @@ def setup_parser():
 
     for command in commands.commands:
         command_parser = subparsers.add_parser(
-            command.name, description=command.__doc__)
+            command.name, description=command.__doc__,
+            conflict_handler='resolve')
         command.init_parser(command_parser)
         command_parser.set_defaults(main=command.main)
+        command_parser.add_argument(
+            '--config',
+            help='The YAML configuration file')
+        command_parser.add_argument(
+            '-d', '--define',
+            type=parse_config_option, action='append', metavar='KEY=VALUE',
+            help='Set config entry. Overrides value loaded from config file.'
+            ' Can be used multiple times.'
+            ' Example: --define AMQP_URI=pyamqp://guest:guest@localhost')
+
     return parser
 
 
@@ -99,10 +113,41 @@ def setup_yaml_parser():
     yaml.add_implicit_resolver('!env_var', IMPLICIT_ENV_VAR_MATCHER)
 
 
+def load_config(config_path):
+    with open(config_path) as fle:
+        return yaml.load(fle)
+
+
+def parse_config_option(text):
+    if '=' in text:
+        key, value = text.strip().split('=', 1)
+        return key, yaml.load(value)
+    else:
+        return text, True
+
+
+def setup_config(args):
+    setup_yaml_parser()
+    if args.config:
+        config.update(load_config(args.config))
+    if hasattr(args, "broker") and args.broker:
+        warnings.warn(
+            (
+                "--broker option is going to be removed. ",
+                "Use --config or --define and set AMQP_URI instead."
+            ),
+            DeprecationWarning
+        )
+        if AMQP_URI_CONFIG_KEY not in config:
+            config.update({AMQP_URI_CONFIG_KEY: args.broker})
+    if args.define:
+        config.update(args.define)
+
+
 def main():
     parser = setup_parser()
     args = parser.parse_args()
-    setup_yaml_parser()
+    setup_config(args)
     try:
         args.main(args)
     except (CommandError, ConfigurationError) as exc:

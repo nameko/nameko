@@ -198,9 +198,11 @@ class EventHandler(Consumer):
         If neither of these approaches are appropriate, you could read the
         value out of a configuration file ::
 
+            fron nameko import config
+
             @property
             def broadcast_identifier(self):
-                return self.config['SERVICE_IDENTIFIER']  # or similar
+                return config['SERVICE_IDENTIFIER']  # or similar
 
         Broadcast queues are exclusive to ensure that `broadcast_identifier`
         values are unique.

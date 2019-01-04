@@ -129,10 +129,11 @@ class ExampleError(Exception):
     pass
 
 
-def test_entrypoint_hook(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_hook(runner_factory):
 
     service_classes = (Service, ServiceA, ServiceB, ServiceC)
-    runner = runner_factory(rabbit_config, *service_classes)
+    runner = runner_factory(*service_classes)
     runner.start()
 
     service_container = get_container(runner, Service)
@@ -144,10 +145,11 @@ def test_entrypoint_hook(runner_factory, rabbit_config):
     handle_event.assert_called_once_with(event_payload)
 
 
-def test_entrypoint_hook_with_return(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_hook_with_return(runner_factory):
 
     service_classes = (Service, ServiceA, ServiceB, ServiceC)
-    runner = runner_factory(rabbit_config, *service_classes)
+    runner = runner_factory(*service_classes)
     runner.start()
 
     service_container = get_container(runner, Service)
@@ -160,12 +162,12 @@ def test_entrypoint_hook_with_return(runner_factory, rabbit_config):
             broken("value")
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.parametrize("context_data",
                          [{'language': 'en'}, {'language': 'fr'}])
-def test_entrypoint_hook_context_data(container_factory, rabbit_config,
-                                      context_data):
+def test_entrypoint_hook_context_data(container_factory, context_data):
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     method = 'get_language'
@@ -173,10 +175,10 @@ def test_entrypoint_hook_context_data(container_factory, rabbit_config,
         assert get_language() == context_data['language']
 
 
-def test_entrypoint_hook_dependency_not_found(container_factory,
-                                              rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_hook_dependency_not_found(container_factory):
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     method = 'nonexistent_method'
@@ -186,7 +188,8 @@ def test_entrypoint_hook_dependency_not_found(container_factory,
             pass    # pragma: no cover
 
 
-def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_hook_container_dying(container_factory):
     class DependencyError(Exception):
         pass
 
@@ -197,7 +200,7 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
     class BadService(Service):
         bad = BadDependency()
 
-    container = container_factory(BadService, rabbit_config)
+    container = container_factory(BadService)
     container.start()
 
     with pytest.raises(DependencyError):
@@ -237,7 +240,8 @@ def test_worker_factory():
         worker_factory(Service, nonexist=object())
 
 
-def test_replace_dependencies_kwargs(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_replace_dependencies_kwargs(container_factory):
 
     class Service(object):
         name = "service"
@@ -256,7 +260,7 @@ def test_replace_dependencies_kwargs(container_factory, rabbit_config):
         def remote_method(self, arg):
             self.processed.append(arg)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
 
     # customise a single dependency
     fake_foo_client = FakeDependency()
@@ -276,13 +280,14 @@ def test_replace_dependencies_kwargs(container_factory, rabbit_config):
 
     # verify that the fake dependency collected calls
     msg = "msg"
-    with ServiceRpcClient("service", rabbit_config) as service_client:
+    with ServiceRpcClient("service") as service_client:
         service_client.method(msg)
 
     assert fake_foo_client.processed == [msg]
 
 
-def test_replace_dependencies_args(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_replace_dependencies_args(container_factory):
 
     class Service(object):
         name = "service"
@@ -294,7 +299,7 @@ def test_replace_dependencies_args(container_factory, rabbit_config):
         def method(self, arg):
             self.foo_client.remote_method(arg)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
 
     # replace a single dependency
     foo_client = replace_dependencies(container, "foo_client")
@@ -311,14 +316,14 @@ def test_replace_dependencies_args(container_factory, rabbit_config):
 
     # verify that the mock dependency collects calls
     msg = "msg"
-    with ServiceRpcClient("service", rabbit_config) as service_client:
+    with ServiceRpcClient("service") as service_client:
         service_client.method(msg)
 
     foo_client.remote_method.assert_called_once_with(msg)
 
 
-def test_replace_dependencies_args_and_kwargs(container_factory,
-                                              rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_replace_dependencies_args_and_kwargs(container_factory):
     class Service(object):
         name = "service"
         foo_client = ServiceRpc("foo_service")
@@ -338,7 +343,7 @@ def test_replace_dependencies_args_and_kwargs(container_factory,
         def remote_method(self, arg):
             self.processed.append(arg)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
 
     fake_foo_client = FakeDependency()
     mock_bar_client, mock_baz_client = replace_dependencies(
@@ -353,7 +358,7 @@ def test_replace_dependencies_args_and_kwargs(container_factory,
 
     # verify that the fake dependency collected calls
     msg = "msg"
-    with ServiceRpcClient("service", rabbit_config) as service_client:
+    with ServiceRpcClient("service") as service_client:
         service_client.method(msg)
 
     assert fake_foo_client.processed == [msg]
@@ -361,15 +366,17 @@ def test_replace_dependencies_args_and_kwargs(container_factory,
     assert mock_baz_client.baz.call_count == 1
 
 
-def test_replace_dependencies_in_both_args_and_kwargs_error(container_factory,
-                                                            rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_replace_dependencies_in_both_args_and_kwargs_error(
+    container_factory
+):
     class Service(object):
         name = "service"
         foo_client = ServiceRpc("foo_service")
         bar_client = ServiceRpc("bar_service")
         baz_client = ServiceRpc("baz_service")
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
 
     with pytest.raises(RuntimeError) as exc:
         replace_dependencies(
@@ -378,7 +385,8 @@ def test_replace_dependencies_in_both_args_and_kwargs_error(container_factory,
     assert "Cannot replace the same dependency" in str(exc)
 
 
-def test_replace_non_dependency(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_replace_non_dependency(container_factory):
 
     class Service(object):
         name = "service"
@@ -388,7 +396,7 @@ def test_replace_non_dependency(container_factory, rabbit_config):
         def method(self):
             pass  # pragma: no cover
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
 
     # error if dependency doesn't exit
     with pytest.raises(ExtensionNotFound):
@@ -399,21 +407,22 @@ def test_replace_non_dependency(container_factory, rabbit_config):
         replace_dependencies(container, "method")
 
 
-def test_replace_dependencies_container_already_started(container_factory,
-                                                        rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_replace_dependencies_container_already_started(container_factory):
 
     class Service(object):
         name = "service"
         client = ServiceRpc("foo_service")
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     with pytest.raises(RuntimeError):
         replace_dependencies(container, "client")
 
 
-def test_restrict_entrypoints(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_restrict_entrypoints(container_factory):
 
     method_called = Mock()
 
@@ -429,21 +438,21 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
         def handler_two(self, msg):
             method_called(msg)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
 
     # disable the entrypoints on handler_one
     restrict_entrypoints(container, "handler_two")
     container.start()
 
     # verify the rpc entrypoint on handler_one is disabled
-    with ServiceRpcClient("service", rabbit_config) as service_client:
+    with ServiceRpcClient("service") as service_client:
         with pytest.raises(MethodNotFound) as exc_info:
             service_client.handler_one("msg")
         assert str(exc_info.value) == "handler_one"
 
     # dispatch an event to handler_two
     msg = "msg"
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     with entrypoint_waiter(container, 'handler_two'):
         dispatch('srcservice', 'eventtype', msg)
@@ -453,7 +462,8 @@ def test_restrict_entrypoints(container_factory, rabbit_config):
     method_called.assert_called_once_with(msg)
 
 
-def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_restrict_nonexistent_entrypoint(container_factory):
 
     class Service(object):
         name = "service"
@@ -462,14 +472,14 @@ def test_restrict_nonexistent_entrypoint(container_factory, rabbit_config):
         def method(self, arg):
             pass  # pragma: no cover
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
 
     with pytest.raises(ExtensionNotFound):
         restrict_entrypoints(container, "nonexist")
 
 
-def test_restrict_entrypoint_container_already_started(container_factory,
-                                                       rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_restrict_entrypoint_container_already_started(container_factory):
 
     class Service(object):
         name = "service"
@@ -478,23 +488,25 @@ def test_restrict_entrypoint_container_already_started(container_factory,
         def method(self, arg):
             pass  # pragma: no cover
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     with pytest.raises(RuntimeError):
         restrict_entrypoints(container, "method")
 
 
-def test_entrypoint_waiter(container_factory, rabbit_config):
-    container = container_factory(Service, rabbit_config)
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_waiter(container_factory):
+    container = container_factory(Service)
     container.start()
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     with entrypoint_waiter(container, 'handle'):
         dispatch('srcservice', 'eventtype', "")
 
 
-def test_entrypoint_waiter_result(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_waiter_result(container_factory):
 
     class Service(object):
         name = "service"
@@ -503,10 +515,10 @@ def test_entrypoint_waiter_result(container_factory, rabbit_config):
         def handle_event(self, msg):
             return msg.upper()
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     with entrypoint_waiter(container, 'handle_event') as result:
         dispatch('srcservice', 'eventtype', "msg")
 
@@ -514,7 +526,8 @@ def test_entrypoint_waiter_result(container_factory, rabbit_config):
     assert res == "MSG"
 
 
-def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_waiter_with_callback(container_factory):
 
     class Service(object):
         name = "service"
@@ -523,7 +536,7 @@ def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
         def handle_event(self, msg):
             return msg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     results = []
@@ -532,7 +545,7 @@ def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
         results.append((res, exc_info))
         return len(results) == 2
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     with entrypoint_waiter(container, 'handle_event', callback=cb):
         dispatch('srcservice', 'eventtype', "msg1")
         dispatch('srcservice', 'eventtype', "msg2")
@@ -540,8 +553,9 @@ def test_entrypoint_waiter_with_callback(container_factory, rabbit_config):
     assert results == [("msg1", None), ("msg2", None)]
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_entrypoint_waiter_wait_for_specific_result(
-    container_factory, rabbit_config, spawn_thread
+    container_factory, spawn_thread
 ):
 
     class Service(object):
@@ -551,7 +565,7 @@ def test_entrypoint_waiter_wait_for_specific_result(
         def handle_event(self, msg):
             return msg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     target = 5
@@ -560,7 +574,7 @@ def test_entrypoint_waiter_wait_for_specific_result(
         return res == target
 
     def increment_forever():
-        dispatch = event_dispatcher(rabbit_config)
+        dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
             time.sleep()  # force yield
@@ -571,8 +585,9 @@ def test_entrypoint_waiter_wait_for_specific_result(
     assert result.get() == target
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_entrypoint_waiter_wait_until_called_with_argument(
-    container_factory, rabbit_config, spawn_thread
+    container_factory, spawn_thread
 ):
 
     class Service(object):
@@ -582,7 +597,7 @@ def test_entrypoint_waiter_wait_until_called_with_argument(
         def handle_event(self, msg):
             return msg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     target = 5
@@ -591,7 +606,7 @@ def test_entrypoint_waiter_wait_until_called_with_argument(
         return worker_ctx.args == (target,)
 
     def increment_forever():
-        dispatch = event_dispatcher(rabbit_config)
+        dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
             time.sleep()  # force yield
@@ -602,8 +617,9 @@ def test_entrypoint_waiter_wait_until_called_with_argument(
     assert result.get() == target
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_entrypoint_waiter_wait_until_raises(
-    container_factory, rabbit_config, spawn_thread
+    container_factory, spawn_thread
 ):
     threshold = 5
 
@@ -619,14 +635,14 @@ def test_entrypoint_waiter_wait_until_raises(
                 raise TooMuch(msg)
             return msg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     def cb(worker_ctx, res, exc_info):
         return exc_info is not None
 
     def increment_forever():
-        dispatch = event_dispatcher(rabbit_config)
+        dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
             time.sleep()  # force yield
@@ -638,8 +654,9 @@ def test_entrypoint_waiter_wait_until_raises(
         result.get()
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_entrypoint_waiter_wait_until_stops_raising(
-    container_factory, rabbit_config, spawn_thread
+    container_factory, spawn_thread
 ):
     threshold = 5
 
@@ -655,14 +672,14 @@ def test_entrypoint_waiter_wait_until_stops_raising(
                 raise NotEnough(msg)
             return msg
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     def cb(worker_ctx, res, exc_info):
         return exc_info is None
 
     def increment_forever():
-        dispatch = event_dispatcher(rabbit_config)
+        dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
             time.sleep()  # force yield
@@ -673,8 +690,9 @@ def test_entrypoint_waiter_wait_until_stops_raising(
     assert result.get() == threshold
 
 
-def test_entrypoint_waiter_timeout(container_factory, rabbit_config):
-    container = container_factory(Service, rabbit_config)
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_waiter_timeout(container_factory):
+    container = container_factory(Service)
     container.start()
 
     with pytest.raises(entrypoint_waiter.Timeout) as exc_info:
@@ -684,8 +702,9 @@ def test_entrypoint_waiter_timeout(container_factory, rabbit_config):
         "Timeout on service.handle after 0.01 seconds")
 
 
-def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
-    container = container_factory(Service, rabbit_config)
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_waiter_bad_entrypoint(container_factory):
+    container = container_factory(Service)
 
     with pytest.raises(RuntimeError) as exc:
         with entrypoint_waiter(container, "unknown"):
@@ -693,7 +712,8 @@ def test_entrypoint_waiter_bad_entrypoint(container_factory, rabbit_config):
     assert 'has no entrypoint' in str(exc)
 
 
-def test_entrypoint_waiter_nested(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_waiter_nested(container_factory):
 
     class Service(object):
         name = "service"
@@ -706,10 +726,10 @@ def test_entrypoint_waiter_nested(container_factory, rabbit_config):
         def handle_event2(self, msg):
             handle_event(2)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     with entrypoint_waiter(container, 'handle_event1'):
         with entrypoint_waiter(container, 'handle_event2'):
             dispatch('srcservice', 'eventtype1', "")
@@ -719,7 +739,8 @@ def test_entrypoint_waiter_nested(container_factory, rabbit_config):
     assert call(2) in handle_event.call_args_list
 
 
-def test_entrypoint_waiter_duplicate(container_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_entrypoint_waiter_duplicate(container_factory):
 
     class Service(object):
         name = "service"
@@ -728,10 +749,10 @@ def test_entrypoint_waiter_duplicate(container_factory, rabbit_config):
         def handle_event(self, msg):
             handle_event(msg)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     with entrypoint_waiter(container, 'handle_event'):
         with entrypoint_waiter(container, 'handle_event'):
             dispatch('srcservice', 'eventtype', "msg")
@@ -739,8 +760,9 @@ def test_entrypoint_waiter_duplicate(container_factory, rabbit_config):
     assert handle_event.call_args_list == [call("msg")]
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_entrypoint_waiter_result_teardown_race(
-    container_factory, rabbit_config, counter
+    container_factory, counter
 ):
     tracker = Mock()
 
@@ -761,13 +783,13 @@ def test_entrypoint_waiter_result_teardown_race(
         def handle(self, msg):
             tracker.handle(msg)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     def wait_for_two_calls(worker_ctx, res, exc_info):
         return counter.count() > 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     with entrypoint_waiter(container, 'handle', callback=wait_for_two_calls):
 
         # dispatch the first message

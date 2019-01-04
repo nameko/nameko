@@ -3,8 +3,7 @@ import os
 import sys
 from types import ModuleType
 
-import yaml
-
+from nameko import config
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcClient
@@ -48,7 +47,7 @@ class ShellRunner(object):
         self.plain()
 
 
-def make_nameko_helper(config):
+def make_nameko_helper():
     """Create a fake module that provides some convenient access to nameko
     standalone functionality for interactive shell usage.
     """
@@ -62,9 +61,9 @@ Usage:
 
     >>> n.dispatch_event('service', 'event_type', 'event_data')
 """
-    client = ClusterRpcClient(config)
+    client = ClusterRpcClient()
     module.rpc = client.start()
-    module.dispatch_event = event_dispatcher(config)
+    module.dispatch_event = event_dispatcher()
     module.config = config
     module.disconnect = client.stop
     return module
@@ -72,23 +71,14 @@ Usage:
 
 def main(args):
 
-    if args.config:
-        with open(args.config) as fle:
-            config = yaml.load(fle)
-        broker_from = " (from --config)"
-    else:
-        config = {AMQP_URI_CONFIG_KEY: args.broker}
-        broker_from = ""
-
-    banner = 'Nameko Python %s shell on %s\nBroker: %s%s' % (
+    banner = 'Nameko Python %s shell on %s\nBroker: %s' % (
         sys.version,
         sys.platform,
         config[AMQP_URI_CONFIG_KEY],
-        broker_from
     )
 
     ctx = {}
-    ctx['n'] = make_nameko_helper(config)
+    ctx['n'] = make_nameko_helper()
 
     runner = ShellRunner(banner, ctx)
     runner.start_shell(name=args.interface)

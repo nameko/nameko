@@ -10,6 +10,7 @@ from eventlet.event import Event
 from mock import ANY, Mock, patch
 from six.moves import queue
 
+from nameko import config
 from nameko.amqp.consume import Consumer
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -28,10 +29,9 @@ from nameko.utils.retry import retry
 EVENTS_TIMEOUT = 5
 
 
-def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
+def test_event_dispatcher(mock_container, mock_producer):
 
     container = mock_container
-    container.config = rabbit_config
     container.service_name = "srcservice"
 
     service = Mock()
@@ -71,6 +71,7 @@ def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
     assert kwargs['exchange'].name == 'srcservice.events'
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_event_handler(mock_container):
 
     container = mock_container
@@ -149,6 +150,7 @@ def test_event_handler(mock_container):
     assert event_handler.queue.auto_delete is False
 
 
+@pytest.mark.usefixtures("rabbit_config")
 class TestReliableDeliveryEventHandlerConfigurationError():
 
     def test_raises_with_default_broadcast_identity(
@@ -195,8 +197,9 @@ def tracker():
     return Mock(events=[], workers=[])
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_service_pooled_events(
-    container_factory, rabbit_config, queue_info, tracker
+    container_factory, queue_info, tracker
 ):
 
     class Base(object):
@@ -214,7 +217,7 @@ def test_service_pooled_events(
         name = "bar"
 
     for service_cls in (FooService, FooService, BarService):
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
 
     # foo service pool queue should have two consumers
@@ -225,7 +228,7 @@ def test_service_pooled_events(
     bar_queue_name = "evt-srcservice-eventtype--bar.handle"
     assert queue_info(bar_queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     count = itertools.count(start=1)
     with wait_for_call(
@@ -244,8 +247,9 @@ def test_service_pooled_events(
     }
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_service_pooled_events_multiple_handlers(
-    container_factory, rabbit_config, queue_info, tracker
+    container_factory, queue_info, tracker
 ):
 
     class Service(object):
@@ -263,7 +267,7 @@ def test_service_pooled_events_multiple_handlers(
         def handle_2(self, evt):
             self.handle(evt)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     # we should have two queues with a consumer each
@@ -272,7 +276,7 @@ def test_service_pooled_events_multiple_handlers(
     queue_2_name = "evt-srcservice-eventtype--double.handle_2"
     assert queue_info(queue_2_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     with entrypoint_waiter(container, 'handle_1'):
         with entrypoint_waiter(container, 'handle_2'):
@@ -286,9 +290,8 @@ def test_service_pooled_events_multiple_handlers(
     assert {type(worker) for worker in tracker.workers} == {Service}
 
 
-def test_singleton_events(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_singleton_events(container_factory, queue_info, tracker):
 
     class Base(object):
 
@@ -305,13 +308,13 @@ def test_singleton_events(
         name = "bar"
 
     for service_cls in (FooService, FooService, BarService):
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
 
     # the singleton queue should have three consumers
     assert queue_info("evt-srcservice-eventtype").consumer_count == 3
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     count = itertools.count(start=1)
     with wait_for_call(
@@ -329,9 +332,12 @@ def test_singleton_events(
     )
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_broadcast_events(
-    container_factory, rabbit_config, queue_info, tracker, rabbit_manager
+    container_factory, get_vhost, queue_info, tracker, rabbit_manager
 ):
+
+    vhost = get_vhost(config['AMQP_URI'])
 
     class Base(object):
 
@@ -351,10 +357,8 @@ def test_broadcast_events(
         name = "bar"
 
     for service_cls in (FooService, FooService, BarService):
-        container = container_factory(service_cls, rabbit_config)
+        container = container_factory(service_cls)
         container.start()
-
-    vhost = rabbit_config['vhost']
 
     # each broadcast queue should have one consumer
     queues = rabbit_manager.get_queues(vhost)
@@ -370,7 +374,7 @@ def test_broadcast_events(
         queue = rabbit_manager.get_queue(vhost, name)
         assert len(queue['consumer_details']) == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     count = itertools.count(start=1)
     with wait_for_call(
@@ -389,9 +393,8 @@ def test_broadcast_events(
     assert worker_counts[BarService] == 1
 
 
-def test_requeue_on_error(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_requeue_on_error(container_factory, queue_info, tracker):
 
     class Service(object):
         name = "requeue"
@@ -403,14 +406,14 @@ def test_requeue_on_error(
             tracker.workers.append(self)
             raise Exception("Error")
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     # the queue should been created and have one consumer
     queue_name = "evt-srcservice-eventtype--requeue.handle"
     assert queue_info(queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     counter = itertools.count(start=1)
     with entrypoint_waiter(
@@ -426,9 +429,8 @@ def test_requeue_on_error(
     assert len(tracker.workers) > 1
 
 
-def test_reliable_delivery(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_reliable_delivery(container_factory, queue_info, tracker):
     """ Events sent to queues declared by ``reliable_delivery`` handlers
     should be received even if no service was listening when they were
     dispatched.
@@ -442,14 +444,14 @@ def test_reliable_delivery(
             tracker.events.append(evt)
             tracker.workers.append(self)
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
     # test queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--reliable.handle"
     assert queue_info(queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     # dispatch an event
     with entrypoint_waiter(container, 'handle'):
@@ -472,7 +474,7 @@ def test_reliable_delivery(
     assert queue_info(queue_name).message_count == 1
 
     # start another container
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     with entrypoint_waiter(container, 'handle'):
         container.start()
 
@@ -480,9 +482,8 @@ def test_reliable_delivery(
     assert tracker.events == ["msg_1", "msg_2"]
 
 
-def test_unreliable_delivery(
-    container_factory, rabbit_config, queue_info, tracker
-):
+@pytest.mark.usefixtures("rabbit_config")
+def test_unreliable_delivery(container_factory, queue_info, tracker):
     """ Events sent to queues declared by non- ``reliable_delivery`` handlers
     should be lost if no service was listening when they were dispatched.
     """
@@ -496,7 +497,7 @@ def test_unreliable_delivery(
             tracker.events.append(evt)
             tracker.workers.append(self)
 
-    unreliable_container = container_factory(UnreliableService, rabbit_config)
+    unreliable_container = container_factory(UnreliableService)
     unreliable_container.start()
 
     class ReliableService(object):
@@ -508,14 +509,14 @@ def test_unreliable_delivery(
             tracker.events.append(evt)
             tracker.workers.append(self)
 
-    reliable_container = container_factory(ReliableService, rabbit_config)
+    reliable_container = container_factory(ReliableService)
     reliable_container.start()
 
     # test unreliable queue created, with one consumer
     queue_name = "evt-srcservice-eventtype--unreliable.handle"
     assert queue_info(queue_name).consumer_count == 1
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
 
     # dispatch an event
     count = itertools.count(start=1)
@@ -548,7 +549,7 @@ def test_unreliable_delivery(
         dispatch("srcservice", "eventtype", "msg_2")
 
     # start another container
-    unreliable_container = container_factory(UnreliableService, rabbit_config)
+    unreliable_container = container_factory(UnreliableService)
     unreliable_container.start()
 
     # verify the queue is recreated, with one consumer
@@ -569,14 +570,14 @@ def test_unreliable_delivery(
     assert worker_counts[UnreliableService] == 2
 
 
-def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
+@pytest.mark.usefixtures("rabbit_config")
+def test_dispatch_to_rabbit(rabbit_manager, get_vhost, mock_container):
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
 
     container = mock_container
     container.shared_extensions = {}
     container.service_name = "srcservice"
-    container.config = rabbit_config
 
     service = Mock()
     worker_ctx = WorkerContext(container, service, DummyProvider())
@@ -594,7 +595,11 @@ def test_dispatch_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     # manually add a queue to capture the events
     rabbit_manager.create_queue(vhost, "event-sink", auto_delete=True)
     rabbit_manager.create_queue_binding(
-        vhost, "srcservice.events", "event-sink", routing_key="eventtype")
+        vhost,
+        "srcservice.events",
+        "event-sink",
+        routing_key="eventtype"
+    )
 
     service.dispatch = dispatcher.get_dependency(worker_ctx)
     service.dispatch("eventtype", "msg")
@@ -609,8 +614,8 @@ class TestHandlerConfigurability(object):
     Test and demonstrate configuration options for the EventHandler
     """
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_heartbeat(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         value = 999
@@ -622,8 +627,8 @@ class TestHandlerConfigurability(object):
 
         assert handler.consumer.connection.heartbeat == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_prefetch_count(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         value = 999
@@ -635,8 +640,8 @@ class TestHandlerConfigurability(object):
 
         assert handler.consumer.prefetch_count == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_accept(self, mock_container):
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         value = ['yaml', 'json']
@@ -666,6 +671,7 @@ class TestDispatcherConfigurability(object):
         producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
         return producer
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter", [
         # delivery options
         'delivery_mode', 'mandatory', 'priority', 'expiration',
@@ -681,7 +687,6 @@ class TestDispatcherConfigurability(object):
     ):
         """ Verify that most parameters can be specified at instantiation time.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         worker_ctx = Mock()
@@ -699,14 +704,12 @@ class TestDispatcherConfigurability(object):
         dispatch("event-type", "event-data")
         assert producer.publish.call_args[1][parameter] == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.usefixtures('predictable_call_ids')
     def test_headers(self, mock_container, producer):
         """ Headers can be provided at instantiation time, and are merged with
         Nameko headers.
         """
-        mock_container.config = {
-            'AMQP_URI': 'memory://localhost'
-        }
         mock_container.service_name = "service"
 
         # use a real worker context so nameko headers are generated
@@ -740,13 +743,13 @@ class TestDispatcherConfigurability(object):
             nameko_headers, value
         )
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_restricted_parameters(
         self, mock_container, producer
     ):
         """ Verify that providing routing parameters at instantiation
         time has no effect.
         """
-        mock_container.config = {'AMQP_URI': 'memory://localhost'}
         mock_container.service_name = "service"
 
         worker_ctx = Mock()
@@ -776,11 +779,9 @@ class TestContainerBeingKilled(object):
 
     @pytest.fixture
     def dispatch(self, rabbit_config):
-        return event_dispatcher(rabbit_config)
+        return event_dispatcher()
 
-    def test_container_killed(
-        self, container_factory, rabbit_config, dispatch
-    ):
+    def test_container_killed(self, container_factory, dispatch):
         class Service(object):
             name = "service"
 
@@ -788,7 +789,7 @@ class TestContainerBeingKilled(object):
             def method(self, event_data):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         # check message is requeued if container throws ContainerBeingKilled
@@ -802,16 +803,17 @@ class TestContainerBeingKilled(object):
 class TestSSL(object):
 
     @pytest.fixture(params=[True, False])
-    def rabbit_ssl_config(self, request, rabbit_ssl_config):
+    def rabbit_ssl_options(self, request, rabbit_ssl_options):
         verify_certs = request.param
         if verify_certs is False:
             # remove certificate paths from config
-            rabbit_ssl_config['AMQP_SSL'] = True
-        return rabbit_ssl_config
+            options = True
+        else:
+            options = rabbit_ssl_options
+        return options
 
-    def test_event_handler_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_event_handler_over_ssl(self, container_factory, rabbit_uri):
         class Service(object):
             name = "service"
 
@@ -819,22 +821,23 @@ class TestSSL(object):
             def echo(self, event_data):
                 return event_data
 
-        container = container_factory(Service, rabbit_ssl_config)
+        container = container_factory(Service)
         container.start()
 
-        dispatch = event_dispatcher(rabbit_config)
+        dispatch = event_dispatcher(uri=rabbit_uri, ssl=None)
 
         with entrypoint_waiter(container, 'echo') as result:
             dispatch("service", "event", "payload")
         assert result.get() == "payload"
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_event_dispatcher_over_ssl(
-        self, container_factory, rabbit_ssl_config, rabbit_config
+        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
     ):
         class Dispatcher(object):
             name = "dispatch"
 
-            dispatch = EventDispatcher()
+            dispatch = EventDispatcher(uri=rabbit_ssl_uri, ssl=rabbit_ssl_options)
 
             @dummy
             def method(self, payload):
@@ -847,10 +850,10 @@ class TestSSL(object):
             def echo(self, payload):
                 return payload
 
-        dispatcher = container_factory(Dispatcher, rabbit_ssl_config)
+        dispatcher = container_factory(Dispatcher)
         dispatcher.start()
 
-        handler = container_factory(Handler, rabbit_config)
+        handler = container_factory(Handler)
         handler.start()
 
         with entrypoint_waiter(handler, 'echo') as result:
@@ -859,7 +862,8 @@ class TestSSL(object):
         assert result.get() == "payload"
 
 
-def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
+@pytest.mark.usefixtures("rabbit_config")
+def test_stop_with_active_worker(container_factory, queue_info):
     """ Test behaviour when we stop a container with an active worker.
 
     Expect the consumer to stop and the message be requeued, but the container
@@ -881,10 +885,10 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
         def method(self, event_data):
             block.wait()
 
-    container = container_factory(Service, rabbit_config)
+    container = container_factory(Service)
     container.start()
 
-    dispatch = event_dispatcher(rabbit_config)
+    dispatch = event_dispatcher()
     dispatch("service", "event", "payload")
 
     gt = eventlet.spawn(container.stop)
@@ -907,8 +911,9 @@ def test_stop_with_active_worker(container_factory, rabbit_config, queue_info):
 
 class TestEntrypointArguments:
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_expected_exceptions_and_sensitive_arguments(
-        self, container_factory, rabbit_config
+        self, container_factory
     ):
 
         class Boom(Exception):
@@ -924,7 +929,7 @@ class TestEntrypointArguments:
             def method(self, event_data):
                 pass  # pragma: no cover
 
-        container = container_factory(Service, rabbit_config)
+        container = container_factory(Service)
         container.start()
 
         entrypoint = get_extension(container, EventHandler)

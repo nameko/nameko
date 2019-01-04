@@ -25,7 +25,7 @@ class TestDecorator(object):
             def method(self, a="a", b="b"):
                 tracker(a, b)
 
-        container = container_factory(Service, config={})
+        container = container_factory(Service)
         container.start()
         container.stop()  # graceful, waits for workers
 
@@ -40,7 +40,7 @@ class TestDecorator(object):
             def method(self, a, b="b"):
                 tracker(a, b)
 
-        container = container_factory(Service, config={})
+        container = container_factory(Service)
         container.start()
         container.stop()  # graceful, waits for workers
 
@@ -55,7 +55,7 @@ class TestDecorator(object):
             def method(self, a="a", b="b"):
                 tracker(a, b)
 
-        container = container_factory(Service, config={})
+        container = container_factory(Service)
         container.start()
         container.stop()  # graceful, waits for workers
 
@@ -101,7 +101,7 @@ class TestExpectedExceptions(object):
             def unexpected(self):
                 raise CustomException()
 
-        container = container_factory(Service, {})
+        container = container_factory(Service)
         container.start()
 
         with entrypoint_hook(container, 'expected') as hook:
@@ -143,7 +143,7 @@ class TestSensitiveArguments(object):
             def method(self, a, b, c):
                 return [a, b, c]
 
-        container = container_factory(Service, {})
+        container = container_factory(Service)
         entrypoint = get_extension(container, Entrypoint)
 
         assert entrypoint.sensitive_arguments == ("a", "b.x[0]", "b.x[2]")

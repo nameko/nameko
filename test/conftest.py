@@ -13,6 +13,7 @@ from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
+from nameko import config, update_config
 from nameko.amqp.publish import get_connection
 from nameko.testing.utils import find_free_port
 from nameko.utils.retry import retry
@@ -31,6 +32,12 @@ def pytest_configure(config):
         "markers",
         "behavioural: distinguish behavioural tests"
     )
+
+
+@pytest.yield_fixture
+def memory_rabbit_config(rabbit_config):
+    with update_config({'AMQP_URI': 'memory://localhost'}):
+        yield
 
 
 @pytest.yield_fixture
@@ -84,7 +91,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     """
 
     # extract rabbit connection details
-    amqp_uri = rabbit_config['AMQP_URI']
+    amqp_uri = config['AMQP_URI']
     uri = urlparse(amqp_uri)
     rabbit_port = uri.port
 
@@ -194,3 +201,12 @@ def queue_info(amqp_uri):
             queue = queue.bind(conn)
             return queue.queue_declare(passive=True)
     return get_queue_info
+
+
+@pytest.fixture
+def get_vhost():
+    def parse(uri):
+        from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+        uri_parts = urlparse(uri)
+        return uri_parts.path[1:]
+    return parse

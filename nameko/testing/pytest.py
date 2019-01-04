@@ -2,6 +2,8 @@ from __future__ import absolute_import
 
 import pytest
 
+from nameko import config, setup_config, update_config
+
 
 # all imports are inline to make sure they happen after eventlet.monkey_patch
 # which is called in pytest_load_initial_conftests
@@ -92,26 +94,24 @@ def always_warn_for_deprecation():
     warnings.simplefilter('always', DeprecationWarning)
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def empty_config():
-    return {}
+    with setup_config({}):
+        yield
 
 
-@pytest.fixture
-def mock_container(request, empty_config):
+@pytest.yield_fixture
+def mock_container(request):
     from mock import create_autospec
-    from nameko.constants import (
-        AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
-    )
+    from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
     from nameko.containers import ServiceContainer
 
     container = create_autospec(ServiceContainer)
-    container.config = empty_config
-    container.config[AMQP_URI_CONFIG_KEY] = 'memory://localhost'
-    container.config[SERIALIZER_CONFIG_KEY] = DEFAULT_SERIALIZER
-    container.serializer = container.config[SERIALIZER_CONFIG_KEY]
-    container.accept = [DEFAULT_SERIALIZER]
-    return container
+
+    with update_config({SERIALIZER_CONFIG_KEY: DEFAULT_SERIALIZER}):
+        container.serializer = config[SERIALIZER_CONFIG_KEY]
+        container.accept = [DEFAULT_SERIALIZER]
+        yield container
 
 
 @pytest.fixture(scope='session')
@@ -127,12 +127,10 @@ def vhost_pipeline(request, rabbit_manager):
     from collections import Iterable
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
-    import socket
     import string
     from kombu.pools import connections
     from nameko.testing.utils import ResourcePipeline
     from nameko.utils.retry import retry
-    from requests.exceptions import HTTPError
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
@@ -148,7 +146,7 @@ def vhost_pipeline(request, rabbit_manager):
         )
         return vhost
 
-    @retry(for_exceptions=(HTTPError, socket.timeout), delay=1, max_attempts=9)
+    @retry(for_exceptions=Exception, delay=1, max_attempts=9)
     def destroy(vhost):
         rabbit_manager.delete_vhost(vhost)
 
@@ -166,13 +164,12 @@ def vhost_pipeline(request, rabbit_manager):
         yield vhosts
 
 
-@pytest.yield_fixture()
-def rabbit_config(request, vhost_pipeline, rabbit_manager):
+@pytest.yield_fixture
+def rabbit_uri(request, vhost_pipeline):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
-    username = uri_parts.username
 
     with vhost_pipeline.get() as vhost:
 
@@ -180,45 +177,54 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
             uri=uri_parts, vhost=vhost
         )
 
-        conf = {
-            'AMQP_URI': amqp_uri,
-            'username': username,
-            'vhost': vhost
-        }
-
-        yield conf
+        yield amqp_uri
 
 
-@pytest.fixture()
-def rabbit_ssl_config(request, rabbit_config):
-    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+@pytest.yield_fixture
+def rabbit_config(rabbit_uri):
+    with update_config({'AMQP_URI': rabbit_uri}):
+        yield
 
+
+@pytest.fixture
+def rabbit_ssl_options(request):
     ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
     ssl_options = {key: value for key, value in ssl_options} or True
+    return ssl_options
+
+
+@pytest.fixture
+def rabbit_ssl_uri(request, rabbit_uri):
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
-    uri_parts = urlparse(rabbit_config['AMQP_URI'])
+    uri_parts = urlparse(rabbit_uri)
     amqp_ssl_uri = uri_parts._replace(
         netloc=uri_parts.netloc.replace(
             str(uri_parts.port),
             str(amqp_ssl_port))
     ).geturl()
 
+    return amqp_ssl_uri
+
+
+@pytest.yield_fixture()
+def rabbit_ssl_config(request, rabbit_ssl_uri, rabbit_ssl_options):
+
     conf = {
-        'AMQP_URI': amqp_ssl_uri,
-        'username': rabbit_config['username'],
-        'vhost': rabbit_config['vhost'],
-        'AMQP_SSL': ssl_options,
+        'AMQP_URI': rabbit_ssl_uri,
+        'AMQP_SSL': rabbit_ssl_options,
     }
 
-    return conf
+    with update_config(conf):
+        yield
 
 
 @pytest.fixture
 def amqp_uri(rabbit_config):
     from nameko.constants import AMQP_URI_CONFIG_KEY
 
-    return rabbit_config[AMQP_URI_CONFIG_KEY]
+    return config[AMQP_URI_CONFIG_KEY]
 
 
 @pytest.fixture
@@ -251,10 +257,10 @@ def container_factory():
 
     all_containers = []
 
-    def make_container(service_cls, config):
+    def make_container(service_cls):
 
-        container_cls = get_container_cls(config)
-        container = container_cls(service_cls, config)
+        container_cls = get_container_cls()
+        container = container_cls(service_cls)
         all_containers.append(container)
         return container
 
@@ -272,8 +278,8 @@ def runner_factory():
 
     all_runners = []
 
-    def make_runner(config, *service_classes):
-        runner = ServiceRunner(config)
+    def make_runner(*service_classes):
+        runner = ServiceRunner()
         for service_cls in service_classes:
             runner.add_service(service_cls)
         all_runners.append(runner)
@@ -300,23 +306,22 @@ def predictable_call_ids(request):
             yield call_uuid.uuid4
 
 
-@pytest.fixture()
-def web_config(empty_config):
+@pytest.yield_fixture
+def web_config():
     from nameko.constants import WEB_SERVER_CONFIG_KEY
     from nameko.testing.utils import find_free_port
 
     port = find_free_port()
 
-    cfg = empty_config
-    cfg[WEB_SERVER_CONFIG_KEY] = "127.0.0.1:{}".format(port)
-    return cfg
+    with update_config({WEB_SERVER_CONFIG_KEY: "127.0.0.1:{}".format(port)}):
+        yield
 
 
 @pytest.fixture()
 def web_config_port(web_config):
     from nameko.constants import WEB_SERVER_CONFIG_KEY
     from nameko.web.server import parse_address
-    return parse_address(web_config[WEB_SERVER_CONFIG_KEY]).port
+    return parse_address(config[WEB_SERVER_CONFIG_KEY]).port
 
 
 @pytest.yield_fixture()

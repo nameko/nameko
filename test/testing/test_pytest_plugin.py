@@ -4,6 +4,7 @@ import time
 import pytest
 from six.moves import queue
 
+from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
 from nameko.rpc import ServiceRpc, rpc
@@ -80,7 +81,12 @@ class TestOptions(object):
             import re
             import ssl
 
-            def test_ssl_options(request, rabbit_ssl_config):
+            import pytest
+
+            from nameko import config
+
+            @pytest.mark.usefixtures("rabbit_ssl_config")
+            def test_ssl_options(request):
                 assert request.config.getoption('AMQP_SSL_OPTIONS') == [
                     # defaults
                     ('ca_certs', 'certs/cacert.pem'),
@@ -109,7 +115,7 @@ class TestOptions(object):
                     'lookup': ssl.CERT_REQUIRED,
                     'keyonly': True,
                 }
-                assert rabbit_ssl_config['AMQP_SSL'] == expected_ssl_options
+                assert config['AMQP_SSL'] == expected_ssl_options
             """
         )
         args = []
@@ -123,7 +129,7 @@ class TestOptions(object):
 
 
 def test_empty_config(empty_config):
-    assert empty_config == {}
+    assert config == {}
 
 
 def test_rabbit_manager(rabbit_manager):
@@ -138,10 +144,12 @@ def test_amqp_uri(testdir):
     testdir.makeconftest(
         """
         import pytest
+        from nameko import update_config
 
-        @pytest.fixture
+        @pytest.yield_fixture
         def rabbit_config():
-            return dict(AMQP_URI='{}')
+            with update_config(dict(AMQP_URI="{}")):
+                yield
         """.format(amqp_uri)
     )
 
@@ -166,8 +174,10 @@ class TestGetMessageFromQueue(object):
         return "queue"
 
     @pytest.fixture
-    def publish_message(self, rabbit_manager, rabbit_config, queue_name):
-        vhost = rabbit_config['vhost']
+    def publish_message(
+        self, rabbit_manager, rabbit_config, get_vhost, queue_name
+    ):
+        vhost = get_vhost(config['AMQP_URI'])
         rabbit_manager.create_queue(vhost, queue_name, durable=True)
 
         def publish(payload, **properties):
@@ -177,9 +187,10 @@ class TestGetMessageFromQueue(object):
 
         return publish
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_get_message(
         self, publish_message, get_message_from_queue, queue_name,
-        rabbit_manager, rabbit_config
+        rabbit_manager, get_vhost
     ):
         payload = "payload"
         publish_message(payload)
@@ -187,12 +198,13 @@ class TestGetMessageFromQueue(object):
         message = get_message_from_queue(queue_name)
         assert message.payload == payload
 
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
 
+    @pytest.mark.usefixtures("rabbit_config")
     def test_requeue(
         self, publish_message, get_message_from_queue, queue_name,
-        rabbit_manager, rabbit_config
+        rabbit_manager, get_vhost
     ):
         payload = "payload"
         publish_message(payload)
@@ -201,7 +213,7 @@ class TestGetMessageFromQueue(object):
         assert message.payload == payload
 
         time.sleep(1)  # TODO: use retry decorator rather than sleep
-        vhost = rabbit_config['vhost']
+        vhost = get_vhost(config['AMQP_URI'])
         assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 1
 
     def test_non_blocking(
@@ -230,12 +242,15 @@ class TestGetMessageFromQueue(object):
         assert message.payload == payload
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_container_factory(
-    testdir, rabbit_config, rabbit_manager, plugin_options
+    testdir, get_vhost, rabbit_manager, plugin_options
 ):
 
     testdir.makepyfile(
         """
+        import pytest
+
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcClient
 
@@ -246,18 +261,19 @@ def test_container_factory(
             def method(self):
                 return "OK"
 
-        def test_container_factory(container_factory, rabbit_config):
-            container = container_factory(ServiceX, rabbit_config)
+        @pytest.mark.usefixtures('rabbit_config')
+        def test_container_factory(container_factory):
+            container = container_factory(ServiceX)
             container.start()
 
-            with ServiceRpcClient("x", rabbit_config) as client:
+            with ServiceRpcClient("x") as client:
                 assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
@@ -272,6 +288,9 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
 
     testdir.makepyfile(
         """
+        import pytest
+
+        from nameko import update_config
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcClient
 
@@ -284,19 +303,17 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
             def method(self):
                 return "OK"
 
-        def test_container_factory(
-            container_factory, rabbit_config
-        ):
-            rabbit_config['SERVICE_CONTAINER_CLS'] = (
-                "container_module.ServiceContainerX"
-            )
+        @pytest.mark.usefixtures('rabbit_config')
+        def test_container_factory(container_factory):
+            with update_config({
+                'SERVICE_CONTAINER_CLS': "container_module.ServiceContainerX"
+            }):
+                container = container_factory(ServiceX)
+                container.start()
 
-            container = container_factory(ServiceX, rabbit_config)
-            container.start()
+                assert isinstance(container, ServiceContainerX)
 
-            assert isinstance(container, ServiceContainerX)
-
-            with ServiceRpcClient("x", rabbit_config) as client:
+            with ServiceRpcClient("x") as client:
                 assert client.method() == "OK"
         """
     )
@@ -304,12 +321,15 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
     assert result.ret == 0
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_runner_factory(
-    testdir, plugin_options, rabbit_config, rabbit_manager
+    testdir, plugin_options, get_vhost, rabbit_manager
 ):
 
     testdir.makepyfile(
         """
+        import pytest
+
         from nameko.rpc import rpc
         from nameko.standalone.rpc import ServiceRpcClient
 
@@ -320,23 +340,25 @@ def test_runner_factory(
             def method(self):
                 return "OK"
 
-        def test_runner(runner_factory, rabbit_config):
-            runner = runner_factory(rabbit_config, ServiceX)
+        @pytest.mark.usefixtures('rabbit_config')
+        def test_runner(runner_factory):
+            runner = runner_factory(ServiceX)
             runner.start()
 
-            with ServiceRpcClient("x", rabbit_config) as client:
+            with ServiceRpcClient("x") as client:
                 assert client.method() == "OK"
         """
     )
     result = testdir.runpytest(*plugin_options)
     assert result.ret == 0
 
-    vhost = rabbit_config['vhost']
+    vhost = get_vhost(config['AMQP_URI'])
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
+@pytest.mark.usefixtures('rabbit_config')
 @pytest.mark.usefixtures('predictable_call_ids')
-def test_predictable_call_ids(runner_factory, rabbit_config):
+def test_predictable_call_ids(runner_factory):
 
     worker_contexts = []
 
@@ -363,25 +385,27 @@ def test_predictable_call_ids(runner_factory, rabbit_config):
         def method(self):
             pass
 
-    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner = runner_factory(ServiceX, ServiceY)
     runner.start()
 
-    with ServiceRpcClient("x", rabbit_config) as service_x:
+    with ServiceRpcClient("x") as service_x:
         service_x.method()
 
     call_ids = [worker_ctx.call_id for worker_ctx in worker_contexts]
     assert call_ids == ["x.method.1", "y.method.2"]
 
 
-def test_web_config(web_config):
-    assert WEB_SERVER_CONFIG_KEY in web_config
+@pytest.mark.usefixtures('web_config')
+def test_web_config():
+    assert WEB_SERVER_CONFIG_KEY in config
 
-    bind_address = parse_address(web_config[WEB_SERVER_CONFIG_KEY])
+    bind_address = parse_address(config[WEB_SERVER_CONFIG_KEY])
     sock = socket.socket()
     sock.bind(bind_address)
 
 
-def test_web_session(web_config, container_factory, web_session):
+@pytest.mark.usefixtures('web_config')
+def test_web_session(container_factory, web_session):
 
     class Service(object):
         name = "web"
@@ -390,13 +414,14 @@ def test_web_session(web_config, container_factory, web_session):
         def method(self, request):
             return "OK"
 
-    container = container_factory(Service, web_config)
+    container = container_factory(Service)
     container.start()
 
     assert web_session.get("/foo").status_code == 200
 
 
-def test_websocket(web_config, container_factory, websocket):
+@pytest.mark.usefixtures('web_config')
+def test_websocket(container_factory, websocket):
 
     class Service(object):
         name = "ws"
@@ -405,7 +430,7 @@ def test_websocket(web_config, container_factory, websocket):
         def uppercase(self, socket_id, arg):
             return arg.upper()
 
-    container = container_factory(Service, web_config)
+    container = container_factory(Service)
     container.start()
 
     ws = websocket()

@@ -9,7 +9,7 @@ from logging import getLogger
 
 from kombu.common import maybe_declare
 
-from nameko import serialization
+from nameko import config, serialization
 from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
@@ -87,13 +87,13 @@ class Publisher(DependencyProvider):
         if self.exchange:
             self.declare.append(self.exchange)
 
-    @property
-    def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        default_uri = config.get(AMQP_URI_CONFIG_KEY)
+        self.amqp_uri = self.publisher_options.pop('uri', default_uri)
 
     def setup(self):
 
-        ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        default_ssl = config.get(AMQP_SSL_CONFIG_KEY)
+        ssl = self.publisher_options.pop('ssl', default_ssl)
 
         with get_connection(self.amqp_uri, ssl) as conn:
             for entity in self.declare:
@@ -169,11 +169,9 @@ class Consumer(Entrypoint):
 
     @property
     def amqp_uri(self):
-        return self.container.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     def setup(self):
-        config = self.container.config
-
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         heartbeat = self.consumer_options.pop(
@@ -185,7 +183,7 @@ class Consumer(Entrypoint):
             )
         )
         accept = self.consumer_options.pop(
-            'accept', serialization.setup(config).accept
+            'accept', serialization.setup().accept
         )
 
         queues = [self.queue]

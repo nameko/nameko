@@ -14,14 +14,16 @@ from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
 from six.moves import queue
+from six.moves.urllib.parse import urlparse
 
+from nameko import config
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer
 )
+from nameko.constants import AMQP_URI_CONFIG_KEY
 
 
-def test_get_connection(rabbit_config):
-    amqp_uri = rabbit_config['AMQP_URI']
+def test_get_connection(amqp_uri):
     connection_ids = []
 
     with get_connection(amqp_uri) as connection:
@@ -39,8 +41,7 @@ class TestGetProducer(object):
     def confirms(self, request):
         return request.param
 
-    def test_get_producer(self, rabbit_config, confirms):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_get_producer(self, amqp_uri, confirms):
         producer_ids = []
 
         with get_producer(amqp_uri, confirms) as producer:
@@ -53,8 +54,7 @@ class TestGetProducer(object):
             producer_ids.append(id(producer))
             assert len(set(producer_ids)) == 1
 
-    def test_pool_gives_different_producers(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_pool_gives_different_producers(self, amqp_uri):
         producer_ids = []
 
         # get a producer
@@ -77,16 +77,14 @@ class TestPublisherConfirms(object):
     """ Publishing to a non-existent exchange raises if confirms are enabled.
     """
 
-    def test_confirms_disabled(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_confirms_disabled(self, amqp_uri):
 
         with get_producer(amqp_uri, False) as producer:
             producer.publish(
                 "msg", exchange="missing", routing_key="key"
             )
 
-    def test_confirms_enabled(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_confirms_enabled(self, amqp_uri):
 
         with pytest.raises(NotFound):
             with get_producer(amqp_uri) as producer:
@@ -292,7 +290,8 @@ class TestPublisher(object):
     def test_user_id(
         self, publisher, get_message_from_queue, queue, rabbit_config
     ):
-        user_id = rabbit_config['username']
+        uri_parts = urlparse(config[AMQP_URI_CONFIG_KEY])
+        user_id = uri_parts.username
 
         # successful case
         publisher.publish("payload", user_id=user_id)

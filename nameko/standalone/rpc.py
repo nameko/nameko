@@ -8,7 +8,7 @@ from amqp.exceptions import NotFound
 from kombu.common import maybe_declare
 from kombu.messaging import Queue
 
-from nameko import serialization
+from nameko import config, serialization
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
@@ -56,8 +56,7 @@ class ReplyListener(object):
 
     consumer_cls = ReplyConsumer
 
-    def __init__(self, config, queue, timeout=None, **kwargs):
-        self.config = config
+    def __init__(self, queue, timeout=None, **kwargs):
         self.queue = queue
         self.timeout = timeout
 
@@ -66,18 +65,16 @@ class ReplyListener(object):
 
     @property
     def amqp_uri(self):
-        return self.config[AMQP_URI_CONFIG_KEY]
+        return config[AMQP_URI_CONFIG_KEY]
 
     def start(self):
-        config = self.config
-
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
 
         heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         prefetch_count = config.get(
             PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
         )
-        accept = serialization.setup(config).accept
+        accept = serialization.setup().accept
 
         queues = [self.queue]
         callbacks = [self.handle_message]
@@ -98,7 +95,7 @@ class ReplyListener(object):
     def check_for_lost_replies(self):
         if self.pending:
             try:
-                ssl = self.config.get(AMQP_SSL_CONFIG_KEY)
+                ssl = config.get(AMQP_SSL_CONFIG_KEY)
                 with get_connection(self.amqp_uri, ssl=ssl) as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
             except NotFound:
@@ -159,13 +156,13 @@ class ClusterRpcClient(object):
 
     As a context manager::
 
-        with ClusterRpc(config) as client:
+        with ClusterRpc() as client:
             client.target_service.method()
             client.other_service.method()
 
     The equivalent call, manually starting and stopping::
 
-        client = ClusterRpc(config)
+        client = ClusterRpc()
         client = client.start()
         try:
             client.target_service.method()
@@ -182,7 +179,7 @@ class ClusterRpcClient(object):
     When the name of the service is not legal in Python, you can also
     use a dict-like syntax::
 
-        with ClusterRpc(config) as client:
+        with ClusterRpc() as client:
             client['service-name'].method()
             client['other-service'].method()
 
@@ -191,12 +188,11 @@ class ClusterRpcClient(object):
     publisher_cls = Publisher
 
     def __init__(
-        self, config, context_data=None, timeout=None, **publisher_options
+        self, context_data=None, timeout=None, **publisher_options
     ):
-        self.config = config
         self.uuid = str(uuid.uuid4())
 
-        exchange = get_rpc_exchange(config)
+        exchange = get_rpc_exchange()
 
         queue_name = RPC_REPLY_QUEUE_TEMPLATE.format(
             "standalone_rpc_client", self.uuid
@@ -210,22 +206,29 @@ class ClusterRpcClient(object):
             }
         )
 
-        self.reply_listener = ReplyListener(config, queue, timeout=timeout)
+        self.reply_listener = ReplyListener(queue, timeout=timeout)
 
-        self.serializer = serialization.setup(config).serializer
+        self.amqp_uri = publisher_options.pop(
+            'uri', config[AMQP_URI_CONFIG_KEY]
+        )
 
-        serializer = publisher_options.pop('serializer', self.serializer)
+        serialization_config = serialization.setup()
+        self.serializer = publisher_options.pop(
+            'serializer', serialization_config.serializer
+        )
 
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
 
-        ssl = self.config.get(AMQP_SSL_CONFIG_KEY)
+        ssl = publisher_options.pop(
+            'ssl', config.get(AMQP_SSL_CONFIG_KEY)
+        )
 
         publisher = self.publisher_cls(
             self.amqp_uri,
             ssl=ssl,
             exchange=exchange,
-            serializer=serializer,
+            serializer=self.serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
             **publisher_options
@@ -249,10 +252,6 @@ class ClusterRpcClient(object):
         get_reply = self.reply_listener.register_for_reply
 
         self.client = Client(publish, get_reply)
-
-    @property
-    def amqp_uri(self):
-        return self.config[AMQP_URI_CONFIG_KEY]
 
     def __enter__(self):
         return self.start()

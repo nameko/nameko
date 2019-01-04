@@ -6,7 +6,8 @@ import yaml
 from mock import patch
 
 from nameko.cli.main import (
-    ENV_VAR_MATCHER, main, setup_parser, setup_yaml_parser
+    ENV_VAR_MATCHER, main, parse_config_option, setup_parser,
+    setup_yaml_parser
 )
 from nameko.exceptions import CommandError, ConfigurationError
 
@@ -21,15 +22,15 @@ else:  # pragma: no cover
 
 
 @pytest.yield_fixture(autouse=True)
-def fake_argv():
+def fake_argv(empty_config):
     with patch.object(
         sys,
         'argv',
         [
             'nameko',
             'run',
-            '--broker',
-            'my_broker',
+            '--define',
+            'AMQP_URI=pyamqp://someuser:*****@somehost/',
             'test.sample:Service',
         ],
     ):
@@ -41,7 +42,7 @@ def test_run():
         main()
     assert run.call_count == 1
     (args,), _ = run.call_args
-    assert args.broker == 'my_broker'
+    assert args.define == [('AMQP_URI', 'pyamqp://someuser:*****@somehost/')]
 
 
 @pytest.mark.parametrize('exception', (CommandError, ConfigurationError))
@@ -65,6 +66,32 @@ def test_flag_action(param, value):
         args.append(param)
     parsed = parser.parse_args(args)
     assert parsed.rlwrap is value
+
+
+@pytest.mark.parametrize(
+    ('text', 'expected_key', 'expected_value'),
+    (
+        # strings
+        ('SPAM=ham', 'SPAM', 'ham'),
+        ('  SPAM=ham  ', 'SPAM', 'ham'),
+        ('SPAM="ham"', 'SPAM', 'ham'),
+        ("SPAM='ham'", 'SPAM', 'ham'),
+        ('SPAM="1"', 'SPAM', "1"),
+        # simple types
+        ('SPAM=1', 'SPAM', 1),
+        ('SPAM=1.0', 'SPAM', 1.0),
+        ('SPAM=True', 'SPAM', True),
+        ('SPAM=False', 'SPAM', False),
+        ('SPAM', 'SPAM', True),
+        ('SPAM=', 'SPAM', None),
+        # structure
+        ('SPAM=[{"egg": "ham"}]', 'SPAM', [{'egg': 'ham'}]),
+        # deals with equal signs in value
+        ('SPAM=EGG=HAM', 'SPAM', 'EGG=HAM'),
+    )
+)
+def test_parse_config_option(text, expected_key, expected_value):
+    assert parse_config_option(text) == (expected_key, expected_value)
 
 
 class TestConfigEnvironmentParser(object):

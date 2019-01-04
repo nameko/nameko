@@ -9,11 +9,9 @@ import eventlet
 import pytest
 from mock import patch
 
-from nameko.cli.main import setup_parser
-from nameko.cli.run import import_service, main, run, setup_backdoor
-from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
-)
+from nameko import config
+from nameko.cli.run import import_service, run, setup_backdoor
+from nameko.constants import SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcClient
@@ -25,24 +23,20 @@ from test.sample import Service
 TEST_CONFIG_FILE = abspath(join(dirname(__file__), 'config.yaml'))
 
 
-def test_run(rabbit_config):
-    parser = setup_parser()
-    broker = rabbit_config['AMQP_URI']
-    args = parser.parse_args([
-        'run',
-        '--broker',
-        broker,
-        '--backdoor-port',
-        0,
-        'test.sample:Service',
-    ])
+@pytest.mark.usefixtures("rabbit_config")
+def test_run(command):
 
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, 'start'):
-        gt = eventlet.spawn(main, args)
+        gt = eventlet.spawn(
+            command,
+            'nameko', 'run',
+            '--backdoor-port', 0,
+            'test.sample:Service',
+        )
 
     # make sure service launches ok
-    with ClusterRpcClient(rabbit_config) as client:
+    with ClusterRpcClient() as client:
         client.service.ping()
 
     # stop service
@@ -51,38 +45,66 @@ def test_run(rabbit_config):
     gt.wait()
 
 
-def test_main_with_config(rabbit_config, tmpdir):
+@pytest.mark.usefixtures("rabbit_config")
+def test_main_with_config(command, tmpdir):
 
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join('config.yaml')
+    config_file.write("""
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
-        AMQP_URI: '{}'
         serializer: 'json'
-    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+    """)
 
-    parser = setup_parser()
-    args = parser.parse_args([
-        'run',
-        '--config',
-        config.strpath,
-        'test.sample',
-    ])
+    assert WEB_SERVER_CONFIG_KEY not in config
+    assert SERIALIZER_CONFIG_KEY not in config
 
     with patch('nameko.cli.run.run') as run:
-        main(args)
+
+        command(
+            'nameko', 'run',
+            '--config', config_file.strpath,
+            'test.sample',
+        )
+
         assert run.call_count == 1
-        (_, config) = run.call_args[0]
 
-        assert config == {
-            WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-            AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
-            SERIALIZER_CONFIG_KEY: 'json'
-        }
+    assert config[WEB_SERVER_CONFIG_KEY] == '0.0.0.0:8001'
+    assert config[SERIALIZER_CONFIG_KEY] == 'json'
 
 
-def test_main_with_logging_config(rabbit_config, tmpdir):
+@pytest.mark.usefixtures("rabbit_config")
+def test_main_with_config_options(command, tmpdir):
 
-    config = """
+    config_file = tmpdir.join('config.yaml')
+    config_file.write("""
+        WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+        serializer: 'json'
+    """)
+
+    assert WEB_SERVER_CONFIG_KEY not in config
+    assert SERIALIZER_CONFIG_KEY not in config
+    assert 'EGG' not in config
+
+    with patch('nameko.cli.run.run') as run:
+
+        command(
+            'nameko', 'run',
+            '--config', config_file.strpath,
+            '--define', 'serializer=pickle',
+            '--define', 'EGG=[{"spam": True}]',
+            'test.sample',
+        )
+
+        assert run.call_count == 1
+
+    assert config[WEB_SERVER_CONFIG_KEY] == '0.0.0.0:8001'
+    assert config[SERIALIZER_CONFIG_KEY] == 'pickle'
+    assert config['EGG'] == [{'spam': True}]
+
+
+@pytest.mark.usefixtures("rabbit_config")
+def test_main_with_logging_config(command, tmpdir):
+
+    config_content = """
         AMQP_URI: {amqp_uri}
         LOGGING:
             version: 1
@@ -105,25 +127,24 @@ def test_main_with_logging_config(rabbit_config, tmpdir):
 
     config_file = tmpdir.join('config.yaml')
     config_file.write(
-        dedent(config.format(
+        dedent(config_content.format(
             capture_file=capture_file.strpath,
-            amqp_uri=rabbit_config['AMQP_URI']
+            amqp_uri=config['AMQP_URI']
         ))
     )
 
-    parser = setup_parser()
-    args = parser.parse_args([
-        'run',
-        '--config',
-        config_file.strpath,
-        'test.sample',
-    ])
-
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, 'start'):
-        gt = eventlet.spawn(main, args)
+        gt = eventlet.spawn(
+            command,
+            'nameko',
+            'run',
+            '--config',
+            config_file.strpath,
+            'test.sample',
+        )
 
-    with ClusterRpcClient(rabbit_config) as client:
+    with ClusterRpcClient() as client:
         client.service.ping()
 
     pid = os.getpid()
@@ -209,7 +230,7 @@ def test_stopping(rabbit_config):
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, [Service], rabbit_config)
+        gt = eventlet.spawn(run, [Service])
         gt.wait()
         # should complete
 
@@ -226,7 +247,7 @@ def test_stopping_twice(rabbit_config):
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
 
-            gt = eventlet.spawn(run, [Service], rabbit_config)
+            gt = eventlet.spawn(run, [Service])
             gt.wait()
 
 
@@ -240,7 +261,7 @@ def test_os_error_for_signal(rabbit_config):
         # don't actually start the service -- we're not firing a real signal
         # so the signal handler won't stop it again
         with patch.object(ServiceRunner, 'start'):
-            gt = eventlet.spawn(run, [Service], rabbit_config)
+            gt = eventlet.spawn(run, [Service])
             gt.wait()
         # should complete
 
@@ -255,6 +276,22 @@ def test_other_errors_propagate(rabbit_config):
         # don't actually start the service -- there's no real OSError that
         # would otherwise kill the whole process
         with patch.object(ServiceRunner, 'start'):
-            gt = eventlet.spawn(run, [Service], rabbit_config)
+            gt = eventlet.spawn(run, [Service])
             with pytest.raises(OSError):
                 gt.wait()
+
+
+@pytest.mark.usefixtures('empty_config')
+def test_broker_option_deprecated(command, rabbit_uri):
+
+    with patch('nameko.cli.run.run') as run:
+        with patch('nameko.cli.main.warnings') as warnings:
+            command(
+                'nameko', 'run',
+                '--broker', rabbit_uri,
+                'test.sample',
+            )
+
+    assert run.call_count == 1
+
+    assert warnings.warn.call_count
