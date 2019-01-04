@@ -8,9 +8,9 @@ def test_config_setup():
 
     assert config == {}
 
-    config_setup({"spam": "ham"})
+    config_setup({"HEARTBEAT": 10})
 
-    assert config == {"spam": "ham"}
+    assert config == {"HEARTBEAT": 10}
 
     config_setup({})
 
@@ -20,16 +20,16 @@ def test_config_setup():
 @pytest.mark.usefixtures("empty_config")
 def test_config_setup_context_manager():
 
-    with config_setup({"spam": "ham"}):
-        assert config == {"spam": "ham"}
+    with config_setup({"HEARTBEAT": 10}):
+        assert config == {"HEARTBEAT": 10}
 
     assert config == {}
 
-    with config_setup({"spam": "egg"}):
-        assert config == {"spam": "egg"}
-        with config_setup({"spam": "ham"}):
-            assert config == {"spam": "ham"}
-        assert config == {"spam": "egg"}
+    with config_setup({"HEARTBEAT": 40}):
+        assert config == {"HEARTBEAT": 40}
+        with config_setup({"HEARTBEAT": 10}):
+            assert config == {"HEARTBEAT": 10}
+        assert config == {"HEARTBEAT": 40}
 
     assert config == {}
 
@@ -37,20 +37,20 @@ def test_config_setup_context_manager():
 @pytest.mark.usefixtures("empty_config")
 def test_config_setup_replaces_whole_config():
 
-    config_setup({"spam": "ham", "egg": "spam"})
+    config_setup({"HEARTBEAT": 10, "ACCEPT": "YAML"})
 
-    with config_setup({"spam": "egg"}):
-        assert config == {"spam": "egg"}
+    with config_setup({"HEARTBEAT": 40}):
+        assert config == {"HEARTBEAT": 40}
 
-    assert config == {"spam": "ham", "egg": "spam"}
+    assert config == {"HEARTBEAT": 10, "ACCEPT": "YAML"}
 
 
 @pytest.mark.usefixtures("empty_config")
 def test_config_update():
 
-    config_setup({"spam": "ham", "egg": "spam"})
+    config_setup({"HEARTBEAT": 10, "ACCEPT": "YAML"})
 
-    with config_update({"spam": "egg"}):
-        assert config == {"spam": "egg", "egg": "spam"}
+    with config_update({"HEARTBEAT": 40}):
+        assert config == {"HEARTBEAT": 40, "ACCEPT": "YAML"}
 
-    assert config == {"spam": "ham", "egg": "spam"}
+    assert config == {"HEARTBEAT": 10, "ACCEPT": "YAML"}
