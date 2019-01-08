@@ -10,9 +10,7 @@ class RaisingInteractiveConsole(InteractiveConsole):
     def __init__(
         self, locals=None, filename="<console>", raise_expections=False
     ):
-        super(RaisingInteractiveConsole, self).__init__(
-            locals=locals, filename=filename
-        )
+        InteractiveConsole.__init__(self, locals=locals, filename=filename)
         self.raise_expections = raise_expections
 
     def runcode(self, code):
