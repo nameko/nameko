@@ -52,7 +52,7 @@ class ShellRunner(object):
                 return getattr(self, name)()
             except ImportError:  # pragma: no cover noqa: F401
                 pass
-        self.plain()
+        self.plain()  # pragma: no cover
 
 
 def make_nameko_helper(config):
