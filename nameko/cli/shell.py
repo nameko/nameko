@@ -50,7 +50,7 @@ class ShellRunner(object):
         for name in available_shells:
             try:
                 return getattr(self, name)()
-            except ImportError:  # noqa: F401
+            except ImportError:  # pragma: no cover noqa: F401
                 pass
         self.plain()
 

@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from code import InteractiveConsole
 
 
-class RaisingInteractiveConsole(InteractiveConsole):
+class RaisingInteractiveConsole(InteractiveConsole):  # pragma: no cover
     """ Custom InterativeConsole class that allows raising exception if needed.
     """
 
@@ -24,7 +24,9 @@ class RaisingInteractiveConsole(InteractiveConsole):
                 raise
 
 
-def interact(banner=None, local=None, raise_expections=False):
+def interact(
+    banner=None, local=None, raise_expections=False
+):  # pragma: no cover
     try:
         import readline  # noqa: F401
     except ImportError:
