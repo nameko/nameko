@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 
 import pytest
@@ -43,13 +44,19 @@ def fake_alternative_interpreters():
         yield
 
 
+@pytest.fixture
+def isatty():
+    with patch('nameko.cli.shell.sys.stdin.isatty') as isatty:
+        yield isatty
+
+
 def test_basic(pystartup, rabbit_config):
     parser = setup_parser()
     args = parser.parse_args([
         'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY]
     ])
 
-    with patch('nameko.cli.shell.code') as code:
+    with patch("nameko.cli.shell.code") as code:
         Shell.main(args)
 
     _, kwargs = code.interact.call_args
@@ -93,12 +100,14 @@ def test_plain_fallback(pystartup, rabbit_config):
     local['n'].disconnect()
 
 
-def test_bpython(pystartup, rabbit_config):
+def test_bpython(pystartup, rabbit_config, isatty):
     parser = setup_parser()
     args = parser.parse_args([
         'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
         '--interface', 'bpython'
     ])
+
+    isatty.return_value = True
 
     with patch('bpython.embed') as embed:
         Shell.main(args)
@@ -110,12 +119,14 @@ def test_bpython(pystartup, rabbit_config):
     local['n'].disconnect()
 
 
-def test_ipython(pystartup, rabbit_config):
+def test_ipython(pystartup, rabbit_config, isatty):
     parser = setup_parser()
     args = parser.parse_args([
         'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
         '--interface', 'ipython'
     ])
+
+    isatty.return_value = True
 
     with patch('IPython.embed') as embed:
         Shell.main(args)
@@ -125,6 +136,21 @@ def test_ipython(pystartup, rabbit_config):
     assert 'n' in local.keys()
     assert local['foo'] == 42
     local['n'].disconnect()
+
+
+def test_uses_plain_when_not_tty(pystartup, rabbit_config, isatty):
+    parser = setup_parser()
+    args = parser.parse_args([
+        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
+        '--interface', 'ipython'
+    ])
+
+    isatty.return_value = False
+
+    with patch('nameko.cli.shell.code') as code:
+        Shell.main(args)
+
+    assert code.interact.called
 
 
 def test_config(pystartup, rabbit_config, tmpdir):
@@ -198,3 +224,36 @@ class TestBanner(object):
         )
         (banner, _), _ = shell_runner.call_args
         assert expected_message in banner
+
+
+class TestExitCode:
+
+    def test_exit_code_0(self):
+        """ Test ``echo print(1) | nameko shell``
+
+        This command should return an exit code of 0.
+        """
+
+        echo_process = subprocess.Popen(
+            ("echo", "print(1)"), stdout=subprocess.PIPE
+        )
+        nameko_process = subprocess.Popen(
+            ("nameko", "shell"), stdin=echo_process.stdout
+        )
+        nameko_process.wait()
+        assert nameko_process.returncode == 0
+
+    def test_exit_code_1(self):
+        """ Test ``echo raise Exception() | nameko shell``
+
+        This command should return an exit code of 1.
+        """
+
+        echo_process = subprocess.Popen(
+            ("echo", "raise Exception()"), stdout=subprocess.PIPE
+        )
+        nameko_process = subprocess.Popen(
+            ("nameko", "shell"), stdin=echo_process.stdout
+        )
+        nameko_process.wait()
+        assert nameko_process.returncode == 1

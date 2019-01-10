@@ -130,7 +130,8 @@ class Shell(Command):
             help='RabbitMQ broker url')
         parser.add_argument(
             '--interface', choices=cls.SHELLS,
-            help='Specify an interactive interpreter interface.')
+            help='Specify an interactive interpreter interface.'
+                 ' (Ignored if not in TTY mode)')
         parser.add_argument(
             '--config', default='',
             help='The YAML configuration file')
