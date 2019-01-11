@@ -443,13 +443,10 @@ class ClusterRpc(DependencyProvider):
 
     def get_dependency(self, worker_ctx):
 
-        extra_headers = encode_to_headers(worker_ctx.context_data)
-
-        publish = partial(self.publisher.publish, extra_headers=extra_headers)
-
+        publish = self.publisher.publish
         register_for_reply = self.reply_listener.register_for_reply
 
-        return Client(publish, register_for_reply)
+        return Client(publish, register_for_reply, worker_ctx.context_data)
 
 
 class ServiceRpc(ClusterRpc):
@@ -507,10 +504,12 @@ class Client(object):
     """
 
     def __init__(
-        self, publish, register_for_reply, service_name=None, method_name=None
+        self, publish, register_for_reply, context_data,
+        service_name=None, method_name=None
     ):
         self.publish = publish
         self.register_for_reply = register_for_reply
+        self.context_data = context_data
         self.service_name = service_name
         self.method_name = method_name
 
@@ -528,6 +527,7 @@ class Client(object):
         clone = Client(
             self.publish,
             self.register_for_reply,
+            self.context_data,
             target_service,
             target_method
         )
@@ -587,9 +587,11 @@ class Client(object):
 
         correlation_id = str(uuid.uuid4())
 
+        extra_headers = encode_to_headers(self.context_data)
+
         send_request = partial(
             self.publish, routing_key=self.identifier, mandatory=True,
-            correlation_id=correlation_id
+            correlation_id=correlation_id, extra_headers=extra_headers
         )
         get_response = self.register_for_reply(correlation_id)
 

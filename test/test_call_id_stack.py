@@ -51,14 +51,14 @@ def test_short_call_stack(container_factory):
     container = container_factory(FooService)
     service = FooService()
 
-    # Trim stack
     many_ids = [str(i) for i in range(100)]
-    context = WorkerContext(
-        container, service, DummyProvider("long"),
-        data={'call_id_stack': many_ids}
-    )
 
     with setup_config({PARENT_CALLS_CONFIG_KEY: 1}):
+        context = WorkerContext(
+            container, service, DummyProvider("long"),
+            data={'call_id_stack': many_ids}
+        )
+        # Trimmed stack
         assert context.call_id_stack == ['99', 'baz.long.0']
 
 

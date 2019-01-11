@@ -12,8 +12,9 @@ from nameko import config, serialization
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
-    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
-    DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, CALL_ID_STACK_CONTEXT_KEY,
+    DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY,
+    PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
@@ -234,16 +235,16 @@ class ClusterRpcClient(object):
             **publisher_options
         )
 
-        data = context_data
+        context_data = context_data or {}
 
         def publish(*args, **kwargs):
 
-            context_data = data or {}
-            context_data['call_id_stack'] = [
+            context_data[CALL_ID_STACK_CONTEXT_KEY] = [
                 'standalone_rpc_client.{}.{}'.format(self.uuid, new_call_id())
             ]
 
-            extra_headers = encode_to_headers(context_data)
+            extra_headers = kwargs.pop('extra_headers')
+            extra_headers.update(encode_to_headers(context_data))
 
             publisher.publish(
                 *args, extra_headers=extra_headers, **kwargs
@@ -251,7 +252,7 @@ class ClusterRpcClient(object):
 
         get_reply = self.reply_listener.register_for_reply
 
-        self.client = Client(publish, get_reply)
+        self.client = Client(publish, get_reply, context_data)
 
     def __enter__(self):
         return self.start()
