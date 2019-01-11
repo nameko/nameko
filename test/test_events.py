@@ -715,16 +715,12 @@ class TestDispatcherConfigurability(object):
         # use a real worker context so nameko headers are generated
         service = Mock()
         entrypoint = Mock(method_name="method")
+        context_data = {'foo': 'bar'}
         worker_ctx = WorkerContext(
-            mock_container, service, entrypoint, data={'context': 'data'}
+            mock_container, service, entrypoint, data=context_data
         )
 
-        nameko_headers = {
-            'nameko.context': 'data',
-            'nameko.call_id_stack': ['service.method.0'],
-        }
-
-        value = {'foo': Mock()}
+        value = {'foo': 'bar'}
 
         dispatcher = EventDispatcher(
             **{'headers': value}
@@ -733,15 +729,19 @@ class TestDispatcherConfigurability(object):
 
         dispatch = dispatcher.get_dependency(worker_ctx)
 
-        def merge_dicts(base, *updates):
-            merged = base.copy()
-            [merged.update(update) for update in updates]
-            return merged
+        # context data changes are reflected up to the point of dispatching
+        worker_ctx.data['foo'] = 'changed-bar'
+
+        expected_headers = {
+            'nameko.foo': 'changed-bar',
+            'nameko.call_id_stack': ['service.method.0'],
+            'foo': 'bar',
+        }
 
         dispatch("event-type", "event-data")
-        assert producer.publish.call_args[1]['headers'] == merge_dicts(
-            nameko_headers, value
-        )
+
+        _, kwargs = producer.publish.call_args
+        assert kwargs['headers'] == expected_headers
 
     @pytest.mark.usefixtures("memory_rabbit_config")
     def test_restricted_parameters(
