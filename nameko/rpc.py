@@ -443,13 +443,10 @@ class ClusterRpc(DependencyProvider):
 
     def get_dependency(self, worker_ctx):
 
-        extra_headers = encode_to_headers(worker_ctx.context_data)
-
-        publish = partial(self.publisher.publish, extra_headers=extra_headers)
-
+        publish = self.publisher.publish
         register_for_reply = self.reply_listener.register_for_reply
 
-        return Client(publish, register_for_reply)
+        return Client(publish, register_for_reply, worker_ctx.context_data)
 
 
 class ServiceRpc(ClusterRpc):
@@ -481,12 +478,13 @@ class Client(object):
 
         # target at construction time
         client = Client(
-            publish, register_for_reply, "target_service", "target_method"
+            publish, register_for_reply, context_data,
+            "target_service", "target_method"
         )
         client(*args, **kwargs)
 
         # equivalent with attribute access
-        client = Client(publish, register_for_reply)
+        client = Client(publish, register_for_reply, context_data)
         client = client.target_service.target_method  # now fully-specified
         client(*args, **kwargs)
 
@@ -500,6 +498,8 @@ class Client(object):
         register_for_reply : callable
             Function to register a new call with a reply listener. Returns
             another function that should be used to retrieve the response.
+        context_data: dict
+            Worker context data to be sent as extra headers
         service_name : str
             Optional target service name, if known
         method_name : str
@@ -507,10 +507,12 @@ class Client(object):
     """
 
     def __init__(
-        self, publish, register_for_reply, service_name=None, method_name=None
+        self, publish, register_for_reply, context_data,
+        service_name=None, method_name=None
     ):
         self.publish = publish
         self.register_for_reply = register_for_reply
+        self.context_data = context_data
         self.service_name = service_name
         self.method_name = method_name
 
@@ -528,6 +530,7 @@ class Client(object):
         clone = Client(
             self.publish,
             self.register_for_reply,
+            self.context_data,
             target_service,
             target_method
         )
@@ -587,9 +590,11 @@ class Client(object):
 
         correlation_id = str(uuid.uuid4())
 
+        extra_headers = encode_to_headers(self.context_data)
+
         send_request = partial(
             self.publish, routing_key=self.identifier, mandatory=True,
-            correlation_id=correlation_id
+            correlation_id=correlation_id, extra_headers=extra_headers
         )
         get_response = self.register_for_reply(correlation_id)
 

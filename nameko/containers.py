@@ -60,8 +60,6 @@ def new_call_id():
 
 class WorkerContext(object):
 
-    _call_id = None
-    _call_id_stack = None
     _parent_call_id_stack = None
 
     def __init__(
@@ -80,33 +78,27 @@ class WorkerContext(object):
         self._parent_call_id_stack = self.data.pop(
             CALL_ID_STACK_CONTEXT_KEY, []
         )
+        self.call_id = self._make_call_id()
+        self.call_id_stack = self._make_call_id_stack()
+        self.data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
 
-    @property
-    def call_id_stack(self):
-        if self._call_id_stack is None:
-            parent_calls_tracked = config.get(
-                PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED
-            )
-            stack_length = parent_calls_tracked + 1
+        self.context_data = self.data  # backwards compat
 
-            self._call_id_stack = deque(maxlen=stack_length)
-            self._call_id_stack.extend(self._parent_call_id_stack)
-            self._call_id_stack.append(self.call_id)
-        return list(self._call_id_stack)
+    def _make_call_id_stack(self):
+        parent_calls_tracked = config.get(
+            PARENT_CALLS_CONFIG_KEY, DEFAULT_PARENT_CALLS_TRACKED
+        )
+        stack_length = parent_calls_tracked + 1
 
-    @property
-    def call_id(self):
-        if self._call_id is None:
-            self._call_id = '{}.{}.{}'.format(
-                self.service_name, self.entrypoint.method_name, new_call_id()
-            )
-        return self._call_id
+        call_id_stack = deque(maxlen=stack_length)
+        call_id_stack.extend(self._parent_call_id_stack)
+        call_id_stack.append(self.call_id)
+        return list(call_id_stack)
 
-    @property
-    def context_data(self):
-        data = self.data.copy()
-        data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
-        return data
+    def _make_call_id(self):
+        return '{}.{}.{}'.format(
+            self.service_name, self.entrypoint.method_name, new_call_id()
+        )
 
     @property
     def origin_call_id(self):

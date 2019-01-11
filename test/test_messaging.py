@@ -108,19 +108,24 @@ def test_publish_custom_headers(mock_container, mock_producer):
         exchange=foobar_ex, declare=[foobar_queue]).bind(container, "publish")
     publisher.setup()
 
-    # test publish
     msg = "msg"
-    headers = {'nameko.language': 'en',
-               'nameko.customheader': 'customvalue',
-               'nameko.call_id_stack': ['srcservice.method.0']}
     service.publish = publisher.get_dependency(worker_ctx)
+
+    # context data changes are reflected up to the point of publishing
+    worker_ctx.data['language'] = 'fr'
+
     service.publish(msg, publish_kwarg="value")
 
     expected_args = ('msg',)
+    expected_headers = {
+        'nameko.language': 'fr',
+        'nameko.customheader': 'customvalue',
+        'nameko.call_id_stack': ['srcservice.method.0'],
+    }
     expected_kwargs = {
         'publish_kwarg': "value",
         'exchange': foobar_ex,
-        'headers': headers,
+        'headers': expected_headers,
         'declare': publisher.declare,
         'retry': publisher.publisher_cls.retry,
         'retry_policy': publisher.publisher_cls.retry_policy,

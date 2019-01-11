@@ -57,10 +57,23 @@ class Translator(DependencyProvider):
         return translate
 
 
+class LanguageContext(DependencyProvider):
+
+    def get_dependency(self, worker_ctx):
+        @contextmanager
+        def set_language(language):
+            original_language = worker_ctx.data.get('language')
+            worker_ctx.data['language'] = language
+            yield
+            worker_ctx.data['language'] = original_language
+        return set_language
+
+
 class ExampleService(object):
     name = 'exampleservice'
 
     translate = Translator()
+    language_context = LanguageContext()
     example_rpc = ServiceRpc('exampleservice')
     unknown_rpc = ServiceRpc('unknown_service')
 
@@ -90,6 +103,11 @@ class ExampleService(object):
     @rpc
     def say_hello(self):
         return self.translate(hello)
+
+    @rpc
+    def greet_france(self):
+        with self.language_context('fr'):
+            return self.example_rpc.say_hello()
 
     @event_handler('srcservice', 'eventtype')
     def async_task(self):
@@ -195,10 +213,9 @@ def test_reply_listener(get_rpc_exchange, mock_container):
 class TestClient(object):
 
     def test_getattr(self):
-        publish = Mock()
-        reply_listener = Mock()
+        publish, register_for_reply, context_data = Mock(), Mock(), Mock()
 
-        client = Client(publish, reply_listener)
+        client = Client(publish, register_for_reply, context_data)
         service_client = client.service
         assert client != service_client
         assert client.publish == service_client.publish
@@ -240,10 +257,9 @@ class TestClient(object):
             method2_client.attr
 
     def test_identifier(self):
-        publish = Mock()
-        register_for_reply = Mock()
+        publish, register_for_reply, context_data = Mock(), Mock(), Mock()
 
-        client = Client(publish, register_for_reply)
+        client = Client(publish, register_for_reply, context_data)
         service_client = client.service
         method1_client = service_client.method1
         method2_client = service_client.method2
@@ -254,19 +270,17 @@ class TestClient(object):
         assert method2_client.identifier == "service.method2"
 
     def test_dict_access(self):
-        publish = Mock()
-        register_for_reply = Mock()
+        publish, register_for_reply, context_data = Mock(), Mock(), Mock()
 
-        client = Client(publish, register_for_reply)
+        client = Client(publish, register_for_reply, context_data)
 
         assert client['service'].identifier == "service.*"
         assert client['service']['method'].identifier == "service.method"
 
     def test_cannot_invoke_unspecified_client(self):
-        publish = Mock()
-        register_for_reply = Mock()
+        publish, register_for_reply, context_data = Mock(), Mock(), Mock()
 
-        client = Client(publish, register_for_reply)
+        client = Client(publish, register_for_reply, context_data)
 
         with pytest.raises(ValueError):
             client()
@@ -350,6 +364,9 @@ def test_rpc_context_data(container_factory):
 
     with entrypoint_hook(container, 'say_hello', context_data) as say_hello:
         assert say_hello() == "hello"
+
+    with entrypoint_hook(container, 'greet_france', context_data) as greet_france:
+        assert greet_france() == "bonjour"
 
     context_data['language'] = 'fr'
 

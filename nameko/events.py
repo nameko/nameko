@@ -86,9 +86,9 @@ class EventDispatcher(Publisher):
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        extra_headers = encode_to_headers(worker_ctx.context_data)
 
         def dispatch(event_type, event_data):
+            extra_headers = encode_to_headers(worker_ctx.context_data)
             self.publisher.publish(
                 event_data,
                 exchange=self.exchange,
