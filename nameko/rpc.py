@@ -478,12 +478,13 @@ class Client(object):
 
         # target at construction time
         client = Client(
-            publish, register_for_reply, "target_service", "target_method"
+            publish, register_for_reply, context_data,
+            "target_service", "target_method"
         )
         client(*args, **kwargs)
 
         # equivalent with attribute access
-        client = Client(publish, register_for_reply)
+        client = Client(publish, register_for_reply, context_data)
         client = client.target_service.target_method  # now fully-specified
         client(*args, **kwargs)
 
@@ -497,6 +498,8 @@ class Client(object):
         register_for_reply : callable
             Function to register a new call with a reply listener. Returns
             another function that should be used to retrieve the response.
+        context_data: dict
+            Worker context data to be sent as extra headers
         service_name : str
             Optional target service name, if known
         method_name : str
