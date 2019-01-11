@@ -82,7 +82,7 @@ class WorkerContext(object):
         self.call_id_stack = self._make_call_id_stack()
         self.data[CALL_ID_STACK_CONTEXT_KEY] = self.call_id_stack
 
-        self.context_data = self.data
+        self.context_data = self.data  # backwards compat
 
     def _make_call_id_stack(self):
         parent_calls_tracked = config.get(
