@@ -86,3 +86,25 @@ def test_patch_decorator():
     test()
 
     assert config == {"HEARTBEAT": 10, "ACCEPT": "YAML"}
+
+
+@pytest.mark.usefixtures("empty_config")
+def test_patch_decorator_deals_with_failing_function_execution():
+
+    config.setup({"HEARTBEAT": 10, "ACCEPT": "YAML"})
+
+    exception = Exception('Boom!')
+
+    @config.patch({"HEARTBEAT": 40})
+    def test():
+        assert config == {"HEARTBEAT": 40, "ACCEPT": "YAML"}
+        raise exception
+
+    assert config == {"HEARTBEAT": 10, "ACCEPT": "YAML"}
+
+    with pytest.raises(Exception) as exc_info:
+        test()
+
+    assert exc_info.value == exception
+
+    assert config == {"HEARTBEAT": 10, "ACCEPT": "YAML"}

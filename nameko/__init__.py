@@ -1,3 +1,4 @@
+import sys
 from copy import deepcopy
 from six import wraps
 from six.moves import UserDict
@@ -37,15 +38,15 @@ class Config(UserDict):
             def __call__(self, func):
                 @wraps(func)
                 def wrapper(*args, **kwargs):
-                    self.original_config = deepcopy(config)
-                    if self.clear:
-                        config.clear()
-                    config.update(self.context_config)
+                    self.__enter__()
+                    exc_info = tuple()
                     try:
                         result = func(*args, **kwargs)
+                    except:
+                        exc_info = sys.exc_info()
+                        raise
                     finally:
-                        config.clear()
-                        config.update(self.original_config)
+                        self.__exit__(*exc_info)
                     return result
                 return wrapper
 
@@ -59,10 +60,9 @@ class Config(UserDict):
                     config.clear()
                 config.update(self.context_config)
 
-            def __exit__(self, exc_type, exc_value, traceback):
+            def __exit__(self, *exc_info):
                 config.clear()
                 config.update(self.original_config)
-                pass
 
         return Patcher(context_config, clear=clear)
 
