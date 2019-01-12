@@ -1,4 +1,3 @@
-import sys
 from copy import deepcopy
 from six import wraps
 from six.moves import UserDict
@@ -39,14 +38,10 @@ class Config(UserDict):
                 @wraps(func)
                 def wrapper(*args, **kwargs):
                     self.__enter__()
-                    exc_info = tuple()
                     try:
                         result = func(*args, **kwargs)
-                    except:
-                        exc_info = sys.exc_info()
-                        raise
                     finally:
-                        self.__exit__(*exc_info)
+                        self.__exit__(*tuple())
                     return result
                 return wrapper
 
