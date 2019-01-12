@@ -6,4 +6,4 @@ from nameko import config
 
 
 def main(args):
-    print(yaml.dump(config, default_flow_style=False))
+    print(yaml.dump(config.data, default_flow_style=False))
