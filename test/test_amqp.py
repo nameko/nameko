@@ -5,7 +5,7 @@ import pytest
 from kombu.messaging import Queue
 from mock import Mock
 
-from nameko import config, update_config
+from nameko import config
 from nameko.amqp.publish import Publisher
 from nameko.constants import DEFAULT_HEARTBEAT, HEARTBEAT_CONFIG_KEY
 from nameko.events import EventHandler, event_handler
@@ -23,7 +23,7 @@ class TestDeadlockRegression(object):
 
     @pytest.yield_fixture
     def config(self, rabbit_config):
-        with update_config({'max_workers': 2}):
+        with config.patch({'max_workers': 2}):
             yield
 
     @pytest.fixture
@@ -130,7 +130,7 @@ class TestHeartbeats(object):
     def test_config_value(
         self, extension_cls, heartbeat, service_cls, container_factory
     ):
-        with update_config({HEARTBEAT_CONFIG_KEY: heartbeat}):
+        with config.patch({HEARTBEAT_CONFIG_KEY: heartbeat}):
             container = container_factory(service_cls)
             container.start()
 
@@ -142,7 +142,7 @@ class TestHeartbeatFailure(object):
 
     @pytest.fixture
     def config(self, rabbit_config):
-        with update_config({
+        with config.patch({
             'max_workers': 2,
             HEARTBEAT_CONFIG_KEY: 3  # minimum reliable heartbeat
         }):

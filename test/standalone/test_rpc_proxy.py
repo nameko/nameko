@@ -9,7 +9,7 @@ from kombu.message import Message
 from mock import Mock, patch
 from six.moves import queue
 
-from nameko import config, update_config
+from nameko import config
 from nameko.amqp.consume import Consumer
 from nameko.constants import HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
@@ -397,7 +397,7 @@ class TestDisconnectWithPendingReply(object):
 
     @pytest.yield_fixture
     def toxic_rpc_client(self, rabbit_config, toxiproxy):
-        with update_config({'AMQP_URI': toxiproxy.uri}):
+        with config.patch({'AMQP_URI': toxiproxy.uri}):
             yield ClusterRpcClient()
 
     def test_disconnect_and_successfully_reconnect(
@@ -832,7 +832,7 @@ class TestStandaloneClientReplyListenerDisconnections(object):
                 return arg
 
         # very fast heartbeat (2 seconds)
-        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+        with config.patch({HEARTBEAT_CONFIG_KEY: 2}):
             container = container_factory(Service)
             container.start()
 

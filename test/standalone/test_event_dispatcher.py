@@ -3,7 +3,6 @@ from amqp.exceptions import NotFound
 from mock import Mock, patch
 from six.moves import queue
 
-from nameko import setup_config
 from nameko.amqp import UndeliverableMessage
 from nameko.events import event_handler
 from nameko.standalone.events import event_dispatcher, get_event_exchange
@@ -104,6 +103,7 @@ class TestConfigurability(object):
         # other arbitrary publish kwargs
         'correlation_id', 'user_id', 'bogus_param'
     ])
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_regular_parameters(
         self, parameter, mock_container, producer
     ):
@@ -111,12 +111,12 @@ class TestConfigurability(object):
         """
         value = Mock()
 
-        with setup_config({'AMQP_URI': 'memory://localhost'}):
-            dispatch = event_dispatcher(**{parameter: value})
+        dispatch = event_dispatcher(**{parameter: value})
 
         dispatch("service-name", "event-type", "event-data")
         assert producer.publish.call_args[1][parameter] == value
 
+    @pytest.mark.usefixtures("memory_rabbit_config")
     def test_restricted_parameters(
         self, mock_container, producer
     ):
@@ -126,9 +126,8 @@ class TestConfigurability(object):
         exchange = Mock()
         routing_key = Mock()
 
-        with setup_config({'AMQP_URI': 'memory://localhost'}):
-            dispatch = event_dispatcher(
-                exchange=exchange, routing_key=routing_key)
+        dispatch = event_dispatcher(
+            exchange=exchange, routing_key=routing_key)
 
         service_name = "service-name"
         event_exchange = get_event_exchange(service_name)

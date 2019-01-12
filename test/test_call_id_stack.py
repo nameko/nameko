@@ -1,7 +1,7 @@
 import pytest
 from mock import Mock, call
 
-from nameko import setup_config
+from nameko import config
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.events import EventDispatcher, event_handler
@@ -43,6 +43,7 @@ def test_worker_context_gets_stack(container_factory):
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
+@config.patch({PARENT_CALLS_CONFIG_KEY: 1}, clear=True)
 def test_short_call_stack(container_factory):
 
     class FooService(object):
@@ -53,13 +54,12 @@ def test_short_call_stack(container_factory):
 
     many_ids = [str(i) for i in range(100)]
 
-    with setup_config({PARENT_CALLS_CONFIG_KEY: 1}):
-        context = WorkerContext(
-            container, service, DummyProvider("long"),
-            data={'call_id_stack': many_ids}
-        )
-        # Trimmed stack
-        assert context.call_id_stack == ['99', 'baz.long.0']
+    context = WorkerContext(
+        container, service, DummyProvider("long"),
+        data={'call_id_stack': many_ids}
+    )
+    # Trimmed stack
+    assert context.call_id_stack == ['99', 'baz.long.0']
 
 
 @pytest.fixture

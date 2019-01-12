@@ -12,7 +12,7 @@ from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko import config, update_config
+from nameko import config
 from nameko.amqp.consume import Consumer
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
@@ -878,7 +878,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
                 return "OK"
 
         # very fast heartbeat (2 seconds)
-        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+        with config.patch({HEARTBEAT_CONFIG_KEY: 2}):
             container = container_factory(Service)
             container.start()
 
@@ -944,7 +944,7 @@ class TestReplyListenerDisconnections(object):
                 return arg
 
         # very fast heartbeat (2 seconds)
-        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+        with config.patch({HEARTBEAT_CONFIG_KEY: 2}):
             container = container_factory(Service)
             container.start()
 
@@ -1170,7 +1170,7 @@ class TestRpcConsumerDisconnections(object):
                 return arg
 
         # very fast heartbeat (2 seconds)
-        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+        with config.patch({HEARTBEAT_CONFIG_KEY: 2}):
             container = container_factory(Service)
             container.start()
 
@@ -1928,6 +1928,7 @@ class TestConfigurability(object):
 
 
 @pytest.mark.usefixtures("rabbit_config")
+@config.patch({MAX_WORKERS_CONFIG_KEY: 1})
 def test_prefetch_throughput(container_factory):
     """Make sure even max_workers=1 can consumer faster than 1 msg/second
 
@@ -1941,18 +1942,16 @@ def test_prefetch_throughput(container_factory):
         def method(self):
             pass
 
-    with update_config({MAX_WORKERS_CONFIG_KEY: 1}):
+    container = container_factory(Service)
+    container.start()
 
-        container = container_factory(Service)
-        container.start()
+    replies = []
+    with ServiceRpcClient("service") as client:
+        for _ in range(5):
+            replies.append(client.method.call_async())
 
-        replies = []
-        with ServiceRpcClient("service") as client:
-            for _ in range(5):
-                replies.append(client.method.call_async())
-
-            with eventlet.Timeout(1):
-                [reply.result() for reply in replies]
+        with eventlet.Timeout(1):
+            [reply.result() for reply in replies]
 
 
 @pytest.mark.usefixtures("rabbit_config")

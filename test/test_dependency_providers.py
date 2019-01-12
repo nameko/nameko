@@ -1,7 +1,7 @@
 import pytest
 from mock import call, patch
 
-from nameko import update_config
+from nameko import config
 from nameko.dependency_providers import Config
 from nameko.rpc import rpc
 from nameko.testing.services import entrypoint_hook
@@ -26,7 +26,7 @@ class TestConfig:
     def test_get_config_value(
         self, warn, rabbit_config, container_factory, service_cls
     ):
-        with update_config({"FOO": "bar"}):
+        with config.patch({"FOO": "bar"}):
 
             container = container_factory(service_cls)
             container.start()

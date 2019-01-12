@@ -1,7 +1,7 @@
 import pytest
 from mock import Mock, call
 
-from nameko import config, update_config
+from nameko import config
 from nameko.events import BROADCAST, event_handler
 from nameko.rpc import rpc
 from nameko.runners import ServiceRunner, run_services
@@ -41,6 +41,7 @@ def service_cls(tracker):
     return Service
 
 
+@config.patch({'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'})
 def test_runner_lifecycle(fake_module):
     events = set()
 
@@ -63,10 +64,7 @@ def test_runner_lifecycle(fake_module):
 
     fake_module.ServiceContainer = Container
 
-    with update_config(
-        {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
-    ):
-        runner = ServiceRunner()
+    runner = ServiceRunner()
 
     runner.add_service(TestService1)
     runner.add_service(TestService2)
@@ -100,6 +98,7 @@ def test_runner_lifecycle(fake_module):
     }
 
 
+@config.patch({'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'})
 def test_contextual_lifecycle(fake_module):
     events = set()
 
@@ -119,42 +118,39 @@ def test_contextual_lifecycle(fake_module):
 
     fake_module.ServiceContainer = Container
 
-    with update_config(
-        {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
-    ):
-
-        with run_services(TestService1, TestService2):
-            # Ensure the services were started
-            assert events == {
-                ('start', 'foobar_1', TestService1),
-                ('start', 'foobar_2', TestService2),
-            }
-
-        # ...and that they were stopped
+    with run_services(TestService1, TestService2):
+        # Ensure the services were started
         assert events == {
-            ('start', 'foobar_1', TestService1),
-            ('start', 'foobar_2', TestService2),
-            ('stop', 'foobar_1', TestService1),
-            ('stop', 'foobar_2', TestService2),
-        }
-
-        events = set()
-        with run_services(TestService1, TestService2, kill_on_exit=True):
-            # Ensure the services were started
-            assert events == {
-                ('start', 'foobar_1', TestService1),
-                ('start', 'foobar_2', TestService2),
-            }
-
-        # ...and that they were killed
-        assert events == {
-            ('kill', 'foobar_1', TestService1),
-            ('kill', 'foobar_2', TestService2),
             ('start', 'foobar_1', TestService1),
             ('start', 'foobar_2', TestService2),
         }
 
+    # ...and that they were stopped
+    assert events == {
+        ('start', 'foobar_1', TestService1),
+        ('start', 'foobar_2', TestService2),
+        ('stop', 'foobar_1', TestService1),
+        ('stop', 'foobar_2', TestService2),
+    }
 
+    events = set()
+    with run_services(TestService1, TestService2, kill_on_exit=True):
+        # Ensure the services were started
+        assert events == {
+            ('start', 'foobar_1', TestService1),
+            ('start', 'foobar_2', TestService2),
+        }
+
+    # ...and that they were killed
+    assert events == {
+        ('kill', 'foobar_1', TestService1),
+        ('kill', 'foobar_2', TestService2),
+        ('start', 'foobar_1', TestService1),
+        ('start', 'foobar_2', TestService2),
+    }
+
+
+@config.patch({'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'})
 def test_runner_waits_raises_error(fake_module):
     class Container(object):
         def __init__(self, service_cls):
@@ -171,16 +167,13 @@ def test_runner_waits_raises_error(fake_module):
 
     fake_module.ServiceContainer = Container
 
-    with update_config(
-        {'SERVICE_CONTAINER_CLS': 'fake_module.ServiceContainer'}
-    ):
-        runner = ServiceRunner()
-        runner.add_service(TestService1)
-        runner.start()
+    runner = ServiceRunner()
+    runner.add_service(TestService1)
+    runner.start()
 
-        with pytest.raises(Exception) as exc_info:
-            runner.wait()
-        assert exc_info.value.args == ('error in container',)
+    with pytest.raises(Exception) as exc_info:
+        runner.wait()
+    assert exc_info.value.args == ('error in container',)
 
 
 @pytest.mark.usefixtures("rabbit_config")
