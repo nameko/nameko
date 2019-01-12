@@ -1,6 +1,6 @@
-from collections import UserDict
 from copy import deepcopy
 from six import wraps
+from six.moves import UserDict
 
 
 class Config(UserDict):
