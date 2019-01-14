@@ -60,7 +60,7 @@ class ShowConfig(Command):
     def init_parser(parser):
 
         parser.add_argument(
-            '--config', default='config.yaml',
+            '--config', default='config.yaml', nargs='+',
             help='The YAML configuration file')
 
         return parser
@@ -89,7 +89,7 @@ class Run(Command):
             help='python path to one or more service classes to run')
 
         parser.add_argument(
-            '--config', default='',
+            '--config', default='', nargs='+',
             help='The YAML configuration file')
 
         parser.add_argument(
@@ -133,7 +133,7 @@ class Shell(Command):
             help='Specify an interactive interpreter interface.'
                  ' (Ignored if not in TTY mode)')
         parser.add_argument(
-            '--config', default='',
+            '--config', default='', nargs='+',
             help='The YAML configuration file')
         return parser
 
