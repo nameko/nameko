@@ -30,7 +30,7 @@ class Config(UserDict):
 
         """
 
-        config = self.data
+        data = self.data
 
         class Patcher:
 
@@ -45,19 +45,19 @@ class Config(UserDict):
                     return result
                 return wrapper
 
-            def __init__(self, context_config, clear=False):
+            def __init__(self, context_data, clear=False):
                 self.clear = clear
-                self.context_config = context_config
+                self.context_data = context_data
 
             def __enter__(self):
-                self.original_config = deepcopy(config)
+                self.original_data = deepcopy(data)
                 if self.clear:
-                    config.clear()
-                config.update(self.context_config)
+                    data.clear()
+                data.update(self.context_data)
 
             def __exit__(self, *exc_info):
-                config.clear()
-                config.update(self.original_config)
+                data.clear()
+                data.update(self.original_data)
 
         return Patcher(context_config, clear=clear)
 
