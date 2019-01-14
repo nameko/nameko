@@ -6,7 +6,7 @@ import yaml
 from kombu import Exchange, Queue
 from mock import Mock, call
 
-from nameko import config, update_config
+from nameko import config
 from nameko.constants import (
     ACCEPT_CONFIG_KEY, SERIALIZER_CONFIG_KEY, SERIALIZERS_CONFIG_KEY
 )
@@ -97,7 +97,7 @@ def sniffer_queue_factory(rabbit_config, rabbit_manager, get_vhost):
 @pytest.mark.parametrize("serializer", ['json', 'pickle'])
 def test_rpc_serialization(container_factory, sniffer_queue_factory, serializer):
 
-    with update_config({SERIALIZER_CONFIG_KEY: serializer}):
+    with config.patch({SERIALIZER_CONFIG_KEY: serializer}):
         container = container_factory(Service)
         container.start()
 
@@ -159,7 +159,7 @@ def test_event_serialization(
         def handle_event(self, event_data):
             handler_called(event_data)
 
-    with update_config({SERIALIZER_CONFIG_KEY: serializer}):
+    with config.patch({SERIALIZER_CONFIG_KEY: serializer}):
 
         container = container_factory(Service)
         container.start()
@@ -202,7 +202,7 @@ def test_custom_serializer(container_factory, sniffer_queue_factory):
         def echo(self, arg):
             return arg
 
-    with update_config({
+    with config.patch({
         SERIALIZER_CONFIG_KEY: "upperjson",
         SERIALIZERS_CONFIG_KEY: {
             'upperjson': {
@@ -229,7 +229,7 @@ def test_custom_serializer(container_factory, sniffer_queue_factory):
 
 @pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.parametrize(
-    'config',
+    'cfg',
     (
         {SERIALIZER_CONFIG_KEY: 'unknown'},
         {ACCEPT_CONFIG_KEY: ['json', 'unknown']},
@@ -239,9 +239,9 @@ def test_custom_serializer(container_factory, sniffer_queue_factory):
         },
     )
 )
-def test_missing_serializers(container_factory, config):
+def test_missing_serializers(container_factory, cfg):
 
-    with update_config(config):
+    with config.patch(cfg):
         with pytest.raises(ConfigurationError) as exc:
             container_factory(Service)
 
@@ -252,7 +252,7 @@ def test_missing_serializers(container_factory, config):
 
 @pytest.yield_fixture
 def multi_serializer_config():
-    with update_config({ACCEPT_CONFIG_KEY: ['json', 'yaml']}):
+    with config.patch({ACCEPT_CONFIG_KEY: ['json', 'yaml']}):
         yield
 
 

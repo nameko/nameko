@@ -1,8 +1,8 @@
-from nameko import setup_config
+from nameko import config
 from nameko.standalone.rpc import ClusterRpcClient
 
 
-setup_config({
+config.setup({
     'AMQP_URI': AMQP_URI  # e.g. "pyamqp://guest:guest@localhost"
 })
 

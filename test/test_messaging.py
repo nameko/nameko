@@ -12,7 +12,7 @@ from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
-from nameko import config, update_config
+from nameko import config
 from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_producer
@@ -395,17 +395,17 @@ class TestConsumerDisconnections(object):
                 return arg
 
         # very fast heartbeat (2 seconds)
-        with update_config({HEARTBEAT_CONFIG_KEY: 2}):
+        with config.patch({HEARTBEAT_CONFIG_KEY: 2}):
             container = container_factory(Service)
             container.start()
 
-        # we have to let the container connect before disconnecting
-        # otherwise we end up in retry_over_time trying to make the
-        # initial connection; we get stuck there because it has a
-        # function-local copy of "on_connection_error" that is never patched
-        eventlet.sleep(.05)
+            # we have to let the container connect before disconnecting
+            # otherwise we end up in retry_over_time trying to make the
+            # initial connection; we get stuck there because it has a
+            # function-local copy of "on_connection_error" that is never patched
+            eventlet.sleep(.05)
 
-        return container
+            yield container
 
     def test_normal(self, container, publish):
         msg = "foo"
@@ -1117,6 +1117,7 @@ class TestPublisherConfigurability(object):
 class TestPrefetchCount(object):
 
     @pytest.mark.usefixtures("rabbit_config")
+    @config.patch({'PREFETCH_COUNT': 1})
     def test_prefetch_count(
         self, rabbit_manager, get_vhost, container_factory
     ):
@@ -1148,9 +1149,8 @@ class TestPrefetchCount(object):
             def handle(self, payload):
                 pass
 
-        with update_config({'PREFETCH_COUNT': 1}):
-            container = container_factory(Service)
-            container.start()
+        container = container_factory(Service)
+        container.start()
 
         consumer_continue = Event()
 
