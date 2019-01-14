@@ -16,11 +16,6 @@ class Config(UserDict):
 
         Intended to be used mainly in tests:
 
-            @pytest.yield_fixture
-            def memory_rabbit_config():
-                with nameko.config.patch({"AMQP_URI": "memory://"}):
-                    yield
-
             @nameko.config.patch({"AMQP_URI": "memory://"})
             def test_spam():
                 assert nameko.config["AMQP_URI"] == "memory://"
