@@ -872,10 +872,9 @@ class TestPublisherDisconnections(object):
         with toxiproxy.timeout(500):
 
             payload1 = "payload1"
-            with pytest.raises(OperationalError) as exc_info:  # socket closed
+            with pytest.raises(OperationalError):  # socket closed
                 with entrypoint_hook(publisher_container, 'send') as send:
                     send(payload1)
-            assert "Socket closed" in str(exc_info.value)
 
             assert tracker.call_args_list == [
                 call("send", payload1),
@@ -905,15 +904,9 @@ class TestPublisherDisconnections(object):
 
             # call 2 fails
             payload2 = "payload2"
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(IOError):
                 with entrypoint_hook(publisher_container, 'send') as send:
                     send(payload2)
-            assert (
-                # expect the write to raise a BrokenPipe or, if it succeeds,
-                # the socket to be closed on the subsequent confirmation read
-                "Broken pipe" in str(exc_info.value) or
-                "Socket closed" in str(exc_info.value)
-            )
 
             assert tracker.call_args_list == [
                 call("send", payload1),
@@ -945,15 +938,9 @@ class TestPublisherDisconnections(object):
 
             # call 2 fails
             payload2 = "payload2"
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(IOError):
                 with entrypoint_hook(publisher_container, 'send') as send:
                     send(payload2)
-            assert (
-                # expect the write to raise a BrokenPipe or, if it succeeds,
-                # the socket to be closed on the subsequent confirmation read
-                "Broken pipe" in str(exc_info.value) or
-                "Socket closed" in str(exc_info.value)
-            )
 
             assert tracker.call_args_list == [
                 call("send", payload1),
