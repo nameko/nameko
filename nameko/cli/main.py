@@ -72,7 +72,7 @@ def setup_parser():
         command.init_parser(command_parser)
         command_parser.set_defaults(main=command.main)
         command_parser.add_argument(
-            '--config',
+            '-c', '--config',
             help='The YAML configuration file')
         command_parser.add_argument(
             '-d', '--define',
