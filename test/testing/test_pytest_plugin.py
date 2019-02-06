@@ -321,6 +321,46 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
     assert result.ret == 0
 
 
+@config.patch({'FOO': 1})
+def test_container_factory_with_config_patch_argument():
+
+    from nameko import config
+    from nameko.testing.pytest import (
+        container_factory as container_factory_fixture
+    )
+    from nameko.testing.services import dummy
+
+    class Service(object):
+        name = "x"
+
+        @dummy
+        def method(self):
+            return "OK"
+
+    assert config['FOO'] == 1
+
+    container_factory_fixture = container_factory_fixture()
+
+    container_factory = next(container_factory_fixture)
+
+    assert config['FOO'] == 1
+
+    container_factory(Service, {'FOO': 2})
+
+    assert config['FOO'] == 2
+
+    container_factory(Service, {'FOO': 3})
+
+    assert config['FOO'] == 3
+
+    try:
+        next(container_factory_fixture)
+    except StopIteration:
+        pass
+
+    assert config['FOO'] == 1
+
+
 @pytest.mark.usefixtures("rabbit_config")
 def test_runner_factory(
     testdir, plugin_options, get_vhost, rabbit_manager
@@ -354,6 +394,53 @@ def test_runner_factory(
 
     vhost = get_vhost(config['AMQP_URI'])
     assert get_rabbit_connections(vhost, rabbit_manager) == []
+
+
+@config.patch({'FOO': 1})
+def test_ruunner_factory_with_config_patch_argument():
+
+    from nameko import config
+    from nameko.testing.pytest import (
+        runner_factory as runner_factory_fixture
+    )
+    from nameko.testing.services import dummy
+
+    class ServiceX(object):
+        name = "x"
+
+        @dummy
+        def method(self):
+            return "OK"
+
+    class ServiceY(object):
+        name = "y"
+
+        @dummy
+        def method(self):
+            return "OK"
+
+    assert config['FOO'] == 1
+
+    runner_factory_fixture = runner_factory_fixture()
+
+    runner_factory = next(runner_factory_fixture)
+
+    assert config['FOO'] == 1
+
+    runner_factory({'FOO': 2}, ServiceX)
+
+    assert config['FOO'] == 2
+
+    runner_factory({'FOO': 3}, ServiceX, ServiceY)
+
+    assert config['FOO'] == 3
+
+    try:
+        next(runner_factory_fixture)
+    except StopIteration:
+        pass
+
+    assert config['FOO'] == 1
 
 
 @pytest.mark.usefixtures('rabbit_config')

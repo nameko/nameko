@@ -32,11 +32,11 @@ class Config(UserDict):
             def __call__(self, func):
                 @wraps(func)
                 def wrapper(*args, **kwargs):
-                    self.__enter__()
+                    self.start()
                     try:
                         result = func(*args, **kwargs)
                     finally:
-                        self.__exit__(*tuple())
+                        self.stop()
                     return result
                 return wrapper
 
@@ -45,12 +45,18 @@ class Config(UserDict):
                 self.context_data = context_data
 
             def __enter__(self):
+                self.start()
+
+            def __exit__(self, *exc_info):
+                self.stop()
+
+            def start(self):
                 self.original_data = deepcopy(data)
                 if self.clear:
                     data.clear()
                 data.update(self.context_data)
 
-            def __exit__(self, *exc_info):
+            def stop(self):
                 data.clear()
                 data.update(self.original_data)
 
