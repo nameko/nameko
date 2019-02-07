@@ -328,14 +328,9 @@ def test_container_factory_with_config_patch_argument():
     from nameko.testing.pytest import (
         container_factory as container_factory_fixture
     )
-    from nameko.testing.services import dummy
 
     class Service(object):
         name = "x"
-
-        @dummy
-        def method(self):
-            return "OK"
 
     assert config['FOO'] == 1
 
@@ -397,27 +392,18 @@ def test_runner_factory(
 
 
 @config.patch({'FOO': 1})
-def test_ruunner_factory_with_config_patch_argument():
+def test_runner_factory_with_config_patch_argument():
 
     from nameko import config
     from nameko.testing.pytest import (
         runner_factory as runner_factory_fixture
     )
-    from nameko.testing.services import dummy
 
     class ServiceX(object):
         name = "x"
 
-        @dummy
-        def method(self):
-            return "OK"
-
     class ServiceY(object):
         name = "y"
-
-        @dummy
-        def method(self):
-            return "OK"
 
     assert config['FOO'] == 1
 
