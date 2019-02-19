@@ -101,6 +101,9 @@ class Run(Command):
             help='Specify a port number to host a backdoor, which can be'
             ' connected to for an interactive interpreter within the running'
             ' service process using `nameko backdoor`.')
+        parser.add_argument(
+            '--cname', default='', type=str,
+            help='Cover service cls name')
 
         return parser
 

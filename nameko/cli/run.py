@@ -113,9 +113,11 @@ def setup_backdoor(runner, port):
     return socket, gt
 
 
-def run(services, config, backdoor_port=None):
+def run(services, config, backdoor_port=None, cname=None):
     service_runner = ServiceRunner(config)
     for service_cls in services:
+        if cname:
+            setattr(service_cls, "name", cname)
         service_runner.add_service(service_cls)
 
     def shutdown(signum, frame):
@@ -181,4 +183,4 @@ def main(args):
             import_service(path)
         )
 
-    run(services, config, backdoor_port=args.backdoor_port)
+    run(services, config, backdoor_port=args.backdoor_port, cname=args.cname)
