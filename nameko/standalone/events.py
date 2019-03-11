@@ -12,8 +12,8 @@ def get_event_exchange(service_name):
     """
     exchange_name = "{}.events".format(service_name)
     exchange = Exchange(
-        exchange_name, type='topic', durable=True, auto_delete=True,
-        delivery_mode=PERSISTENT)
+        exchange_name, type='topic', durable=True, delivery_mode=PERSISTENT
+    )
 
     return exchange
 
