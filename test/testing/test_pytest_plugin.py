@@ -321,39 +321,38 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
     assert result.ret == 0
 
 
-@config.patch({'FOO': 1})
-def test_container_factory_with_config_patch_argument():
+def test_container_factory_with_config_patch_argument(testdir):
 
-    from nameko import config
-    from nameko.testing.pytest import (
-        container_factory as container_factory_fixture
+    testdir.makepyfile(
+        """
+        import nameko
+        import pytest
+
+        from nameko.testing.services import dummy
+
+        class ServiceX(object):
+            name = "x"
+
+            @dummy
+            def method(self):
+                return "OK"
+
+        def test_container_factory_applies_config_patch_(container_factory):
+
+            assert "FOO" not in nameko.config
+
+            container = container_factory(ServiceX, {"FOO": 2})
+            container.start()
+
+            assert nameko.config["FOO"] == 2
+
+        def test_container_factory_rolls_back_config_patch():
+
+            assert "FOO" not in nameko.config
+        """
     )
-
-    class Service(object):
-        name = "x"
-
-    assert config['FOO'] == 1
-
-    container_factory_fixture = container_factory_fixture()
-
-    container_factory = next(container_factory_fixture)
-
-    assert config['FOO'] == 1
-
-    container_factory(Service, {'FOO': 2})
-
-    assert config['FOO'] == 2
-
-    container_factory(Service, {'FOO': 3})
-
-    assert config['FOO'] == 3
-
-    try:
-        next(container_factory_fixture)
-    except StopIteration:
-        pass
-
-    assert config['FOO'] == 1
+    result = testdir.runpytest()
+    assert result.ret == 0
 
 
 @pytest.mark.usefixtures("rabbit_config")
@@ -391,42 +390,37 @@ def test_runner_factory(
     assert get_rabbit_connections(vhost, rabbit_manager) == []
 
 
-@config.patch({'FOO': 1})
-def test_runner_factory_with_config_patch_argument():
+def test_runner_factory_with_config_patch_argument(testdir):
 
-    from nameko import config
-    from nameko.testing.pytest import (
-        runner_factory as runner_factory_fixture
+    testdir.makepyfile(
+        """
+        import nameko
+        import pytest
+
+        from nameko.testing.services import dummy
+
+        class ServiceX(object):
+            name = "x"
+
+        class ServiceY(object):
+            name = "y"
+
+        def test_runner_factory_applies_config_patch_(runner_factory):
+
+            assert "FOO" not in nameko.config
+
+            runner = runner_factory({"FOO": 2}, ServiceX, ServiceY)
+            runner.start()
+
+            assert nameko.config["FOO"] == 2
+
+        def test_runner_factory_rolls_back_config_patch():
+
+            assert "FOO" not in nameko.config
+        """
     )
-
-    class ServiceX(object):
-        name = "x"
-
-    class ServiceY(object):
-        name = "y"
-
-    assert config['FOO'] == 1
-
-    runner_factory_fixture = runner_factory_fixture()
-
-    runner_factory = next(runner_factory_fixture)
-
-    assert config['FOO'] == 1
-
-    runner_factory({'FOO': 2}, ServiceX)
-
-    assert config['FOO'] == 2
-
-    runner_factory({'FOO': 3}, ServiceX, ServiceY)
-
-    assert config['FOO'] == 3
-
-    try:
-        next(runner_factory_fixture)
-    except StopIteration:
-        pass
-
-    assert config['FOO'] == 1
+    result = testdir.runpytest()
+    assert result.ret == 0
 
 
 @pytest.mark.usefixtures('rabbit_config')

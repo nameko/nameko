@@ -1,9 +1,11 @@
 from textwrap import dedent
 
+import pytest
 from mock import patch
 
 
 @patch('nameko.cli.main.os')
+@pytest.mark.usefixtures("empty_config")
 def test_main(mock_os, tmpdir, capsys, command):
 
     config_file = tmpdir.join('config.yaml')
