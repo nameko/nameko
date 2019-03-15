@@ -15,7 +15,7 @@ def parse_config_option(text):
     import yaml
     if '=' in text:
         key, value = text.strip().split('=', 1)
-        return key, yaml.load(value)
+        return key, yaml.unsafe_load(value)
     else:
         return text, True
 
@@ -253,45 +253,72 @@ def get_message_from_queue(amqp_uri):
 
 @pytest.yield_fixture
 def container_factory():
+    import nameko
     from nameko.containers import get_container_cls
 
     all_containers = []
 
-    def make_container(service_cls):
+    def make_container(service_cls, config=None):
+
+        # nameko 2.X backward compatible passing of custom config argument
+        # we apply config patch if a config dictionary is passed to the factory
+        if config:
+            patch = nameko.config.patch(config)
+            patch.start()
+        else:
+            patch = None
 
         container_cls = get_container_cls()
         container = container_cls(service_cls)
-        all_containers.append(container)
+        all_containers.append((container, patch))
         return container
 
     yield make_container
-    for c in all_containers:
+
+    for container, patch in reversed(all_containers):
         try:
-            c.kill()
+            container.kill()
         except:  # pragma: no cover
             pass
+        if patch:
+            patch.stop()
 
 
 @pytest.yield_fixture
 def runner_factory():
+    import collections
+    import nameko
     from nameko.runners import ServiceRunner
 
     all_runners = []
 
     def make_runner(*service_classes):
+
+        # nameko 2.X backward compatible passing of custom config argument
+        # we apply config patch if a config dictionary is passed to the factory
+        if service_classes and isinstance(service_classes[0], collections.Mapping):
+            config = service_classes[0]
+            service_classes = service_classes[1:]
+            patch = nameko.config.patch(config)
+            patch.start()
+        else:
+            patch = None
+
         runner = ServiceRunner()
         for service_cls in service_classes:
             runner.add_service(service_cls)
-        all_runners.append(runner)
+        all_runners.append((runner, patch))
         return runner
 
     yield make_runner
 
-    for r in all_runners:
+    for runner, patch in reversed(all_runners):
         try:
-            r.kill()
+            runner.kill()
         except:  # pragma: no cover
             pass
+        if patch:
+            patch.stop()
 
 
 @pytest.yield_fixture

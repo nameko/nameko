@@ -107,27 +107,30 @@ def env_var_constructor(loader, node, raw=False):
 
 
 def setup_yaml_parser():
-    yaml.add_constructor('!env_var', env_var_constructor)
-    yaml.add_constructor('!raw_env_var',
-                         partial(env_var_constructor, raw=True))
-    yaml.add_implicit_resolver('!env_var', IMPLICIT_ENV_VAR_MATCHER)
+    yaml.add_constructor('!env_var', env_var_constructor, yaml.UnsafeLoader)
+    yaml.add_constructor(
+        '!raw_env_var', partial(env_var_constructor, raw=True), yaml.UnsafeLoader
+    )
+    yaml.add_implicit_resolver(
+        '!env_var', IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.UnsafeLoader
+    )
 
 
 def load_config(config_path):
+    setup_yaml_parser()
     with open(config_path) as fle:
-        return yaml.load(fle)
+        return yaml.unsafe_load(fle)
 
 
 def parse_config_option(text):
     if '=' in text:
         key, value = text.strip().split('=', 1)
-        return key, yaml.load(value)
+        return key, yaml.safe_load(value)
     else:
         return text, True
 
 
 def setup_config(args):
-    setup_yaml_parser()
     if args.config:
         config.update(load_config(args.config))
     if hasattr(args, "broker") and args.broker:

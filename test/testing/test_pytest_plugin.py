@@ -321,6 +321,40 @@ def test_container_factory_with_custom_container_cls(testdir, plugin_options):
     assert result.ret == 0
 
 
+def test_container_factory_with_config_patch_argument(testdir):
+
+    testdir.makepyfile(
+        """
+        import nameko
+        import pytest
+
+        from nameko.testing.services import dummy
+
+        class ServiceX(object):
+            name = "x"
+
+            @dummy
+            def method(self):
+                return "OK"
+
+        def test_container_factory_applies_config_patch_(container_factory):
+
+            assert "FOO" not in nameko.config
+
+            container = container_factory(ServiceX, {"FOO": 2})
+            container.start()
+
+            assert nameko.config["FOO"] == 2
+
+        def test_container_factory_rolls_back_config_patch():
+
+            assert "FOO" not in nameko.config
+        """
+    )
+    result = testdir.runpytest()
+    assert result.ret == 0
+
+
 @pytest.mark.usefixtures("rabbit_config")
 def test_runner_factory(
     testdir, plugin_options, get_vhost, rabbit_manager
@@ -354,6 +388,39 @@ def test_runner_factory(
 
     vhost = get_vhost(config['AMQP_URI'])
     assert get_rabbit_connections(vhost, rabbit_manager) == []
+
+
+def test_runner_factory_with_config_patch_argument(testdir):
+
+    testdir.makepyfile(
+        """
+        import nameko
+        import pytest
+
+        from nameko.testing.services import dummy
+
+        class ServiceX(object):
+            name = "x"
+
+        class ServiceY(object):
+            name = "y"
+
+        def test_runner_factory_applies_config_patch_(runner_factory):
+
+            assert "FOO" not in nameko.config
+
+            runner = runner_factory({"FOO": 2}, ServiceX, ServiceY)
+            runner.start()
+
+            assert nameko.config["FOO"] == 2
+
+        def test_runner_factory_rolls_back_config_patch():
+
+            assert "FOO" not in nameko.config
+        """
+    )
+    result = testdir.runpytest()
+    assert result.ret == 0
 
 
 @pytest.mark.usefixtures('rabbit_config')
