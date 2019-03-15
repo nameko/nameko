@@ -314,7 +314,7 @@ class TestConfigEnvironmentVariables(object):
             for key, val in env_vars.items():
                 os.environ[key] = val
 
-            results = yaml.load(yaml_config)
+            results = yaml.unsafe_load(yaml_config)
             assert results == expected_config
 
     def test_cannot_recurse(self):
@@ -332,7 +332,7 @@ class TestConfigEnvironmentVariables(object):
         with patch.dict('os.environ'):
             os.environ["VAR1"] = "${VAR1}"
 
-            results = yaml.load(yaml_config)
+            results = yaml.unsafe_load(yaml_config)
             assert results == {'FOO': "${VAR1}", 'BAR': [1, 2, 3]}
 
     @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
@@ -389,7 +389,7 @@ class TestConfigEnvironmentVariables(object):
             for key, val in env_vars.items():
                 os.environ[key] = val
 
-            results = yaml.load(yaml_config)
+            results = yaml.unsafe_load(yaml_config)
             assert results == expected_config
 
     @pytest.mark.parametrize(('yaml_config', 'env_vars', 'expected_config'), [
@@ -429,5 +429,5 @@ class TestConfigEnvironmentVariables(object):
         with patch.dict('os.environ'):
             for key, val in env_vars.items():
                 os.environ[key] = val
-            results = yaml.load(yaml_config)
+            results = yaml.unsafe_load(yaml_config)
             assert results == expected_config
