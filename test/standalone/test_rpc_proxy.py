@@ -765,9 +765,8 @@ class TestStandaloneProxyConsumerDisconnections(object):
     def test_timeout(self, service_rpc, toxiproxy):
         with toxiproxy.timeout(stream="downstream"):
 
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(IOError):
                 service_rpc.echo(1)
-            assert "Socket closed" in str(exc_info.value)
 
     def test_reuse_when_down(self, service_rpc, toxiproxy):
         assert service_rpc.echo(1) == 1
