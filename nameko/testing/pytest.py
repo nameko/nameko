@@ -15,7 +15,7 @@ def parse_config_option(text):
     import yaml
     if '=' in text:
         key, value = text.strip().split('=', 1)
-        return key, yaml.load(value)
+        return key, yaml.unsafe_load(value)
     else:
         return text, True
 
