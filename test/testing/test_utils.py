@@ -1,5 +1,4 @@
 import itertools
-import warnings
 
 import eventlet
 import pytest
