@@ -184,13 +184,8 @@ def test_wait_for_worker_idle(container_factory, rabbit_config):
 
     max_workers = DEFAULT_MAX_WORKERS
 
-    # TODO: pytest.warns is not supported until pytest >= 2.8.0, whose
-    # `testdir` plugin is not compatible with eventlet on python3 --
-    # see https://github.com/mattbennett/eventlet-pytest-bug
-    with warnings.catch_warnings(record=True) as ws:
+    with pytest.deprecated_call():
         wait_for_worker_idle(container)
-        assert len(ws) == 1
-        assert issubclass(ws[-1].category, DeprecationWarning)
 
     # verify nothing running
     assert container._worker_pool.free() == max_workers
