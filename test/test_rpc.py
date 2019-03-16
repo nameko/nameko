@@ -1156,6 +1156,7 @@ class TestRpcConsumerDisconnections(object):
 
 
 @skip_if_no_toxiproxy
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 class TestProxyDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
 
@@ -1303,6 +1304,7 @@ class TestProxyDisconnections(object):
 
 
 @skip_if_no_toxiproxy
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 class TestResponderDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
 

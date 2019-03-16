@@ -595,6 +595,7 @@ def test_consumer_replacing(container_factory, rabbit_manager, rabbit_config):
 
 
 @skip_if_no_toxiproxy
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 class TestStandaloneProxyDisconnections(object):
 
     @pytest.fixture(autouse=True)
