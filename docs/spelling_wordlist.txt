@@ -78,6 +78,7 @@ mixin
 monolith
 monolithic
 monospaced
+moto
 mysqldb
 nameko
 namespace
@@ -93,6 +94,7 @@ py
 pyamqp
 pyrabbit
 pytest
+pyyaml
 rabbitmq
 rc
 reconnected
@@ -138,6 +140,7 @@ timeouts
 traceback
 tracebacks
 transactional
+tty
 tuple
 tuples
 twilio
@@ -147,6 +150,7 @@ unregister
 unregistered
 unregisters
 urls
+uri
 utils
 vhost
 visualize
