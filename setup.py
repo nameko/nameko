@@ -43,7 +43,7 @@ setup(
             "pylint==1.7.1",
             "pytest==4.3.1",
             "pytest-cov==2.5.1",
-            "pytest-timeout==1.3.0",
+            "pytest-timeout==1.3.3",
             "requests==2.19.1",
             "urllib3==1.23",
             "websocket-client==0.48.0",
