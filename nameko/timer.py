@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import itertools
 import time
 from logging import getLogger
 
@@ -56,8 +57,14 @@ class Timer(Entrypoint):
 
     def _run(self):
         """ Runs the interval loop. """
-        sleep_time = 0 if self.eager else self.interval
 
+        def get_next_interval():
+            start_time = time.time()
+            start = 0 if self.eager else 1
+            for count in itertools.count(start=start):
+                yield max(start_time + count * self.interval - time.time(), 0)
+        interval = get_next_interval()
+        sleep_time = next(interval)
         while True:
             # sleep for `sleep_time`, unless `should_stop` fires, in which
             # case we leave the while loop and stop entirely
@@ -65,18 +72,12 @@ class Timer(Entrypoint):
                 self.should_stop.wait()
                 break
 
-            start = time.time()
-
             self.handle_timer_tick()
 
             self.worker_complete.wait()
             self.worker_complete.reset()
 
-            elapsed_time = (time.time() - start)
-
-            # next time, sleep however long is left of our interval, taking
-            # off the time we took to run
-            sleep_time = max(self.interval - elapsed_time, 0)
+            sleep_time = next(interval)
 
     def handle_timer_tick(self):
         args = ()

@@ -93,10 +93,15 @@ def env_var_constructor(loader, node, raw=False):
 
 
 def setup_yaml_parser():
-    yaml.add_constructor('!env_var', env_var_constructor)
-    yaml.add_constructor('!raw_env_var',
-                         partial(env_var_constructor, raw=True))
-    yaml.add_implicit_resolver('!env_var', IMPLICIT_ENV_VAR_MATCHER)
+    yaml.add_constructor('!env_var', env_var_constructor, yaml.UnsafeLoader)
+    yaml.add_constructor(
+        '!raw_env_var',
+        partial(env_var_constructor, raw=True),
+        yaml.UnsafeLoader
+    )
+    yaml.add_implicit_resolver(
+        '!env_var', IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.UnsafeLoader
+    )
 
 
 def main():

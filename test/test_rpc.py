@@ -6,6 +6,7 @@ import pytest
 from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
+from kombu import Exchange
 from kombu.connection import Connection
 from kombu.exceptions import OperationalError
 from mock import Mock, call, create_autospec, patch
@@ -118,7 +119,7 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
 
-    exchange = Mock()
+    exchange = Exchange("some_exchange")
     get_rpc_exchange.return_value = exchange
 
     consumer = RpcConsumer().bind(container)
@@ -180,7 +181,7 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
     container.config = {}
     container.service_name = "exampleservice"
 
-    exchange = Mock()
+    exchange = Exchange("some_exchange")
     get_rpc_exchange.return_value = exchange
 
     reply_listener = ReplyListener().bind(container)
