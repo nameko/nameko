@@ -164,7 +164,7 @@ def main(args):
 
     if args.config:
         with open(args.config) as fle:
-            config = yaml.load(fle)
+            config = yaml.unsafe_load(fle)
     else:
         config = {
             AMQP_URI_CONFIG_KEY: args.broker

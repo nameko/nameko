@@ -6,6 +6,7 @@ import pytest
 from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
+from kombu import Exchange
 from kombu.connection import Connection
 from kombu.exceptions import OperationalError
 from mock import Mock, call, create_autospec, patch
@@ -118,7 +119,7 @@ def test_rpc_consumer(get_rpc_exchange, queue_consumer, mock_container):
     container.service_name = "exampleservice"
     container.service_cls = Mock(rpcmethod=lambda: None)
 
-    exchange = Mock()
+    exchange = Exchange("some_exchange")
     get_rpc_exchange.return_value = exchange
 
     consumer = RpcConsumer().bind(container)
@@ -180,7 +181,7 @@ def test_reply_listener(get_rpc_exchange, queue_consumer, mock_container):
     container.config = {}
     container.service_name = "exampleservice"
 
-    exchange = Mock()
+    exchange = Exchange("some_exchange")
     get_rpc_exchange.return_value = exchange
 
     reply_listener = ReplyListener().bind(container)
@@ -1240,10 +1241,9 @@ class TestProxyDisconnections(object):
     def test_timeout(self, client_container, toxiproxy):
         with toxiproxy.timeout():
 
-            with pytest.raises(OperationalError) as exc_info:
+            with pytest.raises(OperationalError):
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(1)
-            assert "Socket closed" in str(exc_info.value)
 
     def test_reuse_when_down(self, client_container, toxiproxy):
         """ Verify we detect stale connections.
@@ -1257,15 +1257,9 @@ class TestProxyDisconnections(object):
 
         with toxiproxy.disabled():
 
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(IOError):
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(2)
-            assert (
-                # expect the write to raise a BrokenPipe or, if it succeeds,
-                # the socket to be closed on the subsequent confirmation read
-                "Broken pipe" in str(exc_info.value) or
-                "Socket closed" in str(exc_info.value)
-            )
 
     def test_reuse_when_recovered(self, client_container, toxiproxy):
         """ Verify we detect and recover from stale connections.
@@ -1279,15 +1273,9 @@ class TestProxyDisconnections(object):
 
         with toxiproxy.disabled():
 
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(IOError):
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(2)
-            assert (
-                # expect the write to raise a BrokenPipe or, if it succeeds,
-                # the socket to be closed on the subsequent confirmation read
-                "Broken pipe" in str(exc_info.value) or
-                "Socket closed" in str(exc_info.value)
-            )
 
         with entrypoint_hook(client_container, 'echo') as echo:
             assert echo(3) == 3
@@ -1437,9 +1425,8 @@ class TestResponderDisconnections(object):
             eventlet.spawn_n(service_rpc.echo, 1)
 
             # the container will raise if the responder cannot reply
-            with pytest.raises(OperationalError) as exc_info:
+            with pytest.raises(OperationalError):
                 container.wait()
-            assert "Socket closed" in str(exc_info.value)
 
             service_rpc.abort()
 
@@ -1457,14 +1444,8 @@ class TestResponderDisconnections(object):
             eventlet.spawn_n(service_rpc.echo, 2)
 
             # the container will raise if the responder cannot reply
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(IOError):
                 container.wait()
-            assert (
-                # expect the write to raise a BrokenPipe or, if it succeeds,
-                # the socket to be closed on the subsequent confirmation read
-                "Broken pipe" in str(exc_info.value) or
-                "Socket closed" in str(exc_info.value)
-            )
 
             service_rpc.abort()
 
@@ -1485,14 +1466,8 @@ class TestResponderDisconnections(object):
             eventlet.spawn_n(service_rpc.echo, 2)
 
             # the container will raise if the responder cannot reply
-            with pytest.raises(IOError) as exc_info:
+            with pytest.raises(IOError):
                 container.wait()
-            assert (
-                # expect the write to raise a BrokenPipe or, if it succeeds,
-                # the socket to be closed on the subsequent confirmation read
-                "Broken pipe" in str(exc_info.value) or
-                "Socket closed" in str(exc_info.value)
-            )
 
         # create new container
         replacement_container = container_factory(service_cls, rabbit_config)
