@@ -41,7 +41,7 @@ setup(
             "pycodestyle==2.3.1",
             "pyflakes==1.5.0",
             "pylint==1.7.1",
-            "pytest==3.6.3",
+            "pytest==4.3.1",
             "pytest-cov==2.5.1",
             "pytest-timeout==1.3.0",
             "requests==2.19.1",
