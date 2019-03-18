@@ -164,6 +164,7 @@ class TestSensitiveArguments(object):
             'c': 'C'
         }
 
+    @pytest.mark.filterwarnings("ignore:The `sensitive_variables`:DeprecationWarning")
     def test_sensitive_variables_backwards_compat(self, container_factory):
 
         class Service(object):
