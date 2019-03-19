@@ -2,8 +2,8 @@ import os
 import sys
 from types import ModuleType
 
-from nameko import config
 import nameko.cli.code as code
+from nameko import config
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcClient
