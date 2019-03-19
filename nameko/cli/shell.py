@@ -1,8 +1,8 @@
-import code
 import os
 import sys
 from types import ModuleType
 
+import nameko.cli.code as code
 from nameko import config
 from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.standalone.events import event_dispatcher
@@ -26,10 +26,17 @@ class ShellRunner(object):
         embed(banner1=self.banner, user_ns=self.local)
 
     def plain(self):
-        code.interact(banner=self.banner, local=self.local)
+        code.interact(
+            banner=self.banner,
+            local=self.local,
+            raise_expections=not sys.stdin.isatty()
+        )
 
     def start_shell(self, name):
-        available_shells = [name] if name else Shell.SHELLS
+        if not sys.stdin.isatty():
+            available_shells = ['plain']
+        else:
+            available_shells = [name] if name else Shell.SHELLS
 
         # Support the regular Python interpreter startup script if someone
         # is using it.
@@ -42,9 +49,9 @@ class ShellRunner(object):
         for name in available_shells:
             try:
                 return getattr(self, name)()
-            except ImportError:
+            except ImportError:  # pragma: no cover noqa: F401
                 pass
-        self.plain()
+        self.plain()  # pragma: no cover
 
 
 def make_nameko_helper():

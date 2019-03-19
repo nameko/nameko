@@ -25,7 +25,7 @@ setup(
         "kombu>=4.2.0,<5",
         "mock>=1.2",
         "path.py>=6.2",
-        "pyyaml>=3.10",
+        "pyyaml>=5.1",
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
@@ -33,6 +33,7 @@ setup(
     ],
     extras_require={
         'dev': [
+            "astroid==1.6.5",
             "coverage==4.5.1",
             "flake8==3.3.0",
             "isort==4.2.15",
