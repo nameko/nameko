@@ -129,7 +129,8 @@ class Shell(Command):
         )
         parser.add_argument(
             '--interface', choices=cls.SHELLS,
-            help='Specify an interactive interpreter interface.')
+            help='Specify an interactive interpreter interface.'
+                 ' (Ignored if not in TTY mode)')
         return parser
 
     @staticmethod

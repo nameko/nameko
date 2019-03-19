@@ -71,7 +71,7 @@ def make_virtual_socket(host, port, path='/ws'):
     def connect_socket():
         err = ready_event.wait()
         if err is not None:
-            raise err
+            raise err  # (www.logilab.org/ticket/3207) pylint: disable=E0702
         return sock
 
     return ws_app, connect_socket

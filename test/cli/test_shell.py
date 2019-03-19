@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 
 import pytest
@@ -39,6 +40,12 @@ def fake_alternative_interpreters():
         'bpython': fake_module,
     }):
         yield
+
+
+@pytest.fixture
+def isatty():
+    with patch('nameko.cli.shell.sys.stdin.isatty') as isatty:
+        yield isatty
 
 
 @pytest.mark.usefixtures('rabbit_config')
@@ -84,7 +91,10 @@ def test_plain_fallback(command, pystartup):
 
 
 @pytest.mark.usefixtures('rabbit_config')
-def test_bpython(command, pystartup):
+def test_bpython(command, pystartup, isatty):
+
+    isatty.return_value = True
+
     with patch('bpython.embed') as embed:
         command(
             'nameko', 'shell',
@@ -99,7 +109,10 @@ def test_bpython(command, pystartup):
 
 
 @pytest.mark.usefixtures('rabbit_config')
-def test_ipython(command, pystartup):
+def test_ipython(command, pystartup, isatty):
+
+    isatty.return_value = True
+
     with patch('IPython.embed') as embed:
         command(
             'nameko', 'shell',
@@ -111,6 +124,20 @@ def test_ipython(command, pystartup):
     assert 'n' in local.keys()
     assert local['foo'] == 42
     local['n'].disconnect()
+
+
+@pytest.mark.usefixtures('rabbit_config')
+def test_uses_plain_when_not_tty(command, pystartup, isatty):
+
+    isatty.return_value = False
+
+    with patch('nameko.cli.shell.code') as code:
+        command(
+            'nameko', 'shell',
+            '--interface', 'ipython'
+        )
+
+    assert code.interact.called
 
 
 @pytest.mark.usefixtures('rabbit_config')
@@ -211,3 +238,38 @@ def test_broker_option_deprecated(command, rabbit_uri):
     local['n'].disconnect()
 
     assert warnings.warn.call_count
+
+
+class TestExitCode:
+
+    def test_exit_code_0(self):
+        """ Test ``echo print(1) | nameko shell``
+
+        This command should return an exit code of 0.
+        """
+
+        echo_process = subprocess.Popen(
+            ("echo", "print(1)"), stdout=subprocess.PIPE
+        )
+        nameko_process = subprocess.Popen(
+            ("nameko", "shell", "--define=AMQP_URI=memory://localhost"),
+            stdin=echo_process.stdout
+        )
+        nameko_process.wait()
+        assert nameko_process.returncode == 0
+
+    def test_exit_code_1(self):
+        """ Test ``echo raise Exception() | nameko shell``
+
+        This command should return an exit code of 1.
+        """
+
+        echo_process = subprocess.Popen(
+            ("echo", "raise Exception()"), stdout=subprocess.PIPE
+        )
+        nameko_process = subprocess.Popen(
+            ("nameko", "shell", "--define=AMQP_URI=memory://localhost"),
+            stdin=echo_process.stdout
+        )
+        nameko_process.wait()
+        assert nameko_process.returncode == 1

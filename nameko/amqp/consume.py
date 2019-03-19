@@ -5,6 +5,8 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.mixins import ConsumerMixin
 
+from nameko.utils import sanitize_url
+
 
 _log = getLogger(__name__)
 
@@ -84,7 +86,8 @@ class Consumer(ConsumerMixin):
     def on_connection_error(self, exc, interval):
         _log.warning(
             "Error connecting to broker at {} ({}).\n"
-            "Retrying in {} seconds.".format(self.amqp_uri, exc, interval)
+            "Retrying in {} seconds."
+            .format(sanitize_url(self.amqp_uri), exc, interval)
         )
 
     def on_message(self, body, message):

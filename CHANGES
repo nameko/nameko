@@ -5,6 +5,21 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.12.0
+-------------
+
+Released: 2019-03-18
+
+* Refactor utils so standalone.events does not import eventlet (#580)
+* Compatibility with latest dependencies (moto #577, pyyaml and kombu #612)
+* Timer now waits for the spawned entrypoint to complete before firing again,
+  as documented (#579, #303)
+* Timer is also improved to avoid drift (#614)
+* Hide password in logged amqp uri (#582)
+* Docs updates (#587, #591, #276, #596)
+* Nameko shell changed to not catch exceptions when used in non-TTY mode
+  (#597)
+
 Version 2.11.0
 -------------
 
