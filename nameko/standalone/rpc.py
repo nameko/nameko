@@ -13,8 +13,8 @@ from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, CALL_ID_STACK_CONTEXT_KEY,
-    DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY,
-    PREFETCH_COUNT_CONFIG_KEY
+    DEFAULT_AMQP_URI, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
+    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
@@ -57,20 +57,17 @@ class ReplyListener(object):
 
     consumer_cls = ReplyConsumer
 
-    def __init__(self, queue, timeout=None, **kwargs):
+    def __init__(self, queue, timeout=None, uri=None, ssl=None, **kwargs):
         self.queue = queue
         self.timeout = timeout
+
+        self.amqp_uri = uri or config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
+        self.ssl = ssl if ssl is not None else config.get(AMQP_SSL_CONFIG_KEY)
 
         self.pending = {}
         super(ReplyListener, self).__init__(**kwargs)
 
-    @property
-    def amqp_uri(self):
-        return config[AMQP_URI_CONFIG_KEY]
-
     def start(self):
-        ssl = config.get(AMQP_SSL_CONFIG_KEY)
-
         heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
         prefetch_count = config.get(
             PREFETCH_COUNT_CONFIG_KEY, DEFAULT_PREFETCH_COUNT
@@ -81,7 +78,7 @@ class ReplyListener(object):
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
-            self.check_for_lost_replies, self.amqp_uri, ssl=ssl,
+            self.check_for_lost_replies, self.amqp_uri, ssl=self.ssl,
             queues=queues, callbacks=callbacks,
             heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept
         )
@@ -96,8 +93,7 @@ class ReplyListener(object):
     def check_for_lost_replies(self):
         if self.pending:
             try:
-                ssl = config.get(AMQP_SSL_CONFIG_KEY)
-                with get_connection(self.amqp_uri, ssl=ssl) as conn:
+                with get_connection(self.amqp_uri, ssl=self.ssl) as conn:
                     self.queue.bind(conn).queue_declare(passive=True)
             except NotFound:
                 raise ReplyQueueExpiredWithPendingReplies(
@@ -207,10 +203,17 @@ class ClusterRpcClient(object):
             }
         )
 
-        self.reply_listener = ReplyListener(queue, timeout=timeout)
-
         self.amqp_uri = publisher_options.pop(
-            'uri', config[AMQP_URI_CONFIG_KEY]
+            'uri', config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
+        )
+        self.ssl = publisher_options.pop(
+            'ssl', config.get(AMQP_SSL_CONFIG_KEY)
+        )
+        reply_listener_uri = publisher_options.pop('reply_listener_uri', self.amqp_uri)
+        reply_listener_ssl = publisher_options.pop('reply_listener_ssl', self.ssl)
+
+        self.reply_listener = ReplyListener(
+            queue, timeout=timeout, uri=reply_listener_uri, ssl=reply_listener_ssl
         )
 
         serialization_config = serialization.setup()
@@ -221,13 +224,9 @@ class ClusterRpcClient(object):
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
 
-        ssl = publisher_options.pop(
-            'ssl', config.get(AMQP_SSL_CONFIG_KEY)
-        )
-
         publisher = self.publisher_cls(
             self.amqp_uri,
-            ssl=ssl,
+            ssl=self.ssl,
             exchange=exchange,
             serializer=self.serializer,
             declare=[self.reply_listener.queue],

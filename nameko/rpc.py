@@ -15,9 +15,9 @@ from nameko import config, serialization
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, UndeliverableMessage, get_connection
 from nameko.constants import (
-    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
-    DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY,
-    RPC_EXCHANGE_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI,
+    DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY,
+    PREFETCH_COUNT_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound,
@@ -63,7 +63,7 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
     @property
     def amqp_uri(self):
-        return config[AMQP_URI_CONFIG_KEY]
+        return config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
 
     def setup(self):
 
@@ -302,7 +302,7 @@ class ReplyListener(SharedExtension):
 
     @property
     def amqp_uri(self):
-        return config[AMQP_URI_CONFIG_KEY]
+        return config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
 
     def setup(self):
 
@@ -409,7 +409,7 @@ class ClusterRpc(DependencyProvider):
             publisher_options.pop(option, None)
         self.publisher_options = publisher_options
 
-        default_uri = config.get(AMQP_URI_CONFIG_KEY)
+        default_uri = config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
         self.amqp_uri = self.publisher_options.get('uri', default_uri)
 
     def setup(self):

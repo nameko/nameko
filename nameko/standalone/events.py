@@ -3,7 +3,7 @@ from kombu import Exchange
 from nameko import config, serialization
 from nameko.amqp.publish import Publisher
 from nameko.constants import (
-    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, PERSISTENT
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI, PERSISTENT
 )
 
 
@@ -21,7 +21,7 @@ def get_event_exchange(service_name):
 def event_dispatcher(**kwargs):
     """ Return a function that dispatches nameko events.
     """
-    amqp_uri = config[AMQP_URI_CONFIG_KEY]
+    amqp_uri = config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
     amqp_uri = kwargs.pop('uri', amqp_uri)
 
     serializer, _ = serialization.setup()

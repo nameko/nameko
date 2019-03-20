@@ -18,9 +18,7 @@ from nameko.exceptions import (
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
-from nameko.standalone.rpc import (
-    ClusterRpcClient, ReplyListener, ServiceRpcClient
-)
+from nameko.standalone.rpc import ClusterRpcClient, ServiceRpcClient
 from nameko.testing.waiting import wait_for_call
 
 from test import skip_if_no_toxiproxy
@@ -250,7 +248,7 @@ class TestDisconnectedWhileWaitingForReply(object):
     @pytest.fixture(autouse=True)
     def container(
         self, container_factory, rabbit_manager, rabbit_config, toxiproxy,
-        fast_expiry, toxic_reply_listener
+        fast_expiry
     ):
 
         def enable_after_queue_expires():
@@ -271,17 +269,12 @@ class TestDisconnectedWhileWaitingForReply(object):
 
         return container
 
-    @pytest.yield_fixture
-    def toxic_reply_listener(self, toxiproxy):
-        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
-            yield
-
     @pytest.mark.usefixtures('rabbit_config')
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
-        self, container
+        self, container, toxiproxy
     ):
         with pytest.raises(ReplyQueueExpiredWithPendingReplies):
-            with ClusterRpcClient() as client:
+            with ClusterRpcClient(reply_listener_uri=toxiproxy.uri) as client:
                 client.service.sleep()
 
 
@@ -709,7 +702,11 @@ class TestStandaloneClientDisconnections(object):
 
     @pytest.yield_fixture
     def service_rpc(self, rabbit_config, toxiproxy):
-        with ServiceRpcClient("service", uri=toxiproxy.uri) as client:
+        with ServiceRpcClient(
+            "service",
+            uri=toxiproxy.uri,
+            reply_listener_uri=config["AMQP_URI"]
+        ) as client:
             yield client
 
     @pytest.mark.usefixtures('use_confirms')
@@ -823,14 +820,9 @@ class TestStandaloneClientReplyListenerDisconnections(object):
             container = container_factory(Service)
             container.start()
 
-    @pytest.yield_fixture(autouse=True)
-    def toxic_reply_listener(self, toxiproxy):
-        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
-            yield
-
     @pytest.fixture
-    def rpc_client(self, rabbit_config):
-        return ServiceRpcClient('service')
+    def rpc_client(self, rabbit_config, toxiproxy):
+        return ServiceRpcClient('service', reply_listener_uri=toxiproxy.uri)
 
     @pytest.fixture
     def reply_listener(self, rpc_client):
@@ -1000,7 +992,13 @@ class TestSSL(object):
         ssl = rabbit_ssl_options
         uri = rabbit_ssl_uri
 
-        with ServiceRpcClient("service", uri=uri, ssl=ssl) as client:
+        with ServiceRpcClient(
+            "service",
+            uri=uri,
+            ssl=ssl,
+            reply_listener_uri=config["AMQP_URI"],
+            reply_listener_ssl=False,
+        ) as client:
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
