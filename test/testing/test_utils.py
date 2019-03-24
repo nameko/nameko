@@ -167,6 +167,7 @@ def test_reset_rabbit_connection_errors():
         reset_rabbit_connections("vhost_name", rabbit_manager)
 
 
+@pytest.mark.filterwarnings("ignore:`wait_for_worker_idle` is :DeprecationWarning")
 def test_wait_for_worker_idle(container_factory, rabbit_config):
 
     event = Event()
