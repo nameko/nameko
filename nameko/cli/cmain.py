@@ -1,19 +1,23 @@
 from functools import partial
 
 import click
+import yaml
 
 
 class KeyValParamType(click.ParamType):
-    """KEY=value formatted string
+    """KEY=value formatted string. If only KEY is present, it gets value True.
     """
 
     name = "key_val"
 
     def convert(self, value, param, ctx):
-        if "=" not in value:
-            self.fail("%s must include '=' such as 'KEY=value'" % value, param, ctx)
-        key, val = value.split("=", 1)
-        return key, val
+        if "=" in value:
+            key, val = value.split("=", 1)
+            # TODO: make sure, we use properly imported yaml parser
+            val = yaml.safe_load(val)
+            return key, val
+        else:
+            return key, True
 
 
 KEY_VAL = KeyValParamType()
@@ -48,6 +52,7 @@ option_broker = partial(
     "--broker",
     help="Deprecated option for setting up RabbitMQ broker URI.\n"
     "Use --define or --config and set AMQP_URI instead.",
+    metavar="BROKER",
 )
 option_config = partial(
     click.option,
@@ -65,6 +70,7 @@ option_define = partial(
     " AMQP_URI=pyamqp://guest:guest@localhost",
     type=KEY_VAL,
     multiple=True,
+    metavar="KEY=VALUE",
 )
 option_backdoor_port = partial(
     click.option,
@@ -74,12 +80,15 @@ option_backdoor_port = partial(
     " the running service process using `nameko backdoor`.",
     type=HOST_PORT,
 )
-argument_backdoor = partial(click.argument, "backdoor", type=HOST_PORT)
 option_rlwrap = partial(
     click.option, "--rlwrap/--no-rlwrap", help="Use rlwrap", default=None
 )
 option_interface = partial(
     click.option, "--interface", type=click.Choice(["bpython", "ipython", "plain"])
+)
+argument_backdoor = partial(click.argument, "backdoor", type=HOST_PORT)
+argument_modules = partial(
+    click.argument, "modules", nargs=-1, metavar="module[:service class]"
 )
 
 
@@ -130,7 +139,8 @@ def show_config(config, define):
 @option_backdoor_port()
 @option_config()
 @option_define()
-def run(broker, config, define, backdoor_port):
+@argument_modules()
+def run(broker, config, define, backdoor_port, modules):
     """Run nameko services. Given a python path to a module containing one or more
 nameko services, will host and run them. By default this will try to find
 classes that look like services (anything with nameko entrypoints), but a
@@ -144,6 +154,7 @@ positional arguments:
     """
     print(f"define: {define}")
     print(f"backdoor_port: {backdoor_port}")
+    print(f"modules: {modules}")
 
 
 # nameko shell
