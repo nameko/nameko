@@ -347,6 +347,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
+@pytest.mark.filterwarnings("ignore:Attempted to publish unserialisable`:UserWarning")
 def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
 
     vhost = rabbit_config['vhost']
