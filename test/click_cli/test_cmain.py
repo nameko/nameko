@@ -3,7 +3,7 @@ import sys
 
 import pytest
 import yaml
-from mock import patch, call
+from mock import call, patch
 
 from nameko.click_cli import main
 from nameko.click_cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser

@@ -7,9 +7,7 @@ from mock import Mock, patch
 
 from nameko.click_cli.shell import make_nameko_helper
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY,
-    SERIALIZER_CONFIG_KEY,
-    WEB_SERVER_CONFIG_KEY,
+    AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 )
 from nameko.rpc import Client
 

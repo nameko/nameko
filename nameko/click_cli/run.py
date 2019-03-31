@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import eventlet
+
 eventlet.monkey_patch()  # noqa (code before rest of imports)
 
 import errno
