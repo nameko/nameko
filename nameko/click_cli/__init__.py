@@ -1,13 +1,13 @@
 from functools import partial
-from nameko.exceptions import CommandError, ConfigurationError
 
 import click
 
-from .utils.paramtypes import HOST_PORT, KEY_VAL, NAMEKO_MODULE_SERVICES
 from nameko import config
+from nameko.exceptions import CommandError, ConfigurationError
 
-from .utils.config import setup_config
 from .run import main as main_run
+from .utils.config import setup_config
+from .utils.paramtypes import HOST_PORT, KEY_VAL, NAMEKO_MODULE_SERVICES
 
 
 def flatten_list_of_lists(ctx, param, list_of_lists):
