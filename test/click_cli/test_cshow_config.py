@@ -16,7 +16,7 @@ def config_file(tmpdir):
     return res
 
 
-@patch('nameko.click_cli.config.os')
+@patch('nameko.click_cli.utils.config.os')
 @pytest.mark.usefixtures("empty_config")
 def test_main(mock_os, tmpdir, capsys, command):
 

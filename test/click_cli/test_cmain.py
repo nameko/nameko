@@ -5,8 +5,9 @@ import pytest
 import yaml
 from mock import patch, call
 
-from nameko.click_cli.main import main
-from nameko.click_cli.config import ENV_VAR_MATCHER, setup_yaml_parser
+from nameko.click_cli import main
+from nameko.click_cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser
+from nameko.click_cli.utils.import_services import import_services
 from nameko.exceptions import CommandError, ConfigurationError
 
 
@@ -35,39 +36,59 @@ def fake_argv(empty_config):
         yield
 
 
-def test_run():
-    with patch("nameko.click_cli.main.setup_config") as setup_config:
-        with patch("nameko.click_cli.main.main_run") as main_run:
+class ExpectedCall(object):
+    """Class to generate calls expected by mocked functions
+    """
+
+    def __init__(
+        self,
+        config_file=None,
+        define=None,
+        services=None,
+        broker=None,
+        backdoor_port=None,
+        interface=None,
+    ):
+        self.config_file = config_file
+        self.define = define
+        self.services = services
+        self.broker = broker
+        self.backdoor_port = backdoor_port
+
+    @property
+    def setup_config_call(self):
+        return call(self.config_file, self.define, self.broker)
+
+    @property
+    def main_run_call(self):
+        return call(self.services, self.backdoor_port)
+
+
+@pytest.fixture()
+def expected():
+    define = {"AMQP_URI": "pyamqp://someuser:*****@somehost/"}
+    services = import_services("test.sample:Service")
+    return ExpectedCall(define=define, services=services)
+
+
+def test_run(expected):
+    with patch("nameko.click_cli.main_run") as main_run:
+        with patch("nameko.click_cli.setup_config") as setup_config:
             main(standalone_mode=False)
-            assert main_run.call_count == 1
-            assert main_run.call_args == call(["test.sample:Service"], None)
             assert setup_config.call_count == 1
-            assert setup_config.call_args == call(
-                None, (("AMQP_URI", "pyamqp://someuser:*****@somehost/"),), None
-            )
+            assert main_run.call_count == 1
+            assert setup_config.call_args == expected.setup_config_call
+            assert main_run.call_args == expected.main_run_call
 
 
 @pytest.mark.parametrize("exception", (CommandError, ConfigurationError))
 def test_error(exception, capsys):
-    with patch("nameko.click_cli.main.main_run") as main_run:
-        main_run.side_effect = exception("boom")
-        main(standalone_mode=False)
+    with patch("nameko.click_cli.main_run") as main_run:
+        with pytest.raises(SystemExit):
+            main_run.side_effect = exception("boom")
+            main(standalone_mode=True)
     out, _ = capsys.readouterr()
-    assert out.strip() == "Error: boom"
-
-
-# @pytest.mark.parametrize(('param', 'value'), (
-#     (None, None),
-#     ('--rlwrap', True),
-#     ('--no-rlwrap', False),
-# ))
-# def test_flag_action(param, value):
-#     parser = setup_parser()
-#     args = ['backdoor', 0]
-#     if param is not None:
-#         args.append(param)
-#     parsed = parser.parse_args(args)
-#     assert parsed.rlwrap is value
+    assert "Error: boom" in out.strip()
 
 
 @pytest.mark.parametrize(
@@ -93,7 +114,7 @@ def test_error(exception, capsys):
     ),
 )
 def test_parse_config_option(text, expected_key, expected_value):
-    from nameko.click_cli.main import KeyValParamType
+    from nameko.click_cli.utils.paramtypes import KeyValParamType
 
     assert KeyValParamType().convert(text, None, None) == (expected_key, expected_value)
 

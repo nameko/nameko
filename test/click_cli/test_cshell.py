@@ -50,7 +50,7 @@ def isatty():
 @pytest.mark.usefixtures("rabbit_config")
 def test_basic(command, pystartup):
     with patch("nameko.click_cli.shell.code") as code:
-        command('nameko', 'shell')
+        command('cnameko', 'shell')
 
     _, kwargs = code.interact.call_args
     local = kwargs["local"]
@@ -104,7 +104,7 @@ def test_ipython(command, pystartup, isatty):
     isatty.return_value = True
 
     with patch("IPython.embed") as embed:
-        command("nameko", "shell", "--interface", "ipython")
+        command("cnameko", "shell", "--interface", "ipython")
 
     _, kwargs = embed.call_args
     local = kwargs["user_ns"]
@@ -119,7 +119,7 @@ def test_uses_plain_when_not_tty(command, pystartup, isatty):
     isatty.return_value = False
 
     with patch("nameko.click_cli.shell.code") as code:
-        command("nameko", "shell", "--interface", "ipython")
+        command("cnameko", "shell", "--interface", "ipython")
 
     assert code.interact.called
 
@@ -136,7 +136,7 @@ def test_config(command, pystartup, tmpdir):
     )
 
     with patch("nameko.click_cli.shell.code") as code:
-        command("nameko", "shell", "--config", config_file.strpath)
+        command("cnameko", "shell", "--config", config_file.strpath)
 
     _, kwargs = code.interact.call_args
     local = kwargs["local"]
@@ -159,7 +159,7 @@ def test_config_options(command, pystartup, tmpdir):
 
     with patch("nameko.click_cli.shell.code") as code:
         command(
-            "nameko",
+            "cnameko",
             "shell",
             "--config",
             config_file.strpath,
@@ -201,7 +201,7 @@ class TestBanner(object):
         )
 
         with patch("nameko.click_cli.shell.ShellRunner") as shell_runner:
-            command("nameko", "shell", "--config", config_file.strpath)
+            command("cnameko", "shell", "--config", config_file.strpath)
 
         expected_message = "Broker: {}".format(amqp_uri)
         (banner, _), _ = shell_runner.call_args
@@ -212,8 +212,8 @@ class TestBanner(object):
 def test_broker_option_deprecated(command, rabbit_uri):
 
     with patch("nameko.click_cli.shell.code") as code:
-        with patch("nameko.click_cli.config.warnings") as warnings:
-            command("nameko", "shell", "--broker", rabbit_uri)
+        with patch("nameko.click_cli.utils.config.warnings") as warnings:
+            command("cnameko", "shell", "--broker", rabbit_uri)
 
     _, kwargs = code.interact.call_args
     local = kwargs["local"]

@@ -66,7 +66,7 @@ setup(
     entry_points={
         'console_scripts': [
             'nameko=nameko.cli.main:main',
-            'cnameko=nameko.click_cli.main:main',
+            'cnameko=nameko.click_cli:main',
         ],
         'pytest11': [
             'pytest_nameko=nameko.testing.pytest'
