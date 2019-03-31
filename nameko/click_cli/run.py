@@ -16,11 +16,6 @@ from nameko import config
 from nameko.runners import ServiceRunner
 
 
-
-
-
-
-
 logger = logging.getLogger(__name__)
 
 
