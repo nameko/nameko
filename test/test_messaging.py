@@ -247,6 +247,44 @@ def test_publish_custom_headers(
     ]
 
 
+@pytest.mark.usefixtures("predictable_call_ids")
+def test_publish_custom_headers_added_in_current_request(
+    mock_container, mock_producer, rabbit_config
+):
+    container = mock_container
+    container.config = rabbit_config
+    container.service_name = "srcservice"
+
+    ctx_data = {'language': 'en', 'customheader1': 'customvalue1'}
+    service = Mock()
+    worker_ctx = WorkerContext(
+        container, service, DummyProvider('method'), data=ctx_data
+    )
+
+    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
+    publisher.setup()
+
+    msg = "msg"
+
+    service.publish = publisher.get_dependency(worker_ctx)
+
+    # Simulate adding an additional custom header in the current request,
+    # by changing worker-context after `get_dependency` is called.
+    worker_ctx.data['customheader2'] = 'customvalue2'
+
+    service.publish(msg, publish_kwarg="value")
+
+    expected_headers = {
+        'nameko.language': 'en',
+        'nameko.customheader1': 'customvalue1',
+        'nameko.customheader2': 'customvalue2',
+        'nameko.call_id_stack': ['srcservice.method.0']
+    }
+
+    _, call_kwargs = mock_producer.publish.call_args
+    assert call_kwargs['headers'] == expected_headers
+
+
 def test_header_encoder(empty_config):
 
     context_data = {
