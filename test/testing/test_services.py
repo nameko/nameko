@@ -205,6 +205,19 @@ def test_entrypoint_hook_container_dying(container_factory, rabbit_config):
             call()
 
 
+def test_entrypoint_hook_timeout(container_factory, rabbit_config):
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with pytest.raises(entrypoint_waiter.Timeout) as exc_info:
+        with entrypoint_hook(container, 'handle', timeout=0.01) as call:
+            call()
+
+    assert str(exc_info.value) == (
+        'Timeout on service.handle after 0.01 seconds'
+    )
+
+
 def test_worker_factory():
 
     class Service(object):
