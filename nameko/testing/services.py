@@ -53,15 +53,15 @@ def entrypoint_hook(container, method_name, context_data=None, timeout=30):
         hook_result = event.Event()
 
         def wait_for_entrypoint():
-            with entrypoint_waiter(
-                container, method_name,
-                timeout=timeout
-            ) as waiter_result:
-                container.spawn_worker(
-                    entrypoint, args, kwargs,
-                    context_data=context_data
-                )
             try:
+                with entrypoint_waiter(
+                    container, method_name,
+                    timeout=timeout
+                ) as waiter_result:
+                    container.spawn_worker(
+                        entrypoint, args, kwargs,
+                        context_data=context_data
+                    )
                 hook_result.send(waiter_result.get())
             except Exception as exc:
                 hook_result.send_exception(exc)
