@@ -369,8 +369,11 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
     publisher.setup()
     publisher.start()
 
-    service.publish = publisher.get_dependency(worker_ctx)
+    with pytest.warns(UserWarning):
+        service.publish = publisher.get_dependency(worker_ctx)
+
     service.publish("msg")
+
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
 
     assert messages[0]['properties']['headers'] == {
