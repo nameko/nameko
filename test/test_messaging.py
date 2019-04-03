@@ -248,6 +248,7 @@ def test_publish_custom_headers(
     ]
 
 
+@pytest.mark.filterwarnings("ignore:Attempted to publish unserialisable`:UserWarning")
 def test_header_encoder(empty_config):
 
     context_data = {
