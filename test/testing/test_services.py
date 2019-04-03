@@ -213,7 +213,6 @@ def test_entrypoint_hook_timeout(container_factory, rabbit_config):
         @rpc
         def long_task(self):
             time.sleep(0.1)
-            return
 
     container = container_factory(Service, rabbit_config)
     container.start()
