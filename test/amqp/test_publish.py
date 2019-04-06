@@ -146,6 +146,7 @@ class TestPublisher(object):
         message = get_message_from_queue(queue.name)
         assert message.properties[option] == expected
 
+    @pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
     def test_confirms(self, amqp_uri, publisher):
         publisher.mandatory = True
 

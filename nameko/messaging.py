@@ -42,10 +42,10 @@ class HeaderEncoder(object):
         data = worker_ctx.context_data
 
         if None in data.values():
-            _log.warn(
+            warnings.warn(
                 'Attempted to publish unserialisable header value. '
                 'Headers with a value of `None` will be dropped from '
-                'the payload. %s', data)
+                'the payload.', UserWarning)
 
         headers = {self._get_header_name(key): value
                    for key, value in data.items()

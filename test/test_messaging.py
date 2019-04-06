@@ -150,6 +150,7 @@ def test_publish_to_exchange(
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
+@pytest.mark.filterwarnings("ignore:The signature of `Publisher`:DeprecationWarning")
 def test_publish_to_queue(
     patch_maybe_declare, mock_producer, mock_channel, mock_container
 ):
@@ -215,7 +216,7 @@ def test_publish_custom_headers(
         container, service, DummyProvider('method'), data=ctx_data
     )
 
-    publisher = Publisher(queue=foobar_queue).bind(container, "publish")
+    publisher = Publisher(exchange=foobar_ex).bind(container, "publish")
     publisher.setup()
 
     # test publish
@@ -247,6 +248,7 @@ def test_publish_custom_headers(
     ]
 
 
+@pytest.mark.filterwarnings("ignore:Attempted to publish unserialisable`:UserWarning")
 def test_header_encoder(empty_config):
 
     context_data = {
@@ -315,7 +317,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue
+        exchange=foobar_ex, declare=[foobar_queue]
     ).bind(container, "publish")
 
     publisher.setup()
@@ -346,6 +348,7 @@ def test_publish_to_rabbit(rabbit_manager, rabbit_config, mock_container):
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
+@pytest.mark.filterwarnings("ignore:Attempted to publish unserialisable`:UserWarning")
 def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
 
     vhost = rabbit_config['vhost']
@@ -362,13 +365,16 @@ def test_unserialisable_headers(rabbit_manager, rabbit_config, mock_container):
     )
 
     publisher = Publisher(
-        exchange=foobar_ex, queue=foobar_queue).bind(container, "publish")
+        exchange=foobar_ex, declare=[foobar_queue]).bind(container, "publish")
 
     publisher.setup()
     publisher.start()
 
-    service.publish = publisher.get_dependency(worker_ctx)
+    with pytest.warns(UserWarning):
+        service.publish = publisher.get_dependency(worker_ctx)
+
     service.publish("msg")
+
     messages = rabbit_manager.get_messages(vhost, foobar_queue.name)
 
     assert messages[0]['properties']['headers'] == {
@@ -1151,13 +1157,12 @@ class TestConfigurability(object):
         worker_ctx.context_data = {}
 
         exchange = Mock()
-        queue = Mock()
 
         instantiation_value = [Mock()]
         publish_value = [Mock()]
 
         publisher = Publisher(
-            exchange=exchange, queue=queue, **{'declare': instantiation_value}
+            exchange=exchange, **{'declare': instantiation_value}
         ).bind(mock_container, "publish")
         publisher.setup()
 
@@ -1165,12 +1170,12 @@ class TestConfigurability(object):
 
         publish("payload")
         assert producer.publish.call_args[1]['declare'] == (
-            instantiation_value + [exchange, queue]
+            instantiation_value + [exchange]
         )
 
         publish("payload", declare=publish_value)
         assert producer.publish.call_args[1]['declare'] == (
-            instantiation_value + [exchange, queue] + publish_value
+            instantiation_value + [exchange] + publish_value
         )
 
     def test_use_confirms(self, mock_container, get_producer):
