@@ -8,7 +8,6 @@ import errno
 import logging
 import logging.config
 import signal
-import sys
 
 from eventlet import backdoor
 
@@ -84,9 +83,7 @@ def run(services, backdoor_port=None):
 
 
 def main(services, backdoor_port):
-    if "." not in sys.path:
-        sys.path.insert(0, ".")
-
+    # sys.path already manipulated at services import time
     if "LOGGING" in config:
         logging.config.dictConfig(config["LOGGING"])
     else:

@@ -6,8 +6,9 @@ from nameko import config
 from nameko.exceptions import CommandError, ConfigurationError
 
 from .run import main as main_run
+from .backdoor import main as main_backdoor
 from .utils.config import setup_config
-from .utils.paramtypes import HOST_PORT, KEY_VAL, NAMEKO_MODULE_SERVICES
+from .utils.paramtypes import HOST_PORT, KEY_VAL, NamekoModuleServicesParamType
 
 
 def flatten_list_of_lists(ctx, param, list_of_lists):
@@ -57,14 +58,15 @@ option_rlwrap = partial(
 option_interface = partial(
     click.option, "--interface", type=click.Choice(["bpython", "ipython", "plain"])
 )
-argument_backdoor = partial(click.argument, "backdoor", type=HOST_PORT)
+argument_backdoor_port = partial(click.argument, "backdoor_port", type=HOST_PORT)
 argument_services = partial(
     click.argument,
     "services",
     nargs=-1,
     required=True,
     metavar="module[:service class]",
-    type=NAMEKO_MODULE_SERVICES,
+    # allow import of modules from current dir (manipulate sys.path)
+    type=NamekoModuleServicesParamType(extra_sys_paths=["."]),
     callback=flatten_list_of_lists,
 )
 
@@ -80,10 +82,8 @@ def main():
 # nameko backdoor
 @main.command()
 @option_rlwrap()
-@option_config_file()
-@option_define()
-@argument_backdoor()
-def backdoor(config_file, define, backdoor, rlwrap):
+@argument_backdoor_port()
+def backdoor(backdoor_port, rlwrap):
     """Connect to a nameko backdoor. If a backdoor is running this will
     connect to a remote shell. The runner is generally available as `runner`.
 
@@ -91,7 +91,7 @@ def backdoor(config_file, define, backdoor, rlwrap):
 
       [host:]port           (host and) port to connect to
     """
-    raise NotImplementedError()
+    main_backdoor(backdoor_port, rlwrap)
 
 
 # nameko show-config
