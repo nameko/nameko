@@ -6,7 +6,6 @@ from nameko import config
 from nameko.exceptions import CommandError, ConfigurationError
 
 from .run import main as main_run
-from .backdoor import main as main_backdoor
 from .utils.config import setup_config
 from .utils.paramtypes import HOST_PORT, KEY_VAL, NamekoModuleServicesParamType
 
@@ -52,13 +51,9 @@ option_backdoor_port = partial(
     " the running service process using `nameko backdoor`.",
     type=HOST_PORT,
 )
-option_rlwrap = partial(
-    click.option, "--rlwrap/--no-rlwrap", help="Use rlwrap", default=None
-)
 option_interface = partial(
     click.option, "--interface", type=click.Choice(["bpython", "ipython", "plain"])
 )
-argument_backdoor_port = partial(click.argument, "backdoor_port", type=HOST_PORT)
 argument_services = partial(
     click.argument,
     "services",
@@ -77,21 +72,6 @@ def main():
     """CLI to manage nameko based services and configuration.
     """
     pass
-
-
-# nameko backdoor
-@main.command()
-@option_rlwrap()
-@argument_backdoor_port()
-def backdoor(backdoor_port, rlwrap):
-    """Connect to a nameko backdoor. If a backdoor is running this will
-    connect to a remote shell. The runner is generally available as `runner`.
-
-    positional arguments:
-
-      [host:]port           (host and) port to connect to
-    """
-    main_backdoor(backdoor_port, rlwrap)
 
 
 # nameko show-config
@@ -130,6 +110,10 @@ positional arguments:
     """
     try:
         setup_config(config_file, define, broker)
+        if backdoor_port:
+            host, port = backdoor_port
+            msg = "To connect to backdoor: `$ telnet {host} {port}`"
+            click.echo(msg.format(host=host, port=port))
         main_run(services, backdoor_port)
     except (CommandError, ConfigurationError) as exc:
         click.echo("Error: {}".format(exc))
