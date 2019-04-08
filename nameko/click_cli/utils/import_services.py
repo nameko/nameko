@@ -1,3 +1,17 @@
+"""Utility function `import_services` to import nameko services
+from strings pointing either to modules (then provide all nameko services
+present there) or to explicit nameko service class.
+
+Note: If you want to load locally present python files as modules,
+modify sys.path::
+
+    import sys
+    if not "." in sys.path:
+        sys.path.insert(0, ".")
+    services = import_services("my_service")  # load my_service.py
+
+See also NamekoModuleServicesParamType if yo want to use it with click.
+"""
 import inspect
 import os
 import re

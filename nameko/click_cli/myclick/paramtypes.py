@@ -1,9 +1,11 @@
+"""Custom click parameter types used in nameko.
+"""
 import sys
 
 import click
 import yaml
 
-from .import_services import import_services
+from ..utils import import_services
 
 
 class KeyValParamType(click.ParamType):

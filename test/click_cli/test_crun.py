@@ -11,7 +11,7 @@ from mock import patch
 
 from nameko import config
 from nameko.click_cli.run import run, setup_backdoor
-from nameko.click_cli.utils.import_services import import_services
+from nameko.click_cli.utils import import_services
 from nameko.constants import SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcClient

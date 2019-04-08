@@ -1,3 +1,16 @@
+"""Load configuration from YAML file. Allow env var rendering.
+
+E.g.::
+
+    fname = "conf.yaml"
+    define = {"MY_PARAM": "is here", "YOUR_PARAM": "is here too"}
+    with open(fname, "rb") as config_file:
+        setup_config(config_file)
+        # from now on, nameko.config is updated
+    from nameko import config
+    assert "MY_PARAM" in config
+    assert "YOUR_PARAM" in config
+"""
 from __future__ import print_function
 
 import os
@@ -99,6 +112,7 @@ def load_config(config_file):
 def setup_config(config_file, define=None, broker=None):
     if config_file:
         config.update(load_config(config_file))
+    # --broker is deprecated, emit warning if used
     if broker:
         warnings.warn(
             (
@@ -107,8 +121,6 @@ def setup_config(config_file, define=None, broker=None):
             ),
             DeprecationWarning,
         )
-        # TODO: broker option shall always override url from config
-        # to me following seems to be bug, see issue #617
         if AMQP_URI_CONFIG_KEY not in config:
             config.update({AMQP_URI_CONFIG_KEY: broker})
     if define:

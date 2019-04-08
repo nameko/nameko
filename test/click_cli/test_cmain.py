@@ -7,7 +7,7 @@ from mock import call, patch
 
 from nameko.click_cli import cli
 from nameko.click_cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser
-from nameko.click_cli.utils.import_services import import_services
+from nameko.click_cli.utils import import_services
 from nameko.exceptions import CommandError, ConfigurationError
 
 
@@ -114,7 +114,7 @@ def test_error(exception, capsys):
     ),
 )
 def test_parse_config_option(text, expected_key, expected_value):
-    from nameko.click_cli.utils.paramtypes import KeyValParamType
+    from nameko.click_cli.myclick.paramtypes import KeyValParamType
 
     assert KeyValParamType().convert(text, None, None) == (expected_key, expected_value)
 

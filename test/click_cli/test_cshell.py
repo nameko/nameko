@@ -47,10 +47,10 @@ def isatty():
 
 @pytest.mark.usefixtures("rabbit_config")
 def test_basic(command, pystartup):
-    with patch("nameko.click_cli.shell.code") as code:
+    with patch("nameko.click_cli.shell.interact") as interact:
         command('cnameko', 'shell')
 
-    _, kwargs = code.interact.call_args
+    _, kwargs = interact.call_args
     local = kwargs["local"]
     assert "n" in local.keys()
     assert local["foo"] == 42
@@ -59,10 +59,10 @@ def test_basic(command, pystartup):
 
 @pytest.mark.usefixtures("rabbit_config")
 def test_plain(command, pystartup):
-    with patch("nameko.click_cli.shell.code") as code:
+    with patch("nameko.click_cli.shell.interact") as interact:
         command("cnameko", "shell", "--interface", "plain")
 
-    _, kwargs = code.interact.call_args
+    _, kwargs = interact.call_args
     local = kwargs["local"]
     assert "n" in local.keys()
     assert local["foo"] == 42
@@ -71,10 +71,10 @@ def test_plain(command, pystartup):
 
 @pytest.mark.usefixtures("rabbit_config")
 def test_plain_fallback(command, pystartup):
-    with patch("nameko.click_cli.shell.code") as code:
+    with patch("nameko.click_cli.shell.interact") as interact:
         command("cnameko", "shell", "--interface", "bpython")
 
-    _, kwargs = code.interact.call_args
+    _, kwargs = interact.call_args
     local = kwargs["local"]
     assert "n" in local.keys()
     assert local["foo"] == 42
@@ -116,10 +116,10 @@ def test_uses_plain_when_not_tty(command, pystartup, isatty):
 
     isatty.return_value = False
 
-    with patch("nameko.click_cli.shell.code") as code:
+    with patch("nameko.click_cli.shell.interact") as interact:
         command("cnameko", "shell", "--interface", "ipython")
 
-    assert code.interact.called
+    assert interact.called
 
 
 @pytest.mark.usefixtures("rabbit_config")
@@ -133,10 +133,10 @@ def test_config(command, pystartup, tmpdir):
     """
     )
 
-    with patch("nameko.click_cli.shell.code") as code:
+    with patch("nameko.click_cli.shell.interact") as interact:
         command("cnameko", "shell", "--config", config_file.strpath)
 
-    _, kwargs = code.interact.call_args
+    _, kwargs = interact.call_args
     local = kwargs["local"]
     assert "n" in local.keys()
     assert local["n"].config[WEB_SERVER_CONFIG_KEY] == "0.0.0.0:8001"
@@ -155,7 +155,7 @@ def test_config_options(command, pystartup, tmpdir):
     """
     )
 
-    with patch("nameko.click_cli.shell.code") as code:
+    with patch("nameko.click_cli.shell.interact") as interact:
         command(
             "cnameko",
             "shell",
@@ -167,7 +167,7 @@ def test_config_options(command, pystartup, tmpdir):
             'EGG=[{"spam": True}]',
         )
 
-    _, kwargs = code.interact.call_args
+    _, kwargs = interact.call_args
     local = kwargs["local"]
     assert "n" in local.keys()
     assert local["n"].config[WEB_SERVER_CONFIG_KEY] == "0.0.0.0:8001"
@@ -209,11 +209,11 @@ class TestBanner(object):
 @pytest.mark.usefixtures("empty_config")
 def test_broker_option_deprecated(command, rabbit_uri):
 
-    with patch("nameko.click_cli.shell.code") as code:
+    with patch("nameko.click_cli.shell.interact") as interact:
         with patch("nameko.click_cli.utils.config.warnings") as warnings:
             command("cnameko", "shell", "--broker", rabbit_uri)
 
-    _, kwargs = code.interact.call_args
+    _, kwargs = interact.call_args
     local = kwargs["local"]
     assert "n" in local.keys()
     assert local["n"].config[AMQP_URI_CONFIG_KEY] == rabbit_uri

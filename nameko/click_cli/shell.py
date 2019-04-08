@@ -7,7 +7,7 @@ from nameko.constants import AMQP_URI_CONFIG_KEY
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcClient
 
-from .utils import code
+from .utils import interact
 
 
 SHELLS = ["bpython", "ipython", "plain"]
@@ -29,7 +29,7 @@ class ShellRunner(object):
         embed(banner1=self.banner, user_ns=self.local)
 
     def plain(self):
-        code.interact(
+        interact(
             banner=self.banner,
             local=self.local,
             raise_expections=not sys.stdin.isatty(),
