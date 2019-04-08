@@ -68,14 +68,14 @@ argument_services = partial(
 
 # main nameko command
 @click.group()
-def main():
+def cli():
     """CLI to manage nameko based services and configuration.
     """
     pass
 
 
 # nameko show-config
-@main.command()
+@cli.command()
 @option_config_file()
 @option_define()
 def show_config(config_file, define):
@@ -89,7 +89,7 @@ def show_config(config_file, define):
 
 
 # nameko run
-@main.command("run")
+@cli.command("run")
 @option_broker()
 @option_backdoor_port()
 @option_config_file()
@@ -121,7 +121,7 @@ positional arguments:
 
 
 # nameko shell
-@main.command()
+@cli.command()
 @option_broker()
 @option_interface()
 @option_config_file()

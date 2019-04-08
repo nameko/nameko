@@ -5,7 +5,7 @@ import pytest
 import yaml
 from mock import call, patch
 
-from nameko.click_cli import main
+from nameko.click_cli import cli
 from nameko.click_cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser
 from nameko.click_cli.utils.import_services import import_services
 from nameko.exceptions import CommandError, ConfigurationError
@@ -74,7 +74,7 @@ def expected():
 def test_run(expected):
     with patch("nameko.click_cli.main_run") as main_run:
         with patch("nameko.click_cli.setup_config") as setup_config:
-            main(standalone_mode=False)
+            cli(standalone_mode=False)
             assert setup_config.call_count == 1
             assert main_run.call_count == 1
             assert setup_config.call_args == expected.setup_config_call
@@ -86,7 +86,7 @@ def test_error(exception, capsys):
     with patch("nameko.click_cli.main_run") as main_run:
         with pytest.raises(SystemExit):
             main_run.side_effect = exception("boom")
-            main(standalone_mode=True)
+            cli(standalone_mode=True)
     out, _ = capsys.readouterr()
     assert "Error: boom" in out.strip()
 
