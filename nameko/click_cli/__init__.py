@@ -5,7 +5,6 @@ import click
 from nameko import config
 from nameko.exceptions import CommandError, ConfigurationError
 
-from .run import main as main_run
 from .utils.config import setup_config
 from .utils.paramtypes import HOST_PORT, KEY_VAL, NamekoModuleServicesParamType
 
@@ -89,14 +88,13 @@ def show_config(config_file, define):
 
 
 # nameko run
-@cli.command("run")
+@cli.command()
 @option_broker()
 @option_backdoor_port()
 @option_config_file()
 @option_define()
 @argument_services()
-# underscore run_ prevents function/module name conflict when patching
-def run_(broker, config_file, define, backdoor_port, services):
+def run(broker, config_file, define, backdoor_port, services):
     """Run nameko services. Given a python path to a module containing one or more
 nameko services, will host and run them. By default this will try to find
 classes that look like services (anything with nameko entrypoints), but a
@@ -108,13 +106,15 @@ positional arguments:
 
         python path to one or more service classes to run
     """
+
+    from .run import main
     try:
         setup_config(config_file, define, broker)
         if backdoor_port:
             host, port = backdoor_port
             msg = "To connect to backdoor: `$ telnet {host} {port}`"
             click.echo(msg.format(host=host, port=port))
-        main_run(services, backdoor_port)
+        main(services, backdoor_port)
     except (CommandError, ConfigurationError) as exc:
         click.echo("Error: {}".format(exc))
         raise click.Abort()

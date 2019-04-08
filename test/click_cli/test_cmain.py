@@ -72,7 +72,7 @@ def expected():
 
 
 def test_run(expected):
-    with patch("nameko.click_cli.main_run") as main_run:
+    with patch("nameko.click_cli.run.main") as main_run:
         with patch("nameko.click_cli.setup_config") as setup_config:
             cli(standalone_mode=False)
             assert setup_config.call_count == 1
@@ -83,7 +83,7 @@ def test_run(expected):
 
 @pytest.mark.parametrize("exception", (CommandError, ConfigurationError))
 def test_error(exception, capsys):
-    with patch("nameko.click_cli.main_run") as main_run:
+    with patch("nameko.click_cli.run.main") as main_run:
         with pytest.raises(SystemExit):
             main_run.side_effect = exception("boom")
             cli(standalone_mode=True)

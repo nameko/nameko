@@ -56,7 +56,7 @@ def test_main_with_config(command, tmpdir):
     assert WEB_SERVER_CONFIG_KEY not in config
     assert SERIALIZER_CONFIG_KEY not in config
 
-    with patch("nameko.click_cli.main_run") as run:
+    with patch("nameko.click_cli.run.main") as run:
 
         command("cnameko", "run", "--config", config_file.strpath, "test.sample")
 
@@ -81,7 +81,7 @@ def test_main_with_config_options(command, tmpdir):
     assert SERIALIZER_CONFIG_KEY not in config
     assert "EGG" not in config
 
-    with patch("nameko.click_cli.main_run") as run:
+    with patch("nameko.click_cli.run.main") as run:
 
         command(
             "cnameko",
