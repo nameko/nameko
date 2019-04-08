@@ -6,8 +6,8 @@ import yaml
 from mock import call, patch
 
 from nameko.click_cli import cli
-from nameko.click_cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser
 from nameko.click_cli.utils import import_services
+from nameko.click_cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser
 from nameko.exceptions import CommandError, ConfigurationError
 
 
