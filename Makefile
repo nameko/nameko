@@ -37,3 +37,7 @@ spelling:
 
 linkcheck:
 	sphinx-build -W -b linkcheck -d docs/build/doctrees docs docs/build/linkcheck
+
+rabbitmq-container:
+	docker run -d --rm -p 15672:15672 -p 5672:5672 -p 5671:5671 --name nameko-rabbitmq nameko/nameko-rabbitmq:3.6.6
+	docker cp nameko-rabbitmq:/srv/ssl certs
