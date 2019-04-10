@@ -96,8 +96,9 @@ def always_warn_for_deprecation():
 
 @pytest.yield_fixture
 def empty_config():
-    with config.patch({}, clear=True):
-        yield
+    conf = {}
+    with config.patch(conf, clear=True):
+        yield conf  # nameko 2.X backward compatible
 
 
 @pytest.yield_fixture
@@ -182,8 +183,9 @@ def rabbit_uri(request, vhost_pipeline):
 
 @pytest.yield_fixture
 def rabbit_config(rabbit_uri):
-    with config.patch({'AMQP_URI': rabbit_uri}):
-        yield
+    conf = {'AMQP_URI': rabbit_uri}
+    with config.patch(conf):
+        yield conf  # nameko 2.X backward compatible
 
 
 @pytest.fixture
@@ -217,7 +219,7 @@ def rabbit_ssl_config(request, rabbit_ssl_uri, rabbit_ssl_options):
     }
 
     with config.patch(conf):
-        yield
+        yield conf  # nameko 2.X backward compatible
 
 
 @pytest.fixture
@@ -340,8 +342,9 @@ def web_config():
 
     port = find_free_port()
 
-    with config.patch({WEB_SERVER_CONFIG_KEY: "127.0.0.1:{}".format(port)}):
-        yield
+    conf = {WEB_SERVER_CONFIG_KEY: "127.0.0.1:{}".format(port)}
+    with config.patch(conf):
+        yield conf  # nameko 2.X backward compatible
 
 
 @pytest.fixture()

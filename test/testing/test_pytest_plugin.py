@@ -85,8 +85,7 @@ class TestOptions(object):
 
             from nameko import config
 
-            @pytest.mark.usefixtures("rabbit_ssl_config")
-            def test_ssl_options(request):
+            def test_ssl_options(request, rabbit_ssl_config):
                 assert request.config.getoption('AMQP_SSL_OPTIONS') == [
                     # defaults
                     ('ca_certs', 'certs/cacert.pem'),
@@ -116,6 +115,12 @@ class TestOptions(object):
                     'keyonly': True,
                 }
                 assert config['AMQP_SSL'] == expected_ssl_options
+
+                # nameko 2.X backward compatible
+                assert rabbit_ssl_config == {
+                    'AMQP_SSL': config['AMQP_SSL'],
+                    'AMQP_URI': config['AMQP_URI'],
+                }
             """
         )
         args = []
@@ -130,6 +135,7 @@ class TestOptions(object):
 
 def test_empty_config(empty_config):
     assert config == {}
+    assert empty_config == {}  # nameko 2.X backward compatible
 
 
 def test_rabbit_manager(rabbit_manager):
@@ -165,6 +171,12 @@ def test_amqp_uri(testdir):
         "--amqp-uri", amqp_uri
     )
     assert result.ret == 0
+
+
+def test_rabbit_config(rabbit_config, rabbit_uri):
+    conf = {'AMQP_URI': rabbit_uri}
+    assert config['AMQP_URI'] == rabbit_uri
+    assert rabbit_config == conf  # nameko 2.X backward compatible
 
 
 class TestGetMessageFromQueue(object):
@@ -462,13 +474,15 @@ def test_predictable_call_ids(runner_factory):
     assert call_ids == ["x.method.1", "y.method.2"]
 
 
-@pytest.mark.usefixtures('web_config')
-def test_web_config():
+def test_web_config(web_config):
     assert WEB_SERVER_CONFIG_KEY in config
 
     bind_address = parse_address(config[WEB_SERVER_CONFIG_KEY])
     sock = socket.socket()
     sock.bind(bind_address)
+
+    # nameko 2.X backward compatible
+    assert web_config == {WEB_SERVER_CONFIG_KEY: config[WEB_SERVER_CONFIG_KEY]}
 
 
 @pytest.mark.usefixtures('web_config')
