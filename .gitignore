@@ -1,4 +1,5 @@
 .coverage
+.pytest_cache
 *.pyc
 _py_cache
 docs/build
