@@ -18,7 +18,9 @@ from nameko.exceptions import (
 )
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Responder, get_rpc_exchange, rpc
-from nameko.standalone.rpc import ClusterRpcClient, ServiceRpcClient
+from nameko.standalone.rpc import (
+    ClusterRpcClient, ReplyListener, ServiceRpcClient
+)
 from nameko.testing.waiting import wait_for_call
 
 from test import skip_if_no_toxiproxy
@@ -66,6 +68,16 @@ class ExampleError(Exception):
 
 class CustomWorkerContext(WorkerContext):
     context_keys = ("custom_header",)
+
+
+@pytest.yield_fixture
+def toxic_reply_listener(toxiproxy):
+    class ToxicReplyListener(ReplyListener):
+        def __init__(self, *args, **kwargs):
+            kwargs["uri"] = toxiproxy.uri
+            return super(ToxicReplyListener, self).__init__(*args, **kwargs)
+    with patch('nameko.standalone.rpc.ReplyListener', ToxicReplyListener):
+        yield
 
 
 @pytest.mark.usefixtures('rabbit_config')
@@ -271,10 +283,10 @@ class TestDisconnectedWhileWaitingForReply(object):
 
     @pytest.mark.usefixtures('rabbit_config')
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
-        self, container, toxiproxy
+        self, container, toxiproxy, toxic_reply_listener
     ):
         with pytest.raises(ReplyQueueExpiredWithPendingReplies):
-            with ClusterRpcClient(reply_listener_uri=toxiproxy.uri) as client:
+            with ClusterRpcClient() as client:
                 client.service.sleep()
 
 
@@ -702,11 +714,7 @@ class TestStandaloneClientDisconnections(object):
 
     @pytest.yield_fixture
     def service_rpc(self, rabbit_config, toxiproxy):
-        with ServiceRpcClient(
-            "service",
-            uri=toxiproxy.uri,
-            reply_listener_uri=config["AMQP_URI"]
-        ) as client:
+        with ServiceRpcClient("service", uri=toxiproxy.uri) as client:
             yield client
 
     @pytest.mark.usefixtures('use_confirms')
@@ -821,8 +829,8 @@ class TestStandaloneClientReplyListenerDisconnections(object):
             container.start()
 
     @pytest.fixture
-    def rpc_client(self, rabbit_config, toxiproxy):
-        return ServiceRpcClient('service', reply_listener_uri=toxiproxy.uri)
+    def rpc_client(self, rabbit_config, toxic_reply_listener):
+        return ServiceRpcClient('service')
 
     @pytest.fixture
     def reply_listener(self, rpc_client):

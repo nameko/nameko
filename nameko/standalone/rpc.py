@@ -65,7 +65,6 @@ class ReplyListener(object):
         self.ssl = ssl if ssl is not None else config.get(AMQP_SSL_CONFIG_KEY)
 
         self.pending = {}
-        super(ReplyListener, self).__init__(**kwargs)
 
     def start(self):
         heartbeat = config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
@@ -209,12 +208,8 @@ class ClusterRpcClient(object):
         self.ssl = publisher_options.pop(
             'ssl', config.get(AMQP_SSL_CONFIG_KEY)
         )
-        reply_listener_uri = publisher_options.pop('reply_listener_uri', self.amqp_uri)
-        reply_listener_ssl = publisher_options.pop('reply_listener_ssl', self.ssl)
 
-        self.reply_listener = ReplyListener(
-            queue, timeout=timeout, uri=reply_listener_uri, ssl=reply_listener_ssl
-        )
+        self.reply_listener = ReplyListener(queue, timeout=timeout)
 
         serialization_config = serialization.setup()
         self.serializer = publisher_options.pop(
