@@ -59,7 +59,8 @@ class NamekoModuleServicesParamType(click.ParamType):
         """extra_sys_paths: list of paths, which are added to sys.path
         before iporting services.
 
-        Note: syspath stays modified (side effect)
+        Note: syspath stays modified to preserve predictable environment
+        for running the code.
         """
         self.extra_sys_paths = extra_sys_paths or []
 
