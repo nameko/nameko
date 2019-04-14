@@ -2,9 +2,7 @@ import click
 import pytest
 
 from nameko.cli.click_paramtypes import (
-    HostPortParamType,
-    KeyValParamType,
-    NamekoModuleServicesParamType,
+    HostPortParamType, KeyValParamType, NamekoModuleServicesParamType
 )
 
 from test.sample import Service
