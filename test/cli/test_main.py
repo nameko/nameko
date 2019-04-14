@@ -42,7 +42,7 @@ def test_run():
     config_file = None
     broker = None
     backdoor_port = None
-    with patch("nameko.cli.do_run.main") as main_run:
+    with patch("nameko.cli.run.main") as main_run:
         with patch("nameko.cli.setup_config") as setup_config:
             cli(standalone_mode=False)
             assert setup_config.call_args_list == [call(config_file, define, broker)]
@@ -51,7 +51,7 @@ def test_run():
 
 @pytest.mark.parametrize("exception", (CommandError, ConfigurationError))
 def test_error(exception, capsys):
-    with patch("nameko.cli.do_run.main") as main_run:
+    with patch("nameko.cli.run.main") as main_run:
         with pytest.raises(SystemExit):
             main_run.side_effect = exception("boom")
             cli(standalone_mode=True)

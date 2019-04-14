@@ -56,7 +56,7 @@ positional arguments:
         python path to one or more service classes to run
     """
 
-    from .do_run import main
+    from .run import main
 
     try:
         setup_config(config_file, define, broker)
@@ -77,7 +77,7 @@ positional arguments:
 @option_config_file()
 @option_define()
 def shell(broker, interface, config_file, define):
-    from .do_shell import main
+    from .shell import main
 
     setup_config(config_file, define, broker)
     main(interface)
