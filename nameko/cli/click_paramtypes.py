@@ -3,6 +3,7 @@
 import sys
 
 import click
+import six
 import yaml
 
 from .utils import import_services
@@ -15,6 +16,8 @@ class KeyValParamType(click.ParamType):
     name = "key_val"
 
     def convert(self, value, param, ctx):
+        if not isinstance(value, six.string_types):
+            self.fail("Value must by a string")
         if "=" in value:
             key, val = value.split("=", 1)
             val = yaml.safe_load(val)

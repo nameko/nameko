@@ -11,7 +11,11 @@ from test.sample import Service
 
 
 @pytest.mark.parametrize(
-    "value,expected", [("KEY=value", ("KEY", "value")), ("FLAG", ("FLAG", True))]
+    "value,expected", [
+        ("KEY=value", ("KEY", "value")),
+        ("FLAG", ("FLAG", True)),
+        (3.14, click.exceptions.BadParameter("Value must by a string"))
+    ]
 )
 def test_key_value(value, expected):
     ctype = KeyValParamType()
