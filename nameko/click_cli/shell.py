@@ -91,5 +91,4 @@ def main(interface):
     ctx["n"] = make_nameko_helper()
 
     runner = ShellRunner(banner, ctx)
-    # import pdb; pdb.set_trace()
     runner.start_shell(name=interface)
