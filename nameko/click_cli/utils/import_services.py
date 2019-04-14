@@ -10,7 +10,7 @@ modify sys.path::
         sys.path.insert(0, ".")
     services = import_services("my_service")  # load my_service.py
 
-See also NamekoModuleServicesParamType if yo want to use it with click.
+See also NamekoModuleServicesParamType if you want to use it with click.
 """
 import inspect
 import os
@@ -53,9 +53,9 @@ def import_services(module_name):
     """
     parts = module_name.split(":", 1)
     if len(parts) == 1:
-        module_name, obj = module_name, None
+        module_name, service_name = module_name, None
     else:
-        module_name, obj = parts[0], parts[1]
+        module_name, service_name = parts[0], parts[1]
 
     try:
         __import__(module_name)
@@ -79,7 +79,7 @@ def import_services(module_name):
 
     module = sys.modules[module_name]
 
-    if obj is None:
+    if service_name is None:
         found_services = []
         # find top-level objects with entrypoints
         for _, potential_service in inspect.getmembers(module, is_type):
@@ -94,11 +94,11 @@ def import_services(module_name):
 
     else:
         try:
-            service_cls = getattr(module, obj)
+            service_cls = getattr(module, service_name)
         except AttributeError:
             raise ValueError(
                 "Failed to find service class {!r} in module {!r}".format(
-                    obj, module_name
+                    service_name, module_name
                 )
             )
 
