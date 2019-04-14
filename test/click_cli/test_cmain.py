@@ -36,49 +36,17 @@ def fake_argv(empty_config):
         yield
 
 
-class ExpectedCall(object):
-    """Class to generate calls expected by mocked functions
-    """
-
-    def __init__(
-        self,
-        config_file=None,
-        define=None,
-        services=None,
-        broker=None,
-        backdoor_port=None,
-        interface=None,
-    ):
-        self.config_file = config_file
-        self.define = define
-        self.services = services
-        self.broker = broker
-        self.backdoor_port = backdoor_port
-
-    @property
-    def setup_config_call(self):
-        return call(self.config_file, self.define, self.broker)
-
-    @property
-    def main_run_call(self):
-        return call(self.services, self.backdoor_port)
-
-
-@pytest.fixture()
-def expected():
+def test_run():
     define = {"AMQP_URI": "pyamqp://someuser:*****@somehost/"}
     services = import_services("test.sample:Service")
-    return ExpectedCall(define=define, services=services)
-
-
-def test_run(expected):
+    config_file = None
+    broker = None
+    backdoor_port = None
     with patch("nameko.click_cli.run.main") as main_run:
         with patch("nameko.click_cli.setup_config") as setup_config:
             cli(standalone_mode=False)
-            assert setup_config.call_count == 1
-            assert main_run.call_count == 1
-            assert setup_config.call_args == expected.setup_config_call
-            assert main_run.call_args == expected.main_run_call
+            assert setup_config.call_args_list == [call(config_file, define, broker)]
+            assert main_run.call_args_list == [call(services, backdoor_port)]
 
 
 @pytest.mark.parametrize("exception", (CommandError, ConfigurationError))
