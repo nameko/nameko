@@ -25,7 +25,7 @@ from nameko.extensions import ENTRYPOINT_EXTENSIONS_ATTR
 MISSING_MODULE_TEMPLATE = "^No module named '?{}'?$"
 
 
-def is_type(obj):
+def is_class(obj):
     return isinstance(obj, six.class_types)
 
 
@@ -82,7 +82,7 @@ def import_services(module_name):
     if service_name is None:
         found_services = []
         # find top-level objects with entrypoints
-        for _, potential_service in inspect.getmembers(module, is_type):
+        for _, potential_service in inspect.getmembers(module, is_class):
             if inspect.getmembers(potential_service, is_entrypoint):
                 found_services.append(potential_service)
 
@@ -102,7 +102,7 @@ def import_services(module_name):
                 )
             )
 
-        if not isinstance(service_cls, type):
+        if not is_class(service_cls):
             raise ValueError("Service must be a class.")
 
         found_services = [service_cls]
