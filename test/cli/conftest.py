@@ -6,7 +6,7 @@ from mock import patch
 
 @pytest.fixture
 def command():
-    from nameko.click_cli import cli
+    from nameko.cli import cli
 
     def _command(*argv):
         with patch.object(sys, "argv", list(argv)):

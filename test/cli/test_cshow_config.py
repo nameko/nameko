@@ -4,7 +4,7 @@ import pytest
 from mock import patch
 
 
-@patch("nameko.click_cli.utils.config.os")
+@patch("nameko.cli.utils.config.os")
 @pytest.mark.usefixtures("empty_config")
 def test_main(mock_os, tmpdir, capsys, command):
 
@@ -18,7 +18,7 @@ def test_main(mock_os, tmpdir, capsys, command):
 
     mock_os.environ = {"BAR": "[1,2,3]"}
 
-    command("cnameko", "show-config", "--config", config_file.strpath)
+    command("nameko", "show-config", "--config", config_file.strpath)
 
     out, _ = capsys.readouterr()
 

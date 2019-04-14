@@ -5,7 +5,7 @@ import sys
 import pytest
 from mock import Mock, patch
 
-from nameko.click_cli.do_shell import make_nameko_helper
+from nameko.cli.do_shell import make_nameko_helper
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 )
@@ -41,14 +41,14 @@ def fake_alternative_interpreters():
 
 @pytest.fixture
 def isatty():
-    with patch("nameko.click_cli.do_shell.sys.stdin.isatty") as isatty:
+    with patch("nameko.cli.do_shell.sys.stdin.isatty") as isatty:
         yield isatty
 
 
 @pytest.mark.usefixtures("rabbit_config")
 def test_basic(command, pystartup):
-    with patch("nameko.click_cli.do_shell.interact") as interact:
-        command('cnameko', 'shell')
+    with patch("nameko.cli.do_shell.interact") as interact:
+        command('nameko', 'shell')
 
     _, kwargs = interact.call_args
     local = kwargs["local"]
@@ -59,8 +59,8 @@ def test_basic(command, pystartup):
 
 @pytest.mark.usefixtures("rabbit_config")
 def test_plain(command, pystartup):
-    with patch("nameko.click_cli.do_shell.interact") as interact:
-        command("cnameko", "shell", "--interface", "plain")
+    with patch("nameko.cli.do_shell.interact") as interact:
+        command("nameko", "shell", "--interface", "plain")
 
     _, kwargs = interact.call_args
     local = kwargs["local"]
@@ -71,8 +71,8 @@ def test_plain(command, pystartup):
 
 @pytest.mark.usefixtures("rabbit_config")
 def test_plain_fallback(command, pystartup):
-    with patch("nameko.click_cli.do_shell.interact") as interact:
-        command("cnameko", "shell", "--interface", "bpython")
+    with patch("nameko.cli.do_shell.interact") as interact:
+        command("nameko", "shell", "--interface", "bpython")
 
     _, kwargs = interact.call_args
     local = kwargs["local"]
@@ -87,7 +87,7 @@ def test_bpython(command, pystartup, isatty):
     isatty.return_value = True
 
     with patch("bpython.embed") as embed:
-        command("cnameko", "shell", "--interface", "bpython")
+        command("nameko", "shell", "--interface", "bpython")
 
     _, kwargs = embed.call_args
     local = kwargs["locals_"]
@@ -102,7 +102,7 @@ def test_ipython(command, pystartup, isatty):
     isatty.return_value = True
 
     with patch("IPython.embed") as embed:
-        command("cnameko", "shell", "--interface", "ipython")
+        command("nameko", "shell", "--interface", "ipython")
 
     _, kwargs = embed.call_args
     local = kwargs["user_ns"]
@@ -116,8 +116,8 @@ def test_uses_plain_when_not_tty(command, pystartup, isatty):
 
     isatty.return_value = False
 
-    with patch("nameko.click_cli.do_shell.interact") as interact:
-        command("cnameko", "shell", "--interface", "ipython")
+    with patch("nameko.cli.do_shell.interact") as interact:
+        command("nameko", "shell", "--interface", "ipython")
 
     assert interact.called
 
@@ -133,8 +133,8 @@ def test_config(command, pystartup, tmpdir):
     """
     )
 
-    with patch("nameko.click_cli.do_shell.interact") as interact:
-        command("cnameko", "shell", "--config", config_file.strpath)
+    with patch("nameko.cli.do_shell.interact") as interact:
+        command("nameko", "shell", "--config", config_file.strpath)
 
     _, kwargs = interact.call_args
     local = kwargs["local"]
@@ -155,9 +155,9 @@ def test_config_options(command, pystartup, tmpdir):
     """
     )
 
-    with patch("nameko.click_cli.do_shell.interact") as interact:
+    with patch("nameko.cli.do_shell.interact") as interact:
         command(
-            "cnameko",
+            "nameko",
             "shell",
             "--config",
             config_file.strpath,
@@ -180,7 +180,7 @@ def test_config_options(command, pystartup, tmpdir):
 class TestBanner(object):
     @pytest.yield_fixture(autouse=True)
     def patch_nameko_helper(self):
-        with patch("nameko.click_cli.do_shell.make_nameko_helper"):
+        with patch("nameko.cli.do_shell.make_nameko_helper"):
             yield
 
     def test_banner(self, command, tmpdir):
@@ -198,8 +198,8 @@ class TestBanner(object):
             )
         )
 
-        with patch("nameko.click_cli.do_shell.ShellRunner") as shell_runner:
-            command("cnameko", "shell", "--config", config_file.strpath)
+        with patch("nameko.cli.do_shell.ShellRunner") as shell_runner:
+            command("nameko", "shell", "--config", config_file.strpath)
 
         expected_message = "Broker: {}".format(amqp_uri)
         (banner, _), _ = shell_runner.call_args
@@ -209,9 +209,9 @@ class TestBanner(object):
 @pytest.mark.usefixtures("empty_config")
 def test_broker_option_deprecated(command, rabbit_uri):
 
-    with patch("nameko.click_cli.do_shell.interact") as interact:
-        with patch("nameko.click_cli.utils.config.warnings") as warnings:
-            command("cnameko", "shell", "--broker", rabbit_uri)
+    with patch("nameko.cli.do_shell.interact") as interact:
+        with patch("nameko.cli.utils.config.warnings") as warnings:
+            command("nameko", "shell", "--broker", rabbit_uri)
 
     _, kwargs = interact.call_args
     local = kwargs["local"]
@@ -231,7 +231,7 @@ class TestExitCode:
 
         echo_process = subprocess.Popen(("echo", "print(1)"), stdout=subprocess.PIPE)
         nameko_process = subprocess.Popen(
-            ("cnameko", "shell", "--define=AMQP_URI=memory://localhost"),
+            ("nameko", "shell", "--define=AMQP_URI=memory://localhost"),
             stdin=echo_process.stdout,
         )
         nameko_process.wait()
@@ -247,7 +247,7 @@ class TestExitCode:
             ("echo", "raise Exception()"), stdout=subprocess.PIPE
         )
         nameko_process = subprocess.Popen(
-            ("cnameko", "shell", "--define=AMQP_URI=memory://localhost"),
+            ("nameko", "shell", "--define=AMQP_URI=memory://localhost"),
             stdin=echo_process.stdout,
         )
         nameko_process.wait()
