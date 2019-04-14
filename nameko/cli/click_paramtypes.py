@@ -77,8 +77,6 @@ class NamekoModuleServicesParamType(click.ParamType):
             templ = "'{value}'. {msg}"
             args = {"value": value, "msg": str(exc)}
             self.fail(templ.format(**args), param, ctx)
-        except ImportError:
-            raise
 
 
 NAMEKO_MODULE_SERVICES = NamekoModuleServicesParamType()
