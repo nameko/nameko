@@ -14,9 +14,9 @@ from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_connection
 from nameko.constants import (
-    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_HEARTBEAT,
-    DEFAULT_PREFETCH_COUNT, HEADER_PREFIX, HEARTBEAT_CONFIG_KEY,
-    PREFETCH_COUNT_CONFIG_KEY
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI,
+    DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT, HEADER_PREFIX,
+    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import DependencyProvider, Entrypoint
@@ -87,7 +87,7 @@ class Publisher(DependencyProvider):
         if self.exchange:
             self.declare.append(self.exchange)
 
-        default_uri = config.get(AMQP_URI_CONFIG_KEY)
+        default_uri = config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
         self.amqp_uri = self.publisher_options.pop('uri', default_uri)
 
     def setup(self):

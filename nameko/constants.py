@@ -24,6 +24,7 @@ DEFAULT_TRANSPORT_OPTIONS = {
     'interval_step': 1,
     'interval_max': 5
 }
+DEFAULT_AMQP_URI = 'pyamqp://guest:guest@localhost'
 
 CALL_ID_STACK_CONTEXT_KEY = 'call_id_stack'
 AUTH_TOKEN_CONTEXT_KEY = 'auth_token'

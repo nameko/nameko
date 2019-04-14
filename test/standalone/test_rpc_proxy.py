@@ -70,6 +70,16 @@ class CustomWorkerContext(WorkerContext):
     context_keys = ("custom_header",)
 
 
+@pytest.yield_fixture
+def toxic_reply_listener(toxiproxy):
+    class ToxicReplyListener(ReplyListener):
+        def __init__(self, *args, **kwargs):
+            kwargs["uri"] = toxiproxy.uri
+            return super(ToxicReplyListener, self).__init__(*args, **kwargs)
+    with patch('nameko.standalone.rpc.ReplyListener', ToxicReplyListener):
+        yield
+
+
 @pytest.mark.usefixtures('rabbit_config')
 def test_client(container_factory):
 
@@ -250,7 +260,7 @@ class TestDisconnectedWhileWaitingForReply(object):
     @pytest.fixture(autouse=True)
     def container(
         self, container_factory, rabbit_manager, rabbit_config, toxiproxy,
-        fast_expiry, toxic_reply_listener
+        fast_expiry
     ):
 
         def enable_after_queue_expires():
@@ -271,14 +281,9 @@ class TestDisconnectedWhileWaitingForReply(object):
 
         return container
 
-    @pytest.yield_fixture
-    def toxic_reply_listener(self, toxiproxy):
-        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
-            yield
-
     @pytest.mark.usefixtures('rabbit_config')
     def test_reply_queue_removed_while_disconnected_with_pending_reply(
-        self, container
+        self, container, toxiproxy, toxic_reply_listener
     ):
         with pytest.raises(ReplyQueueExpiredWithPendingReplies):
             with ClusterRpcClient() as client:
@@ -823,13 +828,8 @@ class TestStandaloneClientReplyListenerDisconnections(object):
             container = container_factory(Service)
             container.start()
 
-    @pytest.yield_fixture(autouse=True)
-    def toxic_reply_listener(self, toxiproxy):
-        with patch.object(ReplyListener, 'amqp_uri', new=toxiproxy.uri):
-            yield
-
     @pytest.fixture
-    def rpc_client(self, rabbit_config):
+    def rpc_client(self, rabbit_config, toxic_reply_listener):
         return ServiceRpcClient('service')
 
     @pytest.fixture
@@ -1000,7 +1000,13 @@ class TestSSL(object):
         ssl = rabbit_ssl_options
         uri = rabbit_ssl_uri
 
-        with ServiceRpcClient("service", uri=uri, ssl=ssl) as client:
+        with ServiceRpcClient(
+            "service",
+            uri=uri,
+            ssl=ssl,
+            reply_listener_uri=config["AMQP_URI"],
+            reply_listener_ssl=False,
+        ) as client:
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]

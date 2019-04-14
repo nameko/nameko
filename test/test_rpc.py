@@ -1999,7 +1999,7 @@ class TestSSL(object):
         container = container_factory(Service)
         container.start()
 
-        with ServiceRpcClient("service", uri=rabbit_uri, ssl=None) as client:
+        with ServiceRpcClient("service", uri=rabbit_uri, ssl=False) as client:
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
