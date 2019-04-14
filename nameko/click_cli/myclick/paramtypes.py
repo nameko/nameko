@@ -74,7 +74,6 @@ class NamekoModuleServicesParamType(click.ParamType):
             args = {"value": value, "msg": str(exc)}
             self.fail(templ.format(**args), param, ctx)
         except ImportError:
-            # Can we do better error message?
             raise
 
 
