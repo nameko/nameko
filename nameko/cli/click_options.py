@@ -13,10 +13,6 @@ import click
 from .click_paramtypes import HOST_PORT, KEY_VAL
 
 
-def flatten_list_of_lists(ctx, param, list_of_lists):
-    return sum(list_of_lists, [])
-
-
 option_broker = partial(
     click.option,
     "--broker",
