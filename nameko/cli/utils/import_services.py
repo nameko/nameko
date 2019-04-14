@@ -47,7 +47,7 @@ def import_services(module_name):
     - ValueError with explanatory message and possible hint. Covers scenarios
       such as: missing module, no nameko class found in the module, explicit
       nameko service class is missing, is not a class or is not nameko service.
-    - ImportError when module exists, but importing raised unexpected exception.
+    - In case of complex failure, the ValueError string will include stacktrace.
 
     Returns: list of imported services
     """
@@ -75,7 +75,7 @@ def import_services(module_name):
 
         # found module, but importing it raised an import error elsewhere
         # let this bubble (resulting in a full stacktrace being printed)
-        raise
+        raise ValueError(str(exc))
 
     module = sys.modules[module_name]
 

@@ -170,7 +170,7 @@ def test_import_filename():
 
 
 def test_import_broken():
-    with pytest.raises(ImportError):
+    with pytest.raises(ValueError):
         import_services("test.broken_sample")
 
 
