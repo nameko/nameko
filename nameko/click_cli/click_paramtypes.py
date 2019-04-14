@@ -5,7 +5,7 @@ import sys
 import click
 import yaml
 
-from ..utils import import_services
+from .utils import import_services
 
 
 class KeyValParamType(click.ParamType):

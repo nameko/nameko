@@ -4,13 +4,13 @@ from nameko import config
 from nameko.exceptions import CommandError, ConfigurationError
 
 from .utils import setup_config
-from .myclick.argsopts import (
+from .click_arguments import argument_services
+from .click_options import (
     option_broker,
     option_config_file,
     option_define,
     option_backdoor_port,
     option_interface,
-    argument_services,
 )
 
 
@@ -56,7 +56,7 @@ positional arguments:
         python path to one or more service classes to run
     """
 
-    from .run import main
+    from .do_run import main
 
     try:
         setup_config(config_file, define, broker)
@@ -77,7 +77,7 @@ positional arguments:
 @option_config_file()
 @option_define()
 def shell(broker, interface, config_file, define):
-    from .shell import main
+    from .do_shell import main
 
     setup_config(config_file, define, broker)
     main(interface)

@@ -10,7 +10,7 @@ import pytest
 from mock import patch
 
 from nameko import config
-from nameko.click_cli.run import run, setup_backdoor
+from nameko.click_cli.do_run import run, setup_backdoor
 from nameko.click_cli.utils import import_services
 from nameko.constants import SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 from nameko.runners import ServiceRunner
@@ -56,7 +56,7 @@ def test_main_with_config(command, tmpdir):
     assert WEB_SERVER_CONFIG_KEY not in config
     assert SERIALIZER_CONFIG_KEY not in config
 
-    with patch("nameko.click_cli.run.main") as run:
+    with patch("nameko.click_cli.do_run.main") as run:
 
         command("cnameko", "run", "--config", config_file.strpath, "test.sample")
 
@@ -81,7 +81,7 @@ def test_main_with_config_options(command, tmpdir):
     assert SERIALIZER_CONFIG_KEY not in config
     assert "EGG" not in config
 
-    with patch("nameko.click_cli.run.main") as run:
+    with patch("nameko.click_cli.do_run.main") as run:
 
         command(
             "cnameko",
@@ -221,7 +221,7 @@ def test_backdoor():
 
 
 def test_stopping(rabbit_config):
-    with patch("nameko.click_cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.click_cli.do_run.eventlet") as mock_eventlet:
         # this is the service "runlet"
         mock_eventlet.spawn().wait.side_effect = [
             KeyboardInterrupt,
@@ -233,13 +233,13 @@ def test_stopping(rabbit_config):
 
 
 def test_stopping_twice(rabbit_config):
-    with patch("nameko.click_cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.click_cli.do_run.eventlet") as mock_eventlet:
         # this is the service "runlet"
         mock_eventlet.spawn().wait.side_effect = [
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        with patch("nameko.click_cli.run.ServiceRunner") as runner_cls:
+        with patch("nameko.click_cli.do_run.ServiceRunner") as runner_cls:
             runner = runner_cls()
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
@@ -249,7 +249,7 @@ def test_stopping_twice(rabbit_config):
 
 
 def test_os_error_for_signal(rabbit_config):
-    with patch("nameko.click_cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.click_cli.do_run.eventlet") as mock_eventlet:
         # this is the service "runlet"
         mock_eventlet.spawn().wait.side_effect = [
             OSError(errno.EINTR, ""),
@@ -264,7 +264,7 @@ def test_os_error_for_signal(rabbit_config):
 
 
 def test_other_errors_propagate(rabbit_config):
-    with patch("nameko.click_cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.click_cli.do_run.eventlet") as mock_eventlet:
         # this is the service "runlet"
         mock_eventlet.spawn().wait.side_effect = [
             OSError(0, ""),
@@ -281,7 +281,7 @@ def test_other_errors_propagate(rabbit_config):
 @pytest.mark.usefixtures("empty_config")
 def test_broker_option_deprecated(command, rabbit_uri):
 
-    with patch("nameko.click_cli.run.run") as run:
+    with patch("nameko.click_cli.do_run.run") as run:
         with patch("nameko.click_cli.utils.config.warnings") as warnings:
             command("cnameko", "run", "--broker", rabbit_uri, "test.sample")
 
