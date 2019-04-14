@@ -1,3 +1,5 @@
+import sys
+
 import click
 import pytest
 
@@ -49,17 +51,33 @@ def test_host_port(value, expected):
     [
         ("test.sample", [Service]),
         ("test.sample:Service", [Service]),
+        # py2.7 version (skip for py3.x)
+        pytest.param(
+            "test.missing_module",
+            click.exceptions.BadParameter(
+                "'test.missing_module'. No module named missing_module"
+            ),
+            marks=pytest.mark.skipif(
+                sys.version_info >= (3, 0),
+                reason="This exception texting is py2.x specific",
+            ),
+        ),
+        # py3.x version (skip for py2.x)
+        pytest.param(
+            "test.missing_module",
+            click.exceptions.BadParameter(
+                "'test.missing_module'. No module named 'test.missing_module'"
+            ),
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 0),
+                reason="This exception texting is py3.x specific",
+            ),
+        ),
         pytest.param(
             "test.sample:MissingService",
             click.exceptions.BadParameter(
                 "'test.sample:MissingService'. "
                 "Failed to find service class 'MissingService' in module 'test.sample'"
-            ),
-        ),
-        pytest.param(
-            "test.missing_module",
-            click.exceptions.BadParameter(
-                "'test.missing_module'. No module named 'test.missing_module'"
             ),
         ),
         pytest.param(
