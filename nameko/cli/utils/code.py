@@ -1,3 +1,5 @@
+"""Provide custom code `interact` for interactive nameko shell.
+"""
 from __future__ import absolute_import
 
 from code import InteractiveConsole

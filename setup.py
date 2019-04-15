@@ -4,6 +4,7 @@ from codecs import open
 
 from setuptools import find_packages, setup
 
+
 here = os.path.abspath(os.path.dirname(__file__))
 
 with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
@@ -21,6 +22,7 @@ setup(
     url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
+        "click>=7.0",
         "eventlet>=0.20.1",
         "kombu>=4.2.0,<5",
         "mock>=1.2",
@@ -64,7 +66,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'nameko=nameko.cli.main:main',
+            'nameko=nameko.cli:cli',
         ],
         'pytest11': [
             'pytest_nameko=nameko.testing.pytest'

@@ -1,4 +1,5 @@
 from copy import deepcopy
+
 from six import wraps
 from six.moves import UserDict
 
