@@ -76,8 +76,9 @@ def pytest_addoption(parser):
 
 def pytest_load_initial_conftests():
     # make sure we monkey_patch before local conftests
-    import eventlet
-    eventlet.monkey_patch()
+    # import eventlet
+    # eventlet.monkey_patch()
+    pass
 
 
 def pytest_configure(config):
