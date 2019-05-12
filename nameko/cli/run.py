@@ -184,7 +184,7 @@ def main(args):
         )
 
     rename = args.rename
-    if len(rename) > 1:
+    if len(rename) >= 1 and ":" in rename[0]:
         rename = dict(map(lambda x: x.split(":", 1), rename))
     elif len(rename) == 1 and len(services) == 1:
         rename = {getattr(services[0], "name", None): rename[0]}

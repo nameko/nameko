@@ -51,6 +51,35 @@ def test_run(rabbit_config):
     gt.wait()
 
 
+def test_run_with_rename(rabbit_config):
+    parser = setup_parser()
+    broker = rabbit_config['AMQP_URI']
+    ser_name = Service.name
+    args = parser.parse_args([
+        'run',
+        '--broker',
+        broker,
+        '--backdoor-port',
+        0,
+        'test.sample:Service',
+        '--rename',
+        'service:renamed_service',
+    ])
+
+    with wait_for_call(ServiceRunner, 'start'):
+        gt = eventlet.spawn(main, args)
+
+    with ClusterRpcProxy(rabbit_config) as proxy:
+        proxy.renamed_service.ping()
+
+    pid = os.getpid()
+    os.kill(pid, signal.SIGTERM)
+    gt.wait()
+
+    # tear down service cls changed name manually
+    Service.name = ser_name
+
+
 def test_main_with_config(rabbit_config, tmpdir):
 
     config = tmpdir.join('config.yaml')
