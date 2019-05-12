@@ -102,8 +102,10 @@ class Run(Command):
             ' connected to for an interactive interpreter within the running'
             ' service process using `nameko backdoor`.')
         parser.add_argument(
-            '--cname', default='', type=str,
-            help='Cover service cls name')
+            '--rename', default='', type=str, nargs='+',
+            help='Rename service name, supporting cover origin service name '
+                 'by passing renaming rules in, like "origin_service:target_name".'
+                 'And target name is enough if only one service is started')
 
         return parser
 
