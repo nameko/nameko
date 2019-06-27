@@ -386,16 +386,11 @@ def test_rpc_headers(container_factory):
         'otherheader': 'othervalue'
     }
 
-    headers = {}
-
     rpc_consumer = get_extension(container, RpcConsumer)
 
     with patch.object(
         rpc_consumer, 'handle_result', wraps=rpc_consumer.handle_result
     ) as patched:
-
-        patched.side_effect = lambda msg, *args: headers.update(msg.headers)
-
         # use a standalone rpc client to call exampleservice.say_hello()
         with ServiceRpcClient(
             "exampleservice", context_data
@@ -403,7 +398,8 @@ def test_rpc_headers(container_factory):
             assert client.say_hello() == "hello"
 
         # headers as per context data, plus call stack
-        assert headers == {
+        message = patched.call_args[0][0]
+        assert message.headers == {
             'nameko.language': 'en',
             'nameko.otherheader': 'othervalue',
             'nameko.call_id_stack': ['standalone_rpc_client.0.0']
