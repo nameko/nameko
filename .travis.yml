@@ -90,6 +90,18 @@ matrix:
     - stage: test
       python: 3.6
       env: TOX_ENV=py36-extra-lib
+    - stage: test
+      python: 3.7
+      env: TOX_ENV=py37-oldest-lib
+    - stage: test
+      python: 3.7
+      env: TOX_ENV=py37-pinned-lib
+    - stage: quick_test3
+      python: 3.7
+      env: TOX_ENV=py37-latest-lib
+    - stage: test
+      python: 3.7
+      env: TOX_ENV=py37-extra-lib
     - stage: deploy
       script: skip
       deploy:
@@ -113,6 +125,9 @@ matrix:
     - stage: mastereventlet
       python: 3.6
       env: TOX_ENV=py36-mastereventlet
+    - stage: mastereventlet
+      python: 3.7
+      env: TOX_ENV=py36-mastereventlet
     - stage: branchcoverage
       python: 3.6
       env: TOX_ENV=py36-branchcoverage-lib
@@ -122,9 +137,8 @@ matrix:
     - env: TOX_ENV=py34-mastereventlet
     - env: TOX_ENV=py35-mastereventlet
     - env: TOX_ENV=py36-mastereventlet
+    - env: TOX_ENV=py37-mastereventlet
     - env: TOX_ENV=py36-branchcoverage-lib
 
 script:
   - tox -e $TOX_ENV
-
-
