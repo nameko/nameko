@@ -386,6 +386,8 @@ def test_rpc_headers(container_factory):
         'otherheader': 'othervalue'
     }
 
+    headers = {}
+
     rpc_consumer = get_extension(container, RpcConsumer)
 
     original_handle_result = rpc_consumer.handle_result
