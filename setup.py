@@ -35,14 +35,16 @@ setup(
     ],
     extras_require={
         'dev': [
-            "astroid==2.2.5",
+            "astroid==2.2.5;python_version>='3'",
+            "astroid==1.6.5;python_version<'3'",
             "coverage==4.5.1",
             "flake8==3.3.0",
             "isort==4.2.15",
             "mccabe==0.6.1",
             "pycodestyle==2.3.1",
             "pyflakes==1.5.0",
-            "pylint==2.3.1",
+            "pylint==2.3.1;python_version>='3'",
+            "pylint==1.8.0;python_version<'3'",
             "pytest==3.6.3",
             "pytest-cov==2.5.1",
             "pytest-timeout==1.3.0",
