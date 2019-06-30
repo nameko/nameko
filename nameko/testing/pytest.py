@@ -1,5 +1,9 @@
 from __future__ import absolute_import
 
+import os
+from contextlib import closing
+
+import eventlet
 import pytest
 
 from nameko import config
@@ -190,6 +194,13 @@ def rabbit_config(rabbit_uri):
 def rabbit_ssl_options(request):
     ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
     ssl_options = {key: value for key, value in ssl_options} or True
+
+    for file_key in ['ca_certs', 'certfile', 'keyfile']:
+        filename = ssl_options.get(file_key)
+        if filename and not os.path.isfile(filename):  # pragma: no cover
+            pytest.skip('ssl {} file {} does not exist'
+                        .format(file_key, filename))
+
     return ssl_options
 
 
@@ -204,6 +215,18 @@ def rabbit_ssl_uri(request, rabbit_uri):
             str(uri_parts.port),
             str(amqp_ssl_port))
     ).geturl()
+
+    # the eventlet patched version of socket always returns `None` when calling
+    # connect_ex, so in this case we have to use the original version to check
+    # if the rabbitmq ssl port is open.
+    socket = eventlet.patcher.original('socket')
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+        conn_args = (uri_parts.hostname, amqp_ssl_port)
+        ssl_port_open = sock.connect_ex(conn_args) == 0  # pylint: disable=E1101
+        if not ssl_port_open:  # pragma: no cover
+            pytest.skip('SSL port {} on host {} is closed. '
+                        'SSL tests cannot be performed'.format(
+                            amqp_ssl_port, uri_parts.hostname))
 
     return amqp_ssl_uri
 
