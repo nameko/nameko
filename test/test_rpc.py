@@ -390,16 +390,18 @@ def test_rpc_headers(container_factory):
 
     rpc_consumer = get_extension(container, RpcConsumer)
 
-    with patch.object(
-        rpc_consumer, 'handle_result', wraps=rpc_consumer.handle_result
-    ) as patched:
+    original_handle_result = rpc_consumer.handle_result
 
-        patched.side_effect = lambda msg, *args: headers.update(msg.headers)
+    def side_effect(msg, *args):
+        original_handle_result(msg, *args)
+        headers.update(msg.headers)
+
+    with patch.object(rpc_consumer, 'handle_result') as patched:
+
+        patched.side_effect = side_effect
 
         # use a standalone rpc client to call exampleservice.say_hello()
-        with ServiceRpcClient(
-            "exampleservice", context_data
-        ) as client:
+        with ServiceRpcClient("exampleservice", context_data) as client:
             assert client.say_hello() == "hello"
 
         # headers as per context data, plus call stack
