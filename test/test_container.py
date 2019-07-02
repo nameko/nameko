@@ -3,14 +3,13 @@
 import sys
 from functools import partial
 
-import eventlet
 import greenlet
 import pytest
-from eventlet import Timeout, sleep, spawn
-from eventlet.event import Event
 from mock import ANY, Mock, call, patch
 
+import nameko.concurrency
 from nameko import config
+from nameko.concurrency import Event, Timeout, sleep, spawn, wait
 from nameko.constants import MAX_WORKERS_CONFIG_KEY
 from nameko.containers import ServiceContainer, get_service_name
 from nameko.exceptions import ConfigurationError
@@ -277,7 +276,7 @@ def test_kill_container_with_managed_threads(container):
         container._died.wait()
 
         with pytest.raises(greenlet.GreenletExit):
-            worker_gt.wait()
+            wait(worker_gt)
 
 
 def test_kill_container_with_active_workers(container_factory):
@@ -318,6 +317,7 @@ def test_handle_killed_worker(container, logger):
     (worker_gt,) = container._worker_threads.values()
 
     worker_gt.kill()
+    sleep(0)
     assert logger.debug.call_args == call(
         "%s thread killed by container", container)
 
@@ -333,6 +333,7 @@ def test_spawned_thread_kills_container(container):
 
     with pytest.raises(Exception) as exc_info:
         container.wait()
+        sleep()
 
     assert exc_info.value.args == ('foobar',)
 
@@ -412,6 +413,7 @@ def test_container_stop_kills_remaining_managed_threads(container, logger):
     container.spawn_managed_thread(sleep_forever)
 
     container.stop()
+    sleep(0)
 
     assert logger.warning.call_args_list == [
         call("killing %s managed thread(s)", 2),
@@ -441,6 +443,7 @@ def test_container_kill_kills_remaining_managed_threads(container, logger):
     container.spawn_managed_thread(sleep_forever)
 
     container.kill()
+    sleep(0)
 
     assert logger.warning.call_args_list == [
         call("killing %s managed thread(s)", 2),
@@ -491,7 +494,7 @@ def test_stop_during_kill(container, logger):
     ) as kill_managed_threads:
 
         # force eventlet yield during kill() so stop() will be scheduled
-        kill_managed_threads.side_effect = eventlet.sleep
+        kill_managed_threads.side_effect = nameko.concurrency.sleep
 
         # manufacture an exc_info to kill with
         try:
@@ -499,8 +502,8 @@ def test_stop_during_kill(container, logger):
         except:
             exc_info = sys.exc_info()
 
-        eventlet.spawn(container.kill, exc_info)
-        eventlet.spawn(container.stop)
+        nameko.concurrency.spawn(container.kill, exc_info)
+        nameko.concurrency.spawn(container.stop)
 
         with pytest.raises(Exception):
             container.wait()

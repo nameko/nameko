@@ -1,40 +1,20 @@
 from __future__ import print_function
 
-import eventlet
+import nameko.concurrency
 
-eventlet.monkey_patch()  # noqa (code before rest of imports)
+nameko.concurrency.monkey_patch()  # noqa (code before rest of imports)
 
 import errno
 import logging
 import logging.config
 import signal
 
-from eventlet import backdoor
-
+from nameko.concurrency import setup_backdoor
 from nameko import config
 from nameko.runners import ServiceRunner
 
 
 logger = logging.getLogger(__name__)
-
-
-def setup_backdoor(runner, backdoor_port):
-    def _bad_call():
-        raise RuntimeError(
-            "This would kill your service, not close the backdoor. To exit, "
-            "use ctrl-c."
-        )
-
-    host, port = backdoor_port
-    socket = eventlet.listen((host, port))
-    # work around https://github.com/celery/kombu/issues/838
-    socket.settimeout(None)
-    gt = eventlet.spawn(
-        backdoor.backdoor_server,
-        socket,
-        locals={"runner": runner, "quit": _bad_call, "exit": _bad_call},
-    )
-    return socket, gt
 
 
 def run(services, backdoor_port=None):
@@ -45,7 +25,7 @@ def run(services, backdoor_port=None):
     def shutdown(signum, frame):
         # signal handlers are run by the MAINLOOP and cannot use eventlet
         # primitives, so we have to call `stop` in a greenlet
-        eventlet.spawn_n(service_runner.stop)
+        nameko.concurrency.spawn_n(service_runner.stop)
 
     signal.signal(signal.SIGTERM, shutdown)
 
@@ -59,11 +39,11 @@ def run(services, backdoor_port=None):
     # This is a side-effect of the eventlet hub mechanism. To protect nameko
     # from seeing the exception, we wrap the runner.wait call in a greenlet
     # spawned here, so that we can catch (and silence) the exception.
-    runnlet = eventlet.spawn(service_runner.wait)
+    runnlet = nameko.concurrency.spawn(service_runner.wait)
 
     while True:
         try:
-            runnlet.wait()
+            nameko.concurrency.wait(runnlet)
         except OSError as exc:
             if exc.errno == errno.EINTR:
                 # this is the OSError(4) caused by the signalhandler.

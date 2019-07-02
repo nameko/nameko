@@ -5,10 +5,10 @@ from functools import partial
 from logging import getLogger
 
 import six
-from eventlet.event import Event
 from eventlet.websocket import WebSocketWSGI
 from werkzeug.routing import Rule
 
+from nameko.concurrency import Event
 from nameko.exceptions import (
     ConnectionNotFound, MalformedRequest, MethodNotFound, serialize
 )

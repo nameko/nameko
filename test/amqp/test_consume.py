@@ -1,8 +1,8 @@
-import eventlet
 import pytest
 from kombu.messaging import Queue
 from mock import Mock, patch
 
+import nameko.concurrency
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher
 
@@ -41,7 +41,7 @@ class TestConsumer(object):
         def waiter():
             consumer.wait_until_consumer_ready()
 
-        gt = eventlet.spawn(waiter)
+        gt = nameko.concurrency.spawn(waiter)
 
         assert not consumer.ready.is_set()
         assert not gt.dead
@@ -50,7 +50,7 @@ class TestConsumer(object):
         next(consumer.consume())
 
         assert consumer.ready.is_set()
-        gt.wait()  # make sure gt gets scheduled and has chance to exit
+        nameko.concurrency.wait(gt)  # make sure gt gets scheduled and has chance to exit
         assert gt.dead
 
     def test_ack_message_ignores_connection_errors(

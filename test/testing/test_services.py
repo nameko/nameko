@@ -1,10 +1,10 @@
 import itertools
 import time
 
-import eventlet
 import pytest
 from mock import Mock, call
 
+import nameko.concurrency
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.extensions import DependencyProvider
@@ -60,7 +60,7 @@ def spawn_thread():
 
         The thread will be killed at test teardown if it's still running.
         """
-        threads.append(eventlet.spawn(fn, *args))
+        threads.append(nameko.concurrency.spawn(fn, *args))
 
     yield spawn
 

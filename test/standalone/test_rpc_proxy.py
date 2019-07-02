@@ -1,16 +1,16 @@
 from contextlib import contextmanager
 
-import eventlet
 import pytest
-from eventlet.event import Event
 from kombu.connection import Connection
 from kombu.exceptions import OperationalError
 from kombu.message import Message
 from mock import Mock, patch
 from six.moves import queue
 
+import nameko.concurrency
 from nameko import config
 from nameko.amqp.consume import Consumer
+from nameko.concurrency import Event
 from nameko.constants import HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import (
@@ -58,7 +58,7 @@ class FooService(object):
 
     @rpc
     def sleep(self, seconds=0):
-        eventlet.sleep(seconds)
+        nameko.concurrency.sleep(seconds)
         return seconds
 
 
@@ -188,7 +188,7 @@ def test_reply_queue_removed_on_expiry(
         queues_during = list_queues()
         assert foo.spam(ham='eggs') == 'eggs'
 
-    eventlet.sleep(.3)  # sleep for >TTL
+    nameko.concurrency.sleep(.3)  # sleep for >TTL
     queues_after = list_queues()
 
     assert queues_before != queues_during
@@ -199,7 +199,7 @@ def test_reply_queue_removed_on_expiry(
         assert foo.spam(ham='eggs') == 'eggs'
         assert foo.spam(ham='eggs') == 'eggs'
 
-    eventlet.sleep(.3)  # sleep for >TTL
+    nameko.concurrency.sleep(.3)  # sleep for >TTL
     queues_after = list_queues()
     assert queues_after == queues_before
 
@@ -264,7 +264,7 @@ class TestDisconnectedWhileWaitingForReply(object):
     ):
 
         def enable_after_queue_expires():
-            eventlet.sleep(1)
+            nameko.concurrency.sleep(1)
             toxiproxy.enable()
 
         class Service(object):
@@ -273,7 +273,7 @@ class TestDisconnectedWhileWaitingForReply(object):
             @rpc
             def sleep(self):
                 toxiproxy.disable()
-                eventlet.spawn_n(enable_after_queue_expires)
+                nameko.concurrency.spawn_n(enable_after_queue_expires)
                 return "OK"
 
         container = container_factory(Service)
@@ -302,7 +302,7 @@ def test_async_wait_longer_than_expiry(container_factory):
 
     with ServiceRpcClient('foobar', timeout=0.6) as foo:
         res = foo.sleep.call_async(0.4)
-        eventlet.sleep(0.4)
+        nameko.concurrency.sleep(0.4)
 
         with pytest.raises(ReplyQueueExpiredWithPendingReplies):
             res.result()
@@ -325,7 +325,7 @@ def test_inactive_longer_than_expiry(container_factory):
     container.start()
 
     with ServiceRpcClient('foobar') as foo:
-        eventlet.sleep(0.4)
+        nameko.concurrency.sleep(0.4)
         assert foo.spam(ham='eggs') == 'eggs'
 
 
@@ -480,8 +480,8 @@ def test_no_timeout(container_factory, rabbit_manager):
     container.start()
 
     with ServiceRpcClient('foobar') as client:
-        with pytest.raises(eventlet.Timeout):
-            with eventlet.Timeout(.1):
+        with pytest.raises(nameko.concurrency.Timeout):
+            with nameko.concurrency.Timeout(.1):
                 client.sleep(seconds=1)
 
 
@@ -517,7 +517,7 @@ def test_client_queue_expired_even_if_unused(rabbit_manager, get_vhost):
     with ServiceRpcClient('exampleservice'):
         assert len(rabbit_manager.get_queues(vhost)) == 1
 
-    eventlet.sleep(.15)  # sleep for >TTL
+    nameko.concurrency.sleep(.15)  # sleep for >TTL
     assert len(rabbit_manager.get_queues(vhost)) == 0
 
 

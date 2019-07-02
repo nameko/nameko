@@ -78,13 +78,13 @@ def pytest_addoption(parser):
 
 def pytest_load_initial_conftests():
     # make sure we monkey_patch before local conftests
-    import eventlet
-    eventlet.monkey_patch()
+    import nameko.concurrency
+    nameko.concurrency.monkey_patch()
 
 
 def pytest_configure(config):
     if config.option.blocking_detection:  # pragma: no cover
-        from eventlet import debug
+        from nameko.concurrency import debug
         debug.hub_blocking_detection(True)
 
 
@@ -368,7 +368,7 @@ def web_session(web_config_port):
 
 @pytest.yield_fixture()
 def websocket(web_config_port):
-    import eventlet
+    import nameko.concurrency
     from nameko.testing.websocket import make_virtual_socket
 
     active_sockets = []
@@ -376,7 +376,7 @@ def websocket(web_config_port):
     def socket_creator():
         ws_app, wait_for_sock = make_virtual_socket(
             '127.0.0.1', web_config_port)
-        gr = eventlet.spawn(ws_app.run_forever)
+        gr = nameko.concurrency.spawn(ws_app.run_forever)
         active_sockets.append((gr, ws_app))
         socket = wait_for_sock()
         socket.app = ws_app

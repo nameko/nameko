@@ -1,10 +1,9 @@
 # coding: utf-8
 
 import pytest
-from eventlet import GreenPool, sleep
-from eventlet.event import Event
 
 import nameko.rpc
+from nameko.concurrency import Event, GreenPool, sleep
 from nameko.containers import ServiceContainer
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc, rpc

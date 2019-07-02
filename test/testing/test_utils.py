@@ -1,11 +1,11 @@
 import itertools
 
-import eventlet
 import pytest
-from eventlet.event import Event
 from mock import Mock, call, patch
 from requests import HTTPError, Response
 
+import nameko.concurrency
+from nameko.concurrency import Event
 from nameko.containers import ServiceContainer
 from nameko.rpc import Rpc, RpcConsumer, rpc
 from nameko.testing.rabbit import Client
@@ -42,18 +42,18 @@ def test_wait_for_call():
     mock = Mock()
 
     def call_after(seconds):
-        eventlet.sleep(seconds)
+        nameko.concurrency.sleep(seconds)
         mock.method()
 
     # should not raise
-    eventlet.spawn(call_after, 0)
+    nameko.concurrency.spawn(call_after, 0)
     with wait_for_call(1, mock.method):
         pass
 
     mock.reset_mock()
 
-    with pytest.raises(eventlet.Timeout):
-        eventlet.spawn(call_after, 1)
+    with pytest.raises(nameko.concurrency.Timeout):
+        nameko.concurrency.spawn(call_after, 1)
         with wait_for_call(0, mock.method):
             pass  # pragma: no cover
 
@@ -219,7 +219,7 @@ class TestResourcePipeline(object):
         with ResourcePipeline(create, destroy, size).run() as pipeline:
 
             # check initial size
-            eventlet.sleep()  # let pipeline fill up
+            nameko.concurrency.sleep()  # let pipeline fill up
             # when full, created is always exactly one more than `size`
             assert pipeline.ready.qsize() == size
             assert len(created) == size + 1
@@ -227,14 +227,14 @@ class TestResourcePipeline(object):
             # get an item
             with pipeline.get() as item:
                 # let pipeline process
-                eventlet.sleep()
+                nameko.concurrency.sleep()
                 # expect pipeline to have created another item
                 assert pipeline.ready.qsize() == size
                 assert len(created) == size + 2
 
             # after putting the item back
             # let pipeline process
-            eventlet.sleep()
+            nameko.concurrency.sleep()
             # expect item to have been destroyed
             assert pipeline.trash.qsize() == 0
             assert destroyed == [item]
@@ -256,7 +256,7 @@ class TestResourcePipeline(object):
 
         def create():
             creating.send(True)
-            eventlet.sleep()
+            nameko.concurrency.sleep()
             obj = next(counter)
             created.append(obj)
             return obj

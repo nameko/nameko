@@ -1,6 +1,8 @@
 .coverage
 *.pyc
 _py_cache
+__pycache__
+.pytest_cache
 docs/build
 certs
 
@@ -8,3 +10,7 @@ certs
 *.egg-info
 dist
 .tox
+
+## Editor
+
+.idea

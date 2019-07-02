@@ -5,8 +5,7 @@ import socket
 from contextlib import contextmanager
 from functools import partial
 
-import eventlet
-
+import nameko.concurrency
 from nameko.extensions import Entrypoint
 from nameko.testing.rabbit import HTTPError
 
@@ -45,12 +44,12 @@ def wait_for_call(timeout, mock_method):
     """ Return a context manager that waits ``timeout`` seconds for
     ``mock_method`` to be called, yielding the mock if so.
 
-    Raises an :class:`eventlet.Timeout` if the method was not called
+    Raises an :class:`nameko.concurrency.Timeout` if the method was not called
     within ``timeout`` seconds.
     """
-    with eventlet.Timeout(timeout):
+    with nameko.concurrency.Timeout(timeout):
         while not mock_method.called:
-            eventlet.sleep()
+            nameko.concurrency.sleep()
     yield mock_method
 
 
@@ -63,7 +62,7 @@ def assert_stops_raising(fn, exception_type=Exception, timeout=10,
        an instance of ``exception_type``. If not specified, any
        `:class:`Exception` instance is allowed.
     """
-    with eventlet.Timeout(timeout):
+    with nameko.concurrency.Timeout(timeout):
         while True:
             try:
                 fn()
@@ -71,7 +70,7 @@ def assert_stops_raising(fn, exception_type=Exception, timeout=10,
                 pass
             else:
                 return
-            eventlet.sleep(interval)
+            nameko.concurrency.sleep(interval)
 
 
 class AnyInstanceOf(object):
@@ -139,8 +138,8 @@ class ResourcePipeline(object):
     def __init__(self, create, destroy, size=3):
         if size == 0:
             raise RuntimeError("Zero size would create unbounded resources")
-        self.ready = eventlet.Queue(maxsize=size)
-        self.trash = eventlet.Queue()
+        self.ready = nameko.concurrency.Queue(maxsize=size)
+        self.trash = nameko.concurrency.Queue()
         self.size = size
 
         self.create = create
@@ -148,16 +147,19 @@ class ResourcePipeline(object):
 
     def _start(self):
         self.running = True
-        self.create_thread = eventlet.spawn(self._create)
-        self.destroy_thread = eventlet.spawn(self._destroy)
+        self.create_thread = nameko.concurrency.spawn(self._create)
+        self.destroy_thread = nameko.concurrency.spawn(self._destroy)
 
     def _shutdown(self):
         self.running = False
 
         # increase max size of the ready queue and yield, allowing the
         # create thread to exit now if it's blocked trying to put an item
-        self.ready.resize(self.size + 1)
-        eventlet.sleep()
+        try:
+            self.ready.resize(self.size + 1)
+        except AttributeError:
+            self.ready.maxsize += 1
+        nameko.concurrency.sleep()
 
         # trash unused items while there are any left in the queue,
         # or the create thread is still running
@@ -167,7 +169,7 @@ class ResourcePipeline(object):
 
         # finally wait for the destroy thread to exit
         self.trash.put(ResourcePipeline.STOP)
-        self.destroy_thread.wait()
+        nameko.concurrency.wait(self.destroy_thread)
 
     def _create(self):
         while self.running:

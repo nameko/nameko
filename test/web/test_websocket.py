@@ -2,10 +2,10 @@ import errno
 import json
 import socket
 
-import eventlet
 import pytest
-from eventlet.event import Event
 
+import nameko.concurrency
+from nameko.concurrency import Event
 from nameko.exceptions import (
     MalformedRequest, MethodNotFound, RemoteError, deserialize
 )
@@ -107,7 +107,7 @@ def test_unsubscribe(container, websocket):
 
     with entrypoint_hook(container, 'broadcast') as broadcast:
         broadcast(value=42)
-    with eventlet.Timeout(.1, exception=False):
+    with nameko.concurrency.Timeout(.1, exception=False):
         assert get_message(ws) == 42
 
 
@@ -117,7 +117,7 @@ def test_unsubscribe_noop(container, websocket):
 
     with entrypoint_hook(container, 'broadcast') as broadcast:
         broadcast(value=42)
-    with eventlet.Timeout(.1, exception=False):
+    with nameko.concurrency.Timeout(.1, exception=False):
         assert get_message(ws) == 42
 
 
@@ -193,7 +193,7 @@ def test_connection_not_found(container, websocket):
 def test_badly_encoded_data(container, web_config_port):
     ws_app, wait_for_sock = make_virtual_socket('127.0.0.1', web_config_port)
 
-    gt = eventlet.spawn(ws_app.run_forever)
+    gt = nameko.concurrency.spawn(ws_app.run_forever)
     wait_for_sock()
     result = Event()
 
@@ -222,7 +222,7 @@ def test_websocket_helper_error(websocket):
 def test_client_closing_connection(container, web_config_port):
     ws_app, wait_for_sock = make_virtual_socket('127.0.0.1', web_config_port)
 
-    gt = eventlet.spawn(ws_app.run_forever)
+    gt = nameko.concurrency.spawn(ws_app.run_forever)
     wait_for_sock()
 
     wait_for_close = Event()

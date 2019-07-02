@@ -2,20 +2,19 @@ from __future__ import absolute_import
 
 from contextlib import contextmanager
 
-import eventlet
 import pytest
-from eventlet.event import Event
-from eventlet.semaphore import Semaphore
 from kombu import Exchange, Queue
 from kombu.connection import Connection
 from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
+import nameko.concurrency
 from nameko import config
 from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_producer
+from nameko.concurrency import Event, Semaphore
 from nameko.constants import AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
@@ -239,7 +238,7 @@ def test_unserialisable_headers(rabbit_manager, get_vhost, mock_container):
 
     container = mock_container
     container.service_name = "service"
-    container.spawn_managed_thread = eventlet.spawn
+    container.spawn_managed_thread = nameko.concurrency.spawn
 
     ctx_data = {'language': 'en', 'customheader': None}
     service = Mock()
@@ -279,7 +278,7 @@ def test_consume_from_rabbit(get_vhost, rabbit_manager, mock_container):
     container.accept = [content_type]
 
     def spawn_managed_thread(method, identifier=None):
-        return eventlet.spawn(method)
+        return nameko.concurrency.spawn(method)
 
     container.spawn_managed_thread = spawn_managed_thread
 
@@ -403,7 +402,7 @@ class TestConsumerDisconnections(object):
             # otherwise we end up in retry_over_time trying to make the
             # initial connection; we get stuck there because it has a
             # function-local copy of "on_connection_error" that is never patched
-            eventlet.sleep(.05)
+            nameko.concurrency.sleep(.05)
 
             yield container
 
@@ -577,10 +576,10 @@ class TestConsumerDisconnections(object):
         with entrypoint_waiter(container, 'echo') as result:
             publish('msg1')
             while not lock._waiters:
-                eventlet.sleep()  # pragma: no cover
+                nameko.concurrency.sleep()  # pragma: no cover
             toxiproxy.disable()
             # allow connection to close before releasing worker
-            eventlet.sleep(.1)
+            nameko.concurrency.sleep(.1)
             lock.release()
 
         # entrypoint will return and attempt to ack initiating message
@@ -625,10 +624,10 @@ class TestConsumerDisconnections(object):
         with entrypoint_waiter(container, 'echo') as result:
             publish('msg1')
             while not lock._waiters:
-                eventlet.sleep()  # pragma: no cover
+                nameko.concurrency.sleep()  # pragma: no cover
             toxiproxy.disable()
             # allow connection to close before releasing worker
-            eventlet.sleep(.1)
+            nameko.concurrency.sleep(.1)
             lock.release()
 
         # entrypoint will return and attempt to requeue initiating message
@@ -1290,7 +1289,7 @@ def test_stop_with_active_worker(container_factory, queue_info):
     publisher = PublisherCore(config['AMQP_URI'])
     publisher.publish("payload", routing_key="queue")
 
-    gt = eventlet.spawn(container.stop)
+    gt = nameko.concurrency.spawn(container.stop)
 
     @retry
     def consumer_removed():
@@ -1303,7 +1302,7 @@ def test_stop_with_active_worker(container_factory, queue_info):
     assert not gt.dead
     block.send(True)
 
-    gt.wait()
+    nameko.concurrency.wait(gt)
     assert gt.dead
 
 

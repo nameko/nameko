@@ -1,7 +1,7 @@
 import sys
 
-import eventlet
-from eventlet.queue import LightQueue
+import nameko.concurrency
+from nameko.concurrency import Queue
 
 
 def fail_fast_imap(pool, call, items):
@@ -19,12 +19,12 @@ def fail_fast_imap(pool, call, items):
     :param call: Function call to make, expecting to receive an item from the
         given list
     """
-    result_queue = LightQueue(maxsize=len(items))
+    result_queue = Queue(maxsize=len(items))
     spawned_threads = set()
 
     def handle_result(finished_thread):
         try:
-            thread_result = finished_thread.wait()
+            thread_result = nameko.concurrency.wait(finished_thread)
             spawned_threads.remove(finished_thread)
             result_queue.put((thread_result, None))
         except Exception:
@@ -45,7 +45,7 @@ def fail_fast_imap(pool, call, items):
             # simply raising here (even raising a full exc_info) isn't
             # sufficient to preserve the original stack trace.
             # greenlet.throw() achieves this.
-            eventlet.getcurrent().throw(*exc_info)
+            nameko.concurrency.getcurrent().throw(*exc_info)
         yield result
 
 
@@ -70,7 +70,7 @@ class SpawningProxy(object):
         def spawning_method(*args, **kwargs):
             items = self._items
             if items:
-                pool = eventlet.GreenPool(len(items))
+                pool = nameko.concurrency.GreenPool(len(items))
 
                 def call(item):
                     return getattr(item, name)(*args, **kwargs)

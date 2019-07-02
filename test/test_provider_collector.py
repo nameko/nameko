@@ -1,8 +1,8 @@
 # coding: utf-8
 
-import eventlet
 import pytest
 
+import nameko.concurrency
 from nameko.extensions import ProviderCollector
 
 
@@ -24,11 +24,11 @@ def test_provider_collector():
     collector.unregister_provider(provider1)
 
     # stop() should block while a provider remains
-    with pytest.raises(eventlet.Timeout):
-        with eventlet.Timeout(0):
+    with pytest.raises(nameko.concurrency.Timeout):
+        with nameko.concurrency.Timeout(0):
             collector.stop()
 
     # stop() will return when the final provider is unregistered
-    with eventlet.Timeout(0):
+    with nameko.concurrency.Timeout(0):
         collector.unregister_provider(provider2)
         collector.stop()

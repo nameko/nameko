@@ -1,10 +1,10 @@
 import logging
 import time
 
-import eventlet
 import pytest
 from mock import Mock
 
+import nameko.concurrency
 from nameko.testing.services import entrypoint_hook, get_extension
 from nameko.testing.utils import wait_for_call
 from nameko.timer import Timer, timer
@@ -43,7 +43,7 @@ def test_timer_run(interval, eager, call_duration, expected_calls,
         @timer(interval, eager)
         def tick(self):
             times.append(time.time())
-            eventlet.sleep(call_duration)
+            nameko.concurrency.sleep(call_duration)
             tracker()
 
     container = container_factory(Service, {})
@@ -55,7 +55,7 @@ def test_timer_run(interval, eager, call_duration, expected_calls,
 
     t0 = time.time()
     container.start()
-    eventlet.sleep(timeout)
+    nameko.concurrency.sleep(timeout)
     container.stop()
 
     rel_times = [t - t0 for t in times]
@@ -84,7 +84,7 @@ def test_kill_stops_timer(container_factory, tracker):
 
     # unless the timer is dead, the following nap would cause a timer
     # to trigger
-    eventlet.sleep(0.1)
+    nameko.concurrency.sleep(0.1)
     assert tracker.call_count == 1
 
 
@@ -103,7 +103,7 @@ def test_stop_while_sleeping(container_factory, tracker):
     container.start()
 
     # raise a Timeout if the container fails to stop within 1 second
-    with eventlet.Timeout(1):
+    with nameko.concurrency.Timeout(1):
         container.stop()
 
     assert tracker.call_count == 0, 'Timer should not have fired.'
@@ -126,7 +126,7 @@ def test_timer_error(container_factory, caplog, tracker):
 
     with caplog.at_level(logging.CRITICAL):
         container.start()
-        eventlet.sleep(0.05)
+        nameko.concurrency.sleep(0.05)
         # Check that the function was actually called and that the error was
         # handled gracefully.
         assert tracker.call_count == 1

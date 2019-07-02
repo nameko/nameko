@@ -8,12 +8,12 @@ from logging import getLogger
 
 import kombu.serialization
 from amqp.exceptions import NotFound
-from eventlet.event import Event
 from kombu import Exchange, Queue
 
 from nameko import config, serialization
 from nameko.amqp.consume import Consumer
 from nameko.amqp.publish import Publisher, UndeliverableMessage, get_connection
+from nameko.concurrency import Event
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI,
     DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY,

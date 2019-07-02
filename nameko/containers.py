@@ -5,15 +5,15 @@ import sys
 import uuid
 import warnings
 from collections import deque
+from functools import partial
 from logging import getLogger
 
-import eventlet
 import six
-from eventlet.event import Event
-from eventlet.greenpool import GreenPool
 from greenlet import GreenletExit  # pylint: disable=E0611
 
+import nameko.concurrency
 from nameko import config, serialization
+from nameko.concurrency import Event, GreenPool
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, MAX_WORKERS_CONFIG_KEY,
@@ -340,7 +340,7 @@ class ServiceContainer(object):
         gt = self._worker_pool.spawn(
             self._run_worker, worker_ctx, handle_result
         )
-        gt.link(self._handle_worker_thread_exited, worker_ctx)
+        gt.link(partial(self._handle_worker_thread_exited, worker_ctx=worker_ctx))
 
         self._worker_threads[worker_ctx] = gt
         return worker_ctx
@@ -361,9 +361,9 @@ class ServiceContainer(object):
         if identifier is None:
             identifier = getattr(fn, '__name__', "<unknown>")
 
-        gt = eventlet.spawn(fn)
+        gt = nameko.concurrency.spawn(fn)
         self._managed_threads[gt] = identifier
-        gt.link(self._handle_managed_thread_exited, identifier)
+        gt.link(partial(self._handle_managed_thread_exited, extension=identifier))
         return gt
 
     def _run_worker(self, worker_ctx, handle_result):
@@ -468,7 +468,7 @@ class ServiceContainer(object):
 
     def _handle_thread_exited(self, gt):
         try:
-            gt.wait()
+            nameko.concurrency.wait(gt)
 
         except GreenletExit:
             # we don't care much about threads killed by the container

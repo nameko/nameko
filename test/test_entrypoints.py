@@ -3,6 +3,7 @@ from collections import defaultdict
 import pytest
 from mock import Mock, call
 
+import nameko.concurrency
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.services import dummy, entrypoint_hook, once
 from nameko.testing.utils import get_extension
