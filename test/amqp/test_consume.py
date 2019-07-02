@@ -50,7 +50,8 @@ class TestConsumer(object):
         next(consumer.consume())
 
         assert consumer.ready.is_set()
-        nameko.concurrency.wait(gt)  # make sure gt gets scheduled and has chance to exit
+        # make sure gt gets scheduled and has chance to exit
+        nameko.concurrency.wait(gt)
         assert gt.dead
 
     def test_ack_message_ignores_connection_errors(

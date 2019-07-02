@@ -1,14 +1,11 @@
-"""
-Module docstring.
-"""
-
-from eventlet import (
-    Timeout, backdoor, getcurrent, listen, monkey_patch, sleep, spawn, spawn_n
+from eventlet import (  # noqa: F401
+    Timeout, backdoor, getcurrent, listen, monkey_patch, sleep, spawn,
+    spawn_after, spawn_n
 )
 from eventlet.event import Event as EventletEvent
-from eventlet.greenpool import GreenPool
-from eventlet.queue import Queue
-from eventlet.semaphore import Semaphore
+from eventlet.greenpool import GreenPool  # noqa: F401
+from eventlet.queue import Queue  # noqa: F401
+from eventlet.semaphore import Semaphore  # noqa: F401
 
 
 class Event(EventletEvent):

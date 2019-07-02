@@ -84,7 +84,7 @@ def pytest_load_initial_conftests():
 
 def pytest_configure(config):
     if config.option.blocking_detection:  # pragma: no cover
-        from nameko.concurrency import debug
+        from eventlet import debug  # TODO: allow gevent to work here too
         debug.hub_blocking_detection(True)
 
 

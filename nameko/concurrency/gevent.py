@@ -1,19 +1,19 @@
-import six
-from gevent import spawn as spawn_n
-from gevent import spawn_later as spawn_after
-from gevent import *
-from gevent import Timeout, getcurrent, sleep
-from gevent._util import _NONE
+from gevent import spawn_later as spawn_after  # noqa: F401
+from gevent import Timeout, getcurrent, sleep, spawn  # noqa: F401
+from gevent._util import _NONE  # noqa: F401
 from gevent.backdoor import BackdoorServer
-from gevent.event import Event as GeventEvent
+from gevent.event import Event as GeventEvent  # noqa: F401
 from gevent.event import AsyncResult
-from gevent.greenlet import Greenlet
-from gevent.lock import Semaphore
-from gevent.monkey import patch_all as monkey_patch
+from gevent.greenlet import Greenlet  # noqa: F401
+from gevent.lock import Semaphore  # noqa: F401
+from gevent.monkey import patch_all as monkey_patch  # noqa: F401
 from gevent.pool import Pool as GeventPool
-from gevent.queue import Queue
+from gevent.queue import Queue  # noqa: F401
 from gevent.server import AF_INET, _tcp_listener
-from greenlet import GreenletExit
+from greenlet import GreenletExit  # pylint: disable=E0611
+
+
+spawn_n = spawn
 
 
 class Event():
@@ -39,7 +39,6 @@ class Event():
     def wait(self, timeout=None):
         result = self.async_result.get(timeout=timeout)
         return result
-
 
     def ready(self):
         return self.async_result.ready()
@@ -84,14 +83,6 @@ class GreenPool(GeventPool):
     def waitall(self):
         return self.join()
 
-    def link(self, callback, *args, **kwargs):
-        if args or kwargs:
-            def f(gt):
-                return callback(gt, *args, **kwargs)
-        else:
-            f = callback
-        return super(GreenPool, self).link(f)
-
 
 def wait(gt):
     result = gt.get()
@@ -113,7 +104,10 @@ def setup_backdoor(runner, backdoor_port):
         )
 
     (host, port) = backdoor_port
-    server = BackdoorServer((host, port), locals={"runner": runner, "quit": _bad_call, "exit": _bad_call})
+    server = BackdoorServer(
+        (host, port),
+        locals={"runner": runner, "quit": _bad_call, "exit": _bad_call}
+    )
     server.start()
     gt = spawn(server.serve_forever)
     # TODO: Clean up this ugly hack!
