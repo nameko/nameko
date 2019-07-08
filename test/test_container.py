@@ -333,7 +333,6 @@ def test_spawned_thread_kills_container(container):
 
     with pytest.raises(Exception) as exc_info:
         container.wait()
-        sleep()
 
     assert exc_info.value.args == ('foobar',)
 

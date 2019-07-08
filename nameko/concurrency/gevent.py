@@ -18,6 +18,8 @@ spawn_n = spawn
 
 
 class Event():
+    __slots__ = ('async_result',)
+
     def __init__(self):
         self.async_result = AsyncResult()
 

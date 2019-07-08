@@ -49,6 +49,7 @@ setup(
             "requests==2.19.1",
             "urllib3==1.23",
             "websocket-client==0.48.0",
+            "gevent==1.4.0",
         ],
         'docs': [
             "pyenchant==1.6.6",
