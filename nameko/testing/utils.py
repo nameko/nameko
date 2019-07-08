@@ -155,10 +155,7 @@ class ResourcePipeline(object):
 
         # increase max size of the ready queue and yield, allowing the
         # create thread to exit now if it's blocked trying to put an item
-        try:
-            self.ready.resize(self.size + 1)
-        except AttributeError:
-            self.ready.maxsize += 1
+        nameko.concurrency.resize_queue(self.ready, self.size + 1)
         nameko.concurrency.sleep()
 
         # trash unused items while there are any left in the queue,

@@ -55,6 +55,10 @@ class GreenPool(GeventPool):
         return self.free_count()
 
 
+def resize_queue(q, new_size):
+    q.maxsize += 1
+
+
 def wait(gt):
     result = gt.get()
 

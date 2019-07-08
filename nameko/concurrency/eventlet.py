@@ -28,6 +28,10 @@ def wait(gt):
     return gt.wait()
 
 
+def resize_queue(q, new_size):
+    q.resize(new_size)
+
+
 def setup_backdoor(runner, backdoor_port):
     def _bad_call():
         raise RuntimeError(
