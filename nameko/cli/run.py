@@ -9,7 +9,7 @@ import logging
 import logging.config
 import signal
 
-from nameko.concurrency import setup_backdoor
+from nameko.concurrency import setup_backdoor, wait
 from nameko import config
 from nameko.runners import ServiceRunner
 
@@ -43,7 +43,7 @@ def run(services, backdoor_port=None):
 
     while True:
         try:
-            nameko.concurrency.wait(runnlet)
+            wait(runnlet)
         except OSError as exc:
             if exc.errno == errno.EINTR:
                 # this is the OSError(4) caused by the signalhandler.
