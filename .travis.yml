@@ -57,6 +57,24 @@ matrix:
     - stage: quick_examples3
       python: 3.6
       env: TOX_ENV=py36-examples
+
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-gevent
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-gevent
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-gevent
+
+    - stage: test
+      python: 2.7
+      env: TOX_ENV=py27-gevent-examples
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-gevent-examples
+
     - stage: test
       python: 2.7
       env: TOX_ENV=py27-oldest-lib
@@ -126,5 +144,3 @@ matrix:
 
 script:
   - tox -e $TOX_ENV
-
-

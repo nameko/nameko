@@ -44,41 +44,6 @@ class Event():
     def ready(self):
         return self.async_result.ready()
 
-# class Event(GeventEvent):
-#     """Gevent event with eventlet methods added."""
-
-#     def __init__(self, *args, **kwargs):
-#         super(Event, self).__init__(*args, **kwargs)
-#         self._exc = None
-#         self._result = None
-
-#     def send(self, result=None, exc=None):
-#         if exc is not None and not isinstance(exc, tuple):
-#             self._exc = (exc,)
-#         else:
-#             self._exc = exc
-#         self._result = result
-#         self.set()
-
-#     def send_exception(self, *args):
-#         return self.send(exc=args)
-
-#     def wait(self):
-#         result = super(Event, self).wait()
-#         if not result:
-#             raise NotImplementedError('Timeout not supported.')
-#         if self._exc is not None:
-#             if len(self._exc) == 1:
-#                 raise self._exc[0]
-#             six.reraise(*self._exc)
-#         else:
-#             return self._result
-
-#     def reset(self):
-#         self._exc = None
-#         self._result = None
-#         self.clear()
-
 
 class GreenPool(GeventPool):
     def waitall(self):
@@ -140,4 +105,4 @@ def process_wsgi_request(server, sock, address):
     server.handle(sock, address)
 
 
-HttpOnlyProtocol = None
+HttpOnlyProtocol = None  # compatability with evetlet, not needed in gevent
