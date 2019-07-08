@@ -1,15 +1,13 @@
 import socket
 
 import pytest
-from eventlet import wsgi
 from mock import patch
 from werkzeug.contrib.fixers import ProxyFix
 
+import nameko.concurrency
 from nameko.exceptions import ConfigurationError
 from nameko.web.handlers import HttpRequestHandler, http
-from nameko.web.server import (
-    BaseHTTPServer, HttpOnlyProtocol, WebServer, parse_address
-)
+from nameko.web.server import WebServer, parse_address
 
 
 class ExampleService(object):
@@ -40,8 +38,12 @@ def test_broken_pipe(container_factory, web_config_port, web_session):
     assert web_session.get('/').text == ''
 
 
+@pytest.mark.skipif(nameko.concurrency.mode != 'eventlet',
+                    reason='Only tested for eventlet')
 @pytest.mark.usefixtures("web_config")
 def test_other_socket_error(container_factory, web_config_port, web_session):
+    from eventlet.wsgi import BaseHTTPServer
+
     container = container_factory(ExampleService)
     container.start()
 
@@ -60,6 +62,8 @@ def test_other_socket_error(container_factory, web_config_port, web_session):
     assert 'boom' in str(exc)
 
 
+@pytest.mark.skipif(nameko.concurrency.mode != 'eventlet',
+                    reason='Only tested for eventlet')
 @pytest.mark.usefixtures("web_config")
 def test_client_disconnect_os_error(
     container_factory, web_config_port, web_session
@@ -72,7 +76,8 @@ def test_client_disconnect_os_error(
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('127.0.0.1', web_config_port))
 
-    with patch.object(HttpOnlyProtocol, 'handle_one_request') as handle:
+    with patch.object(nameko.concurrency.HttpOnlyProtocol,
+                      'handle_one_request') as handle:
         handle.side_effect = OSError('raw readinto() returned invalid length')
         s.sendall(b'GET / \r\n\r\n')
         s.recv(10)
@@ -82,10 +87,14 @@ def test_client_disconnect_os_error(
     assert web_session.get('/').text == ''
 
 
+@pytest.mark.skipif(nameko.concurrency.mode != 'eventlet',
+                    reason='Only tested for eventlet')
 @pytest.mark.usefixtures("web_config")
 def test_other_os_error(container_factory, web_config_port, web_session):
     """ Regression for https://github.com/nameko/nameko/issues/368
     """
+    from eventlet.wsgi import BaseHTTPServer
+
     container = container_factory(ExampleService)
     container.start()
 
@@ -154,18 +163,20 @@ def test_adding_middleware_with_get_wsgi_app(container_factory):
 def test_custom_wsgi_server_is_used(
     container_factory, web_config_port, web_session
 ):
+
     def custom_wsgi_app(environ, start_response):
         start_response('200 OK', [])
-        return 'Override'
+        return [b'Override']
 
     class CustomWebServer(WebServer):
         def get_wsgi_server(
-            self, sock, wsgi_app, protocol=HttpOnlyProtocol, debug=False
+                self, sock, wsgi_app,
+                protocol=nameko.concurrency.HttpOnlyProtocol,
+                debug=False
         ):
-            return wsgi.Server(
-                sock,
-                sock.getsockname(),
-                custom_wsgi_app,
+            return nameko.concurrency.get_wsgi_server(
+                sock=sock,
+                wsgi_app=custom_wsgi_app,
                 protocol=protocol,
                 debug=debug
             )

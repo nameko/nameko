@@ -8,6 +8,7 @@ from gevent.greenlet import Greenlet  # noqa: F401
 from gevent.lock import Semaphore  # noqa: F401
 from gevent.monkey import patch_all as monkey_patch  # noqa: F401
 from gevent.pool import Pool as GeventPool
+from gevent.pywsgi import WSGIServer
 from gevent.queue import Queue  # noqa: F401
 from gevent.server import AF_INET, _tcp_listener
 from greenlet import GreenletExit  # pylint: disable=E0611
@@ -83,6 +84,9 @@ class GreenPool(GeventPool):
     def waitall(self):
         return self.join()
 
+    def free(self):
+        return self.free_count()
+
 
 def wait(gt):
     result = gt.get()
@@ -116,3 +120,24 @@ def setup_backdoor(runner, backdoor_port):
     # onto that name to get (very narrow) compatability.
     server.socket.fd = server.socket._sock
     return server.socket, gt
+
+
+def get_wsgi_server(sock, wsgi_app, protocol=None, debug=False, log=None):
+    """Get the wsgi server.
+
+    Note: Gevent wsgi server does a lot less with the response than eventlet.
+    Eventlet has the :meth:`eventlet.wsgi.Server.handle_one_request` which does
+    a lot of processing whereas gevent does nothing.
+    """
+    if log is None:
+        log = 'default'
+    server = WSGIServer(sock, wsgi_app, log=log)
+    server.socket_timeout = None  # compatability with eventlet
+    return server
+
+
+def process_wsgi_request(server, sock, address):
+    server.handle(sock, address)
+
+
+HttpOnlyProtocol = None

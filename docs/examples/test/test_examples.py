@@ -14,6 +14,7 @@ from nameko.exceptions import RemoteError
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcClient, ServiceRpcClient
 from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
+import nameko.concurrency
 
 
 class TestHttp(object):
@@ -298,6 +299,8 @@ class TestTravis(object):
             assert "Project travis-ci/cpython-builder" in status
 
 
+@pytest.mark.skipif(nameko.concurrency.mode != 'eventlet',
+                    reason='Websockets can only be used with eventlet.')
 @pytest.mark.usefixtures("web_config")
 class TestWebsocketRpc(object):
 

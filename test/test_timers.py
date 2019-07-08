@@ -21,10 +21,10 @@ def tracker():
     (5, False, 0, 0),
     (5, True, 0, 1),
     # call duration delays second call
-    (0.1, False, 0.3, 1),  # fires at 0.1
-    (0.1, True, 0.3, 1),  # fires at 0, 0.2
-    (0.025, False, 0.07, 2),  # fires at 0.25, 0.095, 0.165
-    (0.025, True, 0.07, 3),  # fires at 0, 0.07, 0.14
+    (0.1, False, 0.3, 1),  # fires at 0.1, 0.4
+    (0.1, True, 0.3, 1),  # fires at 0, 0.3
+    (0.04, False, 0.06, 2),  # fires at 0.04, 0.1, 0.16
+    (0.04, True, 0.06, 3),  # fires at 0, 0.06, 0.12
 ])
 def test_timer_run(interval, eager, call_duration, expected_calls,
                    container_factory, tracker):

@@ -14,6 +14,11 @@ from nameko.testing.websocket import make_virtual_socket
 from nameko.web.websocket import WebSocketHubProvider, WebSocketRpc, rpc
 
 
+pytestmark = pytest.mark.skipif(
+    nameko.concurrency.mode != 'eventlet',
+    reason='Websockets can only be used with eventlet.')
+
+
 class ExampleService(object):
     name = "exampleservice"
 

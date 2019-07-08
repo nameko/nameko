@@ -42,6 +42,7 @@ def test_fail_fast_imap():
 
     # The slow call won't go past the sleep as it was killed
     assert not slow_call_returned.ready()
+    sleep()
     assert pool.free() == 2
 
 

@@ -221,9 +221,9 @@ def test_backdoor():
 
 
 def test_stopping(rabbit_config):
-    with patch("nameko.cli.run.nameko.concurrency") as mock_eventlet:
+    with patch("nameko.cli.run.nameko.concurrency") as mock_concurrency:
         # this is the service "runlet"
-        mock_eventlet.spawn().wait.side_effect = [
+        mock_concurrency.spawn().wait.side_effect = [
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
@@ -233,9 +233,9 @@ def test_stopping(rabbit_config):
 
 
 def test_stopping_twice(rabbit_config):
-    with patch("nameko.cli.run.nameko.concurrency") as mock_eventlet:
+    with patch("nameko.cli.run.nameko.concurrency") as mock_concurrency:
         # this is the service "runlet"
-        mock_eventlet.spawn().wait.side_effect = [
+        mock_concurrency.spawn().wait.side_effect = [
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
@@ -249,9 +249,9 @@ def test_stopping_twice(rabbit_config):
 
 
 def test_os_error_for_signal(rabbit_config):
-    with patch("nameko.cli.run.nameko.concurrency") as mock_eventlet:
+    with patch("nameko.cli.run.nameko.concurrency") as mock_concurrency:
         # this is the service "runlet"
-        mock_eventlet.spawn().wait.side_effect = [
+        mock_concurrency.spawn().wait.side_effect = [
             OSError(errno.EINTR, ""),
             None,  # second wait, after stop() which returns normally
         ]

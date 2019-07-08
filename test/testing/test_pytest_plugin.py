@@ -4,6 +4,7 @@ import time
 import pytest
 from six.moves import queue
 
+import nameko.concurrency
 from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
@@ -487,6 +488,8 @@ def test_web_session(container_factory, web_session):
     assert web_session.get("/foo").status_code == 200
 
 
+@pytest.mark.skipif(nameko.concurrency.mode != 'eventlet',
+                    reason='Websockets can only be used with eventlet.')
 @pytest.mark.usefixtures('web_config')
 def test_websocket(container_factory, websocket):
 
