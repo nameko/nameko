@@ -17,7 +17,7 @@ from greenlet import GreenletExit  # pylint: disable=E0611
 spawn_n = spawn
 
 
-class Event():
+class Event(object):
     __slots__ = ('async_result',)
 
     def __init__(self):
