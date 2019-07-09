@@ -1,6 +1,8 @@
 [run]
 concurrency = eventlet
 branch = ${BRANCH}
+omit =
+    nameko/concurrency/*
 source =
     nameko
     test
