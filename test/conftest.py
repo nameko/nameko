@@ -3,7 +3,6 @@ import subprocess
 import sys
 import uuid
 from contextlib import contextmanager
-from types import ModuleType
 
 import eventlet
 import pytest
@@ -12,6 +11,7 @@ from kombu.messaging import Queue
 from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
+from types import ModuleType
 
 from nameko import config
 from nameko.amqp.publish import get_connection
@@ -189,6 +189,18 @@ def fake_module():
     sys.modules[module.__name__] = module
     yield module
     del sys.modules[module.__name__]
+
+
+@pytest.fixture
+def add_to_sys_path():
+
+    @contextmanager
+    def modify_sys_path(path):
+        sys.path.insert(0, path)
+        yield
+        sys.path.remove(path)
+
+    return modify_sys_path
 
 
 @pytest.fixture

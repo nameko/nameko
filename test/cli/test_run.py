@@ -151,6 +151,49 @@ def test_main_with_logging_config(command, tmpdir):
     assert "test.sample - INFO - ping!" in capture_file.read()
 
 
+def test_parse_config_before_service_import(command, tmpdir, add_to_sys_path):
+
+    config_file = tmpdir.join("config.yaml")
+    config_file.write(dedent(
+        """
+        NAME: dynamic
+        """
+    ))
+
+    service_file = tmpdir.join("service.py")
+    service_file.write(dedent(
+        """
+        from nameko import config
+        from nameko.testing.services import dummy
+
+        class Service:
+            name = config.get("NAME", "notfound")
+
+            @dummy
+            def method(self):
+                return "OK"
+
+        """
+    ))
+
+    service_names = []
+
+    def cb(args, kwargs, res, exc_info):
+        service_runner, = args
+        service_names.extend(service_runner.service_names)
+        return True
+
+    with add_to_sys_path(tmpdir.strpath):
+
+        with wait_for_call(ServiceRunner, "start", callback=cb):
+            eventlet.spawn(
+                command, "nameko", "run", "--config", config_file.strpath,
+                "service:Service"
+            )
+
+    assert service_names == ["dynamic"]
+
+
 def test_import_ok():
     assert import_services("test.sample") == [Service]
     assert import_services("test.sample:Service") == [Service]
