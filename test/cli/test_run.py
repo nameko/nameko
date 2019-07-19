@@ -7,7 +7,7 @@ from textwrap import dedent
 
 import eventlet
 import pytest
-from mock import patch
+from mock import call, patch
 
 from nameko import config
 from nameko.cli.run import run, setup_backdoor
@@ -270,7 +270,7 @@ def test_stopping(rabbit_config):
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, [Service])
+        gt = eventlet.spawn(run, ["test.sample"])
         gt.wait()
         # should complete
 
@@ -287,7 +287,7 @@ def test_stopping_twice(rabbit_config):
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
 
-            gt = eventlet.spawn(run, [Service])
+            gt = eventlet.spawn(run, ["test.sample"])
             gt.wait()
 
 
@@ -301,7 +301,7 @@ def test_os_error_for_signal(rabbit_config):
         # don't actually start the service -- we're not firing a real signal
         # so the signal handler won't stop it again
         with patch.object(ServiceRunner, "start"):
-            gt = eventlet.spawn(run, [Service])
+            gt = eventlet.spawn(run, ["test.sample"])
             gt.wait()
         # should complete
 
@@ -316,7 +316,7 @@ def test_other_errors_propagate(rabbit_config):
         # don't actually start the service -- there's no real OSError that
         # would otherwise kill the whole process
         with patch.object(ServiceRunner, "start"):
-            gt = eventlet.spawn(run, [Service])
+            gt = eventlet.spawn(run, ["test.sample"])
             with pytest.raises(OSError):
                 gt.wait()
 

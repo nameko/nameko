@@ -1,17 +1,18 @@
 from __future__ import print_function
 
 import eventlet
-
 eventlet.monkey_patch()  # noqa (code before rest of imports)
 
 import errno
 import logging
 import logging.config
 import signal
+import sys
 
 from eventlet import backdoor
 
 from nameko import config
+from nameko.cli.utils import import_services
 from nameko.runners import ServiceRunner
 
 
@@ -37,7 +38,15 @@ def setup_backdoor(runner, backdoor_port):
     return socket, gt
 
 
-def run(services, backdoor_port=None):
+def run(service_modules, backdoor_port=None):
+
+    if "." not in sys.path:
+        sys.path.append(".")
+
+    services = []
+    for path in service_modules:
+        services.extend(import_services(path))
+
     service_runner = ServiceRunner()
     for service_cls in services:
         service_runner.add_service(service_cls)

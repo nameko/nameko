@@ -10,12 +10,6 @@ from functools import partial
 
 import click
 
-from .click_paramtypes import NamekoModuleServicesParamType
-
-
-def flatten_list_of_lists(ctx, param, list_of_lists):
-    return sum(list_of_lists, [])
-
 
 argument_services = partial(
     click.argument,
@@ -23,7 +17,5 @@ argument_services = partial(
     nargs=-1,
     required=True,
     metavar="module[:service class]",
-    # allow import of modules from current dir (manipulate sys.path)
-    type=NamekoModuleServicesParamType(extra_sys_paths=["."]),
-    callback=flatten_list_of_lists,
+    type=str,
 )
