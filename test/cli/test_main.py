@@ -6,7 +6,6 @@ import yaml
 from mock import call, patch
 
 from nameko.cli import cli
-from nameko.cli.utils import import_services
 from nameko.cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser
 from nameko.exceptions import CommandError, ConfigurationError
 
