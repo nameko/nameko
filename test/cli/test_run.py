@@ -7,7 +7,7 @@ from textwrap import dedent
 
 import eventlet
 import pytest
-from mock import call, patch
+from mock import patch
 
 from nameko import config
 from nameko.cli.run import run, setup_backdoor
