@@ -3,6 +3,7 @@ import subprocess
 import sys
 import uuid
 from contextlib import contextmanager
+from types import ModuleType
 
 import eventlet
 import pytest
@@ -11,7 +12,6 @@ from kombu.messaging import Queue
 from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
-from types import ModuleType
 
 from nameko import config
 from nameko.amqp.publish import get_connection
