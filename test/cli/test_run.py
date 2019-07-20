@@ -7,7 +7,7 @@ from textwrap import dedent
 
 import eventlet
 import pytest
-from mock import patch
+from mock import call, patch
 
 from nameko import config
 from nameko.cli.run import run, setup_backdoor
@@ -149,6 +149,20 @@ def test_main_with_logging_config(command, tmpdir):
     gt.wait()
 
     assert "test.sample - INFO - ping!" in capture_file.read()
+
+
+def test_multiple_service_modules(command):
+
+    with patch("nameko.cli.run.main") as run:
+
+        command(
+            "nameko",
+            "run",
+            "test.foo",
+            "test.bar"
+        )
+
+        assert run.call_args_list == [call(("test.foo", "test.bar"), None)]
 
 
 def test_parse_config_before_service_import(command, tmpdir, add_to_sys_path):
