@@ -11,12 +11,16 @@ from nameko.exceptions import (
 )
 from nameko.testing.services import dummy, entrypoint_hook, get_extension
 from nameko.testing.websocket import make_virtual_socket
-from nameko.web.websocket import WebSocketHubProvider, WebSocketRpc, rpc
-
 
 pytestmark = pytest.mark.skipif(
     nameko.concurrency.mode != 'eventlet',
     reason='Websockets can only be used with eventlet.')
+
+if nameko.concurrency.mode == 'eventlet':  # pragma: no cover
+    from nameko.web.websocket import WebSocketHubProvider, WebSocketRpc, rpc
+else:  # pragma: no cover
+    import mock
+    WebSocketHubProvider, WebSocketRpc, rpc = mock.Mock(), mock.Mock(), mock.Mock()
 
 
 class ExampleService(object):

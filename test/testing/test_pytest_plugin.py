@@ -14,8 +14,9 @@ from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
 from nameko.web.handlers import http
 from nameko.web.server import parse_address
-from nameko.web.websocket import rpc as wsrpc
 
+if nameko.concurrency.mode == 'eventlet':  # pragma: no cover
+    from nameko.web.websocket import rpc as wsrpc
 
 pytest_plugins = "pytester"
 

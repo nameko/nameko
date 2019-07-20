@@ -728,7 +728,7 @@ class TestStandaloneClientDisconnections(object):
 
         with pytest.raises(OperationalError) as exc_info:
             service_rpc.echo(1)
-        assert "ECONNREFUSED" in str(exc_info.value)
+        assert "[Errno 111]" in str(exc_info.value)
 
     @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, service_rpc, toxiproxy):

@@ -98,3 +98,8 @@ class HttpOnlyProtocol(wsgi.HttpProtocol):
             if get_errno(e) not in wsgi.BROKEN_SOCK:
                 raise
         self.connection.close()
+
+
+def get_waiter_count(semaphore):
+    """Returns the number of greenthreads linked to the lock."""
+    return len(semaphore._waiters)

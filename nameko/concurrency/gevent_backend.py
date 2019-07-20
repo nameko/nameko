@@ -64,6 +64,12 @@ def wait(gt):
 
     if isinstance(result, GreenletExit):
         raise result
+    return result
+
+
+def get_waiter_count(semaphore):
+    """Return the number of greenthreads linked to the lock."""
+    return semaphore.linkcount()
 
 
 def listen(addr, family=AF_INET, backlog=50, reuse_addr=True):

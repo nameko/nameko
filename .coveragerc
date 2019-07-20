@@ -1,5 +1,5 @@
 [run]
-concurrency = eventlet
+concurrency = ${CONCURRENCY_BACKEND}
 branch = ${BRANCH}
 omit =
     nameko/concurrency/*

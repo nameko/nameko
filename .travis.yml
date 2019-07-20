@@ -60,13 +60,13 @@ matrix:
 
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-gevent
+      env: TOX_ENV=py27-gevent-lib
     - stage: test
       python: 3.5
-      env: TOX_ENV=py35-gevent
+      env: TOX_ENV=py35-gevent-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-gevent
+      env: TOX_ENV=py36-gevent-lib
 
     - stage: test
       python: 2.7

@@ -21,8 +21,8 @@ imports:
 	isort -rc $(autofix) nameko test
 
 test_lib:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage run -m pytest test --strict --timeout 30
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage report
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) CONCURRENCY_BACKEND=$(CONCURRENCY_BACKEND) coverage run -m pytest test --strict --timeout 30
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) CONCURRENCY_BACKEND=$(CONCURRENCY_BACKEND) coverage report
 
 test_examples:
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc

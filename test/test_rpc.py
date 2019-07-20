@@ -1328,7 +1328,7 @@ class TestRpcConsumerDisconnections(object):
         # break connection while the worker is active, then release worker
         with entrypoint_waiter(container, 'echo') as result:
             res = service_rpc.echo.call_async("msg1")
-            while not lock._waiters:
+            while not nameko.concurrency.get_waiter_count(lock):
                 nameko.concurrency.sleep()  # pragma: no cover
             toxiproxy.disable()
             # allow connection to close before releasing worker
@@ -1423,7 +1423,7 @@ class TestClientDisconnections(object):
             with pytest.raises(OperationalError) as exc_info:
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(1)
-            assert "ECONNREFUSED" in str(exc_info.value)
+            assert "[Errno 111]" in str(exc_info.value)
 
     @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, client_container, toxiproxy):
@@ -1598,7 +1598,7 @@ class TestResponderDisconnections(object):
             # the container will raise if the responder cannot reply
             with pytest.raises(OperationalError) as exc_info:
                 container.wait()
-            assert "ECONNREFUSED" in str(exc_info.value)
+            assert "[Errno 111]" in str(exc_info.value)
 
             service_rpc.abort()
 
