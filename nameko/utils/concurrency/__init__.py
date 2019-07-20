@@ -15,7 +15,7 @@ def fail_fast_imap(pool, call, items):
     This function is similar to :meth:`~eventlet.greenpool.GreenPool.imap`.
 
     :param pool: Pool to spawn function threads from
-    :type pool: eventlet.greenpool.GreenPool
+    :type pool: nameko.concurrency.Pool
     :param call: Function call to make, expecting to receive an item from the
         given list
     """
@@ -70,7 +70,7 @@ class SpawningProxy(object):
         def spawning_method(*args, **kwargs):
             items = self._items
             if items:
-                pool = nameko.concurrency.GreenPool(len(items))
+                pool = nameko.concurrency.Pool(len(items))
 
                 def call(item):
                     return getattr(item, name)(*args, **kwargs)

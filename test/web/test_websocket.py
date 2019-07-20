@@ -12,6 +12,7 @@ from nameko.exceptions import (
 from nameko.testing.services import dummy, entrypoint_hook, get_extension
 from nameko.testing.websocket import make_virtual_socket
 
+
 pytestmark = pytest.mark.skipif(
     nameko.concurrency.mode != 'eventlet',
     reason='Websockets can only be used with eventlet.')

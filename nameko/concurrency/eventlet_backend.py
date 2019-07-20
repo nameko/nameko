@@ -5,7 +5,7 @@ from eventlet import (  # noqa: F401
     spawn_after, spawn_n, wsgi
 )
 from eventlet.event import Event as EventletEvent
-from eventlet.greenpool import GreenPool  # noqa: F401
+from eventlet.greenpool import GreenPool as Pool  # noqa: F401
 from eventlet.queue import Queue  # noqa: F401
 from eventlet.semaphore import Semaphore  # noqa: F401
 from eventlet.support import get_errno

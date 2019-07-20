@@ -3,7 +3,7 @@
 import pytest
 
 import nameko.rpc
-from nameko.concurrency import Event, GreenPool, sleep
+from nameko.concurrency import Event, Pool, sleep
 from nameko.containers import ServiceContainer
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc, rpc
@@ -33,7 +33,7 @@ def test_fail_fast_imap():
 
     calls = [slow_call, failing_call]
 
-    pool = GreenPool(2)
+    pool = Pool(2)
 
     # fail_fast_imap fails as soon as the exception is raised
     with pytest.raises(Exception) as raised_exc:

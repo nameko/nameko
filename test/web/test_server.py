@@ -30,12 +30,16 @@ def test_broken_pipe(container_factory, web_config_port, web_session):
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('127.0.0.1', web_config_port))
-    s.sendall(b'GET /large \r\n\r\n')
-    s.recv(10)
+    s.sendall(b'GET /large HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    received = s.recv(20)
     s.close()  # break connection while there is still more data coming
+    # the server should have been trying to send a valid response.
+    assert '200 OK' in received.decode('ascii')
 
     # server should still work
-    assert web_session.get('/').text == ''
+    response = web_session.get('/')
+    assert response.text == ''
+    assert response.status_code == 200
 
 
 @pytest.mark.skipif(nameko.concurrency.mode != 'eventlet',

@@ -21,11 +21,11 @@ imports:
 	isort -rc $(autofix) nameko test
 
 test_lib:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) CONCURRENCY_BACKEND=$(CONCURRENCY_BACKEND) coverage run -m pytest test --strict --timeout 30
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) CONCURRENCY_BACKEND=$(CONCURRENCY_BACKEND) coverage run -m pytest test --strict --timeout 30 -k test_broken_pipe
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) CONCURRENCY_BACKEND=$(CONCURRENCY_BACKEND) coverage report
 
 test_examples:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) CONCURRENCY_BACKEND=$(CONCURRENCY_BACKEND) py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
 	py.test docs/examples/testing
 
 test_docs: docs spelling #linkcheck

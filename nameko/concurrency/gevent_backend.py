@@ -47,7 +47,7 @@ class Event(object):
         return self.async_result.ready()
 
 
-class GreenPool(GeventPool):
+class Pool(GeventPool):
     def waitall(self):
         return self.join()
 

@@ -13,7 +13,7 @@ from greenlet import GreenletExit  # pylint: disable=E0611
 
 import nameko.concurrency
 from nameko import config, serialization
-from nameko.concurrency import Event, GreenPool
+from nameko.concurrency import Event, Pool
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, MAX_WORKERS_CONFIG_KEY,
@@ -151,7 +151,7 @@ class ServiceContainer(object):
                 self.subextensions.update(iter_extensions(bound))
 
         self.started = False
-        self._worker_pool = GreenPool(size=self.max_workers)
+        self._worker_pool = Pool(size=self.max_workers)
 
         self._worker_threads = {}
         self._managed_threads = {}
