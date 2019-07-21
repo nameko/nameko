@@ -1,6 +1,6 @@
 [run]
-concurrency = ${CONCURRENCY_BACKEND}
-branch = ${BRANCH}
+concurrency = eventlet
+branch = ${ENABLE_BRANCH_COVERAGE}
 omit =
     nameko/concurrency/*
 source =
@@ -9,4 +9,4 @@ source =
 
 [report]
 show_missing = true
-fail_under = 100
+fail_under = ${COVERAGE_FAIL_UNDER}

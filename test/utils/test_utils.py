@@ -233,6 +233,13 @@ class TestImportFromPath(object):
             "`foo.bar.Baz` could not be imported" in str(exc_info.value)
         )
 
+    def test_import_object_error(self):
+        with pytest.raises(ImportError) as exc_info:
+            import_from_path("test.test_utils.Baz")
+        assert (
+            "`test.test_utils.Baz` could not be imported" in str(exc_info.value)
+        )
+
     def test_import_class(self):
         assert import_from_path("nameko.rpc.Rpc") is Rpc
 
