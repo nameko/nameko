@@ -5,6 +5,7 @@ import sys
 
 import six
 
+
 if sys.version_info >= (3, 3):
     from collections.abc import Iterable
 else:
