@@ -49,7 +49,7 @@ matrix:
       python: 3.6
       env: TOX_ENV=py36-static
     - stage: docs
-      python: 2.7
+      python: 3.6
       env: TOX_ENV=docs
     - stage: examples
       python: 2.7
