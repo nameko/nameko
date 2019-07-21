@@ -7,7 +7,7 @@ import six
 
 
 if sys.version_info >= (3, 3):
-    from collections.abc import Iterable
+    from collections.abc import Iterable  # pylint: disable=E0611,E0401
 else:
     from collections import Iterable
 
