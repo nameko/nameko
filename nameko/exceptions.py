@@ -1,9 +1,15 @@
 from __future__ import unicode_literals
 
-import collections
 import inspect
+import sys
 
 import six
+
+
+if sys.version_info >= (3, 3):  # pragma: no cover
+    from collections.abc import Iterable  # pylint: disable=E0611,E0401
+else:  # pragma: no cover
+    from collections import Iterable
 
 
 class ExtensionNotFound(AttributeError):
@@ -73,7 +79,7 @@ def safe_for_serialization(value):
             safe_for_serialization(key): safe_for_serialization(val)
             for key, val in six.iteritems(value)
         }
-    if isinstance(value, collections.Iterable):
+    if isinstance(value, Iterable):
         return list(map(safe_for_serialization, value))
 
     try:
