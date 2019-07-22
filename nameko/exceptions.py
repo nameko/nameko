@@ -6,9 +6,9 @@ import sys
 import six
 
 
-if sys.version_info >= (3, 3):
+if sys.version_info >= (3, 3):  # pragma: no cover
     from collections.abc import Iterable  # pylint: disable=E0611,E0401
-else:
+else:  # pragma: no cover
     from collections import Iterable
 
 
