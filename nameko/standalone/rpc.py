@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 import logging
-import socket
 import uuid
 
 from amqp.exceptions import NotFound
@@ -17,7 +16,7 @@ from nameko.constants import (
     HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.containers import new_call_id
-from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
+from nameko.exceptions import ReplyQueueExpiredWithPendingReplies
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
     RESTRICTED_PUBLISHER_OPTIONS, RPC_REPLY_QUEUE_TEMPLATE,
@@ -119,11 +118,9 @@ class ReplyListener(object):
             raise RuntimeError("Stopped and can no longer be used")
 
         while not self.pending.get(correlation_id):
-            try:
-                next(self.consumer.consume(timeout=self.timeout))
-            except socket.timeout:
-                raise RpcTimeout()
-        return self.pending.pop(correlation_id)
+            next(self.consumer.consume())
+        result = self.pending.pop(correlation_id)
+        return result
 
     def handle_message(self, body, message):
         self.consumer.ack_message(message)
@@ -184,7 +181,8 @@ class ClusterRpcClient(object):
     publisher_cls = Publisher
 
     def __init__(
-        self, context_data=None, timeout=None, **publisher_options
+        self, context_data=None, timeout=None, delivery_timeout=None,
+            **publisher_options
     ):
         self.uuid = str(uuid.uuid4())
 
@@ -241,12 +239,17 @@ class ClusterRpcClient(object):
             extra_headers.update(encode_to_headers(context_data))
 
             publisher.publish(
-                *args, extra_headers=extra_headers, **kwargs
+                *args,
+                extra_headers=extra_headers,
+                **kwargs
             )
 
         get_reply = self.reply_listener.register_for_reply
 
-        self.client = Client(publish, get_reply, context_data)
+        self.client = Client(
+            publish, get_reply, context_data,
+            timeout=timeout, delivery_timeout=delivery_timeout
+        )
 
     def __enter__(self):
         return self.start()

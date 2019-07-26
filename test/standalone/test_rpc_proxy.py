@@ -592,7 +592,7 @@ class TestConfigurability(object):
     @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter", [
         # delivery options
-        'delivery_mode', 'priority', 'expiration',
+        'delivery_mode', 'priority',
         # message options
         'serializer', 'compression',
         # retry policy

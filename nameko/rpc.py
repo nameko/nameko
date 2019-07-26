@@ -8,6 +8,7 @@ from logging import getLogger
 
 import kombu.serialization
 from amqp.exceptions import NotFound
+from eventlet import Timeout
 from eventlet.event import Event
 from kombu import Exchange, Queue
 
@@ -21,7 +22,7 @@ from nameko.constants import (
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound,
-    ReplyQueueExpiredWithPendingReplies, UnknownService,
+    ReplyQueueExpiredWithPendingReplies, RpcTimeout, UnknownService,
     UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (
@@ -504,17 +505,31 @@ class Client(object):
             Optional target service name, if known
         method_name : str
             Optional target method name, if known
+        timeout : float
+            Optional number of seconds to wait for reply.
+            If no reply has been received in this time, an
+            :class:`RpcTimeout` exception is raised.  If `delivery_timeout` is given,
+            this option defaults to the value given to `delivery_timeout`.
+        delivery_timeout : float
+            Optional number of seconds to allow for message being consumed.
+            If the message was not picked up in this time, the message is
+            deleted by the broker and will never be consumed. This also means
+            that this call will never receive a reply so `timeout` must be
+            set if this option is used.
     """
 
     def __init__(
         self, publish, register_for_reply, context_data,
-        service_name=None, method_name=None
+        service_name=None, method_name=None,
+        timeout=None, delivery_timeout=None,
     ):
         self.publish = publish
         self.register_for_reply = register_for_reply
         self.context_data = context_data
         self.service_name = service_name
         self.method_name = method_name
+        self.timeout = timeout
+        self.delivery_timeout = delivery_timeout
 
     def __getattr__(self, name):
         if self.method_name is not None:
@@ -532,7 +547,9 @@ class Client(object):
             self.register_for_reply,
             self.context_data,
             target_service,
-            target_method
+            target_method,
+            self.timeout,
+            self.delivery_timeout
         )
         return clone
 
@@ -567,6 +584,10 @@ class Client(object):
                 "Cannot call unspecified method {}".format(self.identifier)
             )
 
+        timeout, delivery_timeout = self._consolidate_timeouts(
+            self.timeout, self.delivery_timeout
+        )
+
         _log.debug('invoking %s', self)
 
         # We use the `mandatory` flag in `producer.publish` below to catch rpc
@@ -594,11 +615,13 @@ class Client(object):
 
         send_request = partial(
             self.publish, routing_key=self.identifier, mandatory=True,
-            correlation_id=correlation_id, extra_headers=extra_headers
+            correlation_id=correlation_id, extra_headers=extra_headers,
+            expiration=delivery_timeout
         )
         get_response = self.register_for_reply(correlation_id)
 
-        rpc_call = RpcCall(correlation_id, send_request, get_response)
+        rpc_call = RpcCall(correlation_id, send_request, get_response,
+                           timeout=timeout)
 
         try:
             rpc_call.send_request(*args, **kwargs)
@@ -607,9 +630,21 @@ class Client(object):
 
         return rpc_call
 
+    def _consolidate_timeouts(self, timeout, delivery_timeout):
+        if delivery_timeout is not None and timeout is None:
+            raise ValueError(
+                '`delivery_timeout` is given. '
+                'An explicit non-null `timeout` argument is required.'
+            )
+        if timeout is not None and delivery_timeout is None:
+            # If a timeout is given, we might as well remove the message from
+            # the server.
+            delivery_timeout = timeout
+        return timeout, delivery_timeout
+
 
 class RpcCall(object):
-    """ Encapsulates a single RPC request and response.
+    """Encapsulates a single RPC request and response.
 
     :Parameters:
         correlation_id : str
@@ -618,28 +653,60 @@ class RpcCall(object):
             Function that initiates the request
         get_response : callable
             Function that retrieves the response
+        delivery_timeout : float
+            Optional number of seconds to allow for message being consumed.
+            If the message was not picked up in this time, the message is
+            deleted by the broker and will never be consumed.  This also means
+            that this call will never receive a reply so `timeout` must be
+            set if this option is used.
+        timeout : float
+            Optional number of seconds to wait for reply.
+            If no reply has been received in this time, an
+            :class:`RpcTimeout` exception is raised.
+
     """
     _response = None
 
-    def __init__(self, correlation_id, send_request, get_response):
+    def __init__(self, correlation_id, send_request, get_response,
+                 timeout=None,
+                 delivery_timeout=None):
         self.correlation_id = correlation_id
         self._send_request = send_request
         self._get_response = get_response
+        self._timeout = timeout
+        self._send_time = None
 
     def send_request(self, *args, **kwargs):
         """ Send the RPC request to the remote service
         """
         payload = {'args': args, 'kwargs': kwargs}
         self._send_request(payload)
+        if self._timeout:
+            self._send_time = time.time()
 
     def get_response(self):
         """ Retrieve the response for this RPC call. Blocks if the response
         has not been received.
+
+        Raises an :class:`RcpTimeout` exception if a timeout for
+        the call was given and exceeded.
         """
         if self._response is not None:
             return self._response
 
-        self._response = self._get_response()
+        if self._timeout is None:
+            self._response = self._get_response()
+        else:
+            since_request = time.time() - self._send_time
+            time_left = max(self._timeout - since_request, 0.0)
+            try:
+                with Timeout(time_left) as timeout:
+                    self._response = self._get_response()
+            except Timeout as e:
+                if e is not timeout:
+                    raise
+                raise RpcTimeout()
+
         return self._response
 
     def result(self):
