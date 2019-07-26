@@ -1,12 +1,8 @@
 """Custom click parameter types used in nameko.
 """
-import sys
-
 import click
 import six
 import yaml
-
-from .utils import import_services
 
 
 class KeyValParamType(click.ParamType):
@@ -50,33 +46,3 @@ class HostPortParamType(click.ParamType):
 
 
 HOST_PORT = HostPortParamType()
-
-
-class NamekoModuleServicesParamType(click.ParamType):
-    """Nameko service(s) specified in nameko compliant module.
-    """
-
-    name = "nameko_module_services"
-
-    def __init__(self, extra_sys_paths=None):
-        """extra_sys_paths: list of paths, which are added to sys.path
-        before iporting services.
-
-        Note: syspath stays modified to preserve predictable environment
-        for running the code.
-        """
-        self.extra_sys_paths = extra_sys_paths or []
-
-    def convert(self, value, param, ctx):
-        try:
-            for path in self.extra_sys_paths:
-                if path not in sys.path:
-                    sys.path.insert(0, path)
-            return import_services(value)
-        except ValueError as exc:
-            templ = "'{value}'. {msg}"
-            args = {"value": value, "msg": str(exc)}
-            self.fail(templ.format(**args), param, ctx)
-
-
-NAMEKO_MODULE_SERVICES = NamekoModuleServicesParamType()
