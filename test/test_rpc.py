@@ -1424,6 +1424,7 @@ class TestClientDisconnections(object):
             with pytest.raises(OperationalError) as exc_info:
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(1)
+
             assert "ECONNREFUSED" in str(exc_info.value)
 
     @pytest.mark.usefixtures('use_confirms')

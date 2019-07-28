@@ -609,6 +609,7 @@ class TestConfigurability(object):
         value = Mock()
 
         rpc_client = ClusterRpcClient(**{parameter: value})
+
         with rpc_client as client:
             client.service.method.call_async()
         assert producer.publish.call_args[1][parameter] == value
