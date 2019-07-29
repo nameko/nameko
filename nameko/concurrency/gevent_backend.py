@@ -1,6 +1,5 @@
 from gevent import spawn_later as spawn_after  # noqa: F401
 from gevent import Timeout, getcurrent, sleep, spawn  # noqa: F401
-from gevent._util import _NONE  # noqa: F401
 from gevent.backdoor import BackdoorServer
 from gevent.event import Event as GeventEvent  # noqa: F401
 from gevent.event import AsyncResult
@@ -55,8 +54,8 @@ class Pool(GeventPool):
         return self.free_count()
 
 
-def resize_queue(q, new_size):
-    q.maxsize += 1
+def resize_queue(queue, new_size):
+    queue.maxsize += 1
 
 
 def wait(gt):

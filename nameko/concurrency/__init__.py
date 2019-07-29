@@ -29,6 +29,13 @@ mode = os.environ.get(
 )
 
 if mode == 'eventlet':
+    try:
+        import eventlet  # noqa: F401
+    except ImportError as e:
+        raise type(e)('Could not import eventlet. '
+                      'Try installing concurrency backend by running '
+                      'pip install nameko[eventlet].')
+
     from nameko.concurrency.eventlet_backend import (
         getcurrent,
         spawn,
@@ -52,9 +59,13 @@ if mode == 'eventlet':
     )
 
 elif mode == 'gevent':
-    # Differences to eventlet:
-    # Link executes AFTER parent thread has returned (in eventlet it executes
-    # in the same context)
+    try:
+        import eventlet  # noqa: F401
+    except ImportError as e:
+        raise type(e)('Could not import eventlet. '
+                      'Try installing concurrency backend by running '
+                      '`pip install nameko[gevent]`.')
+
     from nameko.concurrency.gevent_backend import (
         getcurrent,
         spawn,

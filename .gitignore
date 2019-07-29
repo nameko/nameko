@@ -10,7 +10,3 @@ certs
 *.egg-info
 dist
 .tox
-
-## Editor
-
-.idea

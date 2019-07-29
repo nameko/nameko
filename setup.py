@@ -23,7 +23,6 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "click>=7.0",
-        "eventlet>=0.20.1",
         "kombu>=4.2.0,<5",
         "mock>=1.2",
         "path.py>=6.2",
@@ -50,6 +49,7 @@ setup(
             "urllib3==1.23",
             "websocket-client==0.48.0",
             "gevent==1.4.0",
+            "eventlet==0.23.0",
         ],
         'docs': [
             "pyenchant==1.6.6",
@@ -63,6 +63,12 @@ setup(
             "moto==1.3.6",
             "bcrypt==3.1.3",
             "regex==2018.2.21"
+        ],
+        'eventlet': [
+            "eventlet>=0.20.1",
+        ],
+        'gevent': [
+            "gevent>=1.4.0",
         ]
     },
     entry_points={
