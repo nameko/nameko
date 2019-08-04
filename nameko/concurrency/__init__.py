@@ -56,6 +56,7 @@ if mode == 'eventlet':
         get_wsgi_server,
         process_wsgi_request,
         HttpOnlyProtocol,
+        yield_thread,
     )
 
 elif mode == 'gevent':
@@ -86,6 +87,7 @@ elif mode == 'gevent':
         get_wsgi_server,
         process_wsgi_request,
         HttpOnlyProtocol,
+        yield_thread,
     )
 else:
     raise NotImplementedError(
@@ -114,4 +116,5 @@ __all__ = [
     'get_wsgi_server',
     'process_wsgi_request',
     'HttpOnlyProtocol',
+    'yield_thread',
 ]

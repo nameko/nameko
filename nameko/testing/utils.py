@@ -49,7 +49,7 @@ def wait_for_call(timeout, mock_method):
     """
     with nameko.concurrency.Timeout(timeout):
         while not mock_method.called:
-            nameko.concurrency.sleep()
+            nameko.concurrency.yield_thread()
     yield mock_method
 
 
@@ -156,7 +156,7 @@ class ResourcePipeline(object):
         # increase max size of the ready queue and yield, allowing the
         # create thread to exit now if it's blocked trying to put an item
         nameko.concurrency.resize_queue(self.ready, self.size + 1)
-        nameko.concurrency.sleep()
+        nameko.concurrency.yield_thread()
 
         # trash unused items while there are any left in the queue,
         # or the create thread is still running

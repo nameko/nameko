@@ -1,5 +1,4 @@
 import itertools
-import time
 
 import pytest
 from mock import Mock, call
@@ -577,7 +576,7 @@ def test_entrypoint_waiter_wait_for_specific_result(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)
@@ -609,7 +608,7 @@ def test_entrypoint_waiter_wait_until_called_with_argument(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)
@@ -645,7 +644,7 @@ def test_entrypoint_waiter_wait_until_raises(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)
@@ -682,7 +681,7 @@ def test_entrypoint_waiter_wait_until_stops_raising(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)

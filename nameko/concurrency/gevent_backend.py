@@ -116,4 +116,11 @@ def process_wsgi_request(server, sock, address):
     server.handle(sock, address)
 
 
+def yield_thread():
+    """Yield current running green thread,
+    allowing other green threads to run.
+    """
+    sleep()
+
+
 HttpOnlyProtocol = None  # compatability with evetlet, not needed in gevent

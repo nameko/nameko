@@ -219,7 +219,7 @@ class TestResourcePipeline(object):
         with ResourcePipeline(create, destroy, size).run() as pipeline:
 
             # check initial size
-            nameko.concurrency.sleep()  # let pipeline fill up
+            nameko.concurrency.yield_thread()  # let pipeline fill up
             # when full, created is always exactly one more than `size`
             assert pipeline.ready.qsize() == size
             assert len(created) == size + 1
@@ -227,14 +227,14 @@ class TestResourcePipeline(object):
             # get an item
             with pipeline.get() as item:
                 # let pipeline process
-                nameko.concurrency.sleep()
+                nameko.concurrency.yield_thread()
                 # expect pipeline to have created another item
                 assert pipeline.ready.qsize() == size
                 assert len(created) == size + 2
 
             # after putting the item back
             # let pipeline process
-            nameko.concurrency.sleep()
+            nameko.concurrency.yield_thread()
             # expect item to have been destroyed
             assert pipeline.trash.qsize() == 0
             assert destroyed == [item]
@@ -256,7 +256,7 @@ class TestResourcePipeline(object):
 
         def create():
             creating.send(True)
-            nameko.concurrency.sleep()
+            nameko.concurrency.yield_thread()
             obj = next(counter)
             created.append(obj)
             return obj

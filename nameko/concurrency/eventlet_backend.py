@@ -103,3 +103,10 @@ class HttpOnlyProtocol(wsgi.HttpProtocol):
 def get_waiter_count(semaphore):
     """Returns the number of greenthreads linked to the lock."""
     return len(semaphore._waiters)
+
+
+def yield_thread():
+    """Yield current running green thread,
+    allowing other green threads to run.
+    """
+    sleep()

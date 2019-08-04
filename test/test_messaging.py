@@ -576,7 +576,7 @@ class TestConsumerDisconnections(object):
         with entrypoint_waiter(container, 'echo') as result:
             publish('msg1')
             while not nameko.concurrency.get_waiter_count(lock):
-                nameko.concurrency.sleep()  # pragma: no cover
+                nameko.concurrency.yield_thread()  # pragma: no cover
             toxiproxy.disable()
             # allow connection to close before releasing worker
             nameko.concurrency.sleep(.1)
@@ -624,7 +624,7 @@ class TestConsumerDisconnections(object):
         with entrypoint_waiter(container, 'echo') as result:
             publish('msg1')
             while not nameko.concurrency.get_waiter_count(lock):
-                nameko.concurrency.sleep()  # pragma: no cover
+                nameko.concurrency.yield_thread()  # pragma: no cover
             toxiproxy.disable()
             # allow connection to close before releasing worker
             nameko.concurrency.sleep(.1)

@@ -664,7 +664,7 @@ def test_rpc_consumer_cannot_exit_with_providers(container_factory):
 
     def never_stops():
         while True:
-            nameko.concurrency.sleep()
+            nameko.concurrency.yield_thread()
 
     with patch.object(task_a, 'stop', never_stops):
         with pytest.raises(nameko.concurrency.Timeout):
@@ -1329,7 +1329,7 @@ class TestRpcConsumerDisconnections(object):
         with entrypoint_waiter(container, 'echo') as result:
             res = service_rpc.echo.call_async("msg1")
             while not nameko.concurrency.get_waiter_count(lock):
-                nameko.concurrency.sleep()  # pragma: no cover
+                nameko.concurrency.yield_thread()  # pragma: no cover
             toxiproxy.disable()
             # allow connection to close before releasing worker
             nameko.concurrency.sleep(.1)

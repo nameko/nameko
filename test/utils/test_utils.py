@@ -3,7 +3,7 @@
 import pytest
 
 import nameko.rpc
-from nameko.concurrency import Event, Pool, sleep
+from nameko.concurrency import Event, Pool, sleep, yield_thread
 from nameko.containers import ServiceContainer
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc, rpc
@@ -42,7 +42,7 @@ def test_fail_fast_imap():
 
     # The slow call won't go past the sleep as it was killed
     assert not slow_call_returned.ready()
-    sleep()
+    yield_thread()
     assert pool.free() == 2
 
 
