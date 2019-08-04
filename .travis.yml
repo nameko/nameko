@@ -38,7 +38,7 @@ stages:
   - test
   - examples
   - deploy
-  - mastereventlet
+  - master
   - branchcoverage
 matrix:
   include:
@@ -48,66 +48,91 @@ matrix:
     - stage: quick_static3
       python: 3.6
       env: TOX_ENV=py36-static
+
     - stage: docs
       python: 3.6
       env: TOX_ENV=docs
+
     - stage: examples
       python: 2.7
-      env: TOX_ENV=py27-examples
+      env: TOX_ENV=py27-eventlet-examples
     - stage: quick_examples3
       python: 3.6
-      env: TOX_ENV=py36-examples
-
-    - stage: test
-      python: 2.7
-      env: TOX_ENV=py27-gevent-lib
-    - stage: test
-      python: 3.5
-      env: TOX_ENV=py35-gevent-lib
-    - stage: test
-      python: 3.6
-      env: TOX_ENV=py36-gevent-lib
-
-    - stage: test
-      python: 2.7
-      env: TOX_ENV=py27-gevent-examples
-    - stage: test
+      env: TOX_ENV=py36-eventlet-examples
+    # skip gevent 2.7 examples
+    - stage: examples
       python: 3.6
       env: TOX_ENV=py36-gevent-examples
 
+
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-gevent-oldest-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-gevent-oldest-lib
+
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-oldest-lib
+      env: TOX_ENV=py27-oldest-eventlet-lib
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-pinned-lib
+      env: TOX_ENV=py27-pinned-eventlet-lib
     - stage: quick_test2
       python: 2.7
-      env: TOX_ENV=py27-latest-lib
+      env: TOX_ENV=py27-latest-eventlet-lib
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-extra-lib
+      env: TOX_ENV=py27-extra-eventlet-lib
     - stage: test
       python: 3.5
-      env: TOX_ENV=py35-oldest-lib
+      env: TOX_ENV=py35-oldest-eventlet-lib
     - stage: test
       python: 3.5
-      env: TOX_ENV=py35-pinned-lib
+      env: TOX_ENV=py35-pinned-eventlet-lib
     - stage: test
       python: 3.5
-      env: TOX_ENV=py35-latest-lib
+      env: TOX_ENV=py35-latest-eventlet-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-oldest-lib
+      env: TOX_ENV=py36-oldest-eventlet-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-pinned-lib
+      env: TOX_ENV=py36-pinned-eventlet-lib
     - stage: quick_test3
       python: 3.6
-      env: TOX_ENV=py36-latest-lib
+      env: TOX_ENV=py36-latest-eventlet-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-extra-lib
+      env: TOX_ENV=py36-extra-eventlet-lib
+
+
+    - stage: quick_test2
+      python: 2.7
+      env: TOX_ENV=py27-latest-eventlet-lib
+    # skipped most of gevent 27
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-oldest-gevent-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-pinned-gevent-lib
+    - stage: test
+      python: 3.5
+      env: TOX_ENV=py35-latest-gevent-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-oldest-gevent-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-pinned-gevent-lib
+    - stage: quick_test3
+      python: 3.6
+      env: TOX_ENV=py36-latest-gevent-lib
+    - stage: test
+      python: 3.6
+      env: TOX_ENV=py36-extra-gevent-lib
+
     - stage: deploy
       script: skip
       deploy:
@@ -119,28 +144,41 @@ matrix:
           tags: true
           repo: nameko/nameko
         distributions: "sdist bdist_wheel"
-    - stage: mastereventlet
+
+    # test concurrency packages master branches
+    - stage: master
       python: 2.7
-      env: TOX_ENV=py27-mastereventlet
-    - stage: mastereventlet
-      python: 3.4
-      env: TOX_ENV=py34-mastereventlet
-    - stage: mastereventlet
+      env: TOX_ENV=py27-master-eventlet-lib
+    - stage: master
       python: 3.5
-      env: TOX_ENV=py35-mastereventlet
-    - stage: mastereventlet
+      env: TOX_ENV=py35-master-eventlet-lib
+    - stage: master
       python: 3.6
-      env: TOX_ENV=py36-mastereventlet
+      env: TOX_ENV=py36-master-eventlet-lib
+
+    - stage: master
+      python: 3.5
+      env: TOX_ENV=py35-master-gevent-lib
+    - stage: master
+      python: 3.6
+      env: TOX_ENV=py36-master-eventlet-lib
+
+    # test with branch coverage
     - stage: branchcoverage
       python: 3.6
-      env: TOX_ENV=py36-branchcoverage-lib
+      env: TOX_ENV=py36-branchcoverage-eventlet-lib
+
   fast_finish: true
   allow_failures:
-    - env: TOX_ENV=py27-mastereventlet
-    - env: TOX_ENV=py34-mastereventlet
-    - env: TOX_ENV=py35-mastereventlet
-    - env: TOX_ENV=py36-mastereventlet
-    - env: TOX_ENV=py36-branchcoverage-lib
+    - env: TOX_ENV=py27-master-eventlet-lib
+    - env: TOX_ENV=py35-master-eventlet-lib
+    - env: TOX_ENV=py36-master-eventlet-lib
+
+    - env: TOX_ENV=py27-master-gevent-lib
+    - env: TOX_ENV=py35-master-gevent-lib
+    - env: TOX_ENV=py36-master-gevent-lib
+
+    - env: TOX_ENV=py36-branchcoverage-eventlet-lib
 
 script:
   - tox -e $TOX_ENV
