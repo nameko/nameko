@@ -1,23 +1,32 @@
 from __future__ import print_function
 
 from nameko.concurrency import monkey_patch_if_enforced
-
 monkey_patch_if_enforced()  # noqa (code before rest of imports)
 
 import errno
 import logging
 import logging.config
 import signal
+import sys
 
 from nameko.concurrency import setup_backdoor, wait, spawn, spawn_n
 from nameko import config
+from nameko.cli.utils import import_services
 from nameko.runners import ServiceRunner
 
 
 logger = logging.getLogger(__name__)
 
 
-def run(services, backdoor_port=None):
+def run(service_modules, backdoor_port=None):
+
+    if "." not in sys.path:
+        sys.path.append(".")
+
+    services = []
+    for path in service_modules:
+        services.extend(import_services(path))
+
     service_runner = ServiceRunner()
     for service_cls in services:
         service_runner.add_service(service_cls)

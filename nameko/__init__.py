@@ -89,11 +89,11 @@ The config can be used straight on service definition level, e.g.::
 
         @consume(
             queue=Queue(
-                exchange=config.MY_EXCHANGE,
-                routing_key=config.MY_ROUTING_KEY,
-                name=config.MY_QUEUE_NAME
+                exchange=config.get("MY_EXCHANGE"),
+                routing_key=config.get("MY_ROUTING_KEY"),
+                name=config.get("MY_QUEUE_NAME")
             ),
-            prefetch_count=config.MY_CONSUMER_PREFETCH_COUNT
+            prefetch_count=config.get("MY_CONSUMER_PREFETCH_COUNT")
         )
         def consume(self, payload):
             pass

@@ -6,7 +6,7 @@ from os.path import abspath, dirname, join
 from textwrap import dedent
 
 import pytest
-from mock import patch
+from mock import call, patch
 
 import nameko.concurrency
 from nameko import config
@@ -151,6 +151,63 @@ def test_main_with_logging_config(command, tmpdir):
     assert "test.sample - INFO - ping!" in capture_file.read()
 
 
+def test_multiple_service_modules(command):
+
+    with patch("nameko.cli.run.main") as run:
+
+        command(
+            "nameko",
+            "run",
+            "test.foo",
+            "test.bar"
+        )
+
+        assert run.call_args_list == [call(("test.foo", "test.bar"), None)]
+
+
+def test_parse_config_before_service_import(command, tmpdir, add_to_sys_path):
+
+    config_file = tmpdir.join("config.yaml")
+    config_file.write(dedent(
+        """
+        NAME: dynamic
+        """
+    ))
+
+    service_file = tmpdir.join("service.py")
+    service_file.write(dedent(
+        """
+        from nameko import config
+        from nameko.testing.services import dummy
+
+        class Service:
+            name = config.get("NAME", "notfound")
+
+            @dummy
+            def method(self):
+                return "OK"
+
+        """
+    ))
+
+    service_names = []
+
+    def cb(args, kwargs, res, exc_info):
+        service_runner, = args
+        service_names.extend(service_runner.service_names)
+        return True
+
+    with add_to_sys_path(tmpdir.strpath):
+
+        with wait_for_call(ServiceRunner, "start", callback=cb):
+            eventlet.spawn(
+                command, "nameko", "run", "--config", config_file.strpath,
+                "service:Service"
+            )
+
+    assert service_names == ["dynamic"]
+
+
 def test_import_ok():
     assert import_services("test.sample") == [Service]
     assert import_services("test.sample:Service") == [Service]
@@ -227,7 +284,7 @@ def test_stopping(rabbit_config):
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        gt = nameko.concurrency.spawn(run, [Service])
+        gt = nameko.concurrency.spawn(run, ["test.sample"])
         nameko.concurrency.wait(gt)
         # should complete
     assert mock_wait.call_count == 2
@@ -245,7 +302,7 @@ def test_stopping_twice(rabbit_config):
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
 
-            gt = nameko.concurrency.spawn(run, [Service])
+            gt = nameko.concurrency.spawn(run, ["test.sample"])
             nameko.concurrency.wait(gt)
     assert mock_wait.call_count == 2
 
@@ -260,7 +317,7 @@ def test_os_error_for_signal(rabbit_config):
         # don't actually start the service -- we're not firing a real signal
         # so the signal handler won't stop it again
         with patch.object(ServiceRunner, "start"):
-            gt = nameko.concurrency.spawn(run, [Service])
+            gt = nameko.concurrency.spawn(run, ["test.sample"])
             nameko.concurrency.wait(gt)
         # should complete
     assert mock_wait.call_count == 2
@@ -275,8 +332,7 @@ def test_other_errors_propagate(rabbit_config):
         # don't actually start the service -- there's no real OSError that
         # would otherwise kill the whole process
         with patch.object(ServiceRunner, "start"):
-            gt = nameko.concurrency.spawn(run, [Service])
-
+            gt = nameko.concurrency.spawn(run, ["test.sample"])
             with pytest.raises(OSError):
                 nameko.concurrency.wait(gt)
     assert mock_wait.call_count == 1, 'Expected only one call to wait.'

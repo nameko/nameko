@@ -192,6 +192,18 @@ def fake_module():
 
 
 @pytest.fixture
+def add_to_sys_path():
+
+    @contextmanager
+    def modify_sys_path(path):
+        sys.path.insert(0, path)
+        yield
+        sys.path.remove(path)
+
+    return modify_sys_path
+
+
+@pytest.fixture
 def queue_info(amqp_uri):
     # TODO once https://github.com/nameko/nameko/pull/484 lands
     # we can use the utility in nameko.amqo.utils instead of this
