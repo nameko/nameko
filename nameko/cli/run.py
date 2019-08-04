@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import nameko.concurrency
 
-nameko.concurrency.monkey_patch()  # noqa (code before rest of imports)
+nameko.concurrency.monkey_patch_if_enforced()  # noqa (code before rest of imports)
 
 import errno
 import logging

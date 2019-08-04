@@ -21,7 +21,10 @@ YES:
 import os
 
 from nameko import config
-from nameko.constants import CONCURRENCY_BACKEND_CONFIG_KEY, DEFAULT_CONCURRENCY_BACKEND
+from nameko.constants import (
+    CONCURRENCY_BACKEND_CONFIG_KEY, DEFAULT_CONCURRENCY_BACKEND,
+    MONKEY_PATCH_ENFORCED_CONFIG_KEY, DEFAULT_MONKEY_PATCH_ENFORCED
+)
 
 mode = os.environ.get(
     CONCURRENCY_BACKEND_CONFIG_KEY,
@@ -94,6 +97,21 @@ else:
         "Concurrency backend '{}' is not available. Choose 'eventlet' or 'gevent'."
         .format(mode)
     )
+
+
+def monkey_patch_if_enforced():
+    config_value = config.get(
+        MONKEY_PATCH_ENFORCED_CONFIG_KEY,
+        DEFAULT_MONKEY_PATCH_ENFORCED
+    )
+    config_value = str(config_value).lower()
+    monkey_patch_enforced = {
+        'false': False,
+        'true': True,
+    }[config_value]
+
+    if monkey_patch_enforced:
+        monkey_patch()
 
 
 __all__ = [
