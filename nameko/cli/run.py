@@ -1,15 +1,15 @@
 from __future__ import print_function
 
-import nameko.concurrency
+from nameko.concurrency import monkey_patch_if_enforced
 
-nameko.concurrency.monkey_patch_if_enforced()  # noqa (code before rest of imports)
+monkey_patch_if_enforced()  # noqa (code before rest of imports)
 
 import errno
 import logging
 import logging.config
 import signal
 
-from nameko.concurrency import setup_backdoor, wait
+from nameko.concurrency import setup_backdoor, wait, spawn, spawn_n
 from nameko import config
 from nameko.runners import ServiceRunner
 
@@ -25,7 +25,7 @@ def run(services, backdoor_port=None):
     def shutdown(signum, frame):
         # signal handlers are run by the MAINLOOP and cannot use eventlet
         # primitives, so we have to call `stop` in a greenlet
-        nameko.concurrency.spawn_n(service_runner.stop)
+        spawn_n(service_runner.stop)
 
     signal.signal(signal.SIGTERM, shutdown)
 
@@ -39,7 +39,7 @@ def run(services, backdoor_port=None):
     # This is a side-effect of the eventlet hub mechanism. To protect nameko
     # from seeing the exception, we wrap the runner.wait call in a greenlet
     # spawned here, so that we can catch (and silence) the exception.
-    runnlet = nameko.concurrency.spawn(service_runner.wait)
+    runnlet = spawn(service_runner.wait)
 
     while True:
         try:
