@@ -200,7 +200,7 @@ def test_parse_config_before_service_import(command, tmpdir, add_to_sys_path):
     with add_to_sys_path(tmpdir.strpath):
 
         with wait_for_call(ServiceRunner, "start", callback=cb):
-            eventlet.spawn(
+            nameko.concurrency.spawn(
                 command, "nameko", "run", "--config", config_file.strpath,
                 "service:Service"
             )
