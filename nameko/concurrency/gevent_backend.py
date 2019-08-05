@@ -1,3 +1,5 @@
+"""Concurrency backend using the gevent library."""
+
 from gevent import spawn_later as spawn_after  # noqa: F401
 from gevent import Timeout, getcurrent, sleep, spawn  # noqa: F401
 from gevent.backdoor import BackdoorServer

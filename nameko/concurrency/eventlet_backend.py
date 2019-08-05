@@ -1,10 +1,11 @@
-import socket
+"""Concurrency backend using the eventlet library."""
 
 from eventlet import (  # noqa: F401
     Timeout, backdoor, getcurrent, listen, monkey_patch, sleep, spawn,
     spawn_after, spawn_n, wsgi
 )
 from eventlet.event import Event as EventletEvent
+from eventlet.green import socket
 from eventlet.greenpool import GreenPool as Pool  # noqa: F401
 from eventlet.queue import Queue  # noqa: F401
 from eventlet.semaphore import Semaphore  # noqa: F401
@@ -41,15 +42,15 @@ def setup_backdoor(runner, backdoor_port):
 
     host, port = backdoor_port
 
-    socket = listen((host, port))
+    sock = listen((host, port))
     # work around https://github.com/celery/kombu/issues/838
-    socket.settimeout(None)
+    sock.settimeout(None)
     gt = spawn(
         backdoor.backdoor_server,
-        socket,
+        sock,
         locals={"runner": runner, "quit": _bad_call, "exit": _bad_call},
     )
-    return socket, gt
+    return sock, gt
 
 
 def get_wsgi_server(sock, wsgi_app, protocol, debug=False, log=None):
