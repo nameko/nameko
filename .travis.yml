@@ -16,10 +16,6 @@ before_install:
     # work around https://github.com/travis-ci/travis-ci/issues/7940
     - sudo rm -f /etc/boto.cfg
 
-addons:
-  apt_packages:
-    - libenchant-dev
-
 install:
   - pip install tox
 
@@ -52,6 +48,9 @@ matrix:
     - stage: docs
       python: 3.6
       env: TOX_ENV=docs
+      addons:
+        apt_packages:
+          - libenchant-dev
 
     - stage: examples
       python: 2.7
