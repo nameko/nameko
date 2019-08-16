@@ -78,4 +78,4 @@ Using pytest
 
 Nameko's test suite uses pytest, and makes some useful configuration and fixtures available for your own tests if you choose to use pytest.
 
-They are contained in :mod:`nameko.testing.pytest`. This module is `automatically registered as a pytest plugin <https://pytest.org/latest/plugins.html#setuptools-entry-points>`_ by setuptools if you have pytest installed.
+They are contained in :mod:`nameko.testing.pytest`. This module is registered as a `pytest plugin <https://docs.pytest.org/en/latest/plugins.html>`_ with setuptools. Pytest will automatically pick it up and use it.
