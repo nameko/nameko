@@ -124,15 +124,12 @@ class ReplyListener(object):
 
         timer = TimeoutTimer(timeout)
         while not self.pending.get(correlation_id):
-            if timer.time_left is not None and timer.time_left <= 0:
-                self.pending.pop(correlation_id, None)
-                raise RpcTimeout('Timed out after {} seconds'.format(timeout))
             try:
                 next(self.consumer.consume(timeout=timer.time_left))
-            except socket.timeout as e:
+            except socket.timeout:
                 if timer.time_left is not None and timer.time_left <= 0:
                     raise RpcTimeout('Timed out after {} seconds'.format(timeout))
-                raise
+                raise  # pragma: no cover  # should never be reached
         return self.pending.pop(correlation_id)
 
     def handle_message(self, body, message):
@@ -258,8 +255,8 @@ class ClusterRpcClient(object):
             serializer=self.serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
-            **publisher_options,
-            expiration=expiration
+            expiration=expiration,
+            **publisher_options
         )
 
         context_data = context_data or {}

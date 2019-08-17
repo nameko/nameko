@@ -482,8 +482,8 @@ class ClusterRpc(DependencyProvider):
             serializer=serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
-            **self.publisher_options,
-            expiration=self.expiration
+            expiration=self.expiration,
+            **self.publisher_options
         )
 
     def get_dependency(self, worker_ctx):
@@ -752,7 +752,7 @@ class RpcCall(object):
         return response['result']
 
 
-class TimeoutTimer:
+class TimeoutTimer(object):
     """Simple timer class to calculate time left in a timeout."""
 
     def __init__(self, timeout=None):

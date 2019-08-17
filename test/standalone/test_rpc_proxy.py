@@ -589,6 +589,7 @@ class TestConfigurability(object):
         producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
         return producer
 
+    @pytest.mark.parametrize('use_kwargs', [False, True])
     @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter", [
         # delivery options
@@ -601,18 +602,32 @@ class TestConfigurability(object):
         'user_id', 'bogus_param'
     ])
     def test_regular_parameters(
-        self, parameter, mock_container, producer
+        self, parameter, mock_container, producer, use_kwargs
     ):
         """ Verify that most parameters can be specified at ServiceRpc
         instantiation time.
         """
         value = Mock()
 
-        rpc_client = ClusterRpcClient(**{parameter: value})
+        if use_kwargs:
+            kwargs = {parameter: value}
+        else:
+            kwargs = {'publisher_options': {parameter: value}}
+
+        rpc_client = ClusterRpcClient(**kwargs)
 
         with rpc_client as client:
             client.service.method.call_async()
         assert producer.publish.call_args[1][parameter] == value
+
+    @patch('nameko.standalone.rpc._logger.warning')
+    def test_ignore_expiration(self, mock_warning):
+        """ Verify that most parameters can be specified at ServiceRpc
+        instantiation time.
+        """
+        ClusterRpcClient(publisher_options={'expiration': 1})
+        assert mock_warning.call_count == 1
+        assert mock_warning.call_args[0][0].startswith('expiration set using') == 1
 
     @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.usefixtures('predictable_call_ids')
