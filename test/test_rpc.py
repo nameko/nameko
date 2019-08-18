@@ -2080,9 +2080,10 @@ class TestConfigurability(object):
     def test_expiration_and_timeout(self, mock_container, producer,
                                     publisher_options,
                                     expiration, timeout, expected):
-        """Verify that expiration and timeout options can be set, expiration
-        is passed to correctly producer and timeout is passed correctly to
-        reply listener.
+        """Verify that expiration and timeout options can be set, expiration is passed
+        to correctly producer and timeout is passed correctly to reply
+        listener. Also verify that valid combinations of the two options are
+        allowed and invalid options raise the correct error.
 
         """
         mock_container.shared_extensions = {}

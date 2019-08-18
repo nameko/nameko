@@ -6,6 +6,7 @@ import uuid
 from functools import partial
 from logging import getLogger
 
+import eventlet
 import kombu.serialization
 from amqp.exceptions import NotFound
 from eventlet.event import Event
@@ -379,7 +380,8 @@ class ReplyListener(SharedExtension):
         timer = TimeoutTimer(timeout)
 
         def wait_for_reply():
-            result = reply_event.wait(timeout=timer.time_left)
+            with eventlet.Timeout(timer.time_left, exception=False):
+                result = reply_event.wait()
             if not reply_event.ready():
                 # The event timed out so we want to remove this call and raise.
                 self.pending.pop(correlation_id, None)
