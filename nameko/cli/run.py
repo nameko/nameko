@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from nameko.concurrency import monkey_patch_if_enforced
-monkey_patch_if_enforced()  # noqa (code before rest of imports)
+from nameko.concurrency import monkey_patch_if_enabled
+monkey_patch_if_enabled()  # noqa (code before rest of imports)
 
 import errno
 import logging

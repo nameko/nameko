@@ -13,7 +13,7 @@ from greenlet import GreenletExit  # pylint: disable=E0611
 
 import nameko.concurrency
 from nameko import config, serialization
-from nameko.concurrency import Event, Pool
+from nameko.concurrency import Event, Pool, SpawningSet
 from nameko.constants import (
     CALL_ID_STACK_CONTEXT_KEY, DEFAULT_MAX_WORKERS,
     DEFAULT_PARENT_CALLS_TRACKED, MAX_WORKERS_CONFIG_KEY,
@@ -25,7 +25,6 @@ from nameko.extensions import (
 )
 from nameko.log_helpers import make_timing_logger
 from nameko.utils import import_from_path
-from nameko.utils.concurrency import SpawningSet
 
 
 _log = getLogger(__name__)

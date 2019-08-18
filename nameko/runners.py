@@ -3,8 +3,8 @@ from __future__ import absolute_import
 from contextlib import contextmanager
 from logging import getLogger
 
+from nameko.concurrency import SpawningProxy
 from nameko.containers import get_container_cls, get_service_name
-from nameko.utils.concurrency import SpawningProxy
 
 
 _log = getLogger(__name__)

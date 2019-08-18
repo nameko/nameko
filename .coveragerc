@@ -2,7 +2,8 @@
 concurrency = eventlet
 branch = ${ENABLE_BRANCH_COVERAGE}
 omit =
-    nameko/concurrency/*
+    nameko/concurrency/eventlet_backend.py
+    nameko/concurrency/gevent_backend.py
 source =
     nameko
     test
