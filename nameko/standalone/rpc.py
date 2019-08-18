@@ -125,7 +125,14 @@ class ReplyListener(object):
         timer = TimeoutTimer(timeout)
         while not self.pending.get(correlation_id):
             try:
-                next(self.consumer.consume(timeout=timer.time_left))
+                # kombu checks timeout as "truthy" (see
+                # :meth:`kombu.mixins.ConsumerMixin.consume`) so we don't want
+                # to check make sure time_left does not evaluate to 0.
+                if timer.time_left is None:
+                    time_left = None
+                else:
+                    time_left = max(timer.time_left, 0.1)
+                next(self.consumer.consume(timeout=time_left))
             except socket.timeout:
                 if timer.time_left is not None and timer.time_left <= 0:
                     raise RpcTimeout('Timed out after {} seconds'.format(timeout))

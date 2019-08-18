@@ -763,7 +763,7 @@ class TimeoutTimer(object):
 
     @property
     def time_left(self):
-        if self.timeout:
+        if self.timeout is not None:
             return max(self.timeout - (time.time() - self.t0), 0.0)
         else:
             return None
