@@ -4,9 +4,9 @@ import argparse
 import os
 import re
 from functools import partial
-from pkg_resources import get_distribution
 
 import yaml
+from pkg_resources import get_distribution
 
 from nameko.exceptions import CommandError, ConfigurationError
 
