@@ -16,6 +16,7 @@ from .click_options import (
 
 # main nameko command
 @click.group()
+@click.version_option()
 def cli():
     """CLI to manage nameko based services and configuration.
     """
