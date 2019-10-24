@@ -6,6 +6,7 @@ import re
 from functools import partial
 
 import yaml
+from pkg_resources import get_distribution
 
 from nameko.exceptions import CommandError, ConfigurationError
 
@@ -60,6 +61,12 @@ IMPLICIT_ENV_VAR_MATCHER = re.compile(
 
 def setup_parser():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-v',
+        '--version',
+        action='version',
+        version=get_distribution('nameko').version
+    )
     subparsers = parser.add_subparsers()
 
     for command in commands.commands:
