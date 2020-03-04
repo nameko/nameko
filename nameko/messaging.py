@@ -158,8 +158,9 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def setup(self):
 
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        transport_options = self.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS)
 
-        with get_connection(self.amqp_uri, ssl) as conn:
+        with get_connection(self.amqp_uri, ssl=ssl, transport_options=transport_options) as conn:
             for entity in self.declare:
                 maybe_declare(entity, conn.channel())
 

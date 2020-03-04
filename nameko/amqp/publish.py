@@ -120,10 +120,12 @@ class Publisher(object):
     def __init__(
         self, amqp_uri, use_confirms=None, serializer=None, compression=None,
         delivery_mode=None, mandatory=None, priority=None, expiration=None,
-        declare=None, retry=None, retry_policy=None, ssl=None, **publish_kwargs
+        declare=None, retry=None, retry_policy=None, ssl=None, transport_options=None,
+        **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
         self.ssl = ssl
+        self.transport_options = transport_options or self.transport_options
 
         # publish confirms
         if use_confirms is not None:
