@@ -10,8 +10,8 @@ from kombu.messaging import Consumer
 
 from nameko import serialization
 from nameko.constants import (
-        AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY,
-        TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS,
+    TRANSPORT_OPTIONS_CONFIG_KEY
 )
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcTimeout

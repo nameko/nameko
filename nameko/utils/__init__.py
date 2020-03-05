@@ -2,9 +2,10 @@ import inspect
 import re
 from copy import deepcopy
 from pydoc import locate
-from six.moves.urllib.parse import urlparse
 
 import six
+from six.moves.urllib.parse import urlparse
+
 
 REDACTED = "********"
 
