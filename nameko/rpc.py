@@ -25,9 +25,7 @@ from nameko.extensions import (
 )
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
 
-
 _log = getLogger(__name__)
-
 
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
 RPC_REPLY_QUEUE_TEMPLATE = 'rpc.reply-{}-{}'
@@ -41,7 +39,6 @@ def get_rpc_exchange(config):
 
 
 class RpcConsumer(SharedExtension, ProviderCollector):
-
     queue_consumer = QueueConsumer()
 
     def __init__(self):
@@ -52,7 +49,6 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
     def setup(self):
         if self.queue is None:
-
             service_name = self.container.service_name
             queue_name = RPC_QUEUE_TEMPLATE.format(service_name)
             routing_key = '{}.*'.format(service_name)
@@ -126,9 +122,11 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         )
         exchange = get_rpc_exchange(self.container.config)
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        transport_options = self.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS)
+        transport_options = self.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY,
+                                                      DEFAULT_TRANSPORT_OPTIONS)
 
-        responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl, transport_options=transport_options)
+        responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl,
+                              transport_options=transport_options)
         result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
@@ -139,7 +137,6 @@ class RpcConsumer(SharedExtension, ProviderCollector):
 
 
 class Rpc(Entrypoint, HeaderDecoder):
-
     rpc_consumer = RpcConsumer()
 
     def setup(self):
@@ -177,11 +174,11 @@ rpc = Rpc.decorator
 
 
 class Responder(object):
-
     publisher_cls = Publisher
 
     def __init__(
-        self, amqp_uri, exchange, serializer, message, ssl=None, transport_options=None
+            self, amqp_uri, exchange, serializer, message, ssl=None,
+            transport_options=None
     ):
         self.amqp_uri = amqp_uri
         self.serializer = serializer
@@ -218,7 +215,8 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.publisher_cls(self.amqp_uri, ssl=self.ssl, transport_options=self.transport_options)
+        publisher = self.publisher_cls(self.amqp_uri, ssl=self.ssl,
+                                       transport_options=self.transport_options)
 
         publisher.publish(
             payload,
@@ -232,7 +230,6 @@ class Responder(object):
 
 
 class ReplyListener(SharedExtension):
-
     queue_consumer = QueueConsumer()
 
     def __init__(self, **kwargs):
@@ -283,7 +280,6 @@ class ReplyListener(SharedExtension):
 
 
 class RpcProxy(DependencyProvider):
-
     rpc_reply_listener = ReplyListener()
 
     def __init__(self, target_service, **options):
@@ -336,11 +332,10 @@ class RpcReply(object):
 
 
 class MethodProxy(HeaderEncoder):
-
     publisher_cls = Publisher
 
     def __init__(
-        self, worker_ctx, service_name, method_name, reply_listener, **options
+            self, worker_ctx, service_name, method_name, reply_listener, **options
     ):
         """
             Note that mechanism which raises :class:`UnknownService` exceptions
@@ -368,7 +363,8 @@ class MethodProxy(HeaderEncoder):
         serializer = options.pop('serializer', self.serializer)
 
         self.publisher = self.publisher_cls(
-            self.amqp_uri, serializer=serializer, ssl=self.ssl, transport_options=self.transport_options, **options
+            self.amqp_uri, serializer=serializer, ssl=self.ssl,
+            transport_options=self.transport_options, **options
         )
 
     def __call__(self, *args, **kwargs):
@@ -390,7 +386,8 @@ class MethodProxy(HeaderEncoder):
 
     @property
     def transport_options(self):
-        return self.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS)
+        return self.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY,
+                                         DEFAULT_TRANSPORT_OPTIONS)
 
     @property
     def serializer(self):

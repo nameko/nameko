@@ -27,12 +27,10 @@ from nameko.extensions import (
 )
 from nameko.utils import sanitize_url
 
-
 _log = getLogger(__name__)
 
 
 class HeaderEncoder(object):
-
     header_prefix = HEADER_PREFIX
 
     def _get_header_name(self, key):
@@ -54,7 +52,6 @@ class HeaderEncoder(object):
 
 
 class HeaderDecoder(object):
-
     header_prefix = HEADER_PREFIX
 
     def _strip_header_name(self, key):
@@ -72,7 +69,6 @@ class HeaderDecoder(object):
 
 
 class Publisher(DependencyProvider, HeaderEncoder):
-
     publisher_cls = PublisherCore
 
     def __init__(self, exchange=None, queue=None, declare=None, **options):
@@ -158,9 +154,11 @@ class Publisher(DependencyProvider, HeaderEncoder):
     def setup(self):
 
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
-        transport_options = self.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS)
+        transport_options = self.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY,
+                                                      DEFAULT_TRANSPORT_OPTIONS)
 
-        with get_connection(self.amqp_uri, ssl=ssl, transport_options=transport_options) as conn:
+        with get_connection(self.amqp_uri, ssl=ssl,
+                            transport_options=transport_options) as conn:
             for entity in self.declare:
                 maybe_declare(entity, conn.channel())
 
@@ -397,10 +395,9 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             self.should_stop = True
 
     def on_connection_error(self, exc, interval):
-        _log.warning(
-            "Error connecting to broker at {} ({}).\n"
-            "Retrying in {} seconds."
-            .format(sanitize_url(self.amqp_uri), exc, interval))
+        _log.warning("Error connecting to broker at {} ({}).\n"
+                     "Retrying in {} seconds."
+                     .format(sanitize_url(self.amqp_uri), exc, interval))
 
     def on_consume_ready(self, connection, channel, consumers, **kwargs):
         """ Kombu callback when consumers are ready to accept messages.
@@ -413,7 +410,6 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
 
 
 class Consumer(Entrypoint, HeaderDecoder):
-
     queue_consumer = QueueConsumer()
 
     def __init__(self, queue, requeue_on_error=False, **kwargs):

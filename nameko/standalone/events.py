@@ -28,12 +28,14 @@ def event_dispatcher(nameko_config, **kwargs):
     serializer = kwargs.pop('serializer', serializer)
 
     ssl = nameko_config.get(AMQP_SSL_CONFIG_KEY)
-    transport_options = nameko_config.get(TRANSPORT_OPTIONS_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS)
+    transport_options = nameko_config.get(TRANSPORT_OPTIONS_CONFIG_KEY,
+                                          DEFAULT_TRANSPORT_OPTIONS)
 
     # TODO: standalone event dispatcher should accept context event_data
     # and insert a call id
 
-    publisher = Publisher(amqp_uri, serializer=serializer, ssl=ssl, transport_options=transport_options, **kwargs)
+    publisher = Publisher(amqp_uri, serializer=serializer, ssl=ssl,
+                          transport_options=transport_options, **kwargs)
 
     def dispatch(service_name, event_type, event_data):
         """ Dispatch an event claiming to originate from `service_name` with
