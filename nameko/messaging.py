@@ -27,6 +27,7 @@ from nameko.extensions import (
 )
 from nameko.utils import sanitize_url
 
+
 _log = getLogger(__name__)
 
 

@@ -25,6 +25,7 @@ from nameko.extensions import (
 )
 from nameko.messaging import HeaderDecoder, HeaderEncoder, QueueConsumer
 
+
 _log = getLogger(__name__)
 
 RPC_QUEUE_TEMPLATE = 'rpc-{}'
