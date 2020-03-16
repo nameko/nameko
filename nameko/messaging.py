@@ -324,6 +324,15 @@ class QueueConsumer(SharedExtension, ProviderCollector, ConsumerMixin):
             except ConnectionError:  # pragma: no cover
                 pass  # ignore connection closing inside conditional
 
+    def reject_message(self, message):
+        # only attempt to reject if the message connection is alive;
+        # otherwise the message will already have been reclaimed by the broker
+        if message.channel.connection:
+            try:
+                message.reject()
+            except ConnectionError:  # pragma: no cover
+                pass  # ignore connection closing inside conditional
+
     def _cancel_consumers_if_requested(self):
         provider_remove_events = self._pending_remove_providers.items()
         self._pending_remove_providers = {}
@@ -474,6 +483,8 @@ class Consumer(Entrypoint, HeaderDecoder):
 
         if exc_info is not None and self.requeue_on_error:
             self.queue_consumer.requeue_message(message)
+        elif exc_info is not None:
+            self.queue_consumer.reject_message(message)
         else:
             self.queue_consumer.ack_message(message)
 

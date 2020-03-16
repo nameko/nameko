@@ -33,7 +33,7 @@ from __future__ import absolute_import
 import uuid
 from logging import getLogger
 
-from kombu import Queue
+from kombu import Exchange, Queue
 
 from nameko.messaging import Consumer, Publisher
 from nameko.standalone.events import get_event_exchange
@@ -99,10 +99,52 @@ class EventDispatcher(Publisher):
         return dispatch
 
 
+class DelayedRetryQueue(Queue):
+    attrs = Queue.attrs + (
+        ('retry_delay', int),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(DelayedRetryQueue, self).__init__(
+            *args, **kwargs
+        )
+        self.retry_delay = kwargs.get('retry_delay') or 1
+        retry_exchange_name = '{}-retry'.format(self.exchange.name)
+        retry_queue_name = '{}-retry'.format(self.name)
+        routing_key = self.routing_key
+        retry_exchange = Exchange(
+            retry_exchange_name,
+            self.exchange.type,
+            durable=self.exchange.durable,
+            auto_delete=self.exchange.auto_delete
+        )
+        self.retry_queue = Queue(
+            name=retry_queue_name,
+            exchange=retry_exchange,
+            routing_key=routing_key,
+            durable=self.durable,
+            auto_delete=self.auto_delete,
+            message_ttl=self.retry_delay,
+            queue_arguments={'x-dead-letter-exchange': self.exchange.name}
+        )
+        if getattr(self, 'queue_arguments', None) is None:
+            self.queue_arguments = {}
+        self.queue_arguments['x-dead-letter-exchange'] = retry_exchange_name
+
+    def when_bound(self):
+        super(DelayedRetryQueue, self).when_bound()
+        self.retry_queue = self.retry_queue(self.channel)
+
+    def declare(self, *args, **kwargs):
+        self.retry_queue.declare(*args, **kwargs)
+        return super(DelayedRetryQueue, self).declare(*args, **kwargs)
+
+
 class EventHandler(Consumer):
 
     def __init__(self, source_service, event_type, handler_type=SERVICE_POOL,
-                 reliable_delivery=True, requeue_on_error=False, **kwargs):
+                 reliable_delivery=True, requeue_on_error=False, retry_delay=None,
+                 **kwargs):
         r"""
         Decorate a method as a handler of ``event_type`` events on the service
         called ``source_service``.
@@ -157,6 +199,7 @@ class EventHandler(Consumer):
         self.event_type = event_type
         self.handler_type = handler_type
         self.reliable_delivery = reliable_delivery
+        self.retry_delay = retry_delay
 
         super(EventHandler, self).__init__(
             queue=None, requeue_on_error=requeue_on_error, **kwargs
@@ -257,9 +300,16 @@ class EventHandler(Consumer):
         if self.reliable_delivery:
             exclusive = False
 
-        self.queue = Queue(
-            queue_name, exchange=exchange, routing_key=self.event_type,
-            durable=True, auto_delete=auto_delete, exclusive=exclusive)
+        if self.retry_delay:
+            queue_name = '{}-delayed'.format(queue_name)
+            self.queue = DelayedRetryQueue(
+                queue_name, exchange=exchange, routing_key=self.event_type,
+                durable=True, auto_delete=auto_delete, exclusive=exclusive,
+                retry_delay=self.retry_delay)
+        else:
+            self.queue = Queue(
+                queue_name, exchange=exchange, routing_key=self.event_type,
+                durable=True, auto_delete=auto_delete, exclusive=exclusive)
 
         super(EventHandler, self).setup()
 
