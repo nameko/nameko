@@ -8,3 +8,7 @@ certs
 *.egg-info
 dist
 .tox
+
+## IDEs
+.idea
+.vscode
