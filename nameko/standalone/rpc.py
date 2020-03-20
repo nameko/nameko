@@ -9,7 +9,10 @@ from kombu.common import maybe_declare
 from kombu.messaging import Consumer
 
 from nameko import serialization
-from nameko.constants import AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY
+from nameko.constants import (
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_TRANSPORT_OPTIONS,
+    TRANSPORT_OPTIONS_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.exceptions import RpcTimeout
 from nameko.extensions import Entrypoint
@@ -117,7 +120,10 @@ class PollingQueueConsumer(object):
 
         amqp_uri = provider.container.config[AMQP_URI_CONFIG_KEY]
         ssl = provider.container.config.get(AMQP_SSL_CONFIG_KEY)
-        self.connection = Connection(amqp_uri, ssl=ssl)
+        transport_options = provider.container.config.get(TRANSPORT_OPTIONS_CONFIG_KEY,
+                                                          DEFAULT_TRANSPORT_OPTIONS)
+        self.connection = Connection(amqp_uri, ssl=ssl,
+                                     transport_options=transport_options)
 
         self.queue = provider.queue
         self._setup_consumer()
@@ -207,8 +213,8 @@ class StandaloneProxyBase(object):
     _proxy = None
 
     def __init__(
-        self, config, context_data=None, timeout=None,
-        reply_listener_cls=SingleThreadedReplyListener
+            self, config, context_data=None, timeout=None,
+            reply_listener_cls=SingleThreadedReplyListener
     ):
         container = self.ServiceContainer(config)
 
@@ -263,6 +269,7 @@ class ServiceRpcProxy(StandaloneProxyBase):
     serialised into the AMQP message headers, and specify custom worker
     context class to serialise them.
     """
+
     def __init__(self, service_name, *args, **kwargs):
         super(ServiceRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ServiceProxy(
@@ -315,6 +322,7 @@ class ClusterProxy(object):
             proxy['other-service'].method()
 
     """
+
     def __init__(self, worker_ctx, reply_listener):
         self._worker_ctx = worker_ctx
         self._reply_listener = reply_listener

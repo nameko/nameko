@@ -25,7 +25,8 @@ setup(
         "kombu>=4.2.0,<5",
         "mock>=1.2",
         "path.py>=6.2",
-        "pyyaml>=5.1",
+        "pyyaml>=5.1;python_version!='3.4'",
+        "pyyaml==5.1;python_version=='3.4'",
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
@@ -51,6 +52,7 @@ setup(
         'docs': [
             "pyenchant==1.6.6",
             "Sphinx==1.3",
+            "docutils==0.12",
             "sphinxcontrib-spelling==2.1.1",
             "sphinx-nameko-theme==0.0.3",
         ],
