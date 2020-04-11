@@ -81,7 +81,7 @@ def test_consume_provider(mock_container):
     consume_provider.handle_message("body", message)
     handle_result = spawn_worker.call_args[1]['handle_result']
     handle_result(worker_ctx, None, (Exception, Exception('Error'), "tb"))
-    queue_consumer.ack_message.assert_called_once_with(message)
+    queue_consumer.reject_message.assert_called_once_with(message)
 
     # test handling failed call with requeue
     queue_consumer.reset_mock()

@@ -523,6 +523,57 @@ def test_requeue_on_error(rabbit_manager, rabbit_config, start_containers):
         assert service.events == ["msg"]
 
 
+def test_message_retry_with_delay(
+    start_containers, rabbit_manager, rabbit_config
+):
+
+    mock = Mock()
+
+    def error_once():
+        yield Exception("error")
+        while True:
+            yield
+    mock.side_effect = error_once()
+
+    class DelayedRetryingHandler(HandlerService):
+
+        func = mock
+
+        @event_handler('srcservice', 'eventtype', retry_delay=3)
+        def handle(self, evt):
+            super(DelayedRetryingHandler, self).handle(evt)
+            self.func(evt)
+            return evt
+
+    vhost = rabbit_config['vhost']
+    (container,) = start_containers(DelayedRetryingHandler, ('retry',))
+
+    import time
+    t1 = time.time()
+    with entrypoint_waiter(container, 'handle') as result:
+        rabbit_manager.publish(
+            vhost, "srcservice.events", 'eventtype', '"msg1"',
+            properties=dict(content_type='application/json')
+        )
+
+    with pytest.raises(Exception):
+        result.get()
+
+    with entrypoint_waiter(container, 'handle', timeout=5) as result:
+        pass
+    assert result.get() == 'msg1'
+    t2 = time.time() - t1
+    assert t2 > 3
+
+    with entrypoint_waiter(container, 'handle', timeout=1) as result:
+        rabbit_manager.publish(
+            vhost, "srcservice.events", 'eventtype', '"msg2"',
+            properties=dict(content_type='application/json')
+        )
+
+    assert result.get() == 'msg2'
+
+
 def test_reliable_delivery(
     rabbit_manager, rabbit_config, start_containers, container_factory
 ):
