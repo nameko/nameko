@@ -51,7 +51,7 @@ setup(
         'docs': [
             "pyenchant==1.6.11",
             "Sphinx==1.8.5",
-            "sphinxcontrib-spelling==2.1.1",
+            "sphinxcontrib-spelling==4.2.1",
             "sphinx-nameko-theme==0.0.3",
         ],
         'examples': [
