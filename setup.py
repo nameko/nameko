@@ -51,8 +51,8 @@ setup(
             "websocket-client==0.48.0",
         ],
         'docs': [
-            "pyenchant==1.6.6",
-            "Sphinx==1.3",
+            "pyenchant==1.6.11",
+            "Sphinx==1.8.5",
             "sphinxcontrib-spelling==2.1.1",
             "sphinx-nameko-theme==0.0.3",
         ],
