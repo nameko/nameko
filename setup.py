@@ -28,6 +28,7 @@ setup(
         "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=5.1",
+        "pyOpenSSL==19.1.0;python_version>='3.7'",
         "requests>=1.2.0",
         "six>=1.9.0",
         "werkzeug>=0.9",
