@@ -1,3 +1,12 @@
+"""Main package for running nameko.
+
+Please note that importing nameko (or any sub-modules/packages) will always
+import this module first. In particular this module will be imported before any
+concurrency packages are imported and before any monkey patching is done.
+Having any logic in this module that uses concurrency features that rely on
+monkeypatching will not function correctly.
+
+"""
 from copy import deepcopy
 
 from six import wraps

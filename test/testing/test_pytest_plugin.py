@@ -4,6 +4,7 @@ import time
 import pytest
 from six.moves import queue
 
+import nameko.concurrency
 from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.extensions import DependencyProvider
@@ -13,8 +14,10 @@ from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
 from nameko.web.handlers import http
 from nameko.web.server import parse_address
-from nameko.web.websocket import rpc as wsrpc
 
+
+if nameko.concurrency.mode == 'eventlet':  # pragma: no cover
+    from nameko.web.websocket import rpc as wsrpc
 
 pytest_plugins = "pytester"
 
@@ -487,6 +490,8 @@ def test_web_session(container_factory, web_session):
     assert web_session.get("/foo").status_code == 200
 
 
+@pytest.mark.skipif(nameko.concurrency.mode != 'eventlet',
+                    reason='Websockets can only be used with eventlet.')
 @pytest.mark.usefixtures('web_config')
 def test_websocket(container_factory, websocket):
 

@@ -4,9 +4,7 @@ import json
 import uuid
 from collections import defaultdict
 
-from eventlet.event import Event
-from eventlet.queue import Queue
-
+from nameko.concurrency import Event, Queue
 from nameko.exceptions import deserialize
 
 

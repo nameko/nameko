@@ -1,7 +1,7 @@
+import importlib
 import inspect
 import re
 from copy import deepcopy
-from pydoc import locate
 
 import six
 from six.moves.urllib.parse import urlparse
@@ -116,8 +116,10 @@ def import_from_path(path):
     if path is None:
         return
 
-    obj = locate(path)
-    if obj is None:
+    module_path, obj_name = path.rsplit('.', 1)
+    try:
+        obj = getattr(importlib.import_module(module_path), obj_name)
+    except (AttributeError, ImportError):
         raise ImportError(
             "`{}` could not be imported".format(path)
         )

@@ -3,15 +3,15 @@ from __future__ import absolute_import
 import itertools
 from collections import Counter
 
-import eventlet
 import pytest
 from amqp.exceptions import NotFound
-from eventlet.event import Event
 from mock import ANY, Mock, patch
 from six.moves import queue
 
+import nameko.concurrency
 from nameko import config
 from nameko.amqp.consume import Consumer
+from nameko.concurrency import Event
 from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
@@ -539,7 +539,7 @@ def test_unreliable_delivery(container_factory, queue_info, tracker):
         # queue_info may not raise on the first call
         for _ in range(3):
             queue_info(queue_name)
-            eventlet.sleep(1)  # pragma: no cover
+            nameko.concurrency.sleep(1)  # pragma: no cover
 
     # dispatch a second event while nobody is listening
     count = itertools.count(start=1)
@@ -891,7 +891,7 @@ def test_stop_with_active_worker(container_factory, queue_info):
     dispatch = event_dispatcher()
     dispatch("service", "event", "payload")
 
-    gt = eventlet.spawn(container.stop)
+    gt = nameko.concurrency.spawn(container.stop)
 
     @retry
     def consumer_removed():
@@ -902,10 +902,10 @@ def test_stop_with_active_worker(container_factory, queue_info):
     consumer_removed()
 
     assert not gt.dead
-    eventlet.sleep(10)
+    nameko.concurrency.sleep(10)
     block.send(True)
 
-    gt.wait()
+    nameko.concurrency.wait(gt)
     assert gt.dead
 
 

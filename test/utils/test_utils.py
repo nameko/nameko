@@ -1,8 +1,6 @@
 # coding: utf-8
 
 import pytest
-from eventlet import GreenPool, sleep
-from eventlet.event import Event
 
 import nameko.rpc
 from nameko.containers import ServiceContainer
@@ -12,38 +10,6 @@ from nameko.testing.services import dummy, entrypoint_hook, get_extension
 from nameko.utils import (
     REDACTED, get_redacted_args, import_from_path, sanitize_url
 )
-from nameko.utils.concurrency import fail_fast_imap
-
-
-def test_fail_fast_imap():
-    # A failing call...
-    failing_exception = Exception()
-
-    def failing_call():
-        raise failing_exception
-
-    # ...and an eventually successful call.
-    slow_call_returned = Event()
-
-    def slow_call():
-        sleep(5)
-        slow_call_returned.send()  # pragma: no cover
-
-    def identity_fn(fn):
-        return fn()
-
-    calls = [slow_call, failing_call]
-
-    pool = GreenPool(2)
-
-    # fail_fast_imap fails as soon as the exception is raised
-    with pytest.raises(Exception) as raised_exc:
-        list(fail_fast_imap(pool, identity_fn, calls))
-    assert raised_exc.value == failing_exception
-
-    # The slow call won't go past the sleep as it was killed
-    assert not slow_call_returned.ready()
-    assert pool.free() == 2
 
 
 class TestGetRedactedArgs(object):
@@ -231,6 +197,13 @@ class TestImportFromPath(object):
             import_from_path("foo.bar.Baz")
         assert (
             "`foo.bar.Baz` could not be imported" in str(exc_info.value)
+        )
+
+    def test_import_object_error(self):
+        with pytest.raises(ImportError) as exc_info:
+            import_from_path("test.test_utils.Baz")
+        assert (
+            "`test.test_utils.Baz` could not be imported" in str(exc_info.value)
         )
 
     def test_import_class(self):

@@ -5,10 +5,10 @@ import socket
 from os.path import abspath, dirname, join
 from textwrap import dedent
 
-import eventlet
 import pytest
 from mock import call, patch
 
+import nameko.concurrency
 from nameko import config
 from nameko.cli.run import run, setup_backdoor
 from nameko.cli.utils import import_services
@@ -28,7 +28,7 @@ def test_run(command):
 
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, "start"):
-        gt = eventlet.spawn(
+        gt = nameko.concurrency.spawn(
             command, "nameko", "run", "--backdoor-port", "0", "test.sample:Service"
         )
 
@@ -39,7 +39,7 @@ def test_run(command):
     # stop service
     pid = os.getpid()
     os.kill(pid, signal.SIGTERM)
-    gt.wait()
+    nameko.concurrency.wait(gt)
 
 
 @pytest.mark.usefixtures("rabbit_config")
@@ -137,7 +137,7 @@ def test_main_with_logging_config(command, tmpdir):
 
     # start runner and wait for it to come up
     with wait_for_call(ServiceRunner, "start"):
-        gt = eventlet.spawn(
+        gt = nameko.concurrency.spawn(
             command, "nameko", "run", "--config", config_file.strpath, "test.sample"
         )
 
@@ -146,7 +146,7 @@ def test_main_with_logging_config(command, tmpdir):
 
     pid = os.getpid()
     os.kill(pid, signal.SIGTERM)
-    gt.wait()
+    nameko.concurrency.wait(gt)
 
     assert "test.sample - INFO - ping!" in capture_file.read()
 
@@ -200,7 +200,7 @@ def test_parse_config_before_service_import(command, tmpdir, add_to_sys_path):
     with add_to_sys_path(tmpdir.strpath):
 
         with wait_for_call(ServiceRunner, "start", callback=cb):
-            eventlet.spawn(
+            nameko.concurrency.spawn(
                 command, "nameko", "run", "--config", config_file.strpath,
                 "service:Service"
             )
@@ -260,7 +260,7 @@ def recv_until_prompt(sock):
 def test_backdoor():
     runner = object()
     green_socket, gt = setup_backdoor(runner, ("localhost", 0))
-    eventlet.sleep(0)  # give backdoor a chance to spawn
+    nameko.concurrency.sleep(0)  # give backdoor a chance to spawn
     socket_name = green_socket.fd.getsockname()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(socket_name)
@@ -278,21 +278,22 @@ def test_backdoor():
 
 
 def test_stopping(rabbit_config):
-    with patch("nameko.cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.cli.run.wait") as mock_wait:
         # this is the service "runlet"
-        mock_eventlet.spawn().wait.side_effect = [
+        mock_wait.side_effect = [
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
-        gt = eventlet.spawn(run, ["test.sample"])
-        gt.wait()
+        gt = nameko.concurrency.spawn(run, ["test.sample"])
+        nameko.concurrency.wait(gt)
         # should complete
+    assert mock_wait.call_count == 2
 
 
 def test_stopping_twice(rabbit_config):
-    with patch("nameko.cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.cli.run.wait") as mock_wait:
         # this is the service "runlet"
-        mock_eventlet.spawn().wait.side_effect = [
+        mock_wait.side_effect = [
             KeyboardInterrupt,
             None,  # second wait, after stop() which returns normally
         ]
@@ -301,38 +302,40 @@ def test_stopping_twice(rabbit_config):
             runner.stop.side_effect = KeyboardInterrupt
             runner.kill.return_value = None
 
-            gt = eventlet.spawn(run, ["test.sample"])
-            gt.wait()
+            gt = nameko.concurrency.spawn(run, ["test.sample"])
+            nameko.concurrency.wait(gt)
+    assert mock_wait.call_count == 2
 
 
 def test_os_error_for_signal(rabbit_config):
-    with patch("nameko.cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.cli.run.wait") as mock_wait:
         # this is the service "runlet"
-        mock_eventlet.spawn().wait.side_effect = [
+        mock_wait.side_effect = [
             OSError(errno.EINTR, ""),
             None,  # second wait, after stop() which returns normally
         ]
         # don't actually start the service -- we're not firing a real signal
         # so the signal handler won't stop it again
         with patch.object(ServiceRunner, "start"):
-            gt = eventlet.spawn(run, ["test.sample"])
-            gt.wait()
+            gt = nameko.concurrency.spawn(run, ["test.sample"])
+            nameko.concurrency.wait(gt)
         # should complete
+    assert mock_wait.call_count == 2
 
 
 def test_other_errors_propagate(rabbit_config):
-    with patch("nameko.cli.run.eventlet") as mock_eventlet:
+    with patch("nameko.cli.run.wait") as mock_wait:
         # this is the service "runlet"
-        mock_eventlet.spawn().wait.side_effect = [
+        mock_wait.side_effect = [
             OSError(0, ""),
-            None,  # second wait, after stop() which returns normally
         ]
         # don't actually start the service -- there's no real OSError that
         # would otherwise kill the whole process
         with patch.object(ServiceRunner, "start"):
-            gt = eventlet.spawn(run, ["test.sample"])
+            gt = nameko.concurrency.spawn(run, ["test.sample"])
             with pytest.raises(OSError):
-                gt.wait()
+                nameko.concurrency.wait(gt)
+    assert mock_wait.call_count == 1, 'Expected only one call to wait.'
 
 
 @pytest.mark.usefixtures("empty_config")

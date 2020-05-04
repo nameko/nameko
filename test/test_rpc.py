@@ -1,10 +1,7 @@
 import uuid
 from contextlib import contextmanager
 
-import eventlet
 import pytest
-from eventlet.event import Event
-from eventlet.semaphore import Semaphore
 from greenlet import GreenletExit  # pylint: disable=E0611
 from kombu import Exchange
 from kombu.connection import Connection
@@ -12,8 +9,10 @@ from kombu.exceptions import OperationalError
 from mock import Mock, call, patch
 from six.moves import queue
 
+import nameko.concurrency
 from nameko import config
 from nameko.amqp.consume import Consumer
+from nameko.concurrency import Event, Semaphore
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
 )
@@ -634,7 +633,7 @@ def test_rpc_consumer_sharing(container_factory, rabbit_manager):
         task_a_stopped.send(True)
 
     def patched_task_b_stop():
-        eventlet.sleep(2)  # stop after 2 seconds
+        nameko.concurrency.sleep(2)  # stop after 2 seconds
         task_b_stop()
 
     with patch.object(task_b, 'stop', patched_task_b_stop), \
@@ -642,14 +641,14 @@ def test_rpc_consumer_sharing(container_factory, rabbit_manager):
 
         # stop the container and wait for task_a to stop
         # task_b will still be in the process of stopping
-        eventlet.spawn(container.stop)
+        nameko.concurrency.spawn(container.stop)
         task_a_stopped.wait()
 
         # try to call task_a.
         # should timeout, rather than raising MethodNotFound
         with ServiceRpcClient("exampleservice") as client:
-            with pytest.raises(eventlet.Timeout):
-                with eventlet.Timeout(1):
+            with pytest.raises(nameko.concurrency.Timeout):
+                with nameko.concurrency.Timeout(1):
                     client.task_a()
 
     # kill the container so we don't have to wait for task_b to stop
@@ -665,11 +664,11 @@ def test_rpc_consumer_cannot_exit_with_providers(container_factory):
 
     def never_stops():
         while True:
-            eventlet.sleep()
+            nameko.concurrency.yield_thread()
 
     with patch.object(task_a, 'stop', never_stops):
-        with pytest.raises(eventlet.Timeout):
-            with eventlet.Timeout(1):
+        with pytest.raises(nameko.concurrency.Timeout):
+            with nameko.concurrency.Timeout(1):
                 container.stop()
 
     # kill off task_a's misbehaving rpc provider
@@ -705,7 +704,7 @@ def test_reply_queue_removed_on_expiry(
     ][0]
 
     container.stop()
-    eventlet.sleep(0.15)  # sleep for >TTL
+    nameko.concurrency.sleep(0.15)  # sleep for >TTL
     assert reply_queue not in list_queues()
 
 
@@ -725,7 +724,7 @@ def test_async_wait_longer_than_expiry(container_factory):
         @dummy
         def echo(self, arg):
             res = self.delegate_rpc.echo.call_async(arg)
-            eventlet.sleep(0.4)  # sleep for 2x TTL
+            nameko.concurrency.sleep(0.4)  # sleep for 2x TTL
             return res.result()
 
     class DelegateService(object):
@@ -763,7 +762,7 @@ def test_request_longer_than_expiry(container_factory):
 
         @rpc
         def echo(self, arg):
-            eventlet.sleep(0.4)  # sleep for 2x TTL
+            nameko.concurrency.sleep(0.4)  # sleep for 2x TTL
             return arg
 
     container = container_factory(Service)
@@ -852,7 +851,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
     ):
 
         def enable_after_queue_expires():
-            eventlet.sleep(1)
+            nameko.concurrency.sleep(1)
             toxiproxy.enable()
 
         class Service(object):
@@ -870,7 +869,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
             @rpc
             def sleep(self):
                 toxiproxy.disable()
-                eventlet.spawn_n(enable_after_queue_expires)
+                nameko.concurrency.spawn_n(enable_after_queue_expires)
                 return "OK"
 
         # very fast heartbeat (2 seconds)
@@ -1174,7 +1173,7 @@ class TestRpcConsumerDisconnections(object):
             # otherwise we end up in retry_over_time trying to make the
             # initial connection; we get stuck there because it has a
             # function-local copy of "on_connection_error" that is never patched
-            eventlet.sleep(.05)
+            nameko.concurrency.sleep(.05)
 
             yield container
 
@@ -1329,11 +1328,11 @@ class TestRpcConsumerDisconnections(object):
         # break connection while the worker is active, then release worker
         with entrypoint_waiter(container, 'echo') as result:
             res = service_rpc.echo.call_async("msg1")
-            while not lock._waiters:
-                eventlet.sleep()  # pragma: no cover
+            while not nameko.concurrency.get_waiter_count(lock):
+                nameko.concurrency.yield_thread()  # pragma: no cover
             toxiproxy.disable()
             # allow connection to close before releasing worker
-            eventlet.sleep(.1)
+            nameko.concurrency.sleep(.1)
             lock.release()
 
         # entrypoint will return and reply will be received,
@@ -1424,7 +1423,7 @@ class TestClientDisconnections(object):
             with pytest.raises(OperationalError) as exc_info:
                 with entrypoint_hook(client_container, 'echo') as echo:
                     echo(1)
-            assert "ECONNREFUSED" in str(exc_info.value)
+            assert "[Errno 111]" in str(exc_info.value)
 
     @pytest.mark.usefixtures('use_confirms')
     def test_timeout(self, client_container, toxiproxy):
@@ -1573,9 +1572,9 @@ class TestResponderDisconnections(object):
                         with ServiceRpcClient("service") as client:
                             return getattr(client, name)(*args, **kwargs)
 
-                    gt = eventlet.spawn(call)
+                    gt = nameko.concurrency.spawn(call)
                     gts.append(gt)
-                    return gt.wait()
+                    return nameko.concurrency.wait(gt)
                 return method
 
             def abort(self):
@@ -1594,12 +1593,12 @@ class TestResponderDisconnections(object):
     def test_down(self, container, service_rpc, toxiproxy):
         with toxiproxy.disabled():
 
-            eventlet.spawn_n(service_rpc.echo, 1)
+            nameko.concurrency.spawn_n(service_rpc.echo, 1)
 
             # the container will raise if the responder cannot reply
             with pytest.raises(OperationalError) as exc_info:
                 container.wait()
-            assert "ECONNREFUSED" in str(exc_info.value)
+            assert "[Errno 111]" in str(exc_info.value)
 
             service_rpc.abort()
 
@@ -1607,7 +1606,7 @@ class TestResponderDisconnections(object):
     def test_timeout(self, container, service_rpc, toxiproxy):
         with toxiproxy.timeout():
 
-            eventlet.spawn_n(service_rpc.echo, 1)
+            nameko.concurrency.spawn_n(service_rpc.echo, 1)
 
             # the container will raise if the responder cannot reply
             with pytest.raises(OperationalError):
@@ -1626,7 +1625,7 @@ class TestResponderDisconnections(object):
 
         with toxiproxy.disabled():
 
-            eventlet.spawn_n(service_rpc.echo, 2)
+            nameko.concurrency.spawn_n(service_rpc.echo, 2)
 
             # the container will raise if the responder cannot reply
             with pytest.raises(IOError):
@@ -1648,7 +1647,7 @@ class TestResponderDisconnections(object):
 
         with toxiproxy.disabled():
 
-            eventlet.spawn_n(service_rpc.echo, 2)
+            nameko.concurrency.spawn_n(service_rpc.echo, 2)
 
             # the container will raise if the responder cannot reply
             with pytest.raises(IOError):
@@ -1920,7 +1919,7 @@ def test_prefetch_throughput(container_factory):
         for _ in range(5):
             replies.append(client.method.call_async())
 
-        with eventlet.Timeout(1):
+        with nameko.concurrency.Timeout(1):
             [reply.result() for reply in replies]
 
 
@@ -1953,7 +1952,7 @@ def test_stop_with_active_worker(container_factory, queue_info):
     with ServiceRpcClient("service") as service_rpc:
         service_rpc.method.call_async()
 
-    gt = eventlet.spawn(container.stop)
+    gt = nameko.concurrency.spawn(container.stop)
 
     @retry
     def consumer_removed():
@@ -1966,7 +1965,7 @@ def test_stop_with_active_worker(container_factory, queue_info):
     assert not gt.dead
     block.send(True)
 
-    gt.wait()
+    nameko.concurrency.wait(gt)
     assert gt.dead
 
 

@@ -1,27 +1,17 @@
 import re
-import socket
 from collections import namedtuple
 from functools import partial
 from logging import getLogger
 
-import eventlet
-from eventlet import wsgi
-from eventlet.support import get_errno
-from eventlet.wsgi import BROKEN_SOCK, BaseHTTPServer, HttpProtocol
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
 
+import nameko.concurrency
 from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
-
-
-try:
-    STATE_IDLE = wsgi.STATE_IDLE
-except AttributeError:  # pragma: no cover
-    STATE_IDLE = None
 
 
 BindAddress = namedtuple("BindAddress", ['address', 'port'])
@@ -38,24 +28,6 @@ def parse_address(address_string):
     address = match.group('address') or ''
     port = int(match.group('port'))
     return BindAddress(address, port)
-
-
-class HttpOnlyProtocol(HttpProtocol):
-    # identical to HttpProtocol.finish, except greenio.shutdown_safe
-    # is removed. it's only needed to ssl sockets which we don't support
-    # this is a workaround until
-    # https://bitbucket.org/eventlet/eventlet/pull-request/42
-    # or something like it lands
-    def finish(self):
-        try:
-            # patched in depending on python version; confuses pylint
-            # pylint: disable=E1101
-            BaseHTTPServer.BaseHTTPRequestHandler.finish(self)
-        except socket.error as e:
-            # Broken pipe, connection reset by peer
-            if get_errno(e) not in BROKEN_SOCK:
-                raise
-        self.connection.close()
 
 
 class WebServer(ProviderCollector, SharedExtension):
@@ -89,27 +61,12 @@ class WebServer(ProviderCollector, SharedExtension):
             )
 
     def process_request(self, sock, address):
-        try:
-            if STATE_IDLE:  # pragma: no cover
-                # eventlet >= 0.22
-                # see https://github.com/eventlet/eventlet/issues/420
-                self._serv.process_request([address, sock, STATE_IDLE])
-            else:  # pragma: no cover
-                self._serv.process_request((sock, address))
-
-        except OSError as exc:
-            # OSError("raw readinto() returned invalid length")
-            # can be raised when a client disconnects very early as a result
-            # of an eventlet bug: https://github.com/eventlet/eventlet/pull/353
-            # See https://github.com/onefinestay/nameko/issues/368
-            if "raw readinto() returned invalid length" in str(exc):
-                return
-            raise
+        nameko.concurrency.process_wsgi_request(self._serv, sock, address)
 
     def start(self):
         if not self._starting:
             self._starting = True
-            self._sock = eventlet.listen(self.bind_addr)
+            self._sock = nameko.concurrency.listen(self.bind_addr)
             # work around https://github.com/celery/kombu/issues/838
             self._sock.settimeout(None)
             self._serv = self.get_wsgi_server(self._sock, self.get_wsgi_app())
@@ -124,13 +81,12 @@ class WebServer(ProviderCollector, SharedExtension):
         return WsgiApp(self)
 
     def get_wsgi_server(
-        self, sock, wsgi_app, protocol=HttpOnlyProtocol, debug=False
+        self, sock, wsgi_app, protocol=nameko.concurrency.HttpOnlyProtocol, debug=False
     ):
         """Get the WSGI server used to process requests."""
-        return wsgi.Server(
-            sock,
-            sock.getsockname(),
-            wsgi_app,
+        return nameko.concurrency.get_wsgi_server(
+            sock=sock,
+            wsgi_app=wsgi_app,
             protocol=protocol,
             debug=debug,
             log=getLogger(__name__)

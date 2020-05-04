@@ -4,9 +4,7 @@ import itertools
 import time
 from logging import getLogger
 
-from eventlet import Timeout
-from eventlet.event import Event
-
+from nameko.concurrency import Event, Timeout, wait
 from nameko.extensions import Entrypoint
 
 
@@ -49,7 +47,7 @@ class Timer(Entrypoint):
     def stop(self):
         _log.debug('stopping %s', self)
         self.should_stop.send(True)
-        self.gt.wait()
+        wait(self.gt)
 
     def kill(self):
         _log.debug('killing %s', self)

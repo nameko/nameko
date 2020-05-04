@@ -5,7 +5,6 @@ import uuid
 from contextlib import contextmanager
 from types import ModuleType
 
-import eventlet
 import pytest
 import requests
 from kombu.messaging import Queue
@@ -13,6 +12,7 @@ from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
+import nameko.concurrency
 from nameko import config
 from nameko.amqp.publish import get_connection
 from nameko.testing.utils import find_free_port
@@ -180,7 +180,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     # allow some grace period to ensure we don't remove the proxy before
     # other fixtures have torn down
     resource = 'http://{}/proxies/{}'.format(toxiproxy_server, proxy_name)
-    eventlet.spawn_after(10, requests.delete, resource)
+    nameko.concurrency.spawn_after(10, requests.delete, resource)
 
 
 @pytest.yield_fixture

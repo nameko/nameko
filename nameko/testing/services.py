@@ -6,10 +6,9 @@ import inspect
 from collections import OrderedDict
 from contextlib import contextmanager
 
-import eventlet
-from eventlet import event
 from mock import MagicMock
 
+import nameko.concurrency
 from nameko.exceptions import ExtensionNotFound
 from nameko.extensions import DependencyProvider, Entrypoint
 from nameko.testing.utils import get_extension
@@ -48,7 +47,7 @@ def entrypoint_hook(container, method_name, context_data=None):
                 method_name, container))
 
     def hook(*args, **kwargs):
-        hook_result = event.Event()
+        hook_result = nameko.concurrency.Event()
 
         def wait_for_entrypoint():
             with entrypoint_waiter(container, method_name) as waiter_result:
@@ -72,8 +71,8 @@ def entrypoint_hook(container, method_name, context_data=None):
         # entrypoint_waiter never completes. To mitigate, we also wait on
         # the container, and if that throws we send the exception back
         # as our result.
-        eventlet.spawn_n(wait_for_entrypoint)
-        eventlet.spawn_n(wait_for_container)
+        nameko.concurrency.spawn_n(wait_for_entrypoint)
+        nameko.concurrency.spawn_n(wait_for_container)
 
         return hook_result.wait()
 
@@ -193,7 +192,7 @@ def entrypoint_waiter(container, method_name, timeout=30, callback=None):
             container.service_name, method_name, timeout)
     )
 
-    with eventlet.Timeout(timeout, exception=exc):
+    with nameko.concurrency.Timeout(timeout, exception=exc):
         with wait_for_call(
             container, '_worker_teardown',
             lambda args, kwargs, res, exc: on_worker_teardown(*args)

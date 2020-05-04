@@ -1,7 +1,9 @@
 .PHONY: test docs
 
-ENABLE_BRANCH_COVERAGE ?= 0
-AUTO_FIX_IMPORTS ?= 0
+export ENABLE_BRANCH_COVERAGE ?= 0
+export AUTO_FIX_IMPORTS ?= 0
+export CONCURRENCY_BACKEND ?= eventlet
+export COVERAGE_FAIL_UNDER ?= 100
 
 ifneq ($(AUTO_FIX_IMPORTS), 1)
   autofix = --check-only
@@ -20,11 +22,11 @@ imports:
 	isort -rc $(autofix) nameko test
 
 test_lib:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage run -m pytest test --strict --timeout 30
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage report
+	coverage run -m pytest test --strict --timeout 30
+	coverage report
 
 test_examples:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
+	py.test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
 	py.test docs/examples/testing
 
 test_docs: docs spelling #linkcheck

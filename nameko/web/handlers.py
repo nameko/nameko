@@ -2,10 +2,10 @@ from functools import partial
 from logging import getLogger
 
 import six
-from eventlet.event import Event
 from werkzeug.routing import Rule
 from werkzeug.wrappers import Response
 
+from nameko.concurrency import Event
 from nameko.exceptions import BadRequest, serialize
 from nameko.extensions import Entrypoint
 from nameko.web.server import WebServer

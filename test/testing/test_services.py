@@ -1,10 +1,9 @@
 import itertools
-import time
 
-import eventlet
 import pytest
 from mock import Mock, call
 
+import nameko.concurrency
 from nameko.events import event_handler
 from nameko.exceptions import ExtensionNotFound, MethodNotFound
 from nameko.extensions import DependencyProvider
@@ -60,7 +59,7 @@ def spawn_thread():
 
         The thread will be killed at test teardown if it's still running.
         """
-        threads.append(eventlet.spawn(fn, *args))
+        threads.append(nameko.concurrency.spawn(fn, *args))
 
     yield spawn
 
@@ -577,7 +576,7 @@ def test_entrypoint_waiter_wait_for_specific_result(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)
@@ -609,7 +608,7 @@ def test_entrypoint_waiter_wait_until_called_with_argument(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)
@@ -645,7 +644,7 @@ def test_entrypoint_waiter_wait_until_raises(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)
@@ -682,7 +681,7 @@ def test_entrypoint_waiter_wait_until_stops_raising(
         dispatch = event_dispatcher()
         for count in itertools.count():
             dispatch('srcservice', 'eventtype', count)
-            time.sleep()  # force yield
+            nameko.concurrency.yield_thread()  # force yield
 
     with entrypoint_waiter(container, 'handle_event', callback=cb) as result:
         spawn_thread(increment_forever)
