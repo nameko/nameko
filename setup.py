@@ -49,9 +49,9 @@ setup(
             "websocket-client==0.48.0",
         ],
         'docs': [
-            "pyenchant==1.6.6",
-            "Sphinx==1.3",
-            "sphinxcontrib-spelling==2.1.1",
+            "pyenchant==1.6.11",
+            "Sphinx==1.8.5",
+            "sphinxcontrib-spelling==4.2.1",
             "sphinx-nameko-theme==0.0.3",
         ],
         'examples': [
@@ -79,8 +79,8 @@ setup(
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
         "Topic :: Internet",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Intended Audience :: Developers",

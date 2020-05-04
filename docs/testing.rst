@@ -11,7 +11,7 @@ The examples below use `pytest <http://pytest.org/latest/>`_, which is what Name
 Unit Testing
 ------------
 
-Unit testing in Nameko usually means testing a single service in isolation -- i.e. without any or most of its dependencies.
+Unit testing in Nameko usually means testing a single service in isolation -- in other words, without any or most of its dependencies.
 
 The :func:`~nameko.testing.services.worker_factory` utility will create a worker from a given service class, with its dependencies replaced by :class:`mock.MagicMock` objects. Dependency functionality can then be imitated by adding :attr:`~mock.Mock.side_effect`\s and :attr:`~mock.Mock.return_value`\s:
 
