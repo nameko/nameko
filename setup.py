@@ -23,7 +23,9 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "click>=7.0",
-        "eventlet>=0.20.1",
+        "eventlet>=0.20.1;python_version<'3.6'",
+        "eventlet>=0.21.0;python_version>='3.6' and python_version<'3.7'",
+        "eventlet>=0.25.1;python_version>='3.7'",
         "kombu>=4.2.0,<5",
         "mock>=1.2",
         "path.py>=6.2",
