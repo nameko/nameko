@@ -35,7 +35,7 @@ def encode_to_headers(context_data, prefix=HEADER_PREFIX):
 
 def decode_from_headers(headers, prefix=HEADER_PREFIX):
     return {
-        re.sub("^{}\.".format(prefix), "", key): value
+        re.sub(r"^{}\.".format(prefix), "", key): value
         for key, value in headers.items()
     }
 
