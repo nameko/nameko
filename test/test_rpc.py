@@ -1487,7 +1487,11 @@ class TestClientDisconnections(object):
             return True
 
         # call 2 succeeds (after reconnecting via retry policy)
-        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(
+            Connection,
+            "_establish_connection",
+            callback=enable_after_retry
+        ):
             with entrypoint_hook(client_container, 'echo') as echo:
                 assert echo(2) == 2
 
@@ -1677,7 +1681,11 @@ class TestResponderDisconnections(object):
             return True
 
         # call 2 succeeds (after reconnecting via retry policy)
-        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(
+            Connection,
+            "_establish_connection",
+            callback=enable_after_retry
+        ):
             assert service_rpc.echo(2) == 2
 
 
