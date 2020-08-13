@@ -1,8 +1,8 @@
 Nameko
 ======
 
-.. image:: https://secure.travis-ci.org/nameko/nameko.svg?branch=master
-   :target: http://travis-ci.org/nameko/nameko
+.. image:: https://secure.travis-ci.org/nameko/nameko/tree/master.svg
+   :target: http://travis-ci.org/nameko/nameko/tree/master
 
 *[nah-meh-koh]*
 
