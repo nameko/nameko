@@ -876,8 +876,11 @@ class TestPublisherDisconnections(object):
             return True
 
         # call 2 succeeds (after reconnecting via retry policy)
-        with patch_wait(Connection, 'connect', callback=enable_after_retry):
-
+        with patch_wait(
+            Connection,
+            "_establish_connection",
+            callback=enable_after_retry
+        ):
             payload2 = "payload2"
             with entrypoint_waiter(consumer_container, 'recv'):
                 with entrypoint_hook(publisher_container, 'send') as send:
