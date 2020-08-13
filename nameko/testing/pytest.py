@@ -192,8 +192,21 @@ def rabbit_config(rabbit_uri):
 
 @pytest.fixture
 def rabbit_ssl_options(request):
+    import os
+    from test import on_travis
+
     ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
     ssl_options = {key: value for key, value in ssl_options} or True
+
+    for file_key in ['ca_certs', 'certfile', 'keyfile']:
+        filename = ssl_options.get(file_key)
+        if (
+                not on_travis and
+                filename and not os.path.isfile(filename)
+        ):  # pragma: no cover
+            pytest.skip('ssl {} file {} does not exist'
+                        .format(file_key, filename))
+
     return ssl_options
 
 

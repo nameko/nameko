@@ -13,7 +13,7 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='v3.0.0-rc7',
+    version='v3.0.0-rc8',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
@@ -23,6 +23,7 @@ setup(
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "click>=7.0",
+        "dnspython<2",
         "eventlet>=0.20.1;python_version<'3.6'",
         "eventlet>=0.21.0;python_version>='3.6' and python_version<'3.7'",
         "eventlet>=0.26.0;python_version>='3.7'",
@@ -55,9 +56,9 @@ setup(
             "websocket-client==0.48.0",
         ],
         'docs': [
-            "pyenchant==1.6.6",
-            "Sphinx==1.3",
-            "sphinxcontrib-spelling==2.1.1",
+            "pyenchant==1.6.11",
+            "Sphinx==1.8.5",
+            "sphinxcontrib-spelling==4.2.1",
             "sphinx-nameko-theme==0.0.3",
         ],
         'examples': [

@@ -3,13 +3,18 @@ import socket
 import pytest
 from eventlet import wsgi
 from mock import patch
-from werkzeug.contrib.fixers import ProxyFix
 
 from nameko.exceptions import ConfigurationError
 from nameko.web.handlers import HttpRequestHandler, http
 from nameko.web.server import (
     BaseHTTPServer, HttpOnlyProtocol, WebServer, parse_address
 )
+
+
+try:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+except ImportError:  # pragma: no cover
+    from werkzeug.contrib.fixers import ProxyFix  # werkzeug<1
 
 
 class ExampleService(object):
@@ -128,7 +133,7 @@ def test_adding_middleware_with_get_wsgi_app(container_factory):
             # get the original WSGI app that processes http requests
             app = super(CustomWebServer, self).get_wsgi_app()
             # apply the ProxyFix middleware as an example
-            return ProxyFix(app, num_proxies=1)
+            return ProxyFix(app)
 
     class CustomHttpRequestHandler(HttpRequestHandler):
         server = CustomWebServer()

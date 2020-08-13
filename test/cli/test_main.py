@@ -6,7 +6,6 @@ import yaml
 from mock import call, patch
 
 from nameko.cli import cli
-from nameko.cli.utils import import_services
 from nameko.cli.utils.config import ENV_VAR_MATCHER, setup_yaml_parser
 from nameko.exceptions import CommandError, ConfigurationError
 
@@ -38,7 +37,7 @@ def fake_argv(empty_config):
 
 def test_run():
     define = {"AMQP_URI": "pyamqp://someuser:*****@somehost/"}
-    services = import_services("test.sample:Service")
+    services = ("test.sample:Service",)
     config_file = None
     broker = None
     backdoor_port = None

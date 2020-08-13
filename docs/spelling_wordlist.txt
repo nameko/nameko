@@ -17,6 +17,7 @@ bugfixes
 bytestring
 bytestrings
 channelhandler
+cleanup
 cli
 cls
 cometd
@@ -38,6 +39,7 @@ deserializing
 django
 entrypoint
 entrypoints
+etc
 eventlet
 extensibility
 freenode
@@ -152,8 +154,8 @@ unhandled
 unregister
 unregistered
 unregisters
-urls
 uri
+urls
 utils
 vhost
 visualize
