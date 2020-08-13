@@ -788,7 +788,11 @@ class TestStandaloneClientDisconnections(object):
             return True
 
         # subsequent calls succeed (after reconnecting via retry policy)
-        with wait_for_call(Connection, 'connect', callback=enable_after_retry):
+        with wait_for_call(
+            Connection,
+            "_establish_connection",
+            callback=enable_after_retry
+        ):
             assert service_rpc.echo(2) == 2
 
 
