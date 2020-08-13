@@ -21,6 +21,7 @@ setup(
     url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
+        "dnspython<2",
         "eventlet>=0.20.1",
         "kombu>=4.2.0,<5",
         "mock>=1.2",
