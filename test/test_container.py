@@ -373,12 +373,7 @@ def test_container_only_killed_once(container):
         container, '_kill_managed_threads', autospec=True
     ) as kill_managed_threads:
 
-        original_container_kill = container.kill
-
-        with patch.object(container, 'kill') as kill:
-            # insert an eventlet yield into the kill process, otherwise
-            # the container dies before the second exception gets raised
-            kill.side_effect = lambda exc: original_container_kill(exc)
+        with patch.object(container, 'kill', wraps=container.kill) as kill:
 
             container.start()
 
