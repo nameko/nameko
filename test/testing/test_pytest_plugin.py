@@ -42,7 +42,7 @@ class TestOptions(object):
         options = (
             ("--amqp-uri", 'amqp://localhost:5672/vhost'),
             ("--rabbit-api-uri", 'http://localhost:15672'),
-            ("--amqp-ssl-port", 1234),
+            ("--amqp-ssl-port", '1234'),
         )
 
         testdir.makepyfile(
