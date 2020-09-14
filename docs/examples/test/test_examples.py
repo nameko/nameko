@@ -1,6 +1,7 @@
 # coding: utf-8
 """ Tests for the files and snippets in nameko/docs/examples
 """
+import json
 import os
 
 import boto3
@@ -13,7 +14,8 @@ from nameko import config
 from nameko.exceptions import RemoteError
 from nameko.standalone.events import event_dispatcher
 from nameko.standalone.rpc import ClusterRpcClient, ServiceRpcClient
-from nameko.testing.services import dummy, entrypoint_hook, entrypoint_waiter
+from nameko.testing.services import dummy, entrypoint_waiter, entrypoint_hook
+from nameko.web.handlers import http
 
 
 class TestHttp(object):
@@ -286,6 +288,28 @@ class TestTimer(object):
 @pytest.mark.usefixtures("rabbit_config")
 class TestTravis(object):
 
+    @pytest.fixture
+    def fake_travis(self, container_factory, web_config):
+
+        class FakeTravis:
+            name = "travis"
+
+            @http("GET", "/fake_status")
+            def method(self, request):
+                return json.dumps({
+                    "last_build_result": "success",
+                    "slug": "nameko/nameko",
+                    "last_build_finished_at": "2020-01-01"
+                })
+
+        container = container_factory(FakeTravis)
+        container.start()
+
+        fake_url = "http://{}/fake_status".format(config['WEB_SERVER_ADDRESS'])
+        with patch("examples.travis.URL_TEMPLATE", new=fake_url):
+            yield
+
+    @pytest.mark.usefixtures("fake_travis")
     def test_travis(self, container_factory):
 
         from examples.travis import Travis
@@ -294,8 +318,8 @@ class TestTravis(object):
         container.start()
 
         with ServiceRpcClient('travis_service') as travis_rpc:
-            status = travis_rpc.status_message("travis-ci", "cpython-builder")
-            assert "Project travis-ci/cpython-builder" in status
+            status = travis_rpc.status_message("nameko", "nameko")
+            assert "Project nameko/nameko" in status
 
 
 @pytest.mark.usefixtures("web_config")
