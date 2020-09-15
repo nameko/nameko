@@ -17,7 +17,7 @@ from nameko.testing.waiting import WaitResult, wait_for_call
 
 
 @contextmanager
-def entrypoint_hook(container, method_name, context_data=None):
+def entrypoint_hook(container, method_name, context_data=None, timeout=30):
     """ Yield a function providing an entrypoint into a hosted service.
 
     The yielded function may be called as if it were the bare method defined
@@ -32,6 +32,8 @@ def entrypoint_hook(container, method_name, context_data=None):
         context_data : dict
             Context data to provide for the call, e.g. a language, auth
             token or session.
+        timeout : int
+            Maximum seconds to wait
 
     **Usage**
 
@@ -51,12 +53,15 @@ def entrypoint_hook(container, method_name, context_data=None):
         hook_result = event.Event()
 
         def wait_for_entrypoint():
-            with entrypoint_waiter(container, method_name) as waiter_result:
-                container.spawn_worker(
-                    entrypoint, args, kwargs,
-                    context_data=context_data
-                )
             try:
+                with entrypoint_waiter(
+                    container, method_name,
+                    timeout=timeout
+                ) as waiter_result:
+                    container.spawn_worker(
+                        entrypoint, args, kwargs,
+                        context_data=context_data
+                    )
                 hook_result.send(waiter_result.get())
             except Exception as exc:
                 hook_result.send_exception(exc)

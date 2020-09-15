@@ -89,12 +89,6 @@ def pytest_configure(config):
         debug.hub_blocking_detection(True)
 
 
-@pytest.fixture(autouse=True)
-def always_warn_for_deprecation():
-    import warnings
-    warnings.simplefilter('always', DeprecationWarning)
-
-
 @pytest.yield_fixture
 def empty_config():
     with config.patch({}, clear=True):

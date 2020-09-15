@@ -208,6 +208,27 @@ def test_entrypoint_hook_container_dying(container_factory):
             call()
 
 
+def test_entrypoint_hook_timeout(container_factory, rabbit_config):
+
+    class Service:
+        name = 'service'
+
+        @rpc
+        def long_task(self):
+            time.sleep(0.1)
+
+    container = container_factory(Service, rabbit_config)
+    container.start()
+
+    with pytest.raises(entrypoint_waiter.Timeout) as exc_info:
+        with entrypoint_hook(container, 'long_task', timeout=0.01) as call:
+            call()
+
+    assert str(exc_info.value) == (
+        'Timeout on service.long_task after 0.01 seconds'
+    )
+
+
 def test_worker_factory():
 
     class Service(object):

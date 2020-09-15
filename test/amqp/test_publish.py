@@ -93,6 +93,7 @@ class TestPublisherConfirms(object):
                 )
 
 
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 @pytest.mark.behavioural
 class TestPublisher(object):
 

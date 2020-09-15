@@ -1358,6 +1358,7 @@ class TestRpcConsumerDisconnections(object):
         assert service_rpc.echo("msg2") == "msg2"
 
 
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 @pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestClientDisconnections(object):
@@ -1503,6 +1504,7 @@ class TestClientDisconnections(object):
                 assert echo(2) == 2
 
 
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 @pytest.mark.usefixtures('rabbit_config')
 @skip_if_no_toxiproxy
 class TestResponderDisconnections(object):

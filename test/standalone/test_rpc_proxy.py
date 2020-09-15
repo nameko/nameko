@@ -677,6 +677,7 @@ class TestConfigurability(object):
         assert publish_params['correlation_id'] == "uuid2"
 
 
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 @skip_if_no_toxiproxy
 class TestStandaloneClientDisconnections(object):
 
