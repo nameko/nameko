@@ -8,12 +8,16 @@ from amqp.exceptions import ConnectionError
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.messaging import Consumer
+
 from nameko import serialization
-from nameko.constants import AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
+from nameko.constants import (
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
-from nameko.exceptions import RpcTimeout, ConfigurationError
+from nameko.exceptions import ConfigurationError, RpcTimeout
 from nameko.extensions import Entrypoint
 from nameko.rpc import ReplyListener, ServiceProxy
+
 
 _logger = logging.getLogger(__name__)
 
@@ -127,7 +131,8 @@ class PollingQueueConsumer(object):
             HEARTBEAT_CONFIG_KEY, None  # default to not enable heartbeat
         )
         if self.heartbeat is not None and self.heartbeat < 0:
-            raise ConfigurationError("value for '%s' can not be negative" % HEARTBEAT_CONFIG_KEY)
+            raise ConfigurationError(
+                "value for '%s' can not be negative" % HEARTBEAT_CONFIG_KEY)
         self.connection = Connection(amqp_uri, ssl=ssl, heartbeat=self.heartbeat)
 
     def register_provider(self, provider):
@@ -168,20 +173,27 @@ class PollingQueueConsumer(object):
         if not unknown:
             self.ack_message(message)
 
-
     def get_message(self, correlation_id):
         start_time = time.time()
         stop_waiting = False
         # retrieve agreed heartbeat interval of both party by query the server
         HEARTBEAT_INTERVAL = self.consumer.connection.get_heartbeat_interval()
-        RATE = lambda: min(2 + abs(time.time() - start_time) * .75 / HEARTBEAT_INTERVAL, HEARTBEAT_INTERVAL / 3)
-        true_timeout = lambda: abs(start_time + self.timeout - time.time()) if self.timeout is not None else None
-        remaining_timeout = lambda: (
-            min(abs(start_time + self.timeout - time.time()), HEARTBEAT_INTERVAL / RATE())
-            if self.timeout is not None else HEARTBEAT_INTERVAL / RATE()) if self.heartbeat else true_timeout()
-        is_timed_out = lambda: abs(time.time() - start_time) > self.timeout if self.timeout is not None else False
-        timed_out_err_msg = "Timeout after: {}".format(self.timeout)
 
+        RATE = lambda: min(2 + abs(time.time() - start_time) * .75 / HEARTBEAT_INTERVAL,  # noqa: E731, E501
+                       HEARTBEAT_INTERVAL / 3)
+
+        true_timeout = lambda: abs(start_time + self.timeout - time.time()  # noqa: E731
+                       ) if self.timeout is not None else None
+
+        remaining_timeout = lambda: (min(abs(start_time + self.timeout - time.time()),  # noqa: E731, E501
+                        HEARTBEAT_INTERVAL / RATE())
+                    if self.timeout is not None else HEARTBEAT_INTERVAL / RATE()
+                    ) if self.heartbeat else true_timeout()
+
+        is_timed_out = lambda: abs(time.time() - start_time  # noqa: E731
+                       ) > self.timeout if self.timeout is not None else False
+
+        timed_out_err_msg = "Timeout after: {}".format(self.timeout)
         while correlation_id not in self.replies:
             recover_connection = False
             try:
@@ -189,14 +201,16 @@ class PollingQueueConsumer(object):
                     try:
                         self.consumer.connection.heartbeat_check()
                     except (ConnectionError, socket.error, IOError) as exc:
-                        _logger.info("Heart beat failed. System will auto recover broken connection, %s: %s",
-                                     type(exc).__name__, exc.args[0])
+                        _logger.info(
+                            "Heart beat failed."
+                            "System will auto recover broken connection, %s: %s",
+                            type(exc).__name__, exc.args[0])
                         raise
                     else:
                         _logger.debug("Heart beat OK")
                 self.consumer.connection.drain_events(timeout=remaining_timeout())
             except socket.timeout:
-                # if socket timeout happen here, send a hearbeat and keep looping
+                # if socket timeout happen here, send a heartbeat and keep looping
                 # until self.timeout is reached or correlation_id is found
                 pass
             except (ConnectionError, socket.error, IOError) as exc:
@@ -204,35 +218,41 @@ class PollingQueueConsumer(object):
                 # and try again. if we fail to reconnect, the error will bubble
                 # wait till connection stable before retry
                 if isinstance(exc, IOError) and not isinstance(exc, socket.error):
-                    # check only certain IOError will attemt to reconnect otherwhile reraise
+                    # check only certain IOError will attempt to reconnect else reraise
                     if exc.args[0] not in EXPECTED_IOERR_MSG_SET:  # check error.message
                         raise
                 if not is_timed_out():
                     try:  # try to recover connection if there is still time
                         recover_connection = True
                         _logger.debug(
-                            "Stabilizing connection to message broker due to error, {}: {}".format(type(exc).__name__,
-                                                                                                   exc.args[0]))
+                            "Stabilizing connection to message broker due to error,"
+                            " {}: {}".format(
+                                type(exc).__name__,
+                                exc.args[0]))
                         self._setup_connection()
-                        self.connection.ensure_connection(max_retries=2, timeout=true_timeout())
+                        self.connection.ensure_connection(max_retries=2,
+                                                          timeout=true_timeout())
                         if self.connection.connected is True:
                             self._setup_consumer()
                             recover_connection = False
-                            # continue the loop to start send a heartbeat and wait result with this new connection
+                            # continue the loop to start send a heartbeat
+                            # and wait for result with this new connection
                         else:
-                            err_msg = "Unable to stabilizing connnection after error, {}: {}".format(type(exc).__name__,
-                                                                                                     exc.args[0])
+                            err_msg = "Unable to stabilizing connection after error," \
+                                      " {}: {}".format(type(exc).__name__, exc.args[0])
                             _logger.debug(err_msg)
                             event = self.provider._reply_events.pop(correlation_id)
                             event.send_exception(ConnectionError(err_msg))
                             stop_waiting = True
                     except socket.timeout:
-                        timed_out_err_msg = "Timeout after stabilizing connnection: {}".format(self.timeout)
+                        timed_out_err_msg = \
+                            "Timeout after stabilizing connection: {}".format(
+                                self.timeout)
                         # continue the loop to try to recover connection until
                         # either self.timeout is reached or correlation_id is found
                     except (ConnectionError, socket.error) as exc2:
-                        err_msg = "Error during stabilizing connnection, {}: {}".format(type(exc2).__name__,
-                                                                                        exc2.args[0])
+                        err_msg = "Error during stabilizing connection, {}: {}".format(
+                            type(exc2).__name__, exc2.args[0])
                         _logger.debug(err_msg)
                         event = self.provider._reply_events.pop(correlation_id)
                         event.send_exception(ConnectionError(err_msg))
@@ -255,16 +275,20 @@ class PollingQueueConsumer(object):
                         event = self.provider._reply_events.pop(correlation_id)
                         event.send_exception(timeout_error)
                         stop_waiting = True
-                if recover_connection:  # alway try to recover the connection before exit if this flag is True
+                # always try to recover the connection before exit if this flag is True
+                if recover_connection:
                     try:
                         if self.connection.connected is False:
                             self._setup_connection()
                         self._setup_consumer()
                     except socket.error as exc:
-                        _logger.debug("Socket error during setup consumer, %s: %s", type(exc).__name__, exc.args[0])
+                        _logger.debug("Socket error during setup consumer, %s: %s",
+                                      type(exc).__name__, exc.args[0])
                 if stop_waiting:  # stop waiting for result, break the loop
                     break
-        else:  # other thread may have receive the message coresponding to this correlation_id before enter wait loop
+        else:
+            # other thread may have receive the message corresponding to
+            # this correlation_id before enter wait loop
             body, message = self.replies.pop(correlation_id)
             self.provider.handle_message(body, message)
 
@@ -312,8 +336,8 @@ class StandaloneProxyBase(object):
     _proxy = None
 
     def __init__(
-        self, config, context_data=None, timeout=None,
-        reply_listener_cls=SingleThreadedReplyListener
+            self, config, context_data=None, timeout=None,
+            reply_listener_cls=SingleThreadedReplyListener
     ):
         container = self.ServiceContainer(config)
 
@@ -368,6 +392,7 @@ class ServiceRpcProxy(StandaloneProxyBase):
     serialised into the AMQP message headers, and specify custom worker
     context class to serialise them.
     """
+
     def __init__(self, service_name, *args, **kwargs):
         super(ServiceRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ServiceProxy(
@@ -420,6 +445,7 @@ class ClusterProxy(object):
             proxy['other-service'].method()
 
     """
+
     def __init__(self, worker_ctx, reply_listener):
         self._worker_ctx = worker_ctx
         self._reply_listener = reply_listener

@@ -95,6 +95,7 @@ def main(args):
     )
 
     # ctx will be initialized via this lambda func after shell runner start
-    ctx_func = lambda: {'n': make_nameko_helper(config)}
+    def ctx_func():
+        return {'n': make_nameko_helper(config)}
     runner = ShellRunner(banner, ctx_func)
     runner.start_shell(name=args.interface)
