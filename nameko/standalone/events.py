@@ -12,7 +12,8 @@ def get_event_exchange(service_name):
     """
     exchange_name = "{}.events".format(service_name)
     exchange = Exchange(
-        exchange_name, type='topic', durable=True, delivery_mode=PERSISTENT
+        exchange_name, type='topic', durable=True, delivery_mode=PERSISTENT,
+        auto_delete=True,  # undeprecated https://github.com/celery/py-amqp/issues/286
     )
 
     return exchange
