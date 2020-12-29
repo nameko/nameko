@@ -23,7 +23,7 @@ setup(
     install_requires=[
         "dnspython<2",
         "eventlet>=0.20.1",
-        "kombu>=4.2.0,<5",
+        "kombu>=4.3.0,<5",
         "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=5.1",
