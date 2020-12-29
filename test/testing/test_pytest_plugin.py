@@ -1,5 +1,5 @@
 import socket
-import time
+import uuid
 
 import pytest
 from six.moves import queue
@@ -10,6 +10,7 @@ from nameko.rpc import RpcProxy, rpc
 from nameko.standalone.rpc import ServiceRpcProxy
 from nameko.testing import rabbit
 from nameko.testing.utils import get_rabbit_connections
+from nameko.utils.retry import retry
 from nameko.web.handlers import http
 from nameko.web.server import parse_address
 from nameko.web.websocket import rpc as wsrpc
@@ -163,7 +164,9 @@ class TestGetMessageFromQueue(object):
 
     @pytest.fixture
     def queue_name(self):
-        return "queue"
+        if not getattr(self, '_queue_name', None):
+            setattr(self, '_queue_name', "queue-" + str(uuid.uuid4()))
+        return getattr(self, '_queue_name')
 
     @pytest.fixture
     def publish_message(self, rabbit_manager, rabbit_config, queue_name):
@@ -181,28 +184,40 @@ class TestGetMessageFromQueue(object):
         self, publish_message, get_message_from_queue, queue_name,
         rabbit_manager, rabbit_config
     ):
+        vhost = rabbit_config['vhost']
+        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
+
+        @retry(for_exceptions=AssertionError)
+        def count_msg_fn(count=1):
+            assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == count
+
         payload = "payload"
         publish_message(payload)
+        count_msg_fn(1)
 
         message = get_message_from_queue(queue_name)
         assert message.payload == payload
-
-        vhost = rabbit_config['vhost']
-        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
+        count_msg_fn(0)
 
     def test_requeue(
         self, publish_message, get_message_from_queue, queue_name,
         rabbit_manager, rabbit_config
     ):
+        vhost = rabbit_config['vhost']
+        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 0
+
+        @retry(for_exceptions=AssertionError)
+        def count_msg_fn(count=1):
+            assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == count
+
         payload = "payload"
         publish_message(payload)
+        count_msg_fn(1)
 
         message = get_message_from_queue(queue_name, ack=False)
         assert message.payload == payload
-
-        time.sleep(1)  # TODO: use retry decorator rather than sleep
-        vhost = rabbit_config['vhost']
-        assert rabbit_manager.get_queue(vhost, queue_name)['messages'] == 1
+        # message still remain in the queue due to ack=False
+        count_msg_fn(1)
 
     def test_non_blocking(
         self, publish_message, get_message_from_queue, queue_name

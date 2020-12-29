@@ -14,7 +14,7 @@ class ShellRunner(object):
 
     def __init__(self, banner, get_local):
         self.banner = banner
-        self.local = get_local
+        self._get_local = get_local
 
     def bpython(self):
         import bpython  # pylint: disable=E0401
@@ -31,19 +31,22 @@ class ShellRunner(object):
             raise_expections=not sys.stdin.isatty()
         )
 
-    def start_shell(self, name):
-        if not sys.stdin.isatty():
-            available_shells = ['plain']
-        else:
-            available_shells = [name] if name else Shell.SHELLS
-
+    def local(self):
+        local = self._get_local()
         # Support the regular Python interpreter startup script if someone
         # is using it.
         startup = os.environ.get('PYTHONSTARTUP')
         if startup and os.path.isfile(startup):
             with open(startup, 'r') as f:
-                eval(compile(f.read(), startup, 'exec'), self.local())
+                eval(compile(f.read(), startup, 'exec'), local)
             del os.environ['PYTHONSTARTUP']
+        return local
+
+    def start_shell(self, name):
+        if not sys.stdin.isatty():
+            available_shells = ['plain']
+        else:
+            available_shells = [name] if name else Shell.SHELLS
 
         for name in available_shells:
             try:
@@ -97,5 +100,6 @@ def main(args):
     # ctx will be initialized via this lambda func after shell runner start
     def ctx_func():
         return {'n': make_nameko_helper(config)}
+
     runner = ShellRunner(banner, ctx_func)
     runner.start_shell(name=args.interface)
