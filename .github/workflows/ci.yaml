@@ -17,6 +17,11 @@ jobs:
         python-version:
           - 2.7
           - 3.6
+        dependency-set:
+          - oldest
+          - pinned
+          - latest
+          - extra
 
     steps:
     - name: checkout
@@ -50,6 +55,8 @@ jobs:
 
     - name: test with tox
       run: tox
+      env:
+        DEPENDENCY_SET: ${{ matrix.dependency-set }}
 
     - name: generate distributables
       run: |
