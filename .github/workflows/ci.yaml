@@ -22,7 +22,21 @@ jobs:
           - pinned
           - latest
           - extra
-          
+        test-set:
+          - static
+          - lib
+          - examples
+        misc:
+          - docs
+        experimental:
+          - false
+        include:
+          - misc: mastereventlet
+            experimental: true
+          - misc: branchcoverage
+            experimental: true
+
+    continue-on-error: ${{ matrix.experimental }}
 
     steps:
     - name: checkout
