@@ -22,6 +22,7 @@ jobs:
           - pinned
           - latest
           - extra
+          
 
     steps:
     - name: checkout
@@ -42,7 +43,8 @@ jobs:
         mkdir $PWD/bin
         wget -O $PWD/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
         chmod +x $PWD/bin/toxiproxy-server
-        export PATH=$PATH:$PWD/bin/
+        sudo ln -s $PWD/bin/toxiproxy-server /usr/local/bin/toxiproxy-server
+
 
     - name: install libenchant
       run: |
