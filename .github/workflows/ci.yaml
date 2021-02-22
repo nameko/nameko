@@ -73,6 +73,8 @@ jobs:
       run: tox
       env:
         DEPENDENCY_SET: ${{ matrix.dependency-set }}
+        TEST_SET: ${{ matrix.test-set }}
+        MISC: ${{ matrix.misc }}
 
     - name: generate distributables
       run: |
