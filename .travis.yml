@@ -31,52 +31,52 @@ matrix:
   include:
     - stage: static
       python: 2.7
-      env: TOX_ENV=py27-latest-static
+      env: TOX_ENV=py2.7-latest-static
     - stage: static
       python: 3.6
-      env: TOX_ENV=py36-latest-static
+      env: TOX_ENV=py3.6-latest-static
     - stage: docs
       python: 3.6
-      env: TOX_ENV=py36-latest-docs
+      env: TOX_ENV=py3.6-latest-docs
     - stage: examples
       python: 2.7
-      env: TOX_ENV=py27-latest-examples
+      env: TOX_ENV=py2.7-latest-examples
     - stage: examples
       python: 3.6
-      env: TOX_ENV=py36-latest-examples
+      env: TOX_ENV=py3.6-latest-examples
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-oldest-lib
+      env: TOX_ENV=py2.7-oldest-lib
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-pinned-lib
+      env: TOX_ENV=py2.7-pinned-lib
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-latest-lib
+      env: TOX_ENV=py2.7-latest-lib
     - stage: test
       python: 2.7
-      env: TOX_ENV=py27-extra-lib
+      env: TOX_ENV=py2.7-extra-lib
     - stage: test
       python: 3.5
-      env: TOX_ENV=py35-oldest-lib
+      env: TOX_ENV=py3.5-oldest-lib
     - stage: test
       python: 3.5
-      env: TOX_ENV=py35-pinned-lib
+      env: TOX_ENV=py3.5-pinned-lib
     - stage: test
       python: 3.5
-      env: TOX_ENV=py35-latest-lib
+      env: TOX_ENV=py3.5-latest-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-oldest-lib
+      env: TOX_ENV=py3.6-oldest-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-pinned-lib
+      env: TOX_ENV=py3.6-pinned-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-latest-lib
+      env: TOX_ENV=py3.6-latest-lib
     - stage: test
       python: 3.6
-      env: TOX_ENV=py36-extra-lib
+      env: TOX_ENV=py3.6-extra-lib
     - stage: deploy
       script: skip
       deploy:
@@ -90,22 +90,22 @@ matrix:
         distributions: "sdist bdist_wheel"
     - stage: mastereventlet
       python: 2.7
-      env: TOX_ENV=py27-mastereventlet-lib
+      env: TOX_ENV=py2.7-mastereventlet-lib
     - stage: mastereventlet
       python: 3.5
-      env: TOX_ENV=py35-mastereventlet-lib
+      env: TOX_ENV=py3.5-mastereventlet-lib
     - stage: mastereventlet
       python: 3.6
-      env: TOX_ENV=py36-mastereventlet-lib
+      env: TOX_ENV=py3.6-mastereventlet-lib
     - stage: branchcoverage
       python: 3.6
-      env: TOX_ENV=py36-branchcoverage-lib
+      env: TOX_ENV=py3.6-branchcoverage-lib
   fast_finish: true
   allow_failures:
-    - env: TOX_ENV=py27-mastereventlet-lib
-    - env: TOX_ENV=py35-mastereventlet-lib
-    - env: TOX_ENV=py36-mastereventlet-lib
-    - env: TOX_ENV=py36-branchcoverage-lib
+    - env: TOX_ENV=py2.7-mastereventlet-lib
+    - env: TOX_ENV=py3.5-mastereventlet-lib
+    - env: TOX_ENV=py3.6-mastereventlet-lib
+    - env: TOX_ENV=py3.6-branchcoverage-lib
 
 script:
   - tox -e $TOX_ENV

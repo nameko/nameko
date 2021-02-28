@@ -51,6 +51,10 @@ jobs:
             dependency-set: branchcoverage  # ugh
             test-set: lib
             experimental: true
+          - python-version: 3.6
+            dependency-set: latest
+            test-set: docs
+            experimental: false
 
     steps:
     - name: checkout
