@@ -31,19 +31,19 @@ matrix:
   include:
     - stage: static
       python: 2.7
-      env: TOX_ENV=py27-static
+      env: TOX_ENV=py27-latest-static
     - stage: static
       python: 3.6
-      env: TOX_ENV=py36-static
+      env: TOX_ENV=py36-latest-static
     - stage: docs
       python: 3.6
-      env: TOX_ENV=docs
+      env: TOX_ENV=py36-latest-docs
     - stage: examples
       python: 2.7
-      env: TOX_ENV=py27-examples
+      env: TOX_ENV=py27-latest-examples
     - stage: examples
       python: 3.6
-      env: TOX_ENV=py36-examples
+      env: TOX_ENV=py36-latest-examples
     - stage: test
       python: 2.7
       env: TOX_ENV=py27-oldest-lib
@@ -90,21 +90,21 @@ matrix:
         distributions: "sdist bdist_wheel"
     - stage: mastereventlet
       python: 2.7
-      env: TOX_ENV=py27-mastereventlet
+      env: TOX_ENV=py27-mastereventlet-lib
     - stage: mastereventlet
       python: 3.5
-      env: TOX_ENV=py35-mastereventlet
+      env: TOX_ENV=py35-mastereventlet-lib
     - stage: mastereventlet
       python: 3.6
-      env: TOX_ENV=py36-mastereventlet
+      env: TOX_ENV=py36-mastereventlet-lib
     - stage: branchcoverage
       python: 3.6
       env: TOX_ENV=py36-branchcoverage-lib
   fast_finish: true
   allow_failures:
-    - env: TOX_ENV=py27-mastereventlet
-    - env: TOX_ENV=py35-mastereventlet
-    - env: TOX_ENV=py36-mastereventlet
+    - env: TOX_ENV=py27-mastereventlet-lib
+    - env: TOX_ENV=py35-mastereventlet-lib
+    - env: TOX_ENV=py36-mastereventlet-lib
     - env: TOX_ENV=py36-branchcoverage-lib
 
 script:

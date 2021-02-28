@@ -23,17 +23,30 @@ jobs:
           - latest
           - extra
         test-set:
-          - static
           - lib
+          - static
           - examples
-        misc:
-          - docs
-        experimental:
-          - false
+        exclude:
+          - dependency-set: oldest
+            test-set: static
+          - dependency-set: oldest
+            test-set: examples
+          - dependency-set: latest
+            test-set: static
+          - dependency-set: latest
+            test-set: examples
+          - dependency-set: extra
+            test-set: static
+          - dependency-set: extra
+            test-set: examples
         include:
-          - misc: mastereventlet
+          - python-version: 3.6
+            dependency-set: mastereventlet
+            test-set: lib
             experimental: true
-          - misc: branchcoverage
+          - python-version: 3.6
+            dependency-set: branchcoverage  # urg
+            test-set: lib
             experimental: true
 
     continue-on-error: ${{ matrix.experimental }}
@@ -72,9 +85,7 @@ jobs:
     - name: test with tox
       run: tox
       env:
-        DEPENDENCY_SET: ${{ matrix.dependency-set }}
-        TEST_SET: ${{ matrix.test-set }}
-        MISC: ${{ matrix.misc }}
+        TOX_ENV: py${{ matrix.python-version }}-${{ matrix.dependency-set }}-${{ matrix.test-set }}
 
     - name: generate distributables
       run: |
