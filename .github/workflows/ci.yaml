@@ -12,6 +12,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
         python-version:
@@ -45,11 +46,9 @@ jobs:
             test-set: lib
             experimental: true
           - python-version: 3.6
-            dependency-set: branchcoverage  # urg
+            dependency-set: branchcoverage  # ugh
             test-set: lib
             experimental: true
-
-    continue-on-error: ${{ matrix.experimental }}
 
     steps:
     - name: checkout
