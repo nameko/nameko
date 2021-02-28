@@ -16,17 +16,17 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - 2.7
           - 3.6
+          - 2.7
         dependency-set:
-          - oldest
           - pinned
           - latest
+          - oldest
           - extra
         test-set:
-          - lib
           - static
           - examples
+          - lib
         experimental:
           - false
         exclude:
