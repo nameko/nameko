@@ -78,9 +78,9 @@ jobs:
         sudo ln -s $PWD/bin/toxiproxy-server /usr/local/bin/toxiproxy-server
 
 
-    - name: install libenchant
+    - name: install enchant
       run: |
-        sudo apt-get install -y libenchant-dev
+        sudo apt-get install -y enchant libenchant-dev
 
     - name: install test dependencies
       run: |
