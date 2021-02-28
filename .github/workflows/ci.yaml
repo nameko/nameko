@@ -88,7 +88,7 @@ jobs:
         pip install tox tox-gh-actions
 
     - name: test with tox
-      uses: fedora-python/tox-github-action
+      uses: fedora-python/tox-github-actionv0.4
       with:
         tox_env: py${{ matrix.python-version }}-${{ matrix.dependency-set }}-${{ matrix.test-set }}
 
