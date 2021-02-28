@@ -78,9 +78,9 @@ jobs:
         sudo ln -s $PWD/bin/toxiproxy-server /usr/local/bin/toxiproxy-server
 
 
-    - name: install enchant
+    - name: install libenchant
       run: |
-        sudo apt-get install -y enchant libenchant-dev
+        sudo apt-get install -y libenchant-dev
 
     - name: install test dependencies
       run: |
@@ -88,9 +88,9 @@ jobs:
         pip install tox
 
     - name: test with tox
-      uses: fedora-python/tox-github-action@v0.4
-      with:
-        tox_env: py${{ matrix.python-version }}-${{ matrix.dependency-set }}-${{ matrix.test-set }}
+      run: tox
+      env:
+        TOXENV: py${{ matrix.python-version }}-${{ matrix.dependency-set }}-${{ matrix.test-set }}
 
     - name: generate distributables
       run: |
