@@ -85,7 +85,7 @@ jobs:
     - name: install test dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install tox tox-gh-actions
+        pip install tox
 
     - name: test with tox
       uses: fedora-python/tox-github-action@v0.4
