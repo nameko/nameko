@@ -27,6 +27,8 @@ jobs:
           - lib
           - static
           - examples
+        experimental:
+          - false
         exclude:
           - dependency-set: oldest
             test-set: static
