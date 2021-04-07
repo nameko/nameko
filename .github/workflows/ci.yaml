@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}
