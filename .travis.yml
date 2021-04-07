@@ -40,10 +40,10 @@ matrix:
       env: TOX_ENV=docs
     - stage: examples
       python: 2.7
-      env: TOX_ENV=py2.7-latest-examples
+      env: TOX_ENV=py2.7-examples
     - stage: examples
       python: 3.6
-      env: TOX_ENV=py3.6-latest-examples
+      env: TOX_ENV=py3.6-examples
     - stage: test
       python: 2.7
       env: TOX_ENV=py2.7-oldest-test
