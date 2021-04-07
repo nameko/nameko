@@ -6,6 +6,9 @@ on:
     branches:
       - master
 
+  schedule:
+    - cron: '0 * * * 0'
+
   workflow_dispatch:
 
 jobs:
@@ -23,37 +26,37 @@ jobs:
           - latest
           - oldest
           - extra
-        test-set:
+        command:
           - static
           - examples
-          - lib
+          - test
         experimental:
           - false
         exclude:
           - dependency-set: oldest
-            test-set: static
+            command: static
           - dependency-set: oldest
-            test-set: examples
+            command: examples
           - dependency-set: latest
-            test-set: static
+            command: static
           - dependency-set: latest
-            test-set: examples
+            command: examples
           - dependency-set: extra
-            test-set: static
+            command: static
           - dependency-set: extra
-            test-set: examples
+            command: examples
         include:
           - python-version: 3.6
-            dependency-set: mastereventlet
-            test-set: lib
-            experimental: true
-          - python-version: 3.6
-            dependency-set: branchcoverage  # ugh
-            test-set: lib
+            dependency-set: latest
+            command: test-mastereventlet
             experimental: true
           - python-version: 3.6
             dependency-set: latest
-            test-set: docs
+            command: test-branchcoverage
+            experimental: true
+          - python-version: 3.6
+            dependency-set: latest
+            command: docs
             experimental: false
 
     steps:
@@ -90,7 +93,7 @@ jobs:
     - name: test with tox
       run: tox
       env:
-        TOXENV: py${{ matrix.python-version }}-${{ matrix.dependency-set }}-${{ matrix.test-set }}
+        TOXENV: py${{ matrix.python-version }}-${{ matrix.dependency-set }}-${{ matrix.command }}
 
     - name: generate distributables
       run: |
