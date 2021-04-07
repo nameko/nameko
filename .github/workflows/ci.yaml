@@ -72,6 +72,7 @@ jobs:
       run: |
         docker run -d --rm -p 15672:15672 -p 5672:5672 -p 5671:5671 --name nameko-rabbitmq ghcr.io/nameko/nameko-rabbitmq:3.6.6
         docker cp nameko-rabbitmq:/srv/ssl certs
+      if: matrix.command != 'static' || matrix.command != 'docs'
 
     - name: install toxiproxy
       run: |
@@ -79,18 +80,19 @@ jobs:
         wget -O $PWD/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.0.0/toxiproxy-server-linux-amd64
         chmod +x $PWD/bin/toxiproxy-server
         sudo ln -s $PWD/bin/toxiproxy-server /usr/local/bin/toxiproxy-server
-
+      if: matrix.command != 'static' || matrix.command != 'docs'
 
     - name: install libenchant
       run: |
         sudo apt-get install -y libenchant-dev
+      if: matrix.command == 'docs'
 
-    - name: install test dependencies
+    - name: install tox
       run: |
         python -m pip install --upgrade pip
         pip install tox
 
-    - name: test with tox
+    - name: run tox
       run: tox
       env:
         TOXENV: py${{ matrix.python-version }}-${{ matrix.dependency-set }}-${{ matrix.command }}
