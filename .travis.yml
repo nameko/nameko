@@ -37,7 +37,7 @@ matrix:
       env: TOX_ENV=py3.6-static
     - stage: docs
       python: 3.6
-      env: TOX_ENV=py3.6-latest-docs
+      env: TOX_ENV=docs
     - stage: examples
       python: 2.7
       env: TOX_ENV=py2.7-latest-examples
