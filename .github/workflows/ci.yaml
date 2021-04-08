@@ -87,15 +87,18 @@ jobs:
           - test
         experimental:
           - false
-        include:
-          - python-version: 3.6
-            dependency-set: latest
-            command: test-mastereventlet
-            experimental: true
-          - python-version: 3.6
-            dependency-set: latest
-            command: test-branchcoverage
-            experimental: true
+        # disable experimental builds until github actions has a good way to
+        # allow failure for a job but not fail the workflow
+        # see https://github.com/actions/toolkit/issues/399.
+        # include:
+        #   - python-version: 3.6
+        #     dependency-set: latest
+        #     command: test-mastereventlet
+        #     experimental: true
+        #   - python-version: 3.6
+        #     dependency-set: latest
+        #     command: test-branchcoverage
+        #     experimental: true
 
     steps:
     - name: checkout
