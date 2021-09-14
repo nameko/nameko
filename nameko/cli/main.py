@@ -96,18 +96,20 @@ def _replace_env_var(match):
 def env_var_constructor(loader, node, raw=False):
     raw_value = loader.construct_scalar(node)
     value = ENV_VAR_MATCHER.sub(_replace_env_var, raw_value)
+    if value == raw_value:
+        return value  # avoid recursion
     return value if raw else yaml.safe_load(value)
 
 
 def setup_yaml_parser():
-    yaml.add_constructor('!env_var', env_var_constructor, yaml.UnsafeLoader)
+    yaml.add_constructor('!env_var', env_var_constructor, yaml.SafeLoader)
     yaml.add_constructor(
         '!raw_env_var',
         partial(env_var_constructor, raw=True),
-        yaml.UnsafeLoader
+        yaml.SafeLoader
     )
     yaml.add_implicit_resolver(
-        '!env_var', IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.UnsafeLoader
+        '!env_var', IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.SafeLoader
     )
 
 
