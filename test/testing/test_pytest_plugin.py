@@ -72,7 +72,6 @@ class TestOptions(object):
             ('number', 1),
             ('list', '[1, 2, 3]'),
             ('map', '{"foo": "bar"}'),
-            ('lookup', '!!python/name:ssl.CERT_REQUIRED'),
         )
 
         testdir.makepyfile(
@@ -93,7 +92,6 @@ class TestOptions(object):
                     ('number', 1),
                     ('list', [1, 2, 3]),
                     ('map', {'foo': 'bar'}),
-                    ('lookup', ssl.CERT_REQUIRED),
                     ('keyonly', True),
                 ]
 
@@ -106,7 +104,6 @@ class TestOptions(object):
                     'number': 1,
                     'list': [1, 2, 3],
                     'map': {'foo': 'bar'},
-                    'lookup': ssl.CERT_REQUIRED,
                     'keyonly': True,
                 }
                 assert rabbit_ssl_config['AMQP_SSL'] == expected_ssl_options
