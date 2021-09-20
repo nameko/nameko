@@ -31,6 +31,7 @@ setup(
         "six>=1.9.0",
         "werkzeug>=0.9",
         "wrapt>=1.0.0",
+        "packaging",
     ],
     extras_require={
         'dev': [
