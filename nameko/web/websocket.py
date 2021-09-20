@@ -3,13 +3,13 @@ import uuid
 from collections import namedtuple
 from functools import partial
 from logging import getLogger
-from packaging import version
 
 import six
+import werkzeug
 from eventlet.event import Event
 from eventlet.websocket import WebSocketWSGI
+from packaging import version
 from werkzeug.routing import Rule
-import werkzeug
 
 from nameko.exceptions import (
     ConnectionNotFound, MalformedRequest, MethodNotFound, serialize
@@ -18,6 +18,7 @@ from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
 )
 from nameko.web.server import WebServer
+
 
 # in version 2.0.0, werkzeug started correctly identifying incoming websocket
 # requests, and only matching them to rules that are marked as being websocket targets.
