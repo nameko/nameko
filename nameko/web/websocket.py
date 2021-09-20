@@ -5,8 +5,10 @@ from functools import partial
 from logging import getLogger
 
 import six
+import werkzeug
 from eventlet.event import Event
 from eventlet.websocket import WebSocketWSGI
+from packaging import version
 from werkzeug.routing import Rule
 
 from nameko.exceptions import (
@@ -16,6 +18,15 @@ from nameko.extensions import (
     DependencyProvider, Entrypoint, ProviderCollector, SharedExtension
 )
 from nameko.web.server import WebServer
+
+
+# in version 2.0.0, werkzeug started correctly identifying incoming websocket
+# requests, and only matching them to rules that are marked as being websocket targets.
+# see https://github.com/pallets/werkzeug/issues/2052.
+# all versions of werkzeug throw a 400 Bad Request error if no rules match, so we need
+# to make the explicit identification of a rule as a websocket target conditional
+# on the version of werkzeug.
+IDENTIFY_WEBSOCKET_RULES = version.parse(werkzeug.__version__) >= version.parse("2.0.0")
 
 
 _log = getLogger(__name__)
@@ -61,7 +72,7 @@ class WebSocketServer(SharedExtension, ProviderCollector):
         })
 
     def get_url_rule(self):
-        return Rule('/ws', methods=['GET'])
+        return Rule('/ws', methods=['GET'], websocket=IDENTIFY_WEBSOCKET_RULES)
 
     def handle_request(self, request):
         context_data = self.wsgi_server.context_data_from_headers(request)
