@@ -1015,3 +1015,10 @@ class TestSSL(object):
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
+
+
+def test_client_amqp_uri():
+    amqp_uri = "spam"
+    client = ClusterRpcClient(uri=amqp_uri)
+    assert client.amqp_uri == amqp_uri
+    assert client.amqp_uri == client.reply_listener.amqp_uri
