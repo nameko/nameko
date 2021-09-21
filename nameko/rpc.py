@@ -6,6 +6,7 @@ import uuid
 from functools import partial
 from logging import getLogger
 
+import eventlet
 import kombu.serialization
 from amqp.exceptions import NotFound
 from eventlet.event import Event
@@ -21,7 +22,7 @@ from nameko.constants import (
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound,
-    ReplyQueueExpiredWithPendingReplies, UnknownService,
+    ReplyQueueExpiredWithPendingReplies, RpcTimeout, UnknownService,
     UnserializableValueError, deserialize, serialize
 )
 from nameko.extensions import (
@@ -368,15 +369,26 @@ class ReplyListener(SharedExtension):
                     )
                 )
 
-    def register_for_reply(self, correlation_id):
+    def register_for_reply(self, correlation_id, timeout=None):
         """ Register an RPC call with the given `correlation_id` for a reply.
 
         Returns a function that can be used to retrieve the reply, blocking
-        until it has been received.
+        until it has been received.  If a timeout is given.
         """
         reply_event = Event()
         self.pending[correlation_id] = reply_event
-        return reply_event.wait
+        timer = TimeoutTimer(timeout)
+
+        def wait_for_reply():
+            with eventlet.Timeout(timer.time_left, exception=False):
+                result = reply_event.wait()
+            if not reply_event.ready():
+                # The event timed out so we want to remove this call and raise.
+                self.pending.pop(correlation_id, None)
+                raise RpcTimeout('Timed out after {} seconds'.format(timeout))
+            return result
+
+        return wait_for_reply
 
     def handle_message(self, body, message):
         self.consumer.ack_message(message)
@@ -390,27 +402,57 @@ class ReplyListener(SharedExtension):
 
 
 class ClusterRpc(DependencyProvider):
-    """ DependencyProvider for injecting an RPC client to a cluster of
+    """DependencyProvider for injecting an RPC client to a cluster of
     services into a service.
 
     :Parameters:
-        **publisher_options
-            Options to configure the :class:`~nameko.amqqp.publish.Publisher`
+        expiration : float
+            Optional number of seconds to allow for message being consumed.
+            If the message was not picked up in this time, the message is
+            deleted by the broker and will never be consumed.  This also means
+            that this call will never receive a reply so `timeout` must be
+            set if this option is used.
+        timeout : float
+            Optional number of seconds to wait for reply.
+            If no reply has been received in this time, an
+            :class:`RpcTimeout` exception is raised.
+        publisher_options : dict
+            Options to configure the :class:`~nameko.amqp.publish.Publisher`
             that sends the message.
+
     """
 
     publisher_cls = Publisher
 
     reply_listener = ReplyListener()
 
-    def __init__(self, **publisher_options):
+    def __init__(self, timeout=None, expiration=None, publisher_options=None,
+                 **publisher_options_kwargs):
+
+        if publisher_options is None:
+            publisher_options = {}
+        else:
+            publisher_options = dict(**publisher_options)
+
+        if publisher_options_kwargs:
+            _log.warning(
+                'passing additional publisher options by kwarg is deprecated, '
+                'use pass a dict using the explicit "publisher_options" '
+                'argument instead.'
+            )
+            publisher_options_kwargs.update(publisher_options)
+            publisher_options = publisher_options_kwargs
 
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
+
         self.publisher_options = publisher_options
 
         default_uri = config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
         self.amqp_uri = self.publisher_options.get('uri', default_uri)
+
+        self.timeout = timeout
+        self.expiration = expiration
 
     def setup(self):
 
@@ -431,6 +473,10 @@ class ClusterRpc(DependencyProvider):
 
         self.publisher_options.pop('uri', None)
 
+        if self.publisher_options.pop('expiration', None):
+            _log.warning('expiration set using publisher_options will be ignored.'
+                         'use the explicit "expiration" argument instead.')
+
         self.publisher = self.publisher_cls(
             self.amqp_uri,
             ssl=ssl,
@@ -438,6 +484,7 @@ class ClusterRpc(DependencyProvider):
             serializer=serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
+            expiration=self.expiration,
             **self.publisher_options
         )
 
@@ -446,7 +493,9 @@ class ClusterRpc(DependencyProvider):
         publish = self.publisher.publish
         register_for_reply = self.reply_listener.register_for_reply
 
-        return Client(publish, register_for_reply, worker_ctx.context_data)
+        return Client(publish, register_for_reply, worker_ctx.context_data,
+                      timeout=self.timeout,
+                      expiration=self.expiration)
 
 
 class ServiceRpc(ClusterRpc):
@@ -504,17 +553,33 @@ class Client(object):
             Optional target service name, if known
         method_name : str
             Optional target method name, if known
+        timeout : float
+            Optional number of seconds to wait for reply.
+            If no reply has been received in this time, an
+            :class:`RpcTimeout` exception is raised.  If `expiration` is given,
+            this option defaults to the value given to `expiration`.
+        expiration : float
+            Optional number of seconds to allow for message being consumed.
+            If the message was not picked up in this time, the message is
+            deleted by the broker and will never be consumed. This also means
+            that this call will never receive a reply so `timeout` must be
+            set if this option is used.
     """
+
+    updatable_options = ('timeout', 'expiration')
 
     def __init__(
         self, publish, register_for_reply, context_data,
-        service_name=None, method_name=None
+        service_name=None, method_name=None,
+        timeout=None, expiration=None
     ):
         self.publish = publish
         self.register_for_reply = register_for_reply
         self.context_data = context_data
         self.service_name = service_name
         self.method_name = method_name
+        self.timeout = timeout
+        self.expiration = expiration
 
     def __getattr__(self, name):
         if self.method_name is not None:
@@ -527,14 +592,9 @@ class Client(object):
             target_service = name
             target_method = None
 
-        clone = Client(
-            self.publish,
-            self.register_for_reply,
-            self.context_data,
-            target_service,
-            target_method
-        )
-        return clone
+        method_client = self._clone(service_name=target_service,
+                                    method_name=target_method)
+        return method_client
 
     @property
     def fully_specified(self):
@@ -561,12 +621,31 @@ class Client(object):
         rpc_call = self._call(*args, **kwargs)
         return rpc_call
 
+    def with_options(self, **options):
+        """Create a new client with modified options."""
+        extra_keys = set(options).difference(self.updatable_options)
+        if extra_keys:
+            raise ValueError(
+                'Given options {} are not available in client update.'
+                .format(extra_keys))
+        return self._clone(**options)
+
     def _call(self, *args, **kwargs):
         if not self.fully_specified:
             raise ValueError(
                 "Cannot call unspecified method {}".format(self.identifier)
             )
 
+        if (
+                self.expiration is not None and
+                self.timeout is None
+        ):
+            # TODO: Figure out how to check this if "expiration" is set on the
+            # publisher itself, which we don't have access to here.
+            raise ValueError(
+                '`expiration` is given. '
+                'An explicit non-null `timeout` argument is required.'
+            )
         _log.debug('invoking %s', self)
 
         # We use the `mandatory` flag in `producer.publish` below to catch rpc
@@ -594,9 +673,10 @@ class Client(object):
 
         send_request = partial(
             self.publish, routing_key=self.identifier, mandatory=True,
-            correlation_id=correlation_id, extra_headers=extra_headers
+            correlation_id=correlation_id, extra_headers=extra_headers,
+            expiration=self.expiration
         )
-        get_response = self.register_for_reply(correlation_id)
+        get_response = self.register_for_reply(correlation_id, timeout=self.timeout)
 
         rpc_call = RpcCall(correlation_id, send_request, get_response)
 
@@ -607,9 +687,23 @@ class Client(object):
 
         return rpc_call
 
+    def _clone(self, **changes):
+        kwargs = dict(
+            publish=self.publish,
+            register_for_reply=self.register_for_reply,
+            context_data=self.context_data,
+            service_name=self.service_name,
+            method_name=self.method_name,
+            timeout=self.timeout,
+            expiration=self.expiration
+        )
+        kwargs.update(**changes)
+        new_client = Client(**kwargs)
+        return new_client
+
 
 class RpcCall(object):
-    """ Encapsulates a single RPC request and response.
+    """Encapsulates a single RPC request and response.
 
     :Parameters:
         correlation_id : str
@@ -618,6 +712,7 @@ class RpcCall(object):
             Function that initiates the request
         get_response : callable
             Function that retrieves the response
+
     """
     _response = None
 
@@ -635,6 +730,9 @@ class RpcCall(object):
     def get_response(self):
         """ Retrieve the response for this RPC call. Blocks if the response
         has not been received.
+
+        Raises an :class:`RcpTimeout` exception if a timeout for
+        the call was given and exceeded.
         """
         if self._response is not None:
             return self._response
@@ -654,6 +752,21 @@ class RpcCall(object):
         if error:
             raise deserialize(error)
         return response['result']
+
+
+class TimeoutTimer(object):
+    """Simple timer class to calculate time left in a timeout."""
+
+    def __init__(self, timeout=None):
+        self.t0 = time.time()
+        self.timeout = timeout
+
+    @property
+    def time_left(self):
+        if self.timeout is not None:
+            return max(self.timeout - (time.time() - self.t0), 0.0)
+        else:
+            return None
 
 
 RpcProxy = ServiceRpc  # backwards compat

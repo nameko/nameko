@@ -497,6 +497,38 @@ def test_async_timeout(container_factory, rabbit_manager):
 
 
 @pytest.mark.usefixtures('rabbit_config')
+def test_timeout_with_multiple_calls(container_factory, rabbit_manager):
+    """Verify that multiple calls with the same client respects the timeout setting
+    and that the timeout is not reset once the first call triggers a timeout.
+
+    """
+    container = container_factory(FooService)
+    container.start()
+
+    with ServiceRpcClient('foobar', timeout=2) as client:
+        sleep_method = client.sleep
+        call1 = sleep_method.call_async(seconds=3.5)
+        call2 = sleep_method.call_async(seconds=3.5)
+
+        # call 1 should take 2s to timeout (+ the max 1s delay in the
+        # consumer). For an explanation for the 1s consumer delay see kombus
+        # :meth:`kombu.mixins.ConsumerMixin.consume` `safety_interval` argument.
+        with eventlet.Timeout(3.1):
+            with pytest.raises(RpcTimeout):
+                call1.result()
+
+        # call 2 should also take 2s (in total) to complete. Given the minimum
+        # of 2s we already waited for call1, call2 should complete right away
+        # (+ the 1s delay of the consumer) later.
+        with eventlet.Timeout(1.1):
+            with pytest.raises(RpcTimeout):
+                call2.result()
+
+        # make sure we can still use the client
+        assert client.sleep(seconds=0) == 0
+
+
+@pytest.mark.usefixtures('rabbit_config')
 def test_use_after_close(container_factory, rabbit_manager):
     container = container_factory(FooService)
     container.start()
@@ -589,10 +621,11 @@ class TestConfigurability(object):
         producer.channel.returned_messages.get_nowait.side_effect = queue.Empty
         return producer
 
+    @pytest.mark.parametrize('use_kwargs', [False, True])
     @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.parametrize("parameter", [
         # delivery options
-        'delivery_mode', 'priority', 'expiration',
+        'delivery_mode', 'priority',
         # message options
         'serializer', 'compression',
         # retry policy
@@ -601,17 +634,32 @@ class TestConfigurability(object):
         'user_id', 'bogus_param'
     ])
     def test_regular_parameters(
-        self, parameter, mock_container, producer
+        self, parameter, mock_container, producer, use_kwargs
     ):
         """ Verify that most parameters can be specified at ServiceRpc
         instantiation time.
         """
         value = Mock()
 
-        rpc_client = ClusterRpcClient(**{parameter: value})
+        if use_kwargs:
+            kwargs = {parameter: value}
+        else:
+            kwargs = {'publisher_options': {parameter: value}}
+
+        rpc_client = ClusterRpcClient(**kwargs)
+
         with rpc_client as client:
             client.service.method.call_async()
         assert producer.publish.call_args[1][parameter] == value
+
+    @patch('nameko.standalone.rpc._logger.warning')
+    def test_ignore_expiration(self, mock_warning):
+        """ Verify that most parameters can be specified at ServiceRpc
+        instantiation time.
+        """
+        ClusterRpcClient(publisher_options={'expiration': 1})
+        assert mock_warning.call_count == 1
+        assert mock_warning.call_args[0][0].startswith('expiration set using') == 1
 
     @pytest.mark.usefixtures("memory_rabbit_config")
     @pytest.mark.usefixtures('predictable_call_ids')

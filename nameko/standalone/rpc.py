@@ -21,7 +21,7 @@ from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
 from nameko.messaging import encode_to_headers
 from nameko.rpc import (
     RESTRICTED_PUBLISHER_OPTIONS, RPC_REPLY_QUEUE_TEMPLATE,
-    RPC_REPLY_QUEUE_TTL, Client, get_rpc_exchange
+    RPC_REPLY_QUEUE_TTL, Client, TimeoutTimer, get_rpc_exchange
 )
 
 
@@ -57,9 +57,8 @@ class ReplyListener(object):
 
     consumer_cls = ReplyConsumer
 
-    def __init__(self, queue, timeout=None, uri=None, ssl=None, **kwargs):
+    def __init__(self, queue, uri=None, ssl=None, **kwargs):
         self.queue = queue
-        self.timeout = timeout
 
         self.amqp_uri = uri or config.get(AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI)
         self.ssl = ssl if ssl is not None else config.get(AMQP_SSL_CONFIG_KEY)
@@ -101,16 +100,21 @@ class ReplyListener(object):
                     )
                 )
 
-    def register_for_reply(self, correlation_id):
+    def register_for_reply(self, correlation_id, timeout=None):
         """ Register an RPC call with the given `correlation_id` for a reply.
 
         Returns a function that can be used to retrieve the reply, blocking
         until it has been received.
         """
         self.pending[correlation_id] = None
-        return lambda: self.consume_reply(correlation_id)
+        timer = TimeoutTimer(timeout)  # start the timer right away
 
-    def consume_reply(self, correlation_id):
+        def wait_for_reply():
+            return self.consume_reply(correlation_id, timeout=timer.time_left)
+
+        return wait_for_reply
+
+    def consume_reply(self, correlation_id, timeout=None):
         """ Consume from the reply queue until the reply for the given
         `correlation_id` is received.
         """
@@ -118,11 +122,21 @@ class ReplyListener(object):
         if self.consumer.should_stop:
             raise RuntimeError("Stopped and can no longer be used")
 
+        timer = TimeoutTimer(timeout)
         while not self.pending.get(correlation_id):
             try:
-                next(self.consumer.consume(timeout=self.timeout))
+                # kombu checks timeout as "truthy" (see
+                # :meth:`kombu.mixins.ConsumerMixin.consume`) so we don't want
+                # to check make sure time_left does not evaluate to 0.
+                if timer.time_left is None:
+                    time_left = None
+                else:
+                    time_left = max(timer.time_left, 0.1)
+                next(self.consumer.consume(timeout=time_left))
             except socket.timeout:
-                raise RpcTimeout()
+                if timer.time_left is not None and timer.time_left <= 0:
+                    raise RpcTimeout('Timed out after {} seconds'.format(timeout))
+                raise  # pragma: no cover  # should never be reached
         return self.pending.pop(correlation_id)
 
     def handle_message(self, body, message):
@@ -184,8 +198,24 @@ class ClusterRpcClient(object):
     publisher_cls = Publisher
 
     def __init__(
-        self, context_data=None, timeout=None, **publisher_options
+        self, context_data=None, timeout=None, expiration=None,
+            publisher_options=None,
+            **publisher_options_kwargs
     ):
+        if publisher_options is None:
+            publisher_options = {}
+        else:
+            publisher_options = dict(**publisher_options)
+
+        if publisher_options_kwargs:
+            _logger.warning(
+                'passing additional publisher options by kwarg is deprecated, '
+                'use pass a dict using the explicit "publisher_options" '
+                'argument instead.'
+            )
+            publisher_options_kwargs.update(publisher_options)
+            publisher_options = publisher_options_kwargs
+
         self.uuid = str(uuid.uuid4())
 
         exchange = get_rpc_exchange()
@@ -209,7 +239,7 @@ class ClusterRpcClient(object):
             'ssl', config.get(AMQP_SSL_CONFIG_KEY)
         )
 
-        self.reply_listener = ReplyListener(queue, timeout=timeout)
+        self.reply_listener = ReplyListener(queue)
 
         serialization_config = serialization.setup()
         self.serializer = publisher_options.pop(
@@ -219,6 +249,12 @@ class ClusterRpcClient(object):
         for option in RESTRICTED_PUBLISHER_OPTIONS:
             publisher_options.pop(option, None)
 
+        if publisher_options.pop('expiration', None):
+            _logger.warning(
+                'expiration set using publisher_options '
+                'will be ignored.'
+                'use the explicit "expiration" argument instead.')
+
         publisher = self.publisher_cls(
             self.amqp_uri,
             ssl=self.ssl,
@@ -226,6 +262,7 @@ class ClusterRpcClient(object):
             serializer=self.serializer,
             declare=[self.reply_listener.queue],
             reply_to=self.reply_listener.queue.routing_key,
+            expiration=expiration,
             **publisher_options
         )
 
@@ -240,13 +277,15 @@ class ClusterRpcClient(object):
             extra_headers = kwargs.pop('extra_headers')
             extra_headers.update(encode_to_headers(context_data))
 
-            publisher.publish(
-                *args, extra_headers=extra_headers, **kwargs
-            )
+            publisher.publish(*args, extra_headers=extra_headers, **kwargs)
 
         get_reply = self.reply_listener.register_for_reply
 
-        self.client = Client(publish, get_reply, context_data)
+        self.client = Client(
+            publish, get_reply, context_data,
+            timeout=timeout,
+            expiration=expiration
+        )
 
     def __enter__(self):
         return self.start()
