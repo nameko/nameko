@@ -110,7 +110,7 @@ def env_var_constructor(loader, node, raw=False):
         raw_value
     ):  # pragma: no cover
         raise ConfigurationError(
-            "Recursive environment variable lookup requires the `regex` module"
+            "Nested environment variable lookup requires the `regex` module"
         )
     value = ENV_VAR_MATCHER.sub(_replace_env_var, raw_value)
     if value == raw_value:
