@@ -401,7 +401,10 @@ class TestConfigEnvironmentVariables(object):
             ),
         ],
     )
-    def test_detect_recursion(
+    @pytest.mark.skipif(
+        has_regex_module, reason="nested env vars are supported if regex installed"
+    )
+    def test_detect_nested_env_vars(
         self, yaml_config, should_match
     ):
         setup_yaml_parser()
@@ -469,4 +472,4 @@ class TestConfigEnvironmentVariables(object):
             else:  # pragma: no cover
                 with pytest.raises(ConfigurationError) as exc:
                     yaml.safe_load(yaml_config)
-                assert "Recursive environment variable lookup" in str(exc.value)
+                assert "Nested environment variable lookup" in str(exc.value)
