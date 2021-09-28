@@ -16,6 +16,7 @@ from . import commands
 try:
     import regex
 except ImportError:  # pragma: no cover
+    has_regex_module = False
     ENV_VAR_MATCHER = re.compile(
         r"""
             \$\{       # match characters `${` literally
@@ -26,6 +27,7 @@ except ImportError:  # pragma: no cover
         """, re.VERBOSE
     )
 else:  # pragma: no cover
+    has_regex_module = True
     ENV_VAR_MATCHER = regex.compile(
         r"""
         \$\{                #  match ${
@@ -56,6 +58,18 @@ IMPLICIT_ENV_VAR_MATCHER = re.compile(
                     # between `${` and `}` literally
         .*          # matches any number of any characters
     """, re.VERBOSE
+)
+
+
+RECURSIVE_ENV_VAR_MATCHER = re.compile(
+    r"""
+        \$\{       # match characters `${` literally
+        ([^}]+)?   # matches any character except `}`
+        \}         # match character `}` literally
+        ([^$}]+)?  # matches any character except `}` or `$`
+        \}         # match character `}` literally
+    """,
+    re.VERBOSE,
 )
 
 
@@ -95,6 +109,14 @@ def _replace_env_var(match):
 
 def env_var_constructor(loader, node, raw=False):
     raw_value = loader.construct_scalar(node)
+
+    # detect and error on recursive environment variables
+    if not has_regex_module and RECURSIVE_ENV_VAR_MATCHER.match(
+        raw_value
+    ):  # pragma: no cover
+        raise ConfigurationError(
+            "Nested environment variable lookup requires the `regex` module"
+        )
     value = ENV_VAR_MATCHER.sub(_replace_env_var, raw_value)
     if value == raw_value:
         return value  # avoid recursion
