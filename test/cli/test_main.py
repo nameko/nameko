@@ -406,7 +406,7 @@ class TestConfigEnvironmentVariables(object):
     )
     def test_detect_nested_env_vars(
         self, yaml_config, should_match
-    ):
+    ):  # pragma: no cover
         setup_yaml_parser()
 
         if should_match:
