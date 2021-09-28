@@ -310,10 +310,7 @@ class TestConfigEnvironmentVariables(object):
     ):
         setup_yaml_parser()
 
-        with patch.dict('os.environ'):
-            for key, val in env_vars.items():
-                os.environ[key] = val
-
+        with patch.dict(os.environ, env_vars):
             results = yaml.safe_load(yaml_config)
             assert results == expected_config
 
@@ -329,9 +326,7 @@ class TestConfigEnvironmentVariables(object):
                 - 3
         """
 
-        with patch.dict('os.environ'):
-            os.environ["VAR1"] = "${VAR1}"
-
+        with patch.dict(os.environ, {"VAR1": "${VAR1}"}):
             results = yaml.safe_load(yaml_config)
             assert results == {'FOO': "${VAR1}", 'BAR': [1, 2, 3]}
 
@@ -385,10 +380,7 @@ class TestConfigEnvironmentVariables(object):
     ):  # pragma: no cover
         setup_yaml_parser()
 
-        with patch.dict('os.environ'):
-            for key, val in env_vars.items():
-                os.environ[key] = val
-
+        with patch.dict(os.environ, env_vars):
             results = yaml.safe_load(yaml_config)
             assert results == expected_config
 
@@ -426,8 +418,6 @@ class TestConfigEnvironmentVariables(object):
     ):  # pragma: no cover
         setup_yaml_parser()
 
-        with patch.dict('os.environ'):
-            for key, val in env_vars.items():
-                os.environ[key] = val
+        with patch.dict(os.environ, env_vars):
             results = yaml.safe_load(yaml_config)
             assert results == expected_config
