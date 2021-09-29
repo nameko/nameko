@@ -90,7 +90,7 @@ class ReplyListener(object):
     def stop(self):
         self.consumer.stop()
 
-    @retry(for_exceptions=OSError, delay=0)
+    @retry(for_exceptions=(IOError, OSError), delay=0)
     def check_for_lost_replies(self):
         if self.pending:
             try:
