@@ -23,6 +23,7 @@ from nameko.rpc import (
     RESTRICTED_PUBLISHER_OPTIONS, RPC_REPLY_QUEUE_TEMPLATE,
     RPC_REPLY_QUEUE_TTL, Client, get_rpc_exchange
 )
+from nameko.utils.retry import retry
 
 
 _logger = logging.getLogger(__name__)
@@ -89,6 +90,7 @@ class ReplyListener(object):
     def stop(self):
         self.consumer.stop()
 
+    @retry(for_exceptions=OSError, delay=0)
     def check_for_lost_replies(self):
         if self.pending:
             try:
