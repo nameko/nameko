@@ -22,11 +22,13 @@ import yaml
 
 from nameko import config
 from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.exceptions import ConfigurationError
 
 
 try:
     import regex
 except ImportError:  # pragma: no cover
+    has_regex_module = False
     ENV_VAR_MATCHER = re.compile(
         r"""
             \$\{       # match characters `${` literally
@@ -38,6 +40,7 @@ except ImportError:  # pragma: no cover
         re.VERBOSE,
     )
 else:  # pragma: no cover
+    has_regex_module = True
     ENV_VAR_MATCHER = regex.compile(
         r"""
         \$\{                #  match ${
@@ -71,6 +74,17 @@ IMPLICIT_ENV_VAR_MATCHER = re.compile(
     re.VERBOSE,
 )
 
+RECURSIVE_ENV_VAR_MATCHER = re.compile(
+    r"""
+        \$\{       # match characters `${` literally
+        ([^}]+)?   # matches any character except `}`
+        \}         # match character `}` literally
+        ([^$}]+)?  # matches any character except `}` or `$`
+        \}         # match character `}` literally
+    """,
+    re.VERBOSE,
+)
+
 
 def _replace_env_var(match):
     env_var, default = match.groups()
@@ -90,23 +104,33 @@ def _replace_env_var(match):
 
 def env_var_constructor(loader, node, raw=False):
     raw_value = loader.construct_scalar(node)
+
+    # detect and error on recursive environment variables
+    if not has_regex_module and RECURSIVE_ENV_VAR_MATCHER.match(
+        raw_value
+    ):  # pragma: no cover
+        raise ConfigurationError(
+            "Nested environment variable lookup requires the `regex` module"
+        )
     value = ENV_VAR_MATCHER.sub(_replace_env_var, raw_value)
+    if value == raw_value:
+        return value  # avoid recursion
     return value if raw else yaml.safe_load(value)
 
 
 def setup_yaml_parser():
-    yaml.add_constructor("!env_var", env_var_constructor, yaml.UnsafeLoader)
+    yaml.add_constructor("!env_var", env_var_constructor, yaml.SafeLoader)
     yaml.add_constructor(
-        "!raw_env_var", partial(env_var_constructor, raw=True), yaml.UnsafeLoader
+        "!raw_env_var", partial(env_var_constructor, raw=True), yaml.SafeLoader
     )
     yaml.add_implicit_resolver(
-        "!env_var", IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.UnsafeLoader
+        "!env_var", IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.SafeLoader
     )
 
 
 def load_config(config_file):
     setup_yaml_parser()
-    return yaml.unsafe_load(config_file)
+    return yaml.safe_load(config_file)
 
 
 def setup_config(config_file, define=None, broker=None):

@@ -145,6 +145,7 @@ class TestConfigEnvironmentParser(object):
 
 
 class TestConfigEnvironmentVariables(object):
+
     @pytest.mark.parametrize(
         ("yaml_config", "env_vars", "expected_config"),
         [
@@ -339,11 +340,8 @@ class TestConfigEnvironmentVariables(object):
     def test_environment_vars_in_config(self, yaml_config, env_vars, expected_config):
         setup_yaml_parser()
 
-        with patch.dict("os.environ"):
-            for key, val in env_vars.items():
-                os.environ[key] = val
-
-            results = yaml.unsafe_load(yaml_config)
+        with patch.dict(os.environ, env_vars):
+            results = yaml.safe_load(yaml_config)
             assert results == expected_config
 
     def test_cannot_recurse(self):
@@ -358,11 +356,94 @@ class TestConfigEnvironmentVariables(object):
                 - 3
         """
 
-        with patch.dict("os.environ"):
-            os.environ["VAR1"] = "${VAR1}"
-
-            results = yaml.unsafe_load(yaml_config)
+        with patch.dict(os.environ, {"VAR1": "${VAR1}"}):
+            results = yaml.safe_load(yaml_config)
             assert results == {"FOO": "${VAR1}", "BAR": [1, 2, 3]}
+
+    @pytest.mark.parametrize(
+        ("yaml_config", "should_match"),
+        [
+            # no recursion
+            (
+                """
+                FOO: ${FOO:foo}
+                """,
+                False
+            ),
+            # no recursion, multiple entries
+            (
+                """
+                FOO: ${FOO:foo}-${BAR:bar}
+                """,
+                False
+            ),
+            # no recursion, multiple lines
+            (
+                """
+                FOO: ${FOO:foo}
+                BAR: ${BAR:bar}
+                """,
+                False
+            ),
+            # no recursion, multiple entries containing $
+            (
+                """
+                FOO: ${FOO:$123}-${BAR:bar}
+                """,
+                False
+            ),
+            # recursive with default
+            (
+                """
+                FOO: ${FOO:val_${INDICE:1}}
+                BAR: bar
+                """,
+                True
+            ),
+            # recursive with default containing $
+            (
+                """
+                FOO: ${FOO:val_${INDICE:$1}}
+                BAR: bar
+                """,
+                True
+            ),
+            # recursive without default
+            (
+                """
+                FOO: ${FOO:val_${INDICE}}
+                """,
+                True
+            ),
+            # recursive containing $
+            (
+                """
+                FOO: ${FOO:val_${IN$ICE}}
+                """,
+                True
+            ),
+            # default data with bracket
+            (
+                """
+                FOO: ${FOO:"{name} {age}"}
+                """,
+                True
+            ),
+        ],
+    )
+    @pytest.mark.skipif(
+        has_regex_module, reason="nested env vars are supported if regex installed"
+    )
+    def test_detect_nested_env_vars(
+        self, yaml_config, should_match
+    ):  # pragma: no cover
+        setup_yaml_parser()
+
+        if should_match:
+            with pytest.raises(ConfigurationError):
+                yaml.safe_load(yaml_config)
+        else:
+            assert yaml.safe_load(yaml_config)
 
     @pytest.mark.parametrize(
         ("yaml_config", "env_vars", "expected_config"),
@@ -409,58 +490,16 @@ class TestConfigEnvironmentVariables(object):
             ),
         ],
     )
-    @pytest.mark.skipif(
-        not has_regex_module, reason="0 support for nested env without regex module"
-    )
     def test_environment_vars_recursive_in_config(
         self, yaml_config, env_vars, expected_config
-    ):  # pragma: no cover
+    ):
         setup_yaml_parser()
 
-        with patch.dict("os.environ"):
-            for key, val in env_vars.items():
-                os.environ[key] = val
-
-            results = yaml.unsafe_load(yaml_config)
-            assert results == expected_config
-
-    @pytest.mark.parametrize(
-        ("yaml_config", "env_vars", "expected_config"),
-        [
-            # recursive env with root value
-            (
-                """
-            FOO: ${FOO:val_${INDICE:1}}
-            """,
-                {"FOO": "val_a"},
-                {"FOO": "val_a}"},
-            ),
-            # recursive env with root default and sub value
-            (
-                """
-            FOO: ${FOO:val_${INDICE:1}}
-            """,
-                {"INDICE": "b"},
-                {"FOO": "val_${INDICE:1}"},
-            ),
-            # recursive env requiring data
-            (
-                """
-            FOO: ${FOO:${INDICE}_val}
-            """,
-                {"INDICE": "b"},
-                {"FOO": "${INDICE_val}"},
-            ),
-        ],
-    )
-    @pytest.mark.skipif(has_regex_module, reason="default behavior if no regex module")
-    def test_unhandled_recursion(
-        self, yaml_config, env_vars, expected_config
-    ):  # pragma: no cover
-        setup_yaml_parser()
-
-        with patch.dict("os.environ"):
-            for key, val in env_vars.items():
-                os.environ[key] = val
-            results = yaml.unsafe_load(yaml_config)
-            assert results == expected_config
+        with patch.dict(os.environ, env_vars):
+            if has_regex_module:  # pragma: no cover
+                results = yaml.safe_load(yaml_config)
+                assert results == expected_config
+            else:  # pragma: no cover
+                with pytest.raises(ConfigurationError) as exc:
+                    yaml.safe_load(yaml_config)
+                assert "Nested environment variable lookup" in str(exc.value)
