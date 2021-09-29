@@ -209,7 +209,9 @@ class ClusterRpcClient(object):
             'ssl', config.get(AMQP_SSL_CONFIG_KEY)
         )
 
-        self.reply_listener = ReplyListener(queue, timeout=timeout, uri=self.amqp_uri, ssl=self.ssl)
+        self.reply_listener = ReplyListener(
+            queue, timeout=timeout, uri=self.amqp_uri, ssl=self.ssl
+        )
 
         serialization_config = serialization.setup()
         self.serializer = publisher_options.pop(
