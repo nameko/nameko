@@ -20,7 +20,7 @@ imports:
 	isort -rc $(autofix) nameko test
 
 test_lib:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage run -m pytest test --strict --timeout 30
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage run -m pytest test -v --strict --timeout 30
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage report
 
 test_examples:

@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 import pytest
-import six
 
 from nameko import config
 
@@ -119,10 +118,11 @@ def rabbit_manager(request):
 
 @pytest.yield_fixture(scope='session')
 def vhost_pipeline(request, rabbit_manager):
-    if six.PY2:  # pragma: no cover
+    try:
+        from collections.abc import Iterable
+    except ImportError:  # pragma: no cover
+        # py2 compatibility
         from collections import Iterable  # pylint: disable=E0611
-    else:  # pragma: no cover
-        from collections.abc import Iterable  # pylint: disable=E0611,E0401
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
     import string
