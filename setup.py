@@ -24,7 +24,7 @@ setup(
         "dnspython<2",
         "eventlet>=0.20.1",
         "eventlet>=0.21.0 ; python_version>='3.6'",
-        "eventlet>=0.25.0 ; python_version>='3.8'",
+        "eventlet>=0.25.0 ; python_version>='3.7'",
         "kombu>=4.2.0,<5",
         "mock>=1.2",
         "path.py>=6.2",
