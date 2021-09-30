@@ -161,7 +161,7 @@ class PollingQueueConsumer(object):
             # fires the connection is closed and must be re-established
             self._setup_consumer()
 
-        except (IOError, ConnectionError) as exc:
+        except (IOError, ConnectionError):
             # in case this was a temporary error, attempt to reconnect
             # and try again. if we fail to reconnect, the error will bubble
             self._setup_consumer()

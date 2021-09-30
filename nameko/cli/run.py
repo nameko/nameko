@@ -155,7 +155,7 @@ def run(services, config, backdoor_port=None):
                 service_runner.kill()
         else:
             # runner.wait completed
-            break
+            break  # pragma: no cover (coverage problem on py39)
 
 
 def main(args):
