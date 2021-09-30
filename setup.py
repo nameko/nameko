@@ -35,13 +35,9 @@ setup(
     ],
     extras_require={
         'dev': [
-            "astroid==1.6.5",
             "coverage==4.5.1",
-            "flake8==3.3.0",
+            "flake8==3.9.2",
             "isort==4.2.15",
-            "mccabe==0.6.1",
-            "pycodestyle==2.3.1",
-            "pyflakes==1.5.0",
             "pylint==1.7.1",
             "pytest==4.3.1",
             "pytest-cov==2.5.1",
