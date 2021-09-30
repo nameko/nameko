@@ -35,7 +35,7 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==4.5.1",
+            "coverage==5.5",
             "flake8==3.9.2",
             "isort==4.2.15",
             "pylint==1.9.5 ; python_version<'3'",
