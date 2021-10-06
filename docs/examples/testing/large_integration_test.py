@@ -245,7 +245,7 @@ class PaymentService:
 # =============================================================================
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def rpc_proxy_factory(rabbit_config):
     """ Factory fixture for standalone RPC proxies.
 

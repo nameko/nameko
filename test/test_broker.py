@@ -23,7 +23,7 @@ handle_called = Mock()
 long_called = Event()
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def reset():
     yield
     method_called.reset_mock()
@@ -33,7 +33,7 @@ def reset():
             event.reset()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def logger():
     with patch('nameko.rpc._log', autospec=True) as patched:
         yield patched

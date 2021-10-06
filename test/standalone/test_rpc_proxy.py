@@ -278,7 +278,7 @@ def test_multiple_calls_to_result(container_factory, rabbit_config):
 @skip_if_no_toxiproxy
 class TestDisconnectWithPendingReply(object):
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def toxic_rpc_proxy(self, rabbit_config, toxiproxy):
         rabbit_config['AMQP_URI'] = toxiproxy.uri
         with ClusterRpcProxy(rabbit_config) as proxy:
@@ -613,7 +613,7 @@ class TestStandaloneProxyDisconnections(object):
         container = container_factory(Service, config)
         container.start()
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def retry(self, request):
         retry = False
         if "publish_retry" in request.keywords:
@@ -622,19 +622,19 @@ class TestStandaloneProxyDisconnections(object):
         with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
             yield
 
-    @pytest.yield_fixture(params=[True, False])
+    @pytest.fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
             MethodProxy.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
         with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def service_rpc(self, rabbit_config):
         with ServiceRpcProxy("service", rabbit_config) as proxy:
             yield proxy
@@ -737,7 +737,7 @@ class TestStandaloneProxyConsumerDisconnections(object):
         container = container_factory(Service, config)
         container.start()
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def non_toxic_rpc_proxy(self, rabbit_config):
         """ Fix the AMQP URI passes to the publisher so we're only testing
         the effect of the broken connection on the consumer.
@@ -746,7 +746,7 @@ class TestStandaloneProxyConsumerDisconnections(object):
         with patch.object(MethodProxy, 'amqp_uri', new=amqp_uri):
             yield
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def service_rpc(self, toxiproxy, rabbit_config):
 
         config = rabbit_config.copy()

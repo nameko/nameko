@@ -21,7 +21,7 @@ from nameko.testing.utils import DummyProvider, unpack_mock_call
 EVENTS_TIMEOUT = 5
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def queue_consumer():
     replacement = create_autospec(QueueConsumer)
     with patch.object(QueueConsumer, 'bind') as mock_ext:
@@ -197,7 +197,7 @@ services = defaultdict(list)
 events = []
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def reset_state():
     yield
     services.clear()
@@ -723,7 +723,7 @@ class TestConfigurability(object):
     Test and demonstrate configuration options for the EventDispatcher
     """
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def get_producer(self):
         with patch('nameko.amqp.publish.get_producer') as get_producer:
             yield get_producer

@@ -20,7 +20,7 @@ else:  # pragma: no cover
     has_regex_module = True
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def fake_argv():
     with patch.object(
         sys,
