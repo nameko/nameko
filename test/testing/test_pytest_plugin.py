@@ -1,6 +1,6 @@
-from functools import partial
 import socket
 import time
+from functools import partial
 
 import pytest
 from six.moves import queue
@@ -134,7 +134,6 @@ class TestMonkeyPatchWarning:
         # disable pytest-eventlet to disable monkeypatch.
         # requires running as subprocess
         return partial(testdir.runpytest_subprocess, "-p", "no:pytest_eventlet")
-
 
     @pytest.mark.parametrize("suppress_warning", [True, False])
     def test_warning(self, suppress_warning, testdir, pytest_without_monkeypatch):
