@@ -42,7 +42,7 @@ setup(
             "isort==4.2.15",
             "pylint==1.9.5 ; python_version<'3'",
             "pylint==2.11.1 ; python_version>'3'",
-            "pytest==4.3.1",
+            "pytest==6.2.5",
             "pytest-cov==2.5.1",
             "pytest-timeout==1.3.3",
             "requests==2.19.1",
