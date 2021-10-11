@@ -79,7 +79,9 @@ class EventDispatcher(Publisher):
     """
 
     def setup(self):
-        self.exchange = get_event_exchange(self.container.service_name)
+        self.exchange = get_event_exchange(
+            self.container.service_name, self.container.config
+        )
         self.declare.append(self.exchange)
         super(EventDispatcher, self).setup()
 

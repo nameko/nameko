@@ -29,8 +29,37 @@ def queue_consumer():
         yield replacement
 
 
-def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
+@pytest.mark.parametrize(
+    "config,expected_no_declare",
+    [
+        ({'DECLARE_EVENT_EXCHANGES': True}, False),
+        ({'DECLARE_EVENT_EXCHANGES': False}, True),
+        ({'DECLARE_EVENT_EXCHANGES': None}, True),
+        ({}, False)
+    ]
+)
+def test_auto_declaration(config, expected_no_declare):
+    service_name = "example"
+    exchange = get_event_exchange(service_name, config)
+    assert exchange.no_declare is expected_no_declare
 
+
+@pytest.mark.parametrize(
+    "config,expected_auto_delete",
+    [
+        ({'AUTO_DELETE_EVENT_EXCHANGES': True}, True),
+        ({'AUTO_DELETE_EVENT_EXCHANGES': False}, False),
+        ({'AUTO_DELETE_EVENT_EXCHANGES': None}, False),
+        ({}, False)
+    ]
+)
+def test_auto_delete(config, expected_auto_delete):
+    service_name = "example"
+    exchange = get_event_exchange(service_name, config)
+    assert exchange.auto_delete is expected_auto_delete
+
+
+def test_event_dispatcher(mock_container, mock_producer, rabbit_config):
     container = mock_container
     container.config = rabbit_config
     container.service_name = "srcservice"
@@ -832,7 +861,7 @@ class TestConfigurability(object):
 
         dispatch = dispatcher.get_dependency(worker_ctx)
 
-        event_exchange = get_event_exchange("service")
+        event_exchange = get_event_exchange("service", config={})
         event_type = "event-type"
 
         dispatch(event_type, "event-data")
