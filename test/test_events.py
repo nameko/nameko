@@ -29,6 +29,15 @@ from nameko.utils.retry import retry
 EVENTS_TIMEOUT = 5
 
 
+@pytest.mark.parametrize("declare_exchange", [True, False])
+def test_auto_declaration(declare_exchange):
+
+    with config.patch({'DECLARE_EVENT_EXCHANGES': declare_exchange}):
+        service_name = "example"
+        exchange = get_event_exchange(service_name)
+        assert exchange.no_declare is (not declare_exchange)
+
+
 def test_event_dispatcher(mock_container, mock_producer):
 
     container = mock_container
