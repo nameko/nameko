@@ -50,7 +50,6 @@ setup(
             "requests==2.19.1",
             "urllib3==1.23",
             "websocket-client==0.48.0",
-            "pytest-eventlet==1.0.0"
         ],
         'docs': [
             "pyenchant==1.6.11",
@@ -65,9 +64,6 @@ setup(
             "bcrypt==3.1.3",
             "regex==2018.2.21"
         ],
-        'testing': [
-            "pytest-eventlet==1.0.0"
-        ]
     },
     entry_points={
         'console_scripts': [
