@@ -1,8 +1,5 @@
 from __future__ import print_function
 
-import eventlet
-eventlet.monkey_patch()  # noqa (code before rest of imports)
-
 import errno
 import inspect
 import logging
@@ -14,6 +11,7 @@ import sys
 
 import six
 import yaml
+import eventlet
 from eventlet import backdoor
 
 from nameko.constants import AMQP_URI_CONFIG_KEY

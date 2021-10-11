@@ -137,9 +137,9 @@ def setup_yaml_parser():
 
 def main():
     parser = setup_parser()
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()
     setup_yaml_parser()
     try:
-        args.main(args)
+        args.main(args, *unknown_args)
     except (CommandError, ConfigurationError) as exc:
         print("Error: {}".format(exc))
