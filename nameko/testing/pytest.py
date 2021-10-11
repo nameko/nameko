@@ -101,11 +101,18 @@ def pytest_sessionstart(session):
             import warnings
 
             warnings.warn(
-                "For versions after 2.13.0, Nameko's pytest plugin no longer applies "
-                "the eventlet monkeypatch automatically. You can install the dedicated "
-                "pytest-eventlet plugin for this purpose, or apply the monkeypatch "
-                "manually in your conftest.py file. This warning can be suppressed "
-                "with the --suppress-nameko-eventlet-notification pytest option."
+                "For versions after 2.13.0, it is recommended to use the `nameko test` "
+                "cli command. Nameko's pytest plugin no longer applies the eventlet "
+                "monkeypatch as a pytest hook. This was removed to prevent polluting "
+                "the environment in case a monkeypatch was not desired. "
+                "\n"
+                "If you need to invoke pytest directly instead of using `nameko test`, "
+                "you can install the pytest-eventlet plugin, which just performs the "
+                "automatic monkeypatching that was removed from Nameko. Alternatively "
+                "you can apply the monkeypatch manually in your conftest.py file."
+                "\n"
+                "This warning can be suppressed with the "
+                "--suppress-nameko-eventlet-notification pytest option."
             )
 
 
