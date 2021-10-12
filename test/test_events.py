@@ -29,13 +29,34 @@ from nameko.utils.retry import retry
 EVENTS_TIMEOUT = 5
 
 
-@pytest.mark.parametrize("declare_exchange", [True, False])
-def test_auto_declaration(declare_exchange):
+@pytest.mark.parametrize(
+    "config,expected_no_declare",
+    [
+        ({'DECLARE_EVENT_EXCHANGES': True}, False),
+        ({'DECLARE_EVENT_EXCHANGES': False}, True),
+        ({'DECLARE_EVENT_EXCHANGES': None}, True),
+        ({}, False)
+    ]
+)
+def test_auto_declaration(config, expected_no_declare):
+    service_name = "example"
+    exchange = get_event_exchange(service_name, config)
+    assert exchange.no_declare is expected_no_declare
 
-    with config.patch({'DECLARE_EVENT_EXCHANGES': declare_exchange}):
-        service_name = "example"
-        exchange = get_event_exchange(service_name)
-        assert exchange.no_declare is (not declare_exchange)
+
+@pytest.mark.parametrize(
+    "config,expected_auto_delete",
+    [
+        ({'AUTO_DELETE_EVENT_EXCHANGES': True}, True),
+        ({'AUTO_DELETE_EVENT_EXCHANGES': False}, False),
+        ({'AUTO_DELETE_EVENT_EXCHANGES': None}, False),
+        ({}, False)
+    ]
+)
+def test_auto_delete(config, expected_auto_delete):
+    service_name = "example"
+    exchange = get_event_exchange(service_name, config)
+    assert exchange.auto_delete is expected_auto_delete
 
 
 def test_event_dispatcher(mock_container, mock_producer):

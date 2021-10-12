@@ -10,7 +10,8 @@ from nameko.constants import (
 def get_event_exchange(service_name):
     """ Get an exchange for ``service_name`` events.
     """
-    disable_exchange_declaration = not config.get("DECLARE_EVENT_EXCHANGES")
+    auto_delete = config.get("AUTO_DELETE_EVENT_EXCHANGES")
+    disable_exchange_declaration = not config.get("DECLARE_EVENT_EXCHANGES", True)
 
     exchange_name = "{}.events".format(service_name)
     exchange = Exchange(
@@ -18,6 +19,7 @@ def get_event_exchange(service_name):
         type='topic',
         durable=True,
         delivery_mode=PERSISTENT,
+        auto_delete=auto_delete,
         no_declare=disable_exchange_declaration,
     )
 
