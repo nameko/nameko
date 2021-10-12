@@ -245,7 +245,7 @@ class EventHandler(Consumer):
                                                       self.method_name,
                                                       broadcast_identifier)
 
-        exchange = get_event_exchange(self.source_service)
+        exchange = get_event_exchange(self.source_service, self.container.config)
 
         # queues for handlers without reliable delivery should be marked as
         # auto-delete so they're removed when the consumer disconnects

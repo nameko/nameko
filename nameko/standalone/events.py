@@ -45,7 +45,7 @@ def event_dispatcher(nameko_config, **kwargs):
         """ Dispatch an event claiming to originate from `service_name` with
         the given `event_type` and `event_data`.
         """
-        exchange = get_event_exchange(service_name)
+        exchange = get_event_exchange(service_name, nameko_config)
 
         publisher.publish(
             event_data,
