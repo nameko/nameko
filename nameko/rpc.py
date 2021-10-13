@@ -127,7 +127,9 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
         login_method = self.container.config.get(LOGIN_METHOD_CONFIG_KEY)
 
-        responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl, login_method=login_method)
+        responder = Responder(
+            amqp_uri, exchange, serializer, message, ssl=ssl, login_method=login_method
+        )
         result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
@@ -217,7 +219,9 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.publisher_cls(self.amqp_uri, ssl=self.ssl, login_method= self.login_method)
+        publisher = self.publisher_cls(
+            self.amqp_uri, ssl=self.ssl, login_method=self.login_method
+        )
 
         publisher.publish(
             payload,
@@ -367,7 +371,8 @@ class MethodProxy(HeaderEncoder):
         serializer = options.pop('serializer', self.serializer)
 
         self.publisher = self.publisher_cls(
-            self.amqp_uri, serializer=serializer, ssl=self.ssl, login_method=self.login_method, **options
+            self.amqp_uri, serializer=serializer, ssl=self.ssl,
+            login_method=self.login_method, **options
         )
 
     def __call__(self, *args, **kwargs):

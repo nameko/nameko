@@ -20,18 +20,26 @@ class UndeliverableMessage(Exception):
 def get_connection(amqp_uri, ssl=None, login_method=None, transport_options=None):
     if not transport_options:
         transport_options = DEFAULT_TRANSPORT_OPTIONS.copy()
-    conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl, login_method=login_method)
+    conn = Connection(
+        amqp_uri, transport_options=transport_options, ssl=ssl,
+        login_method=login_method
+    )
 
     with connections[conn].acquire(block=True) as connection:
         yield connection
 
 
 @contextmanager
-def get_producer(amqp_uri, confirms=True, ssl=None, login_method=None, transport_options=None):
+def get_producer(
+    amqp_uri, confirms=True, ssl=None, login_method=None, transport_options=None
+):
     if transport_options is None:
         transport_options = DEFAULT_TRANSPORT_OPTIONS.copy()
     transport_options['confirm_publish'] = confirms
-    conn = Connection(amqp_uri, transport_options=transport_options, ssl=ssl, login_method=login_method)
+    conn = Connection(
+        amqp_uri, transport_options=transport_options, ssl=ssl,
+        login_method=login_method
+    )
 
     with producers[conn].acquire(block=True) as producer:
         yield producer
@@ -120,7 +128,8 @@ class Publisher(object):
     def __init__(
         self, amqp_uri, use_confirms=None, serializer=None, compression=None,
         delivery_mode=None, mandatory=None, priority=None, expiration=None,
-        declare=None, retry=None, retry_policy=None, ssl=None, login_method=None, **publish_kwargs
+        declare=None, retry=None, retry_policy=None, ssl=None, login_method=None,
+        **publish_kwargs
     ):
         self.amqp_uri = amqp_uri
         self.ssl = ssl
