@@ -14,7 +14,7 @@ class Command(object):
         raise NotImplementedError  # pragma: no cover
 
     @staticmethod
-    def main(args):
+    def main(args, *unknown_args):
         # import inline to avoid triggering imports from other subcommands
         raise NotImplementedError  # pragma: no cover
 
@@ -41,7 +41,7 @@ class Backdoor(Command):
         return parser
 
     @staticmethod
-    def main(args):
+    def main(args, *unknown_args):
         from .backdoor import main
         main(args)
 
@@ -66,7 +66,7 @@ class ShowConfig(Command):
         return parser
 
     @staticmethod
-    def main(args):
+    def main(args, *unknown_args):
         from .show_config import main
         main(args)
 
@@ -105,7 +105,10 @@ class Run(Command):
         return parser
 
     @staticmethod
-    def main(args):
+    def main(args, *unknown_args):
+        import eventlet
+        eventlet.monkey_patch()  # noqa (code before imports)
+
         from .run import main
         main(args)
 
@@ -138,9 +141,25 @@ class Shell(Command):
         return parser
 
     @staticmethod
-    def main(args):
+    def main(args, *unknown_args):
         from .shell import main
         main(args)
+
+
+class Test(Command):
+    name = "test"
+
+    @staticmethod
+    def init_parser(parser):
+        return parser
+
+    @staticmethod
+    def main(args, *unknown_args):
+        import eventlet
+        eventlet.monkey_patch()  # noqa (code before imports)
+
+        import pytest
+        pytest.main(list(unknown_args))
 
 
 commands = Command.__subclasses__()  # pylint: disable=E1101
