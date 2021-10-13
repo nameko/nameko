@@ -56,6 +56,8 @@ positional arguments:
 
         python path to one or more service classes to run
     """
+    import eventlet
+    eventlet.monkey_patch()  # noqa (code before rest of imports)
 
     from .run import main
 
@@ -82,3 +84,14 @@ def shell(broker, interface, config_file, define):
 
     setup_config(config_file, define, broker)
     main(interface)
+
+
+# nameko test
+@cli.command(context_settings={"ignore_unknown_options": True})
+@click.argument('args', nargs=-1)
+def test(args):
+    import eventlet
+    eventlet.monkey_patch()  # noqa (code before rest of imports)
+
+    import pytest
+    pytest.main(list(args))

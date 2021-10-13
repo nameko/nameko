@@ -63,7 +63,7 @@ setup(
             "moto==1.3.6",
             "bcrypt==3.1.3",
             "regex==2018.2.21"
-        ]
+        ],
     },
     entry_points={
         'console_scripts': [

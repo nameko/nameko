@@ -1,14 +1,12 @@
 from __future__ import print_function
 
-import eventlet
-eventlet.monkey_patch()  # noqa (code before rest of imports)
-
 import errno
 import logging
 import logging.config
 import signal
 import sys
 
+import eventlet
 from eventlet import backdoor
 
 from nameko import config

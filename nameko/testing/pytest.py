@@ -75,17 +75,45 @@ def pytest_addoption(parser):
         )
     )
 
-
-def pytest_load_initial_conftests():
-    # make sure we monkey_patch before local conftests
-    import eventlet
-    eventlet.monkey_patch()
+    parser.addoption(
+        "--suppress-nameko-eventlet-notification",
+        action="store_true",
+        dest="suppress_eventlet_notification",
+        default=False,
+        help="suppress nameko warning about eventlet monkey-patch",
+    )
 
 
 def pytest_configure(config):
     if config.option.blocking_detection:  # pragma: no cover
         from eventlet import debug
+
         debug.hub_blocking_detection(True)
+
+
+def pytest_sessionstart(session):
+    if not session.config.option.suppress_eventlet_notification:
+        from eventlet import patcher
+
+        if not any(
+            map(patcher.is_monkey_patched, ["os", "socket", "thread"])
+        ):  # pragma: no cover -- covered in subprocess pytest
+            import warnings
+
+            warnings.warn(
+                "For versions after 2.13.0, it is recommended to use the `nameko test` "
+                "cli command. Nameko's pytest plugin no longer applies the eventlet "
+                "monkeypatch as a pytest hook. This was removed to prevent polluting "
+                "the environment in case a monkeypatch was not desired. "
+                "\n"
+                "If you need to invoke pytest directly instead of using `nameko test`, "
+                "you can install the pytest-eventlet plugin, which just performs the "
+                "automatic monkeypatching that was removed from Nameko. Alternatively "
+                "you can apply the monkeypatch manually in your conftest.py file."
+                "\n"
+                "This warning can be suppressed with the "
+                "--suppress-nameko-eventlet-notification pytest option."
+            )
 
 
 @pytest.yield_fixture

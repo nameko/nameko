@@ -1,5 +1,6 @@
 import socket
 import time
+from functools import partial
 
 import pytest
 from six.moves import queue
@@ -123,6 +124,78 @@ class TestOptions(object):
 
         result = testdir.runpytest(*args)
         assert result.ret == 0
+
+
+@pytest.mark.filterwarnings("ignore:For versions after 2.13.0:UserWarning")
+class TestMonkeyPatchWarning:
+
+    @pytest.fixture
+    def pytest_without_monkeypatch(self, testdir):
+        # disable pytest-eventlet to disable monkeypatch.
+        # requires running as subprocess
+        return partial(testdir.runpytest_subprocess, "-p", "no:pytest_eventlet")
+
+    @pytest.mark.parametrize("suppress_warning", [True, False])
+    def test_warning(self, suppress_warning, testdir, pytest_without_monkeypatch):
+
+        # suppress warning based on param
+        args = []
+        if suppress_warning:
+            args.append("--suppress-nameko-eventlet-notification")
+
+        testdir.makepyfile(
+            """
+            import eventlet
+
+            def test_warning(request):
+                assert not eventlet.patcher.is_monkey_patched("socket")
+                assert not eventlet.patcher.is_monkey_patched("os")
+                assert not eventlet.patcher.is_monkey_patched("select")
+                assert not eventlet.patcher.is_monkey_patched("thread")
+                assert not eventlet.patcher.is_monkey_patched("time")
+            """
+        )
+
+        result = pytest_without_monkeypatch(*args)
+        assert result.ret == 0
+
+        stderr = "\n".join(result.stderr.lines)
+
+        if not suppress_warning:
+            assert "pytest-eventlet" in stderr
+        else:
+            assert "pytest-eventlet" not in stderr
+
+    def test_monkeypatch_applied_in_conftest(self, testdir, pytest_without_monkeypatch):
+
+        # apply monkeypatch in conftest
+        testdir.makeconftest(
+            """
+            import eventlet
+
+            eventlet.monkey_patch()
+            """
+        )
+
+        testdir.makepyfile(
+            """
+            import eventlet
+
+            def test_no_warning(request):
+                assert eventlet.patcher.is_monkey_patched("socket")
+                assert eventlet.patcher.is_monkey_patched("os")
+                assert eventlet.patcher.is_monkey_patched("select")
+                assert eventlet.patcher.is_monkey_patched("thread")
+                assert eventlet.patcher.is_monkey_patched("time")
+            """
+        )
+
+        result = pytest_without_monkeypatch()
+        assert result.ret == 0
+
+        stderr = "\n".join(result.stderr.lines)
+
+        assert "pytest-eventlet" not in stderr
 
 
 def test_empty_config(empty_config):
