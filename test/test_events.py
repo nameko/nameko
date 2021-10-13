@@ -10,7 +10,7 @@ from eventlet.event import Event
 from mock import ANY, Mock, patch
 from six.moves import queue
 
-from nameko import config
+import nameko
 from nameko.amqp.consume import Consumer
 from nameko.containers import WorkerContext
 from nameko.events import (
@@ -27,6 +27,38 @@ from nameko.utils.retry import retry
 
 
 EVENTS_TIMEOUT = 5
+
+
+@pytest.mark.parametrize(
+    "config,expected_no_declare",
+    [
+        ({'DECLARE_EVENT_EXCHANGES': True}, False),
+        ({'DECLARE_EVENT_EXCHANGES': False}, True),
+        ({'DECLARE_EVENT_EXCHANGES': None}, False),
+        ({}, False)
+    ]
+)
+def test_auto_declaration(config, expected_no_declare):
+    with nameko.config.patch(config):
+        service_name = "example"
+        exchange = get_event_exchange(service_name)
+        assert exchange.no_declare is expected_no_declare
+
+
+@pytest.mark.parametrize(
+    "config,expected_auto_delete",
+    [
+        ({'AUTO_DELETE_EVENT_EXCHANGES': True}, True),
+        ({'AUTO_DELETE_EVENT_EXCHANGES': False}, False),
+        ({'AUTO_DELETE_EVENT_EXCHANGES': None}, False),
+        ({}, False)
+    ]
+)
+def test_auto_delete(config, expected_auto_delete):
+    with nameko.config.patch(config):
+        service_name = "example"
+        exchange = get_event_exchange(service_name)
+        assert exchange.auto_delete is expected_auto_delete
 
 
 def test_event_dispatcher(mock_container, mock_producer):
@@ -337,7 +369,7 @@ def test_broadcast_events(
     container_factory, get_vhost, queue_info, tracker, rabbit_manager
 ):
 
-    vhost = get_vhost(config['AMQP_URI'])
+    vhost = get_vhost(nameko.config['AMQP_URI'])
 
     class Base(object):
 
@@ -573,7 +605,7 @@ def test_unreliable_delivery(container_factory, queue_info, tracker):
 @pytest.mark.usefixtures("rabbit_config")
 def test_dispatch_to_rabbit(rabbit_manager, get_vhost, mock_container):
 
-    vhost = get_vhost(config['AMQP_URI'])
+    vhost = get_vhost(nameko.config['AMQP_URI'])
 
     container = mock_container
     container.shared_extensions = {}
