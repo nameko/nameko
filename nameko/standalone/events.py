@@ -11,7 +11,7 @@ def get_event_exchange(service_name):
     """ Get an exchange for ``service_name`` events.
     """
     auto_delete = config.get("AUTO_DELETE_EVENT_EXCHANGES")
-    disable_exchange_declaration = not config.get("DECLARE_EVENT_EXCHANGES", True)
+    disable_exchange_declaration = config.get("DECLARE_EVENT_EXCHANGES") is False
 
     exchange_name = "{}.events".format(service_name)
     exchange = Exchange(
