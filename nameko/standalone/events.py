@@ -7,12 +7,20 @@ from nameko.constants import (
 )
 
 
-def get_event_exchange(service_name):
+def get_event_exchange(service_name, config):
     """ Get an exchange for ``service_name`` events.
     """
+    auto_delete = config.get("AUTO_DELETE_EVENT_EXCHANGES")
+    disable_exchange_declaration = config.get("DECLARE_EVENT_EXCHANGES") is False
+
     exchange_name = "{}.events".format(service_name)
     exchange = Exchange(
-        exchange_name, type='topic', durable=True, delivery_mode=PERSISTENT
+        exchange_name,
+        type='topic',
+        durable=True,
+        delivery_mode=PERSISTENT,
+        auto_delete=auto_delete,
+        no_declare=disable_exchange_declaration,
     )
 
     return exchange
@@ -37,7 +45,7 @@ def event_dispatcher(nameko_config, **kwargs):
         """ Dispatch an event claiming to originate from `service_name` with
         the given `event_type` and `event_data`.
         """
-        exchange = get_event_exchange(service_name)
+        exchange = get_event_exchange(service_name, nameko_config)
 
         publisher.publish(
             event_data,

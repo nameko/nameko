@@ -136,7 +136,7 @@ class TestConfigurability(object):
         )
 
         service_name = "service-name"
-        event_exchange = get_event_exchange(service_name)
+        event_exchange = get_event_exchange(service_name, config)
         event_type = "event-type"
 
         dispatch(service_name, event_type, "event-data")
