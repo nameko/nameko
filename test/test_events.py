@@ -34,7 +34,7 @@ def queue_consumer():
     [
         ({'DECLARE_EVENT_EXCHANGES': True}, False),
         ({'DECLARE_EVENT_EXCHANGES': False}, True),
-        ({'DECLARE_EVENT_EXCHANGES': None}, True),
+        ({'DECLARE_EVENT_EXCHANGES': None}, False),
         ({}, False)
     ]
 )
