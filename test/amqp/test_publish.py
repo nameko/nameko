@@ -15,10 +15,10 @@ from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
 from six.moves import queue
 
-from nameko.constants import AMQP_SSL_CONFIG_KEY
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer
 )
+from nameko.constants import AMQP_SSL_CONFIG_KEY
 
 
 def test_get_connection(rabbit_config):

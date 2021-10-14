@@ -13,7 +13,7 @@ from mock import Mock, call, create_autospec, patch
 from six.moves import queue
 
 from nameko.constants import (
-    LOGIN_METHOD_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
+    HEARTBEAT_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY, MAX_WORKERS_CONFIG_KEY
 )
 from nameko.containers import WorkerContext
 from nameko.events import event_handler
