@@ -9,6 +9,7 @@ from kombu.message import Message
 from mock import Mock, patch
 from six.moves import queue
 
+import nameko
 from nameko import config
 from nameko.amqp.consume import Consumer
 from nameko.constants import HEARTBEAT_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY
@@ -999,18 +1000,21 @@ class TestSSL(object):
     @pytest.fixture
     def rabbit_ssl_config(self, rabbit_ssl_config, use_client_cert, login_method):
 
-        if use_client_cert is False:
-            # remove certificate paths from config
-            rabbit_ssl_config['AMQP_SSL'] = True
+        config = {
+             # set login method
+            LOGIN_METHOD_CONFIG_KEY: login_method
+        }
 
-        # set login method
-        rabbit_ssl_config[LOGIN_METHOD_CONFIG_KEY] = login_method
+        if use_client_cert is False:
+            # remove certificate paths
+            config['AMQP_SSL'] = True
 
         # skip if not a valid combination
         if login_method == "EXTERNAL" and not use_client_cert:
             pytest.skip("EXTERNAL login method requires cert verification")
 
-        return rabbit_ssl_config
+        with nameko.config.patch(config):
+            yield
 
     @pytest.mark.usefixtures("rabbit_config")
     def test_rpc_client_over_ssl(
