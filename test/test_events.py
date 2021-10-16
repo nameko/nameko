@@ -13,6 +13,7 @@ from six.moves import queue
 import nameko
 from nameko.amqp.consume import Consumer
 from nameko.containers import WorkerContext
+from nameko.constants import LOGIN_METHOD_CONFIG_KEY
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler
@@ -834,15 +835,29 @@ class TestContainerBeingKilled(object):
 
 class TestSSL(object):
 
-    @pytest.fixture(params=[True, False])
-    def rabbit_ssl_options(self, request, rabbit_ssl_options):
-        verify_certs = request.param
-        if verify_certs is False:
+    @pytest.fixture(params=["PLAIN", "AMQPLAIN", "EXTERNAL"])
+    def login_method(self, request):
+        return request.param
+
+    @pytest.fixture(params=[True, False], ids=["use client cert", "no client cert"])
+    def use_client_cert(self, request):
+        return request.param
+
+    @pytest.fixture
+    def rabbit_ssl_config(self, rabbit_ssl_config, use_client_cert, login_method):
+
+        if use_client_cert is False:
             # remove certificate paths from config
-            options = True
-        else:
-            options = rabbit_ssl_options
-        return options
+            rabbit_ssl_config['AMQP_SSL'] = True
+
+        # set login method
+        rabbit_ssl_config[LOGIN_METHOD_CONFIG_KEY] = login_method
+
+        # skip if not a valid combination
+        if login_method == "EXTERNAL" and not use_client_cert:
+            pytest.skip("EXTERNAL login method requires cert verification")
+
+        return rabbit_ssl_config
 
     @pytest.mark.usefixtures("rabbit_ssl_config")
     def test_event_handler_over_ssl(self, container_factory, rabbit_uri):

@@ -20,7 +20,7 @@ from nameko import config
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer
 )
-from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.constants import AMQP_URI_CONFIG_KEY, AMQP_SSL_CONFIG_KEY
 
 
 def test_get_connection(amqp_uri):
@@ -91,6 +91,52 @@ class TestPublisherConfirms(object):
                 producer.publish(
                     "msg", exchange="missing", routing_key="key"
                 )
+
+
+@pytest.mark.behavioural
+class TestLoginMethod(object):
+
+    @pytest.fixture
+    def routing_key(self):
+        return "routing_key"
+
+    @pytest.fixture
+    def exchange(self):
+        exchange = Exchange(name="exchange")
+        return exchange
+
+    @pytest.fixture
+    def queue(self, exchange, routing_key):
+        queue = Queue(
+            name="queue", exchange=exchange, routing_key=routing_key
+        )
+        return queue
+
+    @pytest.fixture(params=["PLAIN", "AMQPLAIN", "EXTERNAL"])
+    def login_method(self, request):
+        return request.param
+
+    def test_login_method(
+        self, rabbit_ssl_config, login_method, exchange, queue, routing_key,
+        get_message_from_queue
+    ):
+        """ Verify that login_method can be provided to the publisher.
+        SSL config is required because the EXTERNAL login method uses the client
+        certificate for authentication.
+        """
+        publisher = Publisher(
+            rabbit_ssl_config['AMQP_URI'],
+            serializer="json",
+            exchange=exchange,
+            routing_key=routing_key,
+            declare=[exchange, queue],
+            login_method=login_method,
+            ssl=rabbit_ssl_config[AMQP_SSL_CONFIG_KEY]
+        )
+
+        publisher.publish("payload")
+        message = get_message_from_queue(queue.name)
+        assert message.payload == "payload"
 
 
 @pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
