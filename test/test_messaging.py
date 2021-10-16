@@ -18,7 +18,7 @@ from nameko.amqp.consume import Consumer as ConsumerCore
 from nameko.amqp.publish import Publisher as PublisherCore
 from nameko.amqp.publish import get_producer
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY, HEARTBEAT_CONFIG_KEY
+    AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY
 )
 from nameko.containers import WorkerContext
 from nameko.exceptions import ContainerBeingKilled
@@ -1218,7 +1218,7 @@ class TestSSL(object):
     def rabbit_ssl_config(self, rabbit_ssl_config, use_client_cert, login_method):
 
         config = {
-             # set login method
+            # set login method
             LOGIN_METHOD_CONFIG_KEY: login_method
         }
 

@@ -12,8 +12,8 @@ from six.moves import queue
 
 import nameko
 from nameko.amqp.consume import Consumer
-from nameko.containers import WorkerContext
 from nameko.constants import LOGIN_METHOD_CONFIG_KEY
+from nameko.containers import WorkerContext
 from nameko.events import (
     BROADCAST, SERVICE_POOL, SINGLETON, EventDispatcher, EventHandler,
     EventHandlerConfigurationError, event_handler
@@ -847,7 +847,7 @@ class TestSSL(object):
     def rabbit_ssl_config(self, rabbit_ssl_config, use_client_cert, login_method):
 
         config = {
-             # set login method
+            # set login method
             LOGIN_METHOD_CONFIG_KEY: login_method
         }
 

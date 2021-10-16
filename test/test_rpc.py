@@ -2003,7 +2003,7 @@ class TestSSL(object):
     def rabbit_ssl_config(self, rabbit_ssl_config, use_client_cert, login_method):
 
         config = {
-             # set login method
+            # set login method
             LOGIN_METHOD_CONFIG_KEY: login_method
         }
 
