@@ -13,7 +13,7 @@ from kombu import Exchange, Queue
 from nameko.amqp.publish import Publisher, UndeliverableMessage
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_SERIALIZER,
-    RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
+    LOGIN_METHOD_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY, SERIALIZER_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound, UnknownService,
@@ -125,8 +125,11 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         )
         exchange = get_rpc_exchange(self.container.config)
         ssl = self.container.config.get(AMQP_SSL_CONFIG_KEY)
+        login_method = self.container.config.get(LOGIN_METHOD_CONFIG_KEY)
 
-        responder = Responder(amqp_uri, exchange, serializer, message, ssl=ssl)
+        responder = Responder(
+            amqp_uri, exchange, serializer, message, ssl=ssl, login_method=login_method
+        )
         result, exc_info = responder.send_response(result, exc_info)
 
         self.queue_consumer.ack_message(message)
@@ -179,13 +182,14 @@ class Responder(object):
     publisher_cls = Publisher
 
     def __init__(
-        self, amqp_uri, exchange, serializer, message, ssl=None
+        self, amqp_uri, exchange, serializer, message, ssl=None, login_method=None
     ):
         self.amqp_uri = amqp_uri
         self.serializer = serializer
         self.message = message
         self.exchange = exchange
         self.ssl = ssl
+        self.login_method = login_method
 
     def send_response(self, result, exc_info):
 
@@ -215,7 +219,9 @@ class Responder(object):
         routing_key = self.message.properties['reply_to']
         correlation_id = self.message.properties.get('correlation_id')
 
-        publisher = self.publisher_cls(self.amqp_uri, ssl=self.ssl)
+        publisher = self.publisher_cls(
+            self.amqp_uri, ssl=self.ssl, login_method=self.login_method
+        )
 
         publisher.publish(
             payload,
@@ -365,7 +371,8 @@ class MethodProxy(HeaderEncoder):
         serializer = options.pop('serializer', self.serializer)
 
         self.publisher = self.publisher_cls(
-            self.amqp_uri, serializer=serializer, ssl=self.ssl, **options
+            self.amqp_uri, serializer=serializer, ssl=self.ssl,
+            login_method=self.login_method, **options
         )
 
     def __call__(self, *args, **kwargs):
@@ -384,6 +391,10 @@ class MethodProxy(HeaderEncoder):
     @property
     def ssl(self):
         return self.container.config.get(AMQP_SSL_CONFIG_KEY)
+
+    @property
+    def login_method(self):
+        return self.container.config.get(LOGIN_METHOD_CONFIG_KEY)
 
     @property
     def serializer(self):
