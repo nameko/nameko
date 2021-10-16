@@ -16,11 +16,12 @@ class Consumer(ConsumerMixin):
     """
 
     def __init__(
-        self, amqp_uri, ssl=None, queues=None, callbacks=None, heartbeat=None,
-        prefetch_count=None, accept=None, **consumer_options
+        self, amqp_uri, ssl=None, login_method=None, queues=None, callbacks=None,
+        heartbeat=None, prefetch_count=None, accept=None, **consumer_options
     ):
         self.amqp_uri = amqp_uri
         self.ssl = ssl
+        self.login_method = login_method
 
         self.queues = queues
         self.callbacks = callbacks or []
@@ -43,7 +44,8 @@ class Consumer(ConsumerMixin):
         connection to the broker at this point.
         """
         return Connection(
-            self.amqp_uri, ssl=self.ssl, heartbeat=self.heartbeat
+            self.amqp_uri, ssl=self.ssl, login_method=self.login_method,
+            heartbeat=self.heartbeat
         )
 
     def stop(self):

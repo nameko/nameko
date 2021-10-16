@@ -16,7 +16,7 @@ from nameko.amqp.publish import get_connection
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI,
     DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT, HEADER_PREFIX,
-    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
+    HEARTBEAT_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.exceptions import ContainerBeingKilled
 from nameko.extensions import DependencyProvider, Entrypoint
@@ -95,7 +95,10 @@ class Publisher(DependencyProvider):
         default_ssl = config.get(AMQP_SSL_CONFIG_KEY)
         ssl = self.publisher_options.pop('ssl', default_ssl)
 
-        with get_connection(self.amqp_uri, ssl) as conn:
+        default_login_method = config.get(LOGIN_METHOD_CONFIG_KEY)
+        login_method = self.publisher_options.pop('login_method', default_login_method)
+
+        with get_connection(self.amqp_uri, ssl=ssl, login_method=login_method) as conn:
             for entity in self.declare:
                 maybe_declare(entity, conn.channel())
 
@@ -173,6 +176,7 @@ class Consumer(Entrypoint):
 
     def setup(self):
         ssl = config.get(AMQP_SSL_CONFIG_KEY)
+        login_method = config.get(LOGIN_METHOD_CONFIG_KEY)
 
         heartbeat = self.consumer_options.pop(
             'heartbeat', config.get(HEARTBEAT_CONFIG_KEY, DEFAULT_HEARTBEAT)
@@ -190,9 +194,9 @@ class Consumer(Entrypoint):
         callbacks = [self.handle_message]
 
         self.consumer = self.consumer_cls(
-            self.amqp_uri, ssl=ssl, queues=queues, callbacks=callbacks,
-            heartbeat=heartbeat, prefetch_count=prefetch_count, accept=accept,
-            **self.consumer_options
+            self.amqp_uri, ssl=ssl, login_method=login_method, queues=queues,
+            callbacks=callbacks, heartbeat=heartbeat, prefetch_count=prefetch_count,
+            accept=accept, **self.consumer_options
         )
 
     def start(self):

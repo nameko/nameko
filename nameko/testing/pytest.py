@@ -209,6 +209,7 @@ def rabbit_uri(request, vhost_pipeline):
 @pytest.yield_fixture
 def rabbit_config(rabbit_uri):
     with config.patch({'AMQP_URI': rabbit_uri}):
+        print("PATCH", rabbit_uri)
         yield
 
 
