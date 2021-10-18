@@ -13,7 +13,7 @@ import nameko
 from nameko import config
 from nameko.amqp.consume import Consumer
 from nameko.constants import (
-    AMQP_URI_CONFIG_KEY, AMQP_SSL_CONFIG_KEY, HEARTBEAT_CONFIG_KEY,
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY,
     LOGIN_METHOD_CONFIG_KEY
 )
 from nameko.containers import WorkerContext
