@@ -14,7 +14,7 @@ from nameko.amqp.publish import Publisher, get_connection
 from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, CALL_ID_STACK_CONTEXT_KEY,
     DEFAULT_AMQP_URI, DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT,
-    HEARTBEAT_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
+    HEARTBEAT_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY
 )
 from nameko.containers import new_call_id
 from nameko.exceptions import ReplyQueueExpiredWithPendingReplies, RpcTimeout
@@ -210,6 +210,9 @@ class ClusterRpcClient(object):
         self.ssl = publisher_options.pop(
             'ssl', config.get(AMQP_SSL_CONFIG_KEY)
         )
+        self.login_method = publisher_options.pop(
+            'login_method', config.get(LOGIN_METHOD_CONFIG_KEY)
+        )
 
         self.reply_listener = ReplyListener(
             queue, timeout=timeout, uri=self.amqp_uri, ssl=self.ssl
@@ -226,6 +229,7 @@ class ClusterRpcClient(object):
         publisher = self.publisher_cls(
             self.amqp_uri,
             ssl=self.ssl,
+            login_method=self.login_method,
             exchange=exchange,
             serializer=self.serializer,
             declare=[self.reply_listener.queue],

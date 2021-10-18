@@ -117,3 +117,41 @@ class TestConsumer(object):
 
         assert len(messages) == 1  # still 1, callback not called
         assert message.requeue.called
+
+
+class TestLoginMethod(object):
+
+    @pytest.fixture
+    def queue(self):
+        return Queue(name="queue")
+
+    @pytest.fixture
+    def publisher(self, amqp_uri):
+        return Publisher(amqp_uri)
+
+    @pytest.fixture(params=["PLAIN", "AMQPLAIN", "EXTERNAL"])
+    def login_method(self, request):
+        return request.param
+
+    def test_login_method(
+        self, rabbit_ssl_uri, rabbit_ssl_options, publisher, queue, login_method
+    ):
+        """ Verify that login_method can be provided to the consumer.
+        SSL config is required because the EXTERNAL login method uses the client
+        certificate for authentication.
+        """
+        tracker = Mock()
+
+        def callback(body, message):
+            tracker(body)
+            message.ack()
+
+        publisher.publish("payload", routing_key=queue.name, declare=[queue])
+
+        consumer = Consumer(
+            rabbit_ssl_uri, login_method=login_method, ssl=rabbit_ssl_options,
+            queues=[queue], callbacks=[callback]
+        )
+        next(consumer.consume())
+
+        assert tracker.call_count == 1

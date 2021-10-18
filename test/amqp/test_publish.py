@@ -93,6 +93,52 @@ class TestPublisherConfirms(object):
                 )
 
 
+@pytest.mark.behavioural
+class TestLoginMethod(object):
+
+    @pytest.fixture
+    def routing_key(self):
+        return "routing_key"
+
+    @pytest.fixture
+    def exchange(self):
+        exchange = Exchange(name="exchange")
+        return exchange
+
+    @pytest.fixture
+    def queue(self, exchange, routing_key):
+        queue = Queue(
+            name="queue", exchange=exchange, routing_key=routing_key
+        )
+        return queue
+
+    @pytest.fixture(params=["PLAIN", "AMQPLAIN", "EXTERNAL"])
+    def login_method(self, request):
+        return request.param
+
+    def test_login_method(
+        self, rabbit_ssl_uri, rabbit_ssl_options, login_method, exchange, queue,
+        routing_key, get_message_from_queue
+    ):
+        """ Verify that login_method can be provided to the publisher.
+        SSL config is required because the EXTERNAL login method uses the client
+        certificate for authentication.
+        """
+        publisher = Publisher(
+            amqp_uri=rabbit_ssl_uri,
+            serializer="json",
+            exchange=exchange,
+            routing_key=routing_key,
+            declare=[exchange, queue],
+            login_method=login_method,
+            ssl=rabbit_ssl_options
+        )
+
+        publisher.publish("payload")
+        message = get_message_from_queue(queue.name)
+        assert message.payload == "payload"
+
+
 @pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 @pytest.mark.behavioural
 class TestPublisher(object):
@@ -464,9 +510,9 @@ class TestDefaults(object):
         publisher = Publisher("memory://", use_confirms=False)
 
         publisher.publish("payload")
-        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
+        use_confirms = get_producer.call_args[0][4].get('confirm_publish')
         assert use_confirms is False
 
         publisher.publish("payload", use_confirms=True)
-        use_confirms = get_producer.call_args[0][3].get('confirm_publish')
+        use_confirms = get_producer.call_args[0][4].get('confirm_publish')
         assert use_confirms is True

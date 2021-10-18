@@ -9,9 +9,13 @@ from kombu.message import Message
 from mock import Mock, patch
 from six.moves import queue
 
+import nameko
 from nameko import config
 from nameko.amqp.consume import Consumer
-from nameko.constants import HEARTBEAT_CONFIG_KEY
+from nameko.constants import (
+    AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, HEARTBEAT_CONFIG_KEY,
+    LOGIN_METHOD_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.exceptions import (
     RemoteError, ReplyQueueExpiredWithPendingReplies, RpcTimeout
@@ -988,10 +992,35 @@ class TestStandaloneClientReplyListenerDisconnections(object):
 
 class TestSSL(object):
 
-    @pytest.mark.usefixtures("rabbit_config")
-    def test_rpc_client_over_ssl(
-        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
-    ):
+    @pytest.fixture(params=["PLAIN", "AMQPLAIN", "EXTERNAL"])
+    def login_method(self, request):
+        return request.param
+
+    @pytest.fixture(params=[True, False], ids=["use client cert", "no client cert"])
+    def use_client_cert(self, request):
+        return request.param
+
+    @pytest.fixture
+    def rabbit_ssl_config(self, rabbit_ssl_config, use_client_cert, login_method):
+
+        config = {
+            # set login method
+            LOGIN_METHOD_CONFIG_KEY: login_method
+        }
+
+        if use_client_cert is False:
+            # remove certificate paths
+            config['AMQP_SSL'] = True
+
+        # skip if not a valid combination
+        if login_method == "EXTERNAL" and not use_client_cert:
+            pytest.skip("EXTERNAL login method requires cert verification")
+
+        with nameko.config.patch(config):
+            yield
+
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_rpc_client_over_ssl(self, container_factory):
         class Service(object):
             name = "service"
 
@@ -1002,14 +1031,11 @@ class TestSSL(object):
         container = container_factory(Service)
         container.start()
 
-        ssl = rabbit_ssl_options
-        uri = rabbit_ssl_uri
-
         with ServiceRpcClient(
             "service",
-            uri=uri,
-            ssl=ssl,
-            reply_listener_uri=config["AMQP_URI"],
+            ssl=nameko.config.get(AMQP_SSL_CONFIG_KEY),
+            login_method=nameko.config.get(LOGIN_METHOD_CONFIG_KEY),
+            reply_listener_uri=nameko.config.get(AMQP_URI_CONFIG_KEY),
             reply_listener_ssl=False,
         ) as client:
             assert client.echo("a", "b", foo="bar") == [
