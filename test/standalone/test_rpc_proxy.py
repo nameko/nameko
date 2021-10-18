@@ -12,7 +12,10 @@ from six.moves import queue
 import nameko
 from nameko import config
 from nameko.amqp.consume import Consumer
-from nameko.constants import HEARTBEAT_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY
+from nameko.constants import (
+    AMQP_URI_CONFIG_KEY, AMQP_SSL_CONFIG_KEY, HEARTBEAT_CONFIG_KEY,
+    LOGIN_METHOD_CONFIG_KEY
+)
 from nameko.containers import WorkerContext
 from nameko.exceptions import (
     RemoteError, ReplyQueueExpiredWithPendingReplies, RpcTimeout
@@ -1016,10 +1019,8 @@ class TestSSL(object):
         with nameko.config.patch(config):
             yield
 
-    @pytest.mark.usefixtures("rabbit_config")
-    def test_rpc_client_over_ssl(
-        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_rpc_client_over_ssl(self, container_factory):
         class Service(object):
             name = "service"
 
@@ -1030,14 +1031,11 @@ class TestSSL(object):
         container = container_factory(Service)
         container.start()
 
-        ssl = rabbit_ssl_options
-        uri = rabbit_ssl_uri
-
         with ServiceRpcClient(
             "service",
-            uri=uri,
-            ssl=ssl,
-            reply_listener_uri=config["AMQP_URI"],
+            ssl=nameko.config.get(AMQP_SSL_CONFIG_KEY),
+            login_method=nameko.config.get(LOGIN_METHOD_CONFIG_KEY),
+            reply_listener_uri=nameko.config.get(AMQP_URI_CONFIG_KEY),
             reply_listener_ssl=False,
         ) as client:
             assert client.echo("a", "b", foo="bar") == [

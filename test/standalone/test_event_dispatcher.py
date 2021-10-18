@@ -5,7 +5,7 @@ from six.moves import queue
 
 import nameko
 from nameko.amqp import UndeliverableMessage
-from nameko.constants import LOGIN_METHOD_CONFIG_KEY
+from nameko.constants import AMQP_SSL_CONFIG_KEY, LOGIN_METHOD_CONFIG_KEY
 from nameko.events import event_handler
 from nameko.standalone.events import event_dispatcher, get_event_exchange
 from nameko.testing.services import entrypoint_waiter
@@ -170,9 +170,9 @@ class TestSSL(object):
         with nameko.config.patch(config):
             yield
 
-    @pytest.mark.usefixtures("rabbit_config")
+    @pytest.mark.usefixtures("rabbit_ssl_config")
     def test_event_dispatcher_over_ssl(
-        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
+        self, container_factory
     ):
         class Service(object):
             name = "service"
@@ -184,7 +184,10 @@ class TestSSL(object):
         container = container_factory(Service)
         container.start()
 
-        dispatch = event_dispatcher(uri=rabbit_ssl_uri, ssl=rabbit_ssl_options)
+        dispatch = event_dispatcher(
+            ssl=nameko.config.get(AMQP_SSL_CONFIG_KEY),
+            login_method=nameko.config.get(LOGIN_METHOD_CONFIG_KEY)
+        )
 
         with entrypoint_waiter(container, 'echo') as result:
             dispatch("service", "event", "payload")
