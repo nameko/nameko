@@ -5,8 +5,36 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+
+Version 2.14.0
+--------------
+
+Released: 2021-10-18
+
+* Ability to use werkzeug 2x with websockets implementation (#724)
+* Stop unsafe use of YAML parser when loading config files (#722)
+* Stop automatic monkey-patching by Eventlet (#727)
+* Support for disabling event exchange declarations (#730)
+* Provide a way to set AMQP login_method via config (#713)
+* Make a flaky test more reliable (#704)
+* Convert CI to GitHub actions (#715)
+* A couple of docs fixes (#710, #683)
+* Run CI on on py3.7 through 3.9 (#726)
+
+Version 2.13.0
+--------------
+
+Released: 2020-09-11
+
+* Add timeout parameter to entrypoint_hook (#622)
+* Remove or ignore a bunch of deprecation warnings in the test suite (#613)
+* Fix Python 3.7 warning on collections.abc (#649)
+* Add --version flag to CLI tool (#662)
+* Remove support for Python 3.4 and support Werkzeug>1 (#680)
+
+
 Version 2.12.0
--------------
+--------------
 
 Released: 2019-03-18
 
@@ -21,7 +49,7 @@ Released: 2019-03-18
   (#597)
 
 Version 2.11.0
--------------
+--------------
 
 Released: 2018-08-09
 
@@ -29,7 +57,7 @@ Released: 2018-08-09
   is now 4.2 (#564)
 
 Version 2.10.0
--------------
+--------------
 
 Released: 2018-08-06
 

@@ -220,7 +220,7 @@ def test_container_doesnt_exhaust_max_workers(container):
     # start the first worker, which should wait for spam_continue
     container.spawn_worker(dep, ['ham'], {})
 
-    # start the next worker in a speparate thread,
+    # start the next worker in a separate thread,
     # because it should block until the first one completed
     gt = spawn(container.spawn_worker, dep, ['eggs'], {})
 
