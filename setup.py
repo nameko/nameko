@@ -54,6 +54,7 @@ setup(
             "Sphinx==1.8.5",
             "sphinxcontrib-spelling==4.2.1",
             "sphinx-nameko-theme==0.0.3",
+            "docutils<0.18",  # https://github.com/sphinx-doc/sphinx/issues/9788
         ],
         'examples': [
             "nameko-sqlalchemy==0.0.1",
