@@ -1,41 +1,35 @@
 from textwrap import dedent
 
+import pytest
 from mock import patch
 
-from nameko.cli.commands import ShowConfig
-from nameko.cli.main import setup_parser, setup_yaml_parser
 
+@patch("nameko.cli.utils.config.os")
+@pytest.mark.usefixtures("empty_config")
+def test_main(mock_os, tmpdir, capsys, command):
 
-@patch('nameko.cli.main.os')
-def test_main(mock_os, tmpdir, capsys):
-
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join("config.yaml")
+    config_file.write(
+        """
         FOO: ${FOO:foobar}
         BAR: ${BAR}
-    """)
+    """
+    )
 
-    parser = setup_parser()
-    setup_yaml_parser()
-    args = parser.parse_args([
-        'show-config',
-        '--config',
-        config.strpath,
-    ])
+    mock_os.environ = {"BAR": "[1,2,3]"}
 
-    mock_os.environ = {
-        'BAR': '[1,2,3]'
-    }
+    command("nameko", "show-config", "--config", config_file.strpath)
 
-    ShowConfig.main(args)
     out, _ = capsys.readouterr()
 
-    expected = dedent("""
+    expected = dedent(
+        """
         BAR:
         - 1
         - 2
         - 3
         FOO: foobar
-    """).strip()
+    """
+    ).strip()
 
     assert out.strip() == expected

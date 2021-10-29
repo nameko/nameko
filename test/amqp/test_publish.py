@@ -14,15 +14,16 @@ from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
 from six.moves import queue
+from six.moves.urllib.parse import urlparse
 
+from nameko import config
 from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer
 )
-from nameko.constants import AMQP_SSL_CONFIG_KEY
+from nameko.constants import AMQP_URI_CONFIG_KEY
 
 
-def test_get_connection(rabbit_config):
-    amqp_uri = rabbit_config['AMQP_URI']
+def test_get_connection(amqp_uri):
     connection_ids = []
 
     with get_connection(amqp_uri) as connection:
@@ -40,8 +41,7 @@ class TestGetProducer(object):
     def confirms(self, request):
         return request.param
 
-    def test_get_producer(self, rabbit_config, confirms):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_get_producer(self, amqp_uri, confirms):
         producer_ids = []
 
         with get_producer(amqp_uri, confirms) as producer:
@@ -54,8 +54,7 @@ class TestGetProducer(object):
             producer_ids.append(id(producer))
             assert len(set(producer_ids)) == 1
 
-    def test_pool_gives_different_producers(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_pool_gives_different_producers(self, amqp_uri):
         producer_ids = []
 
         # get a producer
@@ -78,16 +77,14 @@ class TestPublisherConfirms(object):
     """ Publishing to a non-existent exchange raises if confirms are enabled.
     """
 
-    def test_confirms_disabled(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_confirms_disabled(self, amqp_uri):
 
         with get_producer(amqp_uri, False) as producer:
             producer.publish(
                 "msg", exchange="missing", routing_key="key"
             )
 
-    def test_confirms_enabled(self, rabbit_config):
-        amqp_uri = rabbit_config['AMQP_URI']
+    def test_confirms_enabled(self, amqp_uri):
 
         with pytest.raises(NotFound):
             with get_producer(amqp_uri) as producer:
@@ -120,22 +117,21 @@ class TestLoginMethod(object):
         return request.param
 
     def test_login_method(
-        self, rabbit_ssl_config, login_method, exchange, queue, routing_key,
-        get_message_from_queue
+        self, rabbit_ssl_uri, rabbit_ssl_options, login_method, exchange, queue,
+        routing_key, get_message_from_queue
     ):
         """ Verify that login_method can be provided to the publisher.
-
         SSL config is required because the EXTERNAL login method uses the client
         certificate for authentication.
         """
         publisher = Publisher(
-            rabbit_ssl_config['AMQP_URI'],
+            amqp_uri=rabbit_ssl_uri,
             serializer="json",
             exchange=exchange,
             routing_key=routing_key,
             declare=[exchange, queue],
             login_method=login_method,
-            ssl=rabbit_ssl_config[AMQP_SSL_CONFIG_KEY]
+            ssl=rabbit_ssl_options
         )
 
         publisher.publish("payload")
@@ -143,6 +139,7 @@ class TestLoginMethod(object):
         assert message.payload == "payload"
 
 
+@pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
 @pytest.mark.behavioural
 class TestPublisher(object):
 
@@ -194,7 +191,6 @@ class TestPublisher(object):
         message = get_message_from_queue(queue.name)
         assert message.properties[option] == expected
 
-    @pytest.mark.filterwarnings("ignore:Mandatory delivery:UserWarning")
     def test_confirms(self, amqp_uri, publisher):
         publisher.mandatory = True
 
@@ -341,7 +337,8 @@ class TestPublisher(object):
     def test_user_id(
         self, publisher, get_message_from_queue, queue, rabbit_config
     ):
-        user_id = rabbit_config['username']
+        uri_parts = urlparse(config[AMQP_URI_CONFIG_KEY])
+        user_id = uri_parts.username
 
         # successful case
         publisher.publish("payload", user_id=user_id)
@@ -439,8 +436,8 @@ class TestDefaults(object):
     ])
     def test_precedence(self, param, producer):
         """ Verify that a default specified as a class attribute can be
-        overriden by a default specified at instantiation time, which can
-        further be overriden by a value specified when used.
+        overridden by a default specified at instantiation time, which can
+        further be overridden by a value specified when used.
         """
         publisher_cls = type("Publisher", (Publisher,), {param: "value"})
         publisher = publisher_cls("memory://", **{param: True})
@@ -507,7 +504,7 @@ class TestDefaults(object):
 
     def test_use_confirms(self, get_producer):
         """ Verify that publish-confirms can be set as a default specified at
-        instantiation time, which can be overriden by a value specified at
+        instantiation time, which can be overridden by a value specified at
         publish time.
         """
         publisher = Publisher("memory://", use_confirms=False)

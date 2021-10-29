@@ -8,10 +8,13 @@ from types import ModuleType
 import eventlet
 import pytest
 import requests
+from kombu.messaging import Queue
 from mock import ANY, patch
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
+from nameko import config
+from nameko.amqp.publish import get_connection
 from nameko.testing.utils import find_free_port
 from nameko.utils.retry import retry
 
@@ -29,6 +32,12 @@ def pytest_configure(config):
         "markers",
         "behavioural: distinguish behavioural tests"
     )
+
+
+@pytest.yield_fixture
+def memory_rabbit_config(rabbit_config):
+    with config.patch({'AMQP_URI': 'memory://localhost'}):
+        yield
 
 
 @pytest.yield_fixture
@@ -82,7 +91,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     """
 
     # extract rabbit connection details
-    amqp_uri = rabbit_config['AMQP_URI']
+    amqp_uri = config['AMQP_URI']
     uri = urlparse(amqp_uri)
     rabbit_port = uri.port
 
@@ -180,3 +189,36 @@ def fake_module():
     sys.modules[module.__name__] = module
     yield module
     del sys.modules[module.__name__]
+
+
+@pytest.fixture
+def add_to_sys_path():
+
+    @contextmanager
+    def modify_sys_path(path):
+        sys.path.insert(0, path)
+        yield
+        sys.path.remove(path)
+
+    return modify_sys_path
+
+
+@pytest.fixture
+def queue_info(amqp_uri):
+    # TODO once https://github.com/nameko/nameko/pull/484 lands
+    # we can use the utility in nameko.amqo.utils instead of this
+    def get_queue_info(queue_name):
+        with get_connection(amqp_uri) as conn:
+            queue = Queue(name=queue_name)
+            queue = queue.bind(conn)
+            return queue.queue_declare(passive=True)
+    return get_queue_info
+
+
+@pytest.fixture
+def get_vhost():
+    def parse(uri):
+        from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+        uri_parts = urlparse(uri)
+        return uri_parts.path[1:]
+    return parse

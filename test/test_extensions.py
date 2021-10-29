@@ -41,8 +41,8 @@ class Service(object):
 
 
 def test_entrypoint_uniqueness(container_factory):
-    c1 = container_factory(Service, config={})
-    c2 = container_factory(Service, config={})
+    c1 = container_factory(Service)
+    c2 = container_factory(Service)
 
     # entrypoint declarations are identical between containers
     c1_meth1_entrypoints = c1.service_cls.meth1.nameko_entrypoints
@@ -61,8 +61,8 @@ def test_entrypoint_uniqueness(container_factory):
 
 
 def test_dependency_uniqueness(container_factory):
-    c1 = container_factory(Service, config={})
-    c2 = container_factory(Service, config={})
+    c1 = container_factory(Service)
+    c2 = container_factory(Service)
 
     # dependencyprovider declarations are identical between containers
     assert c1.service_cls.dep == c2.service_cls.dep
@@ -74,8 +74,8 @@ def test_dependency_uniqueness(container_factory):
 
 
 def test_extension_uniqueness(container_factory):
-    c1 = container_factory(Service, config={})
-    c2 = container_factory(Service, config={})
+    c1 = container_factory(Service)
+    c2 = container_factory(Service)
     dep1 = get_extension(c1, SimpleDependencyProvider)
     dep2 = get_extension(c2, SimpleDependencyProvider)
 
@@ -88,7 +88,7 @@ def test_extension_uniqueness(container_factory):
 
 
 def test_dependency_attr_name(container_factory):
-    c1 = container_factory(Service, config={})
+    c1 = container_factory(Service)
 
     bound_dep_provider = get_extension(c1, SimpleDependencyProvider)
     assert bound_dep_provider.attr_name == 'dep'
@@ -133,7 +133,7 @@ def test_extension_defined_on_instance(container_factory):
         name = "service"
         dep = DynamicDependencyProvider("argument_for_extension")
 
-    container = container_factory(Service, {})
+    container = container_factory(Service)
     container.start()
 
     assert len(container.extensions) == 2
@@ -209,7 +209,7 @@ def test_entrypoint_decorator(method_name, expected_args, expected_kwargs,
         def kwargs(self):
             return True
 
-    container = container_factory(Service, {})
+    container = container_factory(Service)
     container.start()
 
     with entrypoint_hook(container, method_name) as method:

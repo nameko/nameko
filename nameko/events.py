@@ -35,7 +35,7 @@ from logging import getLogger
 
 from kombu import Queue
 
-from nameko.messaging import Consumer, Publisher
+from nameko.messaging import Consumer, Publisher, encode_to_headers
 from nameko.standalone.events import get_event_exchange
 
 
@@ -79,18 +79,16 @@ class EventDispatcher(Publisher):
     """
 
     def setup(self):
-        self.exchange = get_event_exchange(
-            self.container.service_name, self.container.config
-        )
+        self.exchange = get_event_exchange(self.container.service_name)
         self.declare.append(self.exchange)
         super(EventDispatcher, self).setup()
 
     def get_dependency(self, worker_ctx):
         """ Inject a dispatch method onto the service instance
         """
-        extra_headers = self.get_message_headers(worker_ctx)
 
         def dispatch(event_type, event_data):
+            extra_headers = encode_to_headers(worker_ctx.context_data)
             self.publisher.publish(
                 event_data,
                 exchange=self.exchange,
@@ -200,9 +198,11 @@ class EventHandler(Consumer):
         If neither of these approaches are appropriate, you could read the
         value out of a configuration file ::
 
+            fron nameko import config
+
             @property
             def broadcast_identifier(self):
-                return self.config['SERVICE_IDENTIFIER']  # or similar
+                return config['SERVICE_IDENTIFIER']  # or similar
 
         Broadcast queues are exclusive to ensure that `broadcast_identifier`
         values are unique.
@@ -245,7 +245,7 @@ class EventHandler(Consumer):
                                                       self.method_name,
                                                       broadcast_identifier)
 
-        exchange = get_event_exchange(self.source_service, self.container.config)
+        exchange = get_event_exchange(self.source_service)
 
         # queues for handlers without reliable delivery should be marked as
         # auto-delete so they're removed when the consumer disconnects

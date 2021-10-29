@@ -64,6 +64,7 @@ Support
 
 For help, comments or questions, please go to `<https://discourse.nameko.io/>`_.
 
+
 For enterprise
 ---------------------
 

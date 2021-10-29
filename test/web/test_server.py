@@ -30,10 +30,9 @@ class ExampleService(object):
         return 'x' * (10**6)
 
 
-def test_broken_pipe(
-    container_factory, web_config, web_config_port, web_session
-):
-    container = container_factory(ExampleService, web_config)
+@pytest.mark.usefixtures("web_config")
+def test_broken_pipe(container_factory, web_config_port, web_session):
+    container = container_factory(ExampleService)
     container.start()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,10 +45,9 @@ def test_broken_pipe(
     assert web_session.get('/').text == ''
 
 
-def test_other_socket_error(
-    container_factory, web_config, web_config_port, web_session
-):
-    container = container_factory(ExampleService, web_config)
+@pytest.mark.usefixtures("web_config")
+def test_other_socket_error(container_factory, web_config_port, web_session):
+    container = container_factory(ExampleService)
     container.start()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -67,12 +65,13 @@ def test_other_socket_error(
     assert 'boom' in str(exc)
 
 
+@pytest.mark.usefixtures("web_config")
 def test_client_disconnect_os_error(
-    container_factory, web_config, web_config_port, web_session
+    container_factory, web_config_port, web_session
 ):
     """ Regression for https://github.com/nameko/nameko/issues/368
     """
-    container = container_factory(ExampleService, web_config)
+    container = container_factory(ExampleService)
     container.start()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -88,12 +87,11 @@ def test_client_disconnect_os_error(
     assert web_session.get('/').text == ''
 
 
-def test_other_os_error(
-    container_factory, web_config, web_config_port, web_session
-):
+@pytest.mark.usefixtures("web_config")
+def test_other_os_error(container_factory, web_config_port, web_session):
     """ Regression for https://github.com/nameko/nameko/issues/368
     """
-    container = container_factory(ExampleService, web_config)
+    container = container_factory(ExampleService)
     container.start()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -127,7 +125,8 @@ def test_parse_address(source, result):
         assert parse_address(source) == result
 
 
-def test_adding_middleware_with_get_wsgi_app(container_factory, web_config):
+@pytest.mark.usefixtures("web_config")
+def test_adding_middleware_with_get_wsgi_app(container_factory):
 
     class CustomWebServer(WebServer):
         def get_wsgi_app(self):
@@ -148,7 +147,7 @@ def test_adding_middleware_with_get_wsgi_app(container_factory, web_config):
         def do_index(self, request):
             return ''  # pragma: no cover
 
-    container = container_factory(CustomServerExampleService, web_config)
+    container = container_factory(CustomServerExampleService)
     with patch.object(CustomWebServer, 'get_wsgi_server') as get_wsgi_server:
         container.start()
 
@@ -156,8 +155,9 @@ def test_adding_middleware_with_get_wsgi_app(container_factory, web_config):
     assert isinstance(wsgi_app, ProxyFix)
 
 
+@pytest.mark.usefixtures("web_config")
 def test_custom_wsgi_server_is_used(
-    container_factory, web_config, web_config_port, web_session
+    container_factory, web_config_port, web_session
 ):
     def custom_wsgi_app(environ, start_response):
         start_response('200 OK', [])
@@ -187,7 +187,7 @@ def test_custom_wsgi_server_is_used(
         def do_index(self, request):
             return ''  # pragma: no cover
 
-    container = container_factory(CustomServerExampleService, web_config)
+    container = container_factory(CustomServerExampleService)
     container.start()
 
     assert web_session.get('/').text == 'Override'

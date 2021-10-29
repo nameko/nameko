@@ -4,6 +4,7 @@ from codecs import open
 
 from setuptools import find_packages, setup
 
+
 here = os.path.abspath(os.path.dirname(__file__))
 
 with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
@@ -12,7 +13,7 @@ with open(os.path.join(here, 'README.rst'), 'r', 'utf-8') as handle:
 
 setup(
     name='nameko',
-    version='2.14.0',
+    version='v3.0.0-rc10',
     description='A microservices framework for Python that lets service '
                 'developers concentrate on application logic and encourages '
                 'testability.',
@@ -21,6 +22,7 @@ setup(
     url='http://github.com/nameko/nameko',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
+        "click>=7.0",
         "dnspython<2",
         "eventlet>=0.20.1",
         "eventlet>=0.21.0 ; python_version>='3.6'",
@@ -62,11 +64,11 @@ setup(
             "moto==1.3.6",
             "bcrypt==3.1.3",
             "regex==2018.2.21"
-        ]
+        ],
     },
     entry_points={
         'console_scripts': [
-            'nameko=nameko.cli.main:main',
+            'nameko=nameko.cli:cli',
         ],
         'pytest11': [
             'pytest_nameko=nameko.testing.pytest'

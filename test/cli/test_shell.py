@@ -5,27 +5,25 @@ import sys
 import pytest
 from mock import Mock, patch
 
-from nameko.cli.commands import Shell
-from nameko.cli.main import setup_parser
 from nameko.cli.shell import make_nameko_helper
 from nameko.constants import (
     AMQP_URI_CONFIG_KEY, SERIALIZER_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
 )
-from nameko.standalone.rpc import ClusterProxy
+from nameko.rpc import Client
 
 
 def test_helper_module(rabbit_config):
-    helper = make_nameko_helper(rabbit_config)
-    assert isinstance(helper.rpc, ClusterProxy)
+    helper = make_nameko_helper()
+    assert isinstance(helper.rpc, Client)
     helper.disconnect()
 
 
 @pytest.yield_fixture
 def pystartup(tmpdir):
-    startup = tmpdir.join('startup.py')
-    startup.write('foo = 42')
+    startup = tmpdir.join("startup.py")
+    startup.write("foo = 42")
 
-    with patch.dict(os.environ, {'PYTHONSTARTUP': str(startup)}):
+    with patch.dict(os.environ, {"PYTHONSTARTUP": str(startup)}):
         yield
 
 
@@ -37,208 +35,204 @@ def fake_alternative_interpreters():
     # case).
     fake_module = Mock()
     fake_module.embed.side_effect = ImportError
-    with patch.dict(sys.modules, {
-        'IPython': fake_module,
-        'bpython': fake_module,
-    }):
+    with patch.dict(sys.modules, {"IPython": fake_module, "bpython": fake_module}):
         yield
 
 
 @pytest.fixture
 def isatty():
-    with patch('nameko.cli.shell.sys.stdin.isatty') as isatty:
+    with patch("nameko.cli.shell.sys.stdin.isatty") as isatty:
         yield isatty
 
 
-def test_basic(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY]
-    ])
+@pytest.mark.usefixtures("rabbit_config")
+def test_basic(command, pystartup):
+    with patch("nameko.cli.shell.interact") as interact:
+        command('nameko', 'shell')
 
-    with patch("nameko.cli.shell.code") as code:
-        Shell.main(args)
-
-    _, kwargs = code.interact.call_args
-    local = kwargs['local']
-    assert 'n' in local.keys()
-    assert local['foo'] == 42
-    local['n'].disconnect()
+    _, kwargs = interact.call_args
+    local = kwargs["local"]
+    assert "n" in local.keys()
+    assert local["foo"] == 42
+    local["n"].disconnect()
 
 
-def test_plain(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'plain'
-    ])
+@pytest.mark.usefixtures("rabbit_config")
+def test_plain(command, pystartup):
+    with patch("nameko.cli.shell.interact") as interact:
+        command("nameko", "shell", "--interface", "plain")
 
-    with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
-
-    _, kwargs = code.interact.call_args
-    local = kwargs['local']
-    assert 'n' in local.keys()
-    assert local['foo'] == 42
-    local['n'].disconnect()
+    _, kwargs = interact.call_args
+    local = kwargs["local"]
+    assert "n" in local.keys()
+    assert local["foo"] == 42
+    local["n"].disconnect()
 
 
-def test_plain_fallback(pystartup, rabbit_config):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'bpython'
-    ])
+@pytest.mark.usefixtures("rabbit_config")
+def test_plain_fallback(command, pystartup):
+    with patch("nameko.cli.shell.interact") as interact:
+        command("nameko", "shell", "--interface", "bpython")
 
-    with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
-
-    _, kwargs = code.interact.call_args
-    local = kwargs['local']
-    assert 'n' in local.keys()
-    assert local['foo'] == 42
-    local['n'].disconnect()
+    _, kwargs = interact.call_args
+    local = kwargs["local"]
+    assert "n" in local.keys()
+    assert local["foo"] == 42
+    local["n"].disconnect()
 
 
-def test_bpython(pystartup, rabbit_config, isatty):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'bpython'
-    ])
+@pytest.mark.usefixtures("rabbit_config")
+def test_bpython(command, pystartup, isatty):
 
     isatty.return_value = True
 
-    with patch('bpython.embed') as embed:
-        Shell.main(args)
+    with patch("bpython.embed") as embed:
+        command("nameko", "shell", "--interface", "bpython")
 
     _, kwargs = embed.call_args
-    local = kwargs['locals_']
-    assert 'n' in local.keys()
-    assert local['foo'] == 42
-    local['n'].disconnect()
+    local = kwargs["locals_"]
+    assert "n" in local.keys()
+    assert local["foo"] == 42
+    local["n"].disconnect()
 
 
-def test_ipython(pystartup, rabbit_config, isatty):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'ipython'
-    ])
+@pytest.mark.usefixtures("rabbit_config")
+def test_ipython(command, pystartup, isatty):
 
     isatty.return_value = True
 
-    with patch('IPython.embed') as embed:
-        Shell.main(args)
+    with patch("IPython.embed") as embed:
+        command("nameko", "shell", "--interface", "ipython")
 
     _, kwargs = embed.call_args
-    local = kwargs['user_ns']
-    assert 'n' in local.keys()
-    assert local['foo'] == 42
-    local['n'].disconnect()
+    local = kwargs["user_ns"]
+    assert "n" in local.keys()
+    assert local["foo"] == 42
+    local["n"].disconnect()
 
 
-def test_uses_plain_when_not_tty(pystartup, rabbit_config, isatty):
-    parser = setup_parser()
-    args = parser.parse_args([
-        'shell', '--broker', rabbit_config[AMQP_URI_CONFIG_KEY],
-        '--interface', 'ipython'
-    ])
+@pytest.mark.usefixtures("rabbit_config")
+def test_uses_plain_when_not_tty(command, pystartup, isatty):
 
     isatty.return_value = False
 
-    with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
+    with patch("nameko.cli.shell.interact") as interact:
+        command("nameko", "shell", "--interface", "ipython")
 
-    assert code.interact.called
+    assert interact.called
 
 
-def test_config(pystartup, rabbit_config, tmpdir):
+@pytest.mark.usefixtures("rabbit_config")
+def test_config(command, pystartup, tmpdir):
 
-    config = tmpdir.join('config.yaml')
-    config.write("""
+    config_file = tmpdir.join("config.yaml")
+    config_file.write(
+        """
         WEB_SERVER_ADDRESS: '0.0.0.0:8001'
-        AMQP_URI: '{}'
         serializer: 'json'
-    """.format(rabbit_config[AMQP_URI_CONFIG_KEY]))
+    """
+    )
 
-    parser = setup_parser()
-    args = parser.parse_args(['shell', '--config', config.strpath])
+    with patch("nameko.cli.shell.interact") as interact:
+        command("nameko", "shell", "--config", config_file.strpath)
 
-    with patch('nameko.cli.shell.code') as code:
-        Shell.main(args)
-
-    _, kwargs = code.interact.call_args
-    local = kwargs['local']
-    assert 'n' in local.keys()
-    assert local['n'].config == {
-        WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
-        AMQP_URI_CONFIG_KEY: rabbit_config[AMQP_URI_CONFIG_KEY],
-        SERIALIZER_CONFIG_KEY: 'json'
-    }
-    local['n'].disconnect()
+    _, kwargs = interact.call_args
+    local = kwargs["local"]
+    assert "n" in local.keys()
+    assert local["n"].config[WEB_SERVER_CONFIG_KEY] == "0.0.0.0:8001"
+    assert local["n"].config[SERIALIZER_CONFIG_KEY] == "json"
+    local["n"].disconnect()
 
 
+@pytest.mark.usefixtures("rabbit_config")
+def test_config_options(command, pystartup, tmpdir):
+
+    config_file = tmpdir.join("config.yaml")
+    config_file.write(
+        """
+        WEB_SERVER_ADDRESS: '0.0.0.0:8001'
+        serializer: 'json'
+    """
+    )
+
+    with patch("nameko.cli.shell.interact") as interact:
+        command(
+            "nameko",
+            "shell",
+            "--config",
+            config_file.strpath,
+            "--define",
+            "serializer=pickle",
+            "--define",
+            'EGG=[{"spam": True}]',
+        )
+
+    _, kwargs = interact.call_args
+    local = kwargs["local"]
+    assert "n" in local.keys()
+    assert local["n"].config[WEB_SERVER_CONFIG_KEY] == "0.0.0.0:8001"
+    assert local["n"].config[SERIALIZER_CONFIG_KEY] == "pickle"
+    assert local["n"].config["EGG"] == [{"spam": True}]
+    local["n"].disconnect()
+
+
+@pytest.mark.usefixtures("empty_config")
 class TestBanner(object):
-
     @pytest.yield_fixture(autouse=True)
     def patch_nameko_helper(self):
-        with patch('nameko.cli.shell.make_nameko_helper'):
+        with patch("nameko.cli.shell.make_nameko_helper"):
             yield
 
-    def test_broker_as_param(self):
-
-        amqp_uri = "amqp://broker/param"
-
-        parser = setup_parser()
-        args = parser.parse_args(['shell', '--broker', amqp_uri])
-
-        with patch('nameko.cli.shell.ShellRunner') as shell_runner:
-            Shell.main(args)
-
-        expected_message = (
-            "Broker: {}".format(amqp_uri)
-        )
-        (banner, _), _ = shell_runner.call_args
-        assert expected_message in banner
-
-    def test_broker_from_config(self, tmpdir):
+    def test_banner(self, command, tmpdir):
 
         amqp_uri = "amqp://broker/config"
 
-        config = tmpdir.join('config.yaml')
-        config.write("""
+        config_file = tmpdir.join("config.yaml")
+        config_file.write(
+            """
             WEB_SERVER_ADDRESS: '0.0.0.0:8001'
             AMQP_URI: '{}'
             serializer: 'json'
-        """.format(amqp_uri))
-
-        parser = setup_parser()
-        args = parser.parse_args(['shell', '--config', config.strpath])
-
-        with patch('nameko.cli.shell.ShellRunner') as shell_runner:
-            Shell.main(args)
-
-        expected_message = (
-            "Broker: {} (from --config)".format(amqp_uri)
+        """.format(
+                amqp_uri
+            )
         )
+
+        with patch("nameko.cli.shell.ShellRunner") as shell_runner:
+            command("nameko", "shell", "--config", config_file.strpath)
+
+        expected_message = "Broker: {}".format(amqp_uri)
         (banner, _), _ = shell_runner.call_args
         assert expected_message in banner
 
 
-class TestExitCode:
+@pytest.mark.usefixtures("empty_config")
+def test_broker_option_deprecated(command, rabbit_uri):
 
+    with patch("nameko.cli.shell.interact") as interact:
+        with patch("nameko.cli.utils.config.warnings") as warnings:
+            command("nameko", "shell", "--broker", rabbit_uri)
+
+    _, kwargs = interact.call_args
+    local = kwargs["local"]
+    assert "n" in local.keys()
+    assert local["n"].config[AMQP_URI_CONFIG_KEY] == rabbit_uri
+    local["n"].disconnect()
+
+    assert warnings.warn.call_count
+
+
+class TestExitCode:
     def test_exit_code_0(self):
         """ Test ``echo print(1) | nameko shell``
 
         This command should return an exit code of 0.
         """
 
-        echo_process = subprocess.Popen(
-            ("echo", "print(1)"), stdout=subprocess.PIPE
-        )
+        echo_process = subprocess.Popen(("echo", "print(1)"), stdout=subprocess.PIPE)
         nameko_process = subprocess.Popen(
-            ("nameko", "shell"), stdin=echo_process.stdout
+            ("nameko", "shell", "--define=AMQP_URI=memory://localhost"),
+            stdin=echo_process.stdout,
         )
         nameko_process.wait()
         assert nameko_process.returncode == 0
@@ -253,7 +247,8 @@ class TestExitCode:
             ("echo", "raise Exception()"), stdout=subprocess.PIPE
         )
         nameko_process = subprocess.Popen(
-            ("nameko", "shell"), stdin=echo_process.stdout
+            ("nameko", "shell", "--define=AMQP_URI=memory://localhost"),
+            stdin=echo_process.stdout,
         )
         nameko_process.wait()
         assert nameko_process.returncode == 1

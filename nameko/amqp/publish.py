@@ -21,8 +21,8 @@ def get_connection(amqp_uri, ssl=None, login_method=None, transport_options=None
     if not transport_options:
         transport_options = DEFAULT_TRANSPORT_OPTIONS.copy()
     conn = Connection(
-        amqp_uri, transport_options=transport_options, ssl=ssl,
-        login_method=login_method
+        amqp_uri,
+        transport_options=transport_options, login_method=login_method, ssl=ssl
     )
 
     with connections[conn].acquire(block=True) as connection:
@@ -37,8 +37,8 @@ def get_producer(
         transport_options = DEFAULT_TRANSPORT_OPTIONS.copy()
     transport_options['confirm_publish'] = confirms
     conn = Connection(
-        amqp_uri, transport_options=transport_options, ssl=ssl,
-        login_method=login_method
+        amqp_uri,
+        transport_options=transport_options, login_method=login_method, ssl=ssl
     )
 
     with producers[conn].acquire(block=True) as producer:
@@ -56,7 +56,7 @@ class Publisher(object):
     publisher.
 
     The publisher will wait for an acknowledgement from the broker that
-    the message was receieved and processed appropriately, and otherwise
+    the message was received and processed appropriately, and otherwise
     raise. Confirms have a performance penalty but guarantee that messages
     aren't lost, for example due to stale connections.
     """

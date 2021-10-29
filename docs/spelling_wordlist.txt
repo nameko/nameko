@@ -89,6 +89,7 @@ parallelization
 parallelize
 plugin
 pre
+preconfigured
 prefetch
 programmatically
 pseudocode
@@ -117,6 +118,7 @@ serializable
 serialization
 serialize
 serialized
+serializer
 serializers
 serializes
 serializing
@@ -131,6 +133,7 @@ stats
 StatsD
 stringified
 subclass
+subclassed
 subclasses
 subclassing
 subcommands

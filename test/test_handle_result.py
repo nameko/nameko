@@ -7,7 +7,7 @@ from mock import ANY
 from nameko.exceptions import RemoteError
 from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc
-from nameko.standalone.rpc import ServiceRpcProxy
+from nameko.standalone.rpc import ServiceRpcClient
 from nameko.testing.services import entrypoint_waiter
 
 
@@ -60,27 +60,28 @@ class ExampleService(object):
 
 
 @pytest.yield_fixture
-def rpc_proxy(rabbit_config):
-    with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
-        yield proxy
+def rpc_client(rabbit_config):
+    with ServiceRpcClient('exampleservice') as client:
+        yield client
 
 
+@pytest.mark.usefixtures("rabbit_config")
 def test_handle_result(
-    container_factory, rabbit_manager, rabbit_config, rpc_proxy
+    container_factory, rabbit_manager, rpc_client
 ):
     """ Verify that `handle_result` can modify the return values of the worker,
     such that other dependencies see the updated values.
     """
-    container = container_factory(ExampleService, rabbit_config)
+    container = container_factory(ExampleService)
     container.start()
 
-    assert rpc_proxy.echo("hello") == "hello"
+    assert rpc_client.echo("hello") == "hello"
 
-    # use entrypoint_waiter because the rpc proxy returns before
+    # use entrypoint_waiter because the rpc client returns before
     # worker_result is called
     with entrypoint_waiter(container, "unserializable"):
         with pytest.raises(RemoteError) as exc:
-            rpc_proxy.unserializable()
+            rpc_client.unserializable()
         assert "is not JSON serializable" in str(exc.value)
 
     # verify ResultCollector sees values returned from `handle_result`

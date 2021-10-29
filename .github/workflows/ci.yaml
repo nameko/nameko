@@ -6,7 +6,7 @@ on:
       - "v*"
   pull_request:
     branches:
-      - master
+      - "*"
 
   schedule:
     - cron: '0 * * * 0'
@@ -96,11 +96,11 @@ jobs:
         # allow failure for a job but not fail the workflow
         # see https://github.com/actions/toolkit/issues/399.
         # include:
-        #   - python-version: 3.6
+        #   - python-version: 3.7
         #     dependency-set: latest
         #     command: test-mastereventlet
         #     experimental: true
-        #   - python-version: 3.6
+        #   - python-version: 3.7
         #     dependency-set: latest
         #     command: test-branchcoverage
         #     experimental: true
@@ -145,7 +145,7 @@ jobs:
     - name: setup python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.6
+        python-version: 3.7
 
     - name: install libenchant
       run: |

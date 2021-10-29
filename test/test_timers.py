@@ -164,3 +164,25 @@ def test_expected_error_in_worker(container_factory, caplog):
     assert caplog.records[0].message == (
         '(expected) error handling worker {}: boom!'
     ).format(caplog.records[0].args[0])
+
+
+class TestEntrypointArguments:
+
+    def test_expected_exceptions_and_sensitive_arguments(self, container_factory):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @timer(1, expected_exceptions=Boom, sensitive_arguments=["arg"])
+            def method(self, arg):
+                pass  # pragma: no cover
+
+        container = container_factory(Service)
+        container.start()
+
+        entrypoint = get_extension(container, Timer)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["arg"]

@@ -9,7 +9,7 @@ import six
 if sys.version_info >= (3, 3):  # pragma: no cover
     from collections.abc import Iterable  # pylint: disable=E0611,E0401
 else:  # pragma: no cover
-    from collections import Iterable
+    from collections import Iterable  # pylint: disable=E0611,E0401
 
 
 class ExtensionNotFound(AttributeError):

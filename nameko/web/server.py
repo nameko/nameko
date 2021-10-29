@@ -12,6 +12,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map
 from werkzeug.wrappers import Request
 
+from nameko import config
 from nameko.constants import WEB_SERVER_CONFIG_KEY
 from nameko.exceptions import ConfigurationError
 from nameko.extensions import ProviderCollector, SharedExtension
@@ -62,7 +63,7 @@ class WebServer(ProviderCollector, SharedExtension):
     requests.
 
     WebServer can be subclassed to add additional WSGI functionality through
-    overriding the get_wsgi_server and get_wsgi_app methods.
+    overriding the `get_wsgi_server` and `get_wsgi_app` methods.
     """
 
     def __init__(self):
@@ -75,7 +76,7 @@ class WebServer(ProviderCollector, SharedExtension):
 
     @property
     def bind_addr(self):
-        address_str = self.container.config.get(
+        address_str = config.get(
             WEB_SERVER_CONFIG_KEY, '0.0.0.0:8000')
         return parse_address(address_str)
 
@@ -117,7 +118,7 @@ class WebServer(ProviderCollector, SharedExtension):
     def get_wsgi_app(self):
         """Get the WSGI application used to process requests.
 
-        This method can be overriden to apply WSGI middleware or replace
+        This method can be overridden to apply WSGI middleware or replace
         the WSGI application all together.
         """
         return WsgiApp(self)

@@ -4,7 +4,7 @@ class Service:
     name = "service"
 
 # create a container
-container = ServiceContainer(Service, config={})
+container = ServiceContainer(Service)
 
 # ``container.extensions`` exposes all extensions used by the service
 service_extensions = list(container.extensions)

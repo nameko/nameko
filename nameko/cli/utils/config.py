@@ -1,16 +1,28 @@
+"""Load configuration from YAML file. Allow env var rendering.
+
+E.g.::
+
+    fname = "conf.yaml"
+    define = {"MY_PARAM": "is here", "YOUR_PARAM": "is here too"}
+    with open(fname, "rb") as config_file:
+        setup_config(config_file)
+        # from now on, nameko.config is updated
+    from nameko import config
+    assert "MY_PARAM" in config
+    assert "YOUR_PARAM" in config
+"""
 from __future__ import print_function
 
-import argparse
 import os
 import re
+import warnings
 from functools import partial
 
 import yaml
-from pkg_resources import get_distribution
 
-from nameko.exceptions import CommandError, ConfigurationError
-
-from . import commands
+from nameko import config
+from nameko.constants import AMQP_URI_CONFIG_KEY
+from nameko.exceptions import ConfigurationError
 
 
 try:
@@ -24,7 +36,8 @@ except ImportError:  # pragma: no cover
             :?         # matches the literal `:` character zero or one times
             ([^}]+)?   # 2nd group: matches any character except `}`
             \}         # match character `}` literally
-        """, re.VERBOSE
+        """,
+        re.VERBOSE,
     )
 else:  # pragma: no cover
     has_regex_module = True
@@ -48,7 +61,7 @@ else:  # pragma: no cover
         )?
         \}                  # end of macher }
         """,
-        regex.VERBOSE
+        regex.VERBOSE,
     )
 
 IMPLICIT_ENV_VAR_MATCHER = re.compile(
@@ -57,9 +70,9 @@ IMPLICIT_ENV_VAR_MATCHER = re.compile(
         \$\{.*\}    # matches any number of any characters
                     # between `${` and `}` literally
         .*          # matches any number of any characters
-    """, re.VERBOSE
+    """,
+    re.VERBOSE,
 )
-
 
 RECURSIVE_ENV_VAR_MATCHER = re.compile(
     r"""
@@ -73,24 +86,6 @@ RECURSIVE_ENV_VAR_MATCHER = re.compile(
 )
 
 
-def setup_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-v',
-        '--version',
-        action='version',
-        version=get_distribution('nameko').version
-    )
-    subparsers = parser.add_subparsers()
-
-    for command in commands.commands:
-        command_parser = subparsers.add_parser(
-            command.name, description=command.__doc__)
-        command.init_parser(command_parser)
-        command_parser.set_defaults(main=command.main)
-    return parser
-
-
 def _replace_env_var(match):
     env_var, default = match.groups()
     value = os.environ.get(env_var, None)
@@ -99,7 +94,7 @@ def _replace_env_var(match):
         if default is None:
             # regex module return None instead of
             #  '' if engine didn't entered default capture group
-            default = ''
+            default = ""
 
         value = default
         while IMPLICIT_ENV_VAR_MATCHER.match(value):  # pragma: no cover
@@ -124,22 +119,34 @@ def env_var_constructor(loader, node, raw=False):
 
 
 def setup_yaml_parser():
-    yaml.add_constructor('!env_var', env_var_constructor, yaml.SafeLoader)
+    yaml.add_constructor("!env_var", env_var_constructor, yaml.SafeLoader)
     yaml.add_constructor(
-        '!raw_env_var',
-        partial(env_var_constructor, raw=True),
-        yaml.SafeLoader
+        "!raw_env_var", partial(env_var_constructor, raw=True), yaml.SafeLoader
     )
     yaml.add_implicit_resolver(
-        '!env_var', IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.SafeLoader
+        "!env_var", IMPLICIT_ENV_VAR_MATCHER, Loader=yaml.SafeLoader
     )
 
 
-def main():
-    parser = setup_parser()
-    args, unknown_args = parser.parse_known_args()
+def load_config(config_file):
     setup_yaml_parser()
-    try:
-        args.main(args, *unknown_args)
-    except (CommandError, ConfigurationError) as exc:
-        print("Error: {}".format(exc))
+    return yaml.safe_load(config_file)
+
+
+def setup_config(config_file, define=None, broker=None):
+    if config_file:
+        config.update(load_config(config_file))
+    # --broker is deprecated, emit warning if used
+    if broker:
+        warnings.warn(
+            (
+                "--broker option is going to be removed. ",
+                "Use --config or --define and set AMQP_URI instead.",
+            ),
+            DeprecationWarning,
+        )
+        if AMQP_URI_CONFIG_KEY not in config:
+            config.update({AMQP_URI_CONFIG_KEY: broker})
+    if define:
+        config.update(define)
+    return config

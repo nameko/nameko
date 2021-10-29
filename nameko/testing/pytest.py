@@ -2,6 +2,8 @@ from __future__ import absolute_import
 
 import pytest
 
+from nameko import config
+
 
 # all imports are inline to make sure they happen after eventlet.monkey_patch
 # which is called in pytest_load_initial_conftests
@@ -114,23 +116,24 @@ def pytest_sessionstart(session):
             )
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def empty_config():
-    return {}
+    with config.patch({}, clear=True):
+        yield
 
 
-@pytest.fixture
-def mock_container(request, empty_config):
+@pytest.yield_fixture
+def mock_container(request):
     from mock import create_autospec
     from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
     from nameko.containers import ServiceContainer
 
     container = create_autospec(ServiceContainer)
-    container.config = empty_config
-    container.config[SERIALIZER_CONFIG_KEY] = DEFAULT_SERIALIZER
-    container.serializer = container.config[SERIALIZER_CONFIG_KEY]
-    container.accept = [DEFAULT_SERIALIZER]
-    return container
+
+    with config.patch({SERIALIZER_CONFIG_KEY: DEFAULT_SERIALIZER}):
+        container.serializer = config[SERIALIZER_CONFIG_KEY]
+        container.accept = [DEFAULT_SERIALIZER]
+        yield container
 
 
 @pytest.fixture(scope='session')
@@ -150,12 +153,10 @@ def vhost_pipeline(request, rabbit_manager):
         from collections import Iterable  # pylint: disable=E0611
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
-    import socket
     import string
     from kombu.pools import connections
     from nameko.testing.utils import ResourcePipeline
     from nameko.utils.retry import retry
-    from requests.exceptions import HTTPError
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
@@ -171,7 +172,7 @@ def vhost_pipeline(request, rabbit_manager):
         )
         return vhost
 
-    @retry(for_exceptions=(HTTPError, socket.timeout), delay=1, max_attempts=9)
+    @retry(for_exceptions=Exception, delay=1, max_attempts=9)
     def destroy(vhost):
         rabbit_manager.delete_vhost(vhost)
 
@@ -189,13 +190,12 @@ def vhost_pipeline(request, rabbit_manager):
         yield vhosts
 
 
-@pytest.yield_fixture()
-def rabbit_config(request, vhost_pipeline, rabbit_manager):
+@pytest.yield_fixture
+def rabbit_uri(request, vhost_pipeline):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
-    username = uri_parts.username
 
     with vhost_pipeline.get() as vhost:
 
@@ -203,124 +203,68 @@ def rabbit_config(request, vhost_pipeline, rabbit_manager):
             uri=uri_parts, vhost=vhost
         )
 
-        conf = {
-            'AMQP_URI': amqp_uri,
-            'username': username,
-            'vhost': vhost
-        }
-
-        yield conf
+        yield amqp_uri
 
 
-@pytest.fixture()
-def rabbit_ssl_config(request, rabbit_config):
-    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+@pytest.yield_fixture
+def rabbit_config(rabbit_uri):
+    with config.patch({'AMQP_URI': rabbit_uri}):
+        print("PATCH", rabbit_uri)
+        yield
+
+
+@pytest.fixture
+def rabbit_ssl_options(request):
+    import os
+    from test import on_travis
 
     ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
     ssl_options = {key: value for key, value in ssl_options} or True
 
+    for file_key in ['ca_certs', 'certfile', 'keyfile']:
+        filename = ssl_options.get(file_key)
+        if (
+                not on_travis and
+                filename and not os.path.isfile(filename)
+        ):  # pragma: no cover
+            pytest.skip('ssl {} file {} does not exist'
+                        .format(file_key, filename))
+
+    return ssl_options
+
+
+@pytest.fixture
+def rabbit_ssl_uri(request, rabbit_uri):
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+
     amqp_ssl_port = request.config.getoption('AMQP_SSL_PORT')
-    uri_parts = urlparse(rabbit_config['AMQP_URI'])
+    uri_parts = urlparse(rabbit_uri)
     amqp_ssl_uri = uri_parts._replace(
         netloc=uri_parts.netloc.replace(
             str(uri_parts.port),
             str(amqp_ssl_port))
     ).geturl()
 
+    return amqp_ssl_uri
+
+
+@pytest.yield_fixture()
+def rabbit_ssl_config(request, rabbit_ssl_uri, rabbit_ssl_options):
+
     conf = {
-        'AMQP_URI': amqp_ssl_uri,
-        'username': rabbit_config['username'],
-        'vhost': rabbit_config['vhost'],
-        'AMQP_SSL': ssl_options,
+        'AMQP_URI': rabbit_ssl_uri,
+        'AMQP_SSL': rabbit_ssl_options,
     }
 
-    return conf
+    with config.patch(conf):
+        yield
 
 
 @pytest.fixture
 def amqp_uri(rabbit_config):
     from nameko.constants import AMQP_URI_CONFIG_KEY
 
-    return rabbit_config[AMQP_URI_CONFIG_KEY]
-
-
-@pytest.yield_fixture(autouse=True)
-def fast_teardown(request):
-    """
-    This fixture fixes the order of the `container_factory`, `runner_factory`
-    and `rabbit_config` fixtures to get the fastest possible teardown of tests
-    that use them.
-
-    Without this fixture, the teardown order depends on the fixture resolution
-    defined by the test, for example::
-
-    def test_foo(container_factory, rabbit_config):
-        pass  # rabbit_config tears down first
-
-    def test_bar(rabbit_config, container_factory):
-        pass  # container_factory tears down first
-
-    This fixture ensures the teardown order is:
-
-        1. `fast_teardown`  (this fixture)
-        2. `rabbit_config`
-        3. `container_factory` / `runner_factory`
-
-    That is, `rabbit_config` teardown, which removes the vhost created for
-    the test, happens *before* the consumers are stopped.
-
-    Deleting the vhost causes the broker to sends a "basic-cancel" message
-    to any connected consumers, which will include the consumers in all
-    containers created by the `container_factory` and `runner_factory`
-    fixtures.
-
-    This speeds up test teardown because the "basic-cancel" breaks
-    the consumers' `drain_events` loop (http://bit.do/kombu-drain-events)
-    which would otherwise wait for up to a second for the socket read to time
-    out before gracefully shutting down.
-
-    For even faster teardown, we monkeypatch the consumers to ensure they
-    don't try to reconnect between the "basic-cancel" and being explicitly
-    stopped when their container is killed.
-
-    In older versions of RabbitMQ, the monkeypatch also protects against a
-    race-condition that can lead to hanging tests.
-
-    Modern RabbitMQ raises a `NotAllowed` exception if you try to connect to
-    a vhost that doesn't exist, but older versions (including 3.4.3, used by
-    Travis) just raise a `socket.error`. This is classed as a recoverable
-    error, and consumers attempt to reconnect. Kombu's reconnection code blocks
-    until a connection is established, so consumers that attempt to reconnect
-    before being killed get stuck there.
-    """
-    from kombu.mixins import ConsumerMixin
-
-    reorder_fixtures = ('container_factory', 'runner_factory', 'rabbit_config')
-    for fixture in reorder_fixtures:
-        if fixture in request.fixturenames:
-            request.getfixturevalue(fixture)  # pragma: no cover
-
-    consumers = []
-
-    # monkeypatch the ConsumerMixin constructor to stash a reference to
-    # each instance
-    orig_init = ConsumerMixin.__init__
-
-    def __init__(self, *args, **kwargs):
-        orig_init(self, *args, **kwargs)
-        consumers.append(self)
-
-    ConsumerMixin.__init__ = __init__
-
-    yield
-
-    ConsumerMixin.__init__ = orig_init
-
-    # set the `should_stop` attribute on all consumers *before* the rabbit
-    # vhost is killed, so that they don't try to reconnect before they're
-    # explicitly killed when their container stops.
-    for consumer in consumers:
-        consumer.should_stop = True
+    return config[AMQP_URI_CONFIG_KEY]
 
 
 @pytest.fixture
@@ -349,45 +293,72 @@ def get_message_from_queue(amqp_uri):
 
 @pytest.yield_fixture
 def container_factory():
+    import nameko
     from nameko.containers import get_container_cls
 
     all_containers = []
 
-    def make_container(service_cls, config):
+    def make_container(service_cls, config=None):
 
-        container_cls = get_container_cls(config)
-        container = container_cls(service_cls, config)
-        all_containers.append(container)
+        # nameko 2.X backward compatible passing of custom config argument
+        # we apply config patch if a config dictionary is passed to the factory
+        if config:
+            patch = nameko.config.patch(config)
+            patch.start()
+        else:
+            patch = None
+
+        container_cls = get_container_cls()
+        container = container_cls(service_cls)
+        all_containers.append((container, patch))
         return container
 
     yield make_container
-    for c in all_containers:
+
+    for container, patch in reversed(all_containers):
         try:
-            c.kill()
+            container.kill()
         except:  # pragma: no cover
             pass
+        if patch:
+            patch.stop()
 
 
 @pytest.yield_fixture
 def runner_factory():
+    import collections
+    import nameko
     from nameko.runners import ServiceRunner
 
     all_runners = []
 
-    def make_runner(config, *service_classes):
-        runner = ServiceRunner(config)
+    def make_runner(*service_classes):
+
+        # nameko 2.X backward compatible passing of custom config argument
+        # we apply config patch if a config dictionary is passed to the factory
+        if service_classes and isinstance(service_classes[0], collections.Mapping):
+            config = service_classes[0]
+            service_classes = service_classes[1:]
+            patch = nameko.config.patch(config)
+            patch.start()
+        else:
+            patch = None
+
+        runner = ServiceRunner()
         for service_cls in service_classes:
             runner.add_service(service_cls)
-        all_runners.append(runner)
+        all_runners.append((runner, patch))
         return runner
 
     yield make_runner
 
-    for r in all_runners:
+    for runner, patch in reversed(all_runners):
         try:
-            r.kill()
+            runner.kill()
         except:  # pragma: no cover
             pass
+        if patch:
+            patch.stop()
 
 
 @pytest.yield_fixture
@@ -395,28 +366,29 @@ def predictable_call_ids(request):
     import itertools
     from mock import patch
 
-    with patch('nameko.containers.new_call_id', autospec=True) as get_id:
-        get_id.side_effect = (str(i) for i in itertools.count())
-        yield get_id
+    with patch('nameko.standalone.rpc.uuid') as client_uuid:
+        client_uuid.uuid4.side_effect = (str(i) for i in itertools.count())
+        with patch('nameko.containers.uuid', autospec=True) as call_uuid:
+            call_uuid.uuid4.side_effect = (str(i) for i in itertools.count())
+            yield call_uuid.uuid4
 
 
-@pytest.fixture()
-def web_config(empty_config):
+@pytest.yield_fixture
+def web_config():
     from nameko.constants import WEB_SERVER_CONFIG_KEY
     from nameko.testing.utils import find_free_port
 
     port = find_free_port()
 
-    cfg = empty_config
-    cfg[WEB_SERVER_CONFIG_KEY] = "127.0.0.1:{}".format(port)
-    return cfg
+    with config.patch({WEB_SERVER_CONFIG_KEY: "127.0.0.1:{}".format(port)}):
+        yield
 
 
 @pytest.fixture()
 def web_config_port(web_config):
     from nameko.constants import WEB_SERVER_CONFIG_KEY
     from nameko.web.server import parse_address
-    return parse_address(web_config[WEB_SERVER_CONFIG_KEY]).port
+    return parse_address(config[WEB_SERVER_CONFIG_KEY]).port
 
 
 @pytest.yield_fixture()

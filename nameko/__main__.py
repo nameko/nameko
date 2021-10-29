@@ -1,5 +1,5 @@
-import nameko.cli.main
+import nameko.cli
 
 
 if __name__ == "__main__":
-    nameko.cli.main.main()
+    nameko.cli.cli()

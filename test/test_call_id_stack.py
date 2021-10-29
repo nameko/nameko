@@ -1,11 +1,12 @@
 import pytest
 from mock import Mock, call
 
+from nameko import config
 from nameko.constants import PARENT_CALLS_CONFIG_KEY
 from nameko.containers import WorkerContext
 from nameko.events import EventDispatcher, event_handler
 from nameko.extensions import DependencyProvider
-from nameko.rpc import RpcProxy, rpc
+from nameko.rpc import ServiceRpc, rpc
 from nameko.testing.services import entrypoint_hook, entrypoint_waiter
 from nameko.testing.utils import DummyProvider, get_container
 
@@ -16,7 +17,7 @@ def test_worker_context_gets_stack(container_factory):
     class FooService(object):
         name = 'baz'
 
-    container = container_factory(FooService, {})
+    container = container_factory(FooService)
     service = FooService()
 
     context = WorkerContext(container, service, DummyProvider("bar"))
@@ -42,20 +43,22 @@ def test_worker_context_gets_stack(container_factory):
 
 
 @pytest.mark.usefixtures("predictable_call_ids")
+@config.patch({PARENT_CALLS_CONFIG_KEY: 1}, clear=True)
 def test_short_call_stack(container_factory):
 
     class FooService(object):
         name = 'baz'
 
-    container = container_factory(FooService, {PARENT_CALLS_CONFIG_KEY: 1})
+    container = container_factory(FooService)
     service = FooService()
 
-    # Trim stack
     many_ids = [str(i) for i in range(100)]
+
     context = WorkerContext(
         container, service, DummyProvider("long"),
         data={'call_id_stack': many_ids}
     )
+    # Trimmed stack
     assert context.call_id_stack == ['99', 'baz.long.0']
 
 
@@ -93,7 +96,7 @@ def test_call_id_stack(
         name = "parent"
 
         stack_logger = StackLogger()
-        child_service = RpcProxy('child')
+        child_service = ServiceRpc('child')
 
         @rpc
         def method(self):
@@ -103,13 +106,13 @@ def test_call_id_stack(
         name = "grandparent"
 
         stack_logger = StackLogger()
-        parent_service = RpcProxy('parent')
+        parent_service = ServiceRpc('parent')
 
         @rpc
         def method(self):
             return self.parent_service.method()
 
-    runner = runner_factory(rabbit_config)
+    runner = runner_factory()
     runner.add_service(Child)
     runner.add_service(Parent)
     runner.add_service(Grandparent)
@@ -166,7 +169,7 @@ def test_call_id_over_events(
         def say_hello(self):
             self.dispatch('hello', self.name)
 
-    runner = runner_factory(rabbit_config)
+    runner = runner_factory()
     runner.add_service(EventListeningServiceOne)
     runner.add_service(EventListeningServiceTwo)
     runner.add_service(EventRaisingService)

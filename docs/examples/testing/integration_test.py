@@ -1,9 +1,11 @@
 """ Service integration testing best practice.
 """
 
-from nameko.rpc import rpc, RpcProxy
-from nameko.testing.utils import get_container
+import pytest
+
+from nameko.rpc import ServiceRpc, rpc
 from nameko.testing.services import entrypoint_hook
+from nameko.testing.utils import get_container
 
 
 class ServiceX:
@@ -11,7 +13,7 @@ class ServiceX:
     """
     name = "service_x"
 
-    y = RpcProxy("service_y")
+    y = ServiceRpc("service_y")
 
     @rpc
     def remote_method(self, value):
@@ -29,10 +31,11 @@ class ServiceY:
         return "{}-y".format(value)
 
 
-def test_service_x_y_integration(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_service_x_y_integration(runner_factory):
 
     # run services in the normal manner
-    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner = runner_factory(ServiceX, ServiceY)
     runner.start()
 
     # artificially fire the "remote_method" entrypoint on ServiceX

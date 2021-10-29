@@ -6,13 +6,13 @@ from eventlet.event import Event
 from mock import Mock, call, patch
 from requests import HTTPError, Response
 
-from nameko.constants import DEFAULT_MAX_WORKERS
-from nameko.rpc import Rpc, rpc
+from nameko.containers import ServiceContainer
+from nameko.rpc import Rpc, RpcConsumer, rpc
 from nameko.testing.rabbit import Client
 from nameko.testing.utils import (
     AnyInstanceOf, ResourcePipeline, find_free_port, get_container,
     get_extension, get_rabbit_connections, reset_rabbit_connections,
-    wait_for_call, wait_for_worker_idle
+    wait_for_call
 )
 
 
@@ -58,11 +58,8 @@ def test_wait_for_call():
             pass  # pragma: no cover
 
 
-def test_get_extension(rabbit_config):
-
-    from nameko.messaging import QueueConsumer
-    from nameko.rpc import Rpc, RpcConsumer
-    from nameko.containers import ServiceContainer
+@pytest.mark.usefixtures("rabbit_config")
+def test_get_extension():
 
     class Service(object):
         name = "service"
@@ -75,18 +72,18 @@ def test_get_extension(rabbit_config):
         def bar(self):
             pass  # pragma: no cover
 
-    container = ServiceContainer(Service, rabbit_config)
+    container = ServiceContainer(Service)
 
     rpc_consumer = get_extension(container, RpcConsumer)
-    queue_consumer = get_extension(container, QueueConsumer)
     foo_rpc = get_extension(container, Rpc, method_name="foo")
     bar_rpc = get_extension(container, Rpc, method_name="bar")
 
     extensions = container.extensions
-    assert extensions == set([rpc_consumer, queue_consumer, foo_rpc, bar_rpc])
+    assert extensions == set([rpc_consumer, foo_rpc, bar_rpc])
 
 
-def test_get_container(runner_factory, rabbit_config):
+@pytest.mark.usefixtures("rabbit_config")
+def test_get_container(runner_factory):
 
     class ServiceX(object):
         name = "service_x"
@@ -94,7 +91,7 @@ def test_get_container(runner_factory, rabbit_config):
     class ServiceY(object):
         name = "service_y"
 
-    runner = runner_factory(rabbit_config, ServiceX, ServiceY)
+    runner = runner_factory(ServiceX, ServiceY)
 
     assert get_container(runner, ServiceX).service_cls is ServiceX
     assert get_container(runner, ServiceY).service_cls is ServiceY
@@ -165,51 +162,6 @@ def test_reset_rabbit_connection_errors():
 
         # does not raise
         reset_rabbit_connections("vhost_name", rabbit_manager)
-
-
-@pytest.mark.filterwarnings("ignore:`wait_for_worker_idle` is :DeprecationWarning")
-def test_wait_for_worker_idle(container_factory, rabbit_config):
-
-    event = Event()
-
-    class Service(object):
-        name = "service"
-
-        @rpc
-        def wait_for_event(self):
-            event.wait()
-
-    container = container_factory(Service, rabbit_config)
-    container.start()
-
-    max_workers = DEFAULT_MAX_WORKERS
-
-    with pytest.deprecated_call():
-        wait_for_worker_idle(container)
-
-    # verify nothing running
-    assert container._worker_pool.free() == max_workers
-    with eventlet.Timeout(1):
-        wait_for_worker_idle(container)
-
-    # spawn a worker
-    wait_for_event = get_extension(container, Rpc)
-    container.spawn_worker(wait_for_event, [], {})
-
-    # verify that wait_for_worker_idle does not return while worker active
-    assert container._worker_pool.free() == max_workers - 1
-    gt = eventlet.spawn(wait_for_worker_idle, container)
-    assert not gt.dead  # still waiting
-
-    # verify that wait_for_worker_idle raises when it times out
-    with pytest.raises(eventlet.Timeout):
-        wait_for_worker_idle(container, timeout=0)
-
-    # complete the worker, verify previous wait_for_worker_idle completes
-    event.send()
-    with eventlet.Timeout(1):
-        gt.wait()
-    assert container._worker_pool.free() == max_workers
 
 
 def test_rabbit_connection_refused_error():

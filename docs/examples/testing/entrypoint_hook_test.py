@@ -23,14 +23,15 @@ class HelloService:
         return "{}, {}!".format(greeting, name)
 
 
+@pytest.mark.usefixtures("rabbit_config")
 @pytest.mark.parametrize("language, greeting", [
     ("en", "Hello"),
     ("fr", "Bonjour"),
     ("de", "Gutentag"),
 ])
-def test_hello_languages(language, greeting, container_factory, rabbit_config):
+def test_hello_languages(language, greeting, container_factory):
 
-    container = container_factory(HelloService, rabbit_config)
+    container = container_factory(HelloService)
     container.start()
 
     context_data = {'language': language}

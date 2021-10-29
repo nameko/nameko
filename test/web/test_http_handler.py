@@ -56,7 +56,7 @@ class SimpleService(object):
 
 @pytest.fixture
 def web_session(container_factory, web_config, web_session):
-    container = container_factory(ExampleService, web_config)
+    container = container_factory(ExampleService)
     container.start()
     return web_session
 
@@ -127,9 +127,10 @@ def test_bad_payload(web_session):
     assert "Error: TypeError: Payload must be a string. Got `23`" in rv.text
 
 
-def test_lifecycle(container_factory, web_config):
+@pytest.mark.usefixtures("web_config")
+def test_lifecycle(container_factory):
 
-    container = container_factory(SimpleService, web_config)
+    container = container_factory(SimpleService)
 
     http = get_extension(container, HttpRequestHandler)
 
@@ -140,3 +141,32 @@ def test_lifecycle(container_factory, web_config):
     with patch.object(http.server, 'unregister_provider') as unregister:
         container.stop()
         unregister.assert_called_with(http)
+
+
+class TestEntrypointArguments:
+
+    @pytest.mark.usefixtures("web_config")
+    def test_expected_exceptions_and_sensitive_arguments(
+        self, container_factory
+    ):
+
+        class Boom(Exception):
+            pass
+
+        class Service(object):
+            name = "service"
+
+            @http(
+                "GET", "/method",
+                expected_exceptions=Boom,
+                sensitive_arguments=["request"]
+            )
+            def method(self, request):
+                pass  # pragma: no cover
+
+        container = container_factory(Service)
+        container.start()
+
+        entrypoint = get_extension(container, HttpRequestHandler)
+        assert entrypoint.expected_exceptions == Boom
+        assert entrypoint.sensitive_arguments == ["request"]
