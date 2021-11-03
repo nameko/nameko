@@ -14,7 +14,7 @@ from nameko.testing.services import entrypoint_waiter
 worker_result_called = []
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def reset():
     yield
     del worker_result_called[:]
@@ -59,7 +59,7 @@ class ExampleService(object):
         return object()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def rpc_proxy(rabbit_config):
     with ServiceRpcProxy('exampleservice', rabbit_config) as proxy:
         yield proxy

@@ -31,7 +31,7 @@ exchange = Exchange('spam')
 ham_queue = Queue('ham', exchange=exchange, auto_delete=False)
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def logger():
     with patch('nameko.messaging._log') as logger:
         yield logger

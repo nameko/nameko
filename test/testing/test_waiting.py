@@ -8,7 +8,7 @@ from mock import ANY, Mock, call, patch
 from nameko.testing.waiting import WaitResult, wait_for_call
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def forever():
     value = [True]
     yield value

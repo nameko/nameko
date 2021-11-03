@@ -99,13 +99,13 @@ class ExampleService(object):
         raise ExampleError("error")
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def get_rpc_exchange():
     with patch('nameko.rpc.get_rpc_exchange', autospec=True) as patched:
         yield patched
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def queue_consumer():
     replacement = create_autospec(QueueConsumer)
     with patch.object(QueueConsumer, 'bind') as mock_ext:
@@ -632,7 +632,7 @@ def test_reply_queue_removed_on_expiry(
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def fast_reconnects(self):
 
         @contextmanager
@@ -650,7 +650,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
         ):
             yield
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def fast_expiry(self):
         with patch('nameko.rpc.RPC_REPLY_QUEUE_TTL', new=100):
             yield
@@ -728,7 +728,7 @@ class TestDisconnectedWhileWaitingForReply(object):  # pragma: no cover
 class TestReplyListenerDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
     """
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def fast_reconnects(self):
 
         @contextmanager
@@ -934,7 +934,7 @@ class TestReplyListenerDisconnections(object):
 class TestRpcConsumerDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
     """
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def fast_reconnects(self):
 
         @contextmanager
@@ -952,12 +952,12 @@ class TestRpcConsumerDisconnections(object):
         ):
             yield
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def toxic_queue_consumer(self, toxiproxy):
         with patch.object(QueueConsumer, 'amqp_uri', new=toxiproxy.uri):
             yield
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def service_rpc(self, rabbit_config):
         with ServiceRpcProxy('service', rabbit_config) as proxy:
             yield proxy
@@ -1203,7 +1203,7 @@ class TestProxyDisconnections(object):
         container.start()
         return container
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def retry(self, request):
         retry = False
         if "publish_retry" in request.keywords:
@@ -1212,14 +1212,14 @@ class TestProxyDisconnections(object):
         with patch.object(MethodProxy.publisher_cls, 'retry', new=retry):
             yield
 
-    @pytest.yield_fixture(params=[True, False])
+    @pytest.fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
             MethodProxy.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def toxic_rpc_proxy(self, toxiproxy):
         with patch.object(MethodProxy, 'amqp_uri', new=toxiproxy.uri):
             yield
@@ -1324,20 +1324,20 @@ class TestResponderDisconnections(object):
     This can only be mitigated with AMQP heartbeats (not yet supported)
     """
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def toxic_responder(self, toxiproxy):
         def replacement_constructor(amqp_uri, *args, **kwargs):
             return Responder(toxiproxy.uri, *args, **kwargs)
         with patch('nameko.rpc.Responder', wraps=replacement_constructor):
             yield
 
-    @pytest.yield_fixture(params=[True, False])
+    @pytest.fixture(params=[True, False])
     def use_confirms(self, request):
         value = request.param
         with patch.object(Responder.publisher_cls, 'use_confirms', new=value):
             yield value
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def retry(self, request):
         value = False
         if "publish_retry" in request.keywords:
@@ -1366,7 +1366,7 @@ class TestResponderDisconnections(object):
         container.start()
         return container
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def service_rpc(self, rabbit_config):
 
         gts = []
@@ -1544,7 +1544,7 @@ class TestConfigurability(object):
     Test and demonstrate configuration options for the RpcProxy
     """
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def get_producer(self):
         with patch('nameko.amqp.publish.get_producer') as get_producer:
             yield get_producer

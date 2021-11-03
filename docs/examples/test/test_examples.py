@@ -511,13 +511,13 @@ class TestSensitiveArguments:
 
 class TestSqsReceive:
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def sqs_client(self):
         with mock_sqs():
             client = boto3.client('sqs', region_name="eu-west-1")
             yield client
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def queue(self, sqs_client):
         queue = sqs_client.create_queue(QueueName="nameko-sqs")
         url = queue['QueueUrl']
@@ -545,13 +545,13 @@ class TestSqsReceive:
 
 class TestSqsSend:
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def sqs_client(self):
         with mock_sqs():
             client = boto3.client('sqs', region_name="eu-west-1")
             yield client
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def queue(self, sqs_client):
         queue = sqs_client.create_queue(QueueName="nameko-sqs")
         url = queue['QueueUrl']
@@ -583,13 +583,13 @@ class TestSqsSend:
 
 class TestSqsService:
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def sqs_client(self):
         with mock_sqs():
             client = boto3.client('sqs', region_name="eu-west-1")
             yield client
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def queue(self, sqs_client):
         queue = sqs_client.create_queue(QueueName="nameko-sqs")
         url = queue['QueueUrl']

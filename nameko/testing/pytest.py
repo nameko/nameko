@@ -141,7 +141,7 @@ def rabbit_manager(request):
     return rabbit.Client(config.getoption('RABBIT_API_URI'))
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.fixture(scope='session')
 def vhost_pipeline(request, rabbit_manager):
     try:
         from collections.abc import Iterable
@@ -189,7 +189,7 @@ def vhost_pipeline(request, rabbit_manager):
         yield vhosts
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def rabbit_config(request, vhost_pipeline, rabbit_manager):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
@@ -244,7 +244,7 @@ def amqp_uri(rabbit_config):
     return rabbit_config[AMQP_URI_CONFIG_KEY]
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def fast_teardown(request):
     """
     This fixture fixes the order of the `container_factory`, `runner_factory`
@@ -347,7 +347,7 @@ def get_message_from_queue(amqp_uri):
     return get
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def container_factory():
     from nameko.containers import get_container_cls
 
@@ -368,7 +368,7 @@ def container_factory():
             pass
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def runner_factory():
     from nameko.runners import ServiceRunner
 
@@ -390,7 +390,7 @@ def runner_factory():
             pass
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def predictable_call_ids(request):
     import itertools
     from mock import patch
@@ -419,7 +419,7 @@ def web_config_port(web_config):
     return parse_address(web_config[WEB_SERVER_CONFIG_KEY]).port
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def web_session(web_config_port):
     from requests import Session
     from werkzeug.urls import url_join
@@ -434,7 +434,7 @@ def web_session(web_config_port):
         yield sess
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def websocket(web_config_port):
     import eventlet
     from nameko.testing.websocket import make_virtual_socket

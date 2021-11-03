@@ -31,7 +31,7 @@ def pytest_configure(config):
     )
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mock_producer():
     with patch('nameko.amqp.publish.producers') as patched:
         with patched[ANY].acquire() as producer:
@@ -42,14 +42,14 @@ def mock_producer():
             yield producer
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mock_channel():
     with patch('nameko.amqp.publish.connections') as patched:
         with patched[ANY].acquire() as connection:
             yield connection.channel()
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.fixture(scope='session')
 def toxiproxy_server():
     # start a toxiproxy server
     host = TOXIPROXY_HOST
@@ -73,7 +73,7 @@ def toxiproxy_server():
     server.terminate()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def toxiproxy(toxiproxy_server, rabbit_config):
     """ Insert a toxiproxy in front of RabbitMQ
 
@@ -174,7 +174,7 @@ def toxiproxy(toxiproxy_server, rabbit_config):
     eventlet.spawn_after(10, requests.delete, resource)
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def fake_module():
     module = ModuleType("fake_module")
     sys.modules[module.__name__] = module

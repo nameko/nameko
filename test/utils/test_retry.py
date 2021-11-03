@@ -9,7 +9,7 @@ def tracker():
     return Mock()
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def mock_sleep():
     with patch('nameko.utils.retry.sleep') as patched:
 

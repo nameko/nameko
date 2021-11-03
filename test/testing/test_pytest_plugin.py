@@ -313,13 +313,13 @@ class TestFastTeardown(object):
             def tracker():
                 return Mock()
 
-            @pytest.yield_fixture
+            @pytest.fixture
             def rabbit_config(tracker):
                 tracker("rabbit_config", "up")
                 yield
                 tracker("rabbit_config", "down")
 
-            @pytest.yield_fixture
+            @pytest.fixture
             def container_factory(tracker):
                 tracker("container_factory", "up")
                 yield
@@ -366,13 +366,13 @@ class TestFastTeardown(object):
             def tracker():
                 return Mock()
 
-            @pytest.yield_fixture
+            @pytest.fixture
             def rabbit_config(tracker):
                 tracker("rabbit_config", "up")
                 yield
                 tracker("rabbit_config", "down")
 
-            @pytest.yield_fixture
+            @pytest.fixture
             def container_factory(tracker):
                 tracker("container_factory", "up")
                 yield
@@ -424,7 +424,7 @@ class TestFastTeardown(object):
                 '''
                 consumers.append(ConsumerMixin())
 
-            @pytest.yield_fixture
+            @pytest.fixture
             def patch_checker():
                 yield
                 assert consumers[0].should_stop is True

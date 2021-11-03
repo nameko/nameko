@@ -59,7 +59,7 @@ def get_message(ws):
     return event_data['value']
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def container(container_factory, web_config):
     container = container_factory(ExampleService, web_config)
     container.start()
