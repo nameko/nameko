@@ -8,7 +8,7 @@ from nameko.rpc import Responder
 EXCEPTION_MODULE = Exception.__module__
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def unserializable():
     def unserializable_inner():
         pass  # pragma: no cover

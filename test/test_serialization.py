@@ -250,7 +250,7 @@ def test_missing_serializers(container_factory, cfg):
         'Please register a serializer for "unknown" format')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def multi_serializer_config():
     with config.patch({ACCEPT_CONFIG_KEY: ['json', 'yaml']}):
         yield

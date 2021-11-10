@@ -216,7 +216,7 @@ def test_amqp_uri(testdir):
         import pytest
         from nameko import config
 
-        @pytest.yield_fixture
+        @pytest.fixture
         def rabbit_config():
             with config.patch(dict(AMQP_URI="{}")):
                 yield

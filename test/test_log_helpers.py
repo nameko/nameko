@@ -6,13 +6,13 @@ from mock import ANY, Mock, call, patch
 from nameko.log_helpers import make_timing_logger
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mock_logging():
     with patch('nameko.log_helpers.logging') as patched:
         yield patched
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mock_time():
     with patch('nameko.log_helpers.time') as patched:
         patched.time.side_effect = [0, 0.123456789]

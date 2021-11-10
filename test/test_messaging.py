@@ -41,7 +41,7 @@ foobar_queue = Queue('foobar_queue', exchange=foobar_ex, durable=False)
 CONSUME_TIMEOUT = 1.2  # a bit more than 1 second
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def patch_maybe_declare():
     with patch('nameko.messaging.maybe_declare', autospec=True) as patched:
         yield patched
@@ -332,7 +332,7 @@ def test_consume_from_rabbit(get_vhost, rabbit_manager, mock_container):
 class TestConsumerDisconnections(object):
     """ Test and demonstrate behaviour under poor network conditions.
     """
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def fast_reconnects(self):
 
         @contextmanager
@@ -350,7 +350,7 @@ class TestConsumerDisconnections(object):
         ):
             yield
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def toxic_consumer(self, toxiproxy):
         with patch.object(Consumer, 'amqp_uri', new=toxiproxy.uri):
             yield
@@ -667,14 +667,14 @@ class TestPublisherDisconnections(object):
     def tracker(self):
         return Mock()
 
-    @pytest.yield_fixture(params=[True, False])
+    @pytest.fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
             Publisher.publisher_cls, 'use_confirms', new=request.param
         ):
             yield request.param
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def publisher_container(
         self, request, container_factory, tracker, rabbit_config, toxiproxy
     ):
@@ -696,7 +696,7 @@ class TestPublisherDisconnections(object):
         container.start()
         yield container
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def consumer_container(
         self, container_factory, tracker, rabbit_config
     ):
@@ -950,7 +950,7 @@ class TestPublisherConfigurability(object):
     Test and demonstrate configuration options for the Publisher
     """
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def get_producer(self):
         with patch('nameko.amqp.publish.get_producer') as get_producer:
             yield get_producer

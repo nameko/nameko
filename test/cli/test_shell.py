@@ -18,7 +18,7 @@ def test_helper_module(rabbit_config):
     helper.disconnect()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def pystartup(tmpdir):
     startup = tmpdir.join("startup.py")
     startup.write("foo = 42")
@@ -27,7 +27,7 @@ def pystartup(tmpdir):
         yield
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def fake_alternative_interpreters():
     # Make sure these appear unavailable even if installed. We cheat slightly,
     # and have the call to `embed` raise the ImportError, rather than the
@@ -178,7 +178,7 @@ def test_config_options(command, pystartup, tmpdir):
 
 @pytest.mark.usefixtures("empty_config")
 class TestBanner(object):
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def patch_nameko_helper(self):
         with patch("nameko.cli.shell.make_nameko_helper"):
             yield

@@ -116,13 +116,13 @@ def pytest_sessionstart(session):
             )
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def empty_config():
     with config.patch({}, clear=True):
         yield
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mock_container(request):
     from mock import create_autospec
     from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
@@ -144,7 +144,7 @@ def rabbit_manager(request):
     return rabbit.Client(config.getoption('RABBIT_API_URI'))
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.fixture(scope='session')
 def vhost_pipeline(request, rabbit_manager):
     try:
         from collections.abc import Iterable
@@ -190,7 +190,7 @@ def vhost_pipeline(request, rabbit_manager):
         yield vhosts
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def rabbit_uri(request, vhost_pipeline):
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
@@ -206,7 +206,7 @@ def rabbit_uri(request, vhost_pipeline):
         yield amqp_uri
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def rabbit_config(rabbit_uri):
     with config.patch({'AMQP_URI': rabbit_uri}):
         print("PATCH", rabbit_uri)
@@ -248,7 +248,7 @@ def rabbit_ssl_uri(request, rabbit_uri):
     return amqp_ssl_uri
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def rabbit_ssl_config(request, rabbit_ssl_uri, rabbit_ssl_options):
 
     conf = {
@@ -291,7 +291,7 @@ def get_message_from_queue(amqp_uri):
     return get
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def container_factory():
     import nameko
     from nameko.containers import get_container_cls
@@ -324,7 +324,7 @@ def container_factory():
             patch.stop()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def runner_factory():
     import collections
     import nameko
@@ -361,7 +361,7 @@ def runner_factory():
             patch.stop()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def predictable_call_ids(request):
     import itertools
     from mock import patch
@@ -373,7 +373,7 @@ def predictable_call_ids(request):
             yield call_uuid.uuid4
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def web_config():
     from nameko.constants import WEB_SERVER_CONFIG_KEY
     from nameko.testing.utils import find_free_port
@@ -391,7 +391,7 @@ def web_config_port(web_config):
     return parse_address(config[WEB_SERVER_CONFIG_KEY]).port
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def web_session(web_config_port):
     from requests import Session
     from werkzeug.urls import url_join
@@ -406,7 +406,7 @@ def web_session(web_config_port):
         yield sess
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def websocket(web_config_port):
     import eventlet
     from nameko.testing.websocket import make_virtual_socket

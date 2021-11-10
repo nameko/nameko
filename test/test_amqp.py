@@ -21,7 +21,7 @@ class TestDeadlockRegression(object):
     """ Regression test for https://github.com/nameko/nameko/issues/428
     """
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def config(self, rabbit_config):
         with config.patch({'max_workers': 2}):
             yield
