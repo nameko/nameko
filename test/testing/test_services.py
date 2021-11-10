@@ -44,13 +44,13 @@ def counter():
     return Counter()
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def reset_mock():
     yield
     handle_event.reset_mock()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def spawn_thread():
 
     threads = []

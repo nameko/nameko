@@ -19,7 +19,7 @@ class CustomError(Exception):
     pass
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def registry():
     with patch('nameko.exceptions.registry', {}) as patched:
         yield patched

@@ -74,7 +74,7 @@ class CustomWorkerContext(WorkerContext):
     context_keys = ("custom_header",)
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def toxic_reply_listener(toxiproxy):
     class ToxicReplyListener(ReplyListener):
         def __init__(self, *args, **kwargs):
@@ -238,7 +238,7 @@ def test_reply_queue_not_removed_while_in_use(
 @skip_if_no_toxiproxy
 class TestDisconnectedWhileWaitingForReply(object):
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def fast_reconnects(self):
 
         @contextmanager
@@ -256,7 +256,7 @@ class TestDisconnectedWhileWaitingForReply(object):
         ):
             yield
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def fast_expiry(self):
         with patch('nameko.standalone.rpc.RPC_REPLY_QUEUE_TTL', new=100):
             yield
@@ -404,7 +404,7 @@ def test_multiple_calls_to_result(container_factory):
 @skip_if_no_toxiproxy
 class TestDisconnectWithPendingReply(object):
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def toxic_rpc_client(self, rabbit_config, toxiproxy):
         with config.patch({'AMQP_URI': toxiproxy.uri}):
             yield ClusterRpcClient()
@@ -581,7 +581,7 @@ class TestConfigurability(object):
     Test and demonstrate configuration options for the standalone RPC client
     """
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def get_producer(self):
         with patch('nameko.amqp.publish.get_producer') as get_producer:
             yield get_producer
@@ -698,7 +698,7 @@ class TestStandaloneClientDisconnections(object):
         container = container_factory(Service)
         container.start()
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def retry(self, request):
         retry = False
         if "publish_retry" in request.keywords:
@@ -709,7 +709,7 @@ class TestStandaloneClientDisconnections(object):
         ):
             yield
 
-    @pytest.yield_fixture(params=[True, False])
+    @pytest.fixture(params=[True, False])
     def use_confirms(self, request):
         with patch.object(
             ServiceRpcClient.publisher_cls, 'use_confirms',
@@ -717,7 +717,7 @@ class TestStandaloneClientDisconnections(object):
         ):
             yield request.param
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def service_rpc(self, rabbit_config, toxiproxy):
         with ServiceRpcClient("service", uri=toxiproxy.uri) as client:
             yield client
@@ -804,7 +804,7 @@ class TestStandaloneClientDisconnections(object):
 @skip_if_no_toxiproxy
 class TestStandaloneClientReplyListenerDisconnections(object):
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def fast_reconnects(self):
 
         @contextmanager
@@ -845,7 +845,7 @@ class TestStandaloneClientReplyListenerDisconnections(object):
     def reply_listener(self, rpc_client):
         return rpc_client.reply_listener
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def service_rpc(self, rpc_client):
         with rpc_client as client:
             yield client

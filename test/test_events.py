@@ -692,7 +692,7 @@ class TestDispatcherConfigurability(object):
     Test and demonstrate configuration options for the EventDispatcher
     """
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def get_producer(self):
         with patch('nameko.amqp.publish.get_producer') as get_producer:
             yield get_producer
