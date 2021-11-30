@@ -1,6 +1,6 @@
 import itertools
-import time
 import ssl
+import time
 from collections import defaultdict
 
 import pytest

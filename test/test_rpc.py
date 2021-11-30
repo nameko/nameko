@@ -1,5 +1,5 @@
-import uuid
 import ssl
+import uuid
 from contextlib import contextmanager
 
 import eventlet
