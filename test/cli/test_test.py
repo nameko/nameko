@@ -1,6 +1,8 @@
 import subprocess
 from textwrap import dedent
 
+import pytest
+
 
 def test_test_pass(tmpdir, capsys):
 
@@ -36,7 +38,7 @@ def test_test_fail(tmpdir, capsys):
 
 def test_suppress_warning(tmpdir, capsys):
 
-    if tuple(map(int, pytest.__version__.split("."))) < (6,1):
+    if tuple(map(int, pytest.__version__.split("."))) < (6, 1):
         pytest.skip("-W flag ignored on older pytests")
 
     tmpdir.join('__init__.py')
