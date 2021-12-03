@@ -36,6 +36,9 @@ def test_test_fail(tmpdir, capsys):
 
 def test_suppress_warning(tmpdir, capsys):
 
+    if tuple(map(int, pytest.__version__.split("."))) < (6,1):
+        pytest.skip("-W flag ignored on older pytests")
+
     tmpdir.join('__init__.py')
     testfile = tmpdir.join('test_test_pass.py')
     testfile.write(dedent("""
