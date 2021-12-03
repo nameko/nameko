@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import ssl
 from contextlib import contextmanager
 
 import eventlet
@@ -1229,8 +1230,10 @@ class TestSSL(object):
     def rabbit_ssl_config(self, rabbit_ssl_config, use_client_cert, login_method):
 
         if use_client_cert is False:
-            # remove certificate paths from config
-            rabbit_ssl_config['AMQP_SSL'] = True
+            # remove certificate paths from config, and tell kombu not to require one
+            rabbit_ssl_config['AMQP_SSL'] = {
+                "cert_reqs": ssl.CERT_NONE
+            }
 
         # set login method
         rabbit_ssl_config[LOGIN_METHOD_CONFIG_KEY] = login_method
