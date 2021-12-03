@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import itertools
 from collections import Counter
+import ssl
 
 import eventlet
 import pytest
@@ -852,8 +853,10 @@ class TestSSL(object):
         }
 
         if use_client_cert is False:
-            # remove certificate paths
-            config['AMQP_SSL'] = True
+            # remove certificate paths from config, and tell kombu not to require one
+            config['AMQP_SSL'] = {
+                "cert_reqs": ssl.CERT_NONE
+            }
 
         # skip if not a valid combination
         if login_method == "EXTERNAL" and not use_client_cert:
