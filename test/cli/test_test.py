@@ -1,5 +1,5 @@
-from textwrap import dedent
 import subprocess
+from textwrap import dedent
 
 
 def test_test_pass(tmpdir, capsys):
@@ -17,6 +17,7 @@ def test_test_pass(tmpdir, capsys):
     proc.wait()
     assert proc.returncode == 0
 
+
 def test_test_fail(tmpdir, capsys):
 
     tmpdir.join('__init__.py')
@@ -31,6 +32,7 @@ def test_test_fail(tmpdir, capsys):
     )
     proc.wait()
     assert proc.returncode == 1
+
 
 def test_suppress_warning(tmpdir, capsys):
 

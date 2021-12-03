@@ -169,4 +169,5 @@ class Test(Command):
         exit_code = pytest.main(args)
         sys.exit(exit_code.value)
 
+
 commands = Command.__subclasses__()  # pylint: disable=E1101
