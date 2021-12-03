@@ -866,7 +866,7 @@ class TestSSL(object):
             yield
 
     @pytest.mark.usefixtures("rabbit_ssl_config")
-    def test_event_handler_over_ssl(self, container_factory, rabbit_uri):
+    def test_event_handler_over_ssl(self, container_factory):
         class Service(object):
             name = "service"
 
@@ -877,20 +877,19 @@ class TestSSL(object):
         container = container_factory(Service)
         container.start()
 
-        dispatch = event_dispatcher(uri=rabbit_uri, ssl=None)
+        dispatch = event_dispatcher()
 
         with entrypoint_waiter(container, 'echo') as result:
             dispatch("service", "event", "payload")
         assert result.get() == "payload"
 
-    @pytest.mark.usefixtures("rabbit_config")
-    def test_event_dispatcher_over_ssl(
-        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_event_dispatcher_over_ssl(self, container_factory):
+
         class Dispatcher(object):
             name = "dispatch"
 
-            dispatch = EventDispatcher(uri=rabbit_ssl_uri, ssl=rabbit_ssl_options)
+            dispatch = EventDispatcher()
 
             @dummy
             def method(self, payload):
