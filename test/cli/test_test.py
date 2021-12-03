@@ -36,7 +36,7 @@ def test_test_fail(tmpdir, capsys):
     assert proc.returncode == 1
 
 
-def test_suppress_warning(tmpdir, capsys):
+def test_suppress_warning(tmpdir, capsys):  # pragma: no cover
 
     if tuple(map(int, pytest.__version__.split("."))) < (6, 1):
         pytest.skip("-W flag ignored on older pytests")
