@@ -160,7 +160,13 @@ class Test(Command):
 
         import pytest
         import sys
-        exit_code = pytest.main(list(unknown_args))
+
+        args = list(unknown_args)
+        args.extend(
+            ["-W", "ignore:Module already imported:_pytest.warning_types.PytestWarning"]
+        )
+
+        exit_code = pytest.main(args)
         sys.exit(exit_code.value)
 
 commands = Command.__subclasses__()  # pylint: disable=E1101
