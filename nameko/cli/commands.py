@@ -159,7 +159,8 @@ class Test(Command):
         eventlet.monkey_patch()  # noqa (code before imports)
 
         import pytest
-        pytest.main(list(unknown_args))
-
+        import sys
+        exit_code = pytest.main(list(unknown_args))
+        sys.exit(exit_code.value)
 
 commands = Command.__subclasses__()  # pylint: disable=E1101
