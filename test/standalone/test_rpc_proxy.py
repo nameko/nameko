@@ -1,5 +1,5 @@
-from contextlib import contextmanager
 import ssl
+from contextlib import contextmanager
 
 import eventlet
 import pytest

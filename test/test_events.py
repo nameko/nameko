@@ -1,8 +1,8 @@
 from __future__ import absolute_import
 
 import itertools
-from collections import Counter
 import ssl
+from collections import Counter
 
 import eventlet
 import pytest
