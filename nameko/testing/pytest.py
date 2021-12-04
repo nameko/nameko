@@ -334,9 +334,14 @@ def runner_factory():
 
     def make_runner(*service_classes):
 
+        if sys.version_info >= (3, 3):  # pragma: no cover
+            from collections.abc import Mapping  # pylint: disable=E0611,E0401
+        else:  # pragma: no cover
+            from collections import Mapping  # pylint: disable=E0611,E0401
+
         # nameko 2.X backward compatible passing of custom config argument
         # we apply config patch if a config dictionary is passed to the factory
-        if service_classes and isinstance(service_classes[0], collections.Mapping):
+        if service_classes and isinstance(service_classes[0], Mapping):
             config = service_classes[0]
             service_classes = service_classes[1:]
             patch = nameko.config.patch(config)
