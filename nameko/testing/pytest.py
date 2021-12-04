@@ -326,7 +326,7 @@ def container_factory():
 
 @pytest.fixture
 def runner_factory():
-    import collections
+    import sys
     import nameko
     from nameko.runners import ServiceRunner
 
