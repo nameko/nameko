@@ -94,4 +94,12 @@ def test(args):
     eventlet.monkey_patch()  # noqa (code before rest of imports)
 
     import pytest
-    pytest.main(list(args))
+    import sys
+
+    args = list(args)
+    args.extend(
+        ["-W", "ignore:Module already imported:_pytest.warning_types.PytestWarning"]
+    )
+
+    exit_code = pytest.main(args)
+    sys.exit(int(exit_code))
