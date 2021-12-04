@@ -159,7 +159,15 @@ class Test(Command):
         eventlet.monkey_patch()  # noqa (code before imports)
 
         import pytest
-        pytest.main(list(unknown_args))
+        import sys
+
+        args = list(unknown_args)
+        args.extend(
+            ["-W", "ignore:Module already imported:_pytest.warning_types.PytestWarning"]
+        )
+
+        exit_code = pytest.main(args)
+        sys.exit(int(exit_code))
 
 
 commands = Command.__subclasses__()  # pylint: disable=E1101
