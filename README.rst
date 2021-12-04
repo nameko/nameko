@@ -1,8 +1,7 @@
 Nameko
 ======
 
-.. image:: https://secure.travis-ci.org/nameko/nameko.svg?branch=master
-   :target: http://travis-ci.org/nameko/nameko
+.. image:: https://github.com/nameko/nameko/actions/workflows/ci.yaml/badge.svg
 
 *[nah-meh-koh]*
 
