@@ -1,3 +1,4 @@
+import ssl
 import uuid
 from contextlib import contextmanager
 
@@ -2008,8 +2009,10 @@ class TestSSL(object):
         }
 
         if use_client_cert is False:
-            # remove certificate paths
-            config['AMQP_SSL'] = True
+            # remove certificate paths from config, and tell kombu not to require one
+            config['AMQP_SSL'] = {
+                "cert_reqs": ssl.CERT_NONE
+            }
 
         # skip if not a valid combination
         if login_method == "EXTERNAL" and not use_client_cert:
@@ -2031,23 +2034,18 @@ class TestSSL(object):
         container = container_factory(Service)
         container.start()
 
-        with ServiceRpcClient("service", uri=rabbit_uri, ssl=False) as client:
+        with ServiceRpcClient("service") as client:
             assert client.echo("a", "b", foo="bar") == [
                 ['a', 'b'], {'foo': 'bar'}
             ]
 
-    @pytest.mark.usefixtures("rabbit_config")
-    def test_rpc_client_over_ssl(
-        self, container_factory, rabbit_ssl_uri, rabbit_ssl_options
-    ):
+    @pytest.mark.usefixtures("rabbit_ssl_config")
+    def test_rpc_client_over_ssl(self, container_factory):
+
         class Service(object):
             name = "service"
 
-            delegate_rpc = ServiceRpc(
-                'delegate',
-                uri=rabbit_ssl_uri,
-                ssl=rabbit_ssl_options
-            )
+            delegate_rpc = ServiceRpc('delegate')
 
             @dummy
             def echo(self, *args, **kwargs):
