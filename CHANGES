@@ -5,6 +5,15 @@ Here you can see the full list of changes between nameko versions. Versions
 are in form of *headline.major.minor* numbers. Backwards-compatible changes
 increment the minor version number only.
 
+Version 2.14.1
+--------------
+
+Released: 2021-12-05
+
+* `nameko test` exit code command honours pytest result, and suppresses "module already imported" warning  (#748)
+* Support for Python 3.10 (#747)
+* Upgrade pytest version used in CI (#729)
+
 Version 2.14.0
 --------------
 
