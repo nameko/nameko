@@ -166,6 +166,33 @@ def test_rpc_consumer(get_rpc_exchange, mock_container):
     assert consumer._providers == set()
 
 
+@pytest.mark.usefixtures("queue_max_priority_config")
+def test_rpc_consumer_max_priority(get_rpc_exchange, mock_container):
+
+    container = mock_container
+    container.shared_extensions = {}
+    container.service_name = "exampleservice"
+    container.service_cls = Mock(rpcmethod=lambda: None)
+
+    exchange = Exchange("some_exchange")
+    get_rpc_exchange.return_value = exchange
+
+    consumer = RpcConsumer().bind(container)
+
+    entrypoint = Rpc().bind(container, "rpcmethod")
+    entrypoint.rpc_consumer = consumer
+
+    entrypoint.setup()
+    consumer.setup()
+
+    queue = consumer.queue
+    assert queue.name == "rpc-exampleservice"
+    assert queue.routing_key == "exampleservice.*"
+    assert queue.exchange == exchange
+    assert queue.durable
+    assert queue.max_priority == 5
+
+
 @pytest.mark.usefixtures("memory_rabbit_config")
 def test_reply_listener(get_rpc_exchange, mock_container):
 

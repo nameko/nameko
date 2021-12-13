@@ -18,7 +18,7 @@ from nameko.constants import (
     AMQP_SSL_CONFIG_KEY, AMQP_URI_CONFIG_KEY, DEFAULT_AMQP_URI,
     DEFAULT_HEARTBEAT, DEFAULT_PREFETCH_COUNT, HEARTBEAT_CONFIG_KEY,
     LOGIN_METHOD_CONFIG_KEY, PREFETCH_COUNT_CONFIG_KEY,
-    RPC_EXCHANGE_CONFIG_KEY
+    QUEUE_MAX_PRIORITY_CONFIG_KEY, RPC_EXCHANGE_CONFIG_KEY
 )
 from nameko.exceptions import (
     ContainerBeingKilled, MalformedRequest, MethodNotFound,
@@ -73,12 +73,16 @@ class RpcConsumer(SharedExtension, ProviderCollector):
         routing_key = '{}.*'.format(service_name)
 
         exchange = get_rpc_exchange()
-
+        queue_extra_attributes = {}
+        max_priority = config.get(QUEUE_MAX_PRIORITY_CONFIG_KEY)
+        if (max_priority is not None):
+            queue_extra_attributes["max_priority"] = max_priority
         self.queue = Queue(
             queue_name,
             exchange=exchange,
             routing_key=routing_key,
-            durable=True
+            durable=True,
+            **queue_extra_attributes
         )
 
         ssl = config.get(AMQP_SSL_CONFIG_KEY)

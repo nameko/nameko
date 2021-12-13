@@ -41,6 +41,15 @@ def memory_rabbit_config(rabbit_config):
 
 
 @pytest.fixture
+def queue_max_priority_config(rabbit_config):
+    with config.patch({
+        'AMQP_URI': 'memory://localhost',
+        'queue_max_priority': 5
+    }):
+        yield
+
+
+@pytest.fixture
 def mock_producer():
     with patch('nameko.amqp.publish.producers') as patched:
         with patched[ANY].acquire() as producer:
