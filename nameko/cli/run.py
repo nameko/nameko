@@ -92,12 +92,14 @@ def import_service(module_name):
     return found_services
 
 
-def setup_backdoor(runner, port):
+def setup_backdoor(runner, address, port):
     def _bad_call():
         raise RuntimeError(
             'This would kill your service, not close the backdoor. To exit, '
             'use ctrl-c.')
-    socket = eventlet.listen(('localhost', port))
+    address = address if address in {'0.0.0.0', '127.0.0.1'} else '127.0.0.1'
+
+    socket = eventlet.listen((address, port))
     # work around https://github.com/celery/kombu/issues/838
     socket.settimeout(None)
     gt = eventlet.spawn(
@@ -111,7 +113,7 @@ def setup_backdoor(runner, port):
     return socket, gt
 
 
-def run(services, config, backdoor_port=None):
+def run(services, config, backdoor_bind_address=None, backdoor_port=None):
     service_runner = ServiceRunner(config)
     for service_cls in services:
         service_runner.add_service(service_cls)
@@ -124,7 +126,7 @@ def run(services, config, backdoor_port=None):
     signal.signal(signal.SIGTERM, shutdown)
 
     if backdoor_port is not None:
-        setup_backdoor(service_runner, backdoor_port)
+        setup_backdoor(service_runner, backdoor_bind_address, backdoor_port)
 
     service_runner.start()
 
@@ -179,4 +181,7 @@ def main(args):
             import_service(path)
         )
 
-    run(services, config, backdoor_port=args.backdoor_port)
+    run(services, config,
+        backdoor_bind_address=args.backdoor_bind_address,
+        backdoor_port=args.backdoor_port)
+
