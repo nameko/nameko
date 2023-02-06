@@ -379,13 +379,15 @@ class TestPublisher(object):
         mock_publish = MagicMock(__name__="", __doc__="", __module__="")
         mock_publish.side_effect = RecoverableConnectionError("error")
 
-        expected_retries = publisher.retry_policy['max_retries'] + 1
-
         # with retry
         with patch.object(Producer, '_publish', new=mock_publish):
             with pytest.raises(OperationalError):
                 publisher.publish("payload", retry=True)
-        assert mock_publish.call_count == 1 + expected_retries
+
+        # plus two because the first publish doesn't count as a "retry",
+        # and the last is the one that causes kombu to finally give up an
+        expected_publish_calls = publisher.retry_policy['max_retries'] + 2
+        assert mock_publish.call_count == expected_publish_calls
 
         mock_publish.reset_mock()
 
@@ -404,12 +406,15 @@ class TestPublisher(object):
         retry_policy = {
             'max_retries': 5
         }
-        expected_retries = retry_policy['max_retries'] + 1
 
         with patch.object(Producer, '_publish', new=mock_publish):
             with pytest.raises(OperationalError):
                 publisher.publish("payload", retry_policy=retry_policy)
-        assert mock_publish.call_count == 1 + expected_retries
+
+        # plus two because the first publish doesn't count as a "retry",
+        # and the last is the one that causes kombu to finally give up and raise
+        expected_publish_calls = retry_policy['max_retries'] + 2
+        assert mock_publish.call_count == expected_publish_calls
 
 
 class TestDefaults(object):
