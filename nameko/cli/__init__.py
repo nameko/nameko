@@ -3,15 +3,12 @@ import click
 from nameko import config
 from nameko.exceptions import CommandError, ConfigurationError
 
-from .utils import setup_config
 from .click_arguments import argument_services
 from .click_options import (
-    option_broker,
-    option_config_file,
-    option_define,
-    option_backdoor_port,
-    option_interface,
+    option_backdoor_port, option_broker, option_config_file, option_define,
+    option_interface
 )
+from .utils import setup_config
 
 
 # main nameko command
@@ -93,8 +90,9 @@ def test(args):
     import eventlet
     eventlet.monkey_patch()  # noqa (code before rest of imports)
 
-    import pytest
     import sys
+
+    import pytest
 
     args = list(args)
     args.extend(

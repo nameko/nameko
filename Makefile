@@ -17,7 +17,7 @@ pylint:
 	pylint --rcfile=pylintrc nameko -E
 
 imports:
-	isort -rc $(autofix) nameko test
+	isort $(autofix) nameko test
 
 test_lib:
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage run -m nameko test test -v --strict --timeout 30

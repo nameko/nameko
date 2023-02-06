@@ -125,7 +125,8 @@ def empty_config():
 @pytest.fixture
 def mock_container(request):
     from mock import create_autospec
-    from nameko.constants import SERIALIZER_CONFIG_KEY, DEFAULT_SERIALIZER
+
+    from nameko.constants import DEFAULT_SERIALIZER, SERIALIZER_CONFIG_KEY
     from nameko.containers import ServiceContainer
 
     container = create_autospec(ServiceContainer)
@@ -151,10 +152,12 @@ def vhost_pipeline(request, rabbit_manager):
     except ImportError:  # pragma: no cover
         # py2 compatibility
         from collections import Iterable  # pylint: disable=E0611
-    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
     import random
     import string
+
     from kombu.pools import connections
+    from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
+
     from nameko.testing.utils import ResourcePipeline
     from nameko.utils.retry import retry
 
@@ -216,6 +219,7 @@ def rabbit_config(rabbit_uri):
 @pytest.fixture
 def rabbit_ssl_options(request):
     import os
+
     from test import on_travis
 
     ssl_options = request.config.getoption('AMQP_SSL_OPTIONS')
@@ -327,6 +331,7 @@ def container_factory():
 @pytest.fixture
 def runner_factory():
     import sys
+
     import nameko
     from nameko.runners import ServiceRunner
 
@@ -369,6 +374,7 @@ def runner_factory():
 @pytest.fixture
 def predictable_call_ids(request):
     import itertools
+
     from mock import patch
 
     with patch('nameko.standalone.rpc.uuid') as client_uuid:
@@ -414,6 +420,7 @@ def web_session(web_config_port):
 @pytest.fixture()
 def websocket(web_config_port):
     import eventlet
+
     from nameko.testing.websocket import make_virtual_socket
 
     active_sockets = []
