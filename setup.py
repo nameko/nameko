@@ -50,7 +50,7 @@ setup(
             "pytest==6.2.5 ; python_version>'3'",
             "pytest-cov==2.5.1",
             "pytest-timeout==1.3.3",
-            "requests==2.19.1",
+            "requests==2.28.2",
             "urllib3==1.23",
             "websocket-client==0.48.0",
         ],
