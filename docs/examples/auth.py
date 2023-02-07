@@ -33,7 +33,7 @@ class Auth(DependencyProvider):
                 'username': username,
                 'roles': self.users[username]['roles']
             }
-            token = jwt.encode(payload, key=JWT_SECRET).decode('utf-8')
+            token = jwt.encode(payload, key=JWT_SECRET, algorithm="HS256")
             self.worker_ctx.context_data['auth'] = token
             return token
 
@@ -43,7 +43,9 @@ class Auth(DependencyProvider):
                 raise Unauthenticated()
 
             try:
-                payload = jwt.decode(token, key=JWT_SECRET, verify=True)
+                payload = jwt.decode(
+                    token, key=JWT_SECRET, verify=True, algorithms=["HS256"]
+                )
                 if role in payload['roles']:
                     return True
             except Exception:
