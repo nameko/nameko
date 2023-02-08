@@ -1,13 +1,12 @@
 from __future__ import absolute_import
 
-from packaging import version
 from time import time
 
+import kombu
 import pytest
 from amqp.exceptions import (
     NotFound, PreconditionFailed, RecoverableConnectionError
 )
-import kombu
 from kombu import Connection
 from kombu.common import maybe_declare
 from kombu.compression import get_encoder
@@ -15,6 +14,7 @@ from kombu.exceptions import OperationalError
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
+from packaging import version
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
