@@ -43,7 +43,8 @@ setup(
         'dev': [
             "coverage==5.5",
             "flake8==3.9.2",
-            "isort==5.12.0",
+            "isort==4.3.21 ; python_version<'3'",
+            "isort==5.12.0 ; python_version>'3'",
             "pylint==1.9.5 ; python_version<'3'",
             "pylint==2.11.1 ; python_version>'3'",
             "pytest==4.6.11 ; python_version<'3'",
@@ -63,8 +64,10 @@ setup(
         ],
         'examples': [
             "nameko-sqlalchemy==0.0.1",
-            "PyJWT==2.6.0",
-            "moto==4.1.2",
+            "PyJWT==1.7.1 ; python_version<'3'",
+            "PyJWT==2.6.0 ; python_version>'3'",
+            "moto==1.3.6 ; python_version<'3'",
+            "moto==4.1.2 ; python_version>'3'",
             "bcrypt==3.1.3",
             "regex==2018.2.21"
         ],
