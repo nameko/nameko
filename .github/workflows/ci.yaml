@@ -73,7 +73,7 @@ jobs:
         TOXENV: py${{ matrix.python-version }}-examples
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
@@ -82,6 +82,7 @@ jobs:
           - 3.9
           - 3.8
           - 3.7
+          - 3.6
           - 2.7
         dependency-set:
           - pinned
