@@ -389,7 +389,7 @@ class TestPublisher(object):
             with pytest.raises(OperationalError):
                 publisher.publish("payload", retry=True)
 
-        if IS_LEGACY_KOMBU:
+        if IS_LEGACY_KOMBU:  # pragma: no cover
             # plus two because the first publish doesn't count as a "retry",
             # and older versions of kombu allowed one extra attemp. see
             # https://github.com/celery/kombu/commit/5bed2a8f983a3bf61c12443e7704ffd89991ef9a
@@ -416,7 +416,7 @@ class TestPublisher(object):
             'max_retries': 5
         }
 
-        if IS_LEGACY_KOMBU:
+        if IS_LEGACY_KOMBU:  # pragma: no cover
             # plus two because the first publish doesn't count as a "retry",
             # and older versions of kombu allowed one extra attemp. see
             # https://github.com/celery/kombu/commit/5bed2a8f983a3bf61c12443e7704ffd89991ef9a
