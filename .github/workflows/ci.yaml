@@ -73,7 +73,7 @@ jobs:
         TOXENV: py${{ matrix.python-version }}-examples
 
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
