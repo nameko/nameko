@@ -30,6 +30,7 @@ setup(
         "eventlet>=0.33.0 ; python_version>='3.10'",
         "kombu>=4.2.0",
         "kombu>=5.2.0 ; python_version>='3.10'",
+        "importlib-metadata<5 ; python_version<='3.7'; "  # https://github.com/celery/celery/issues/7783
         "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=5.1",
