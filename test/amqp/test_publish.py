@@ -389,13 +389,13 @@ class TestPublisher(object):
             with pytest.raises(OperationalError):
                 publisher.publish("payload", retry=True)
 
-        if IS_LEGACY_KOMBU:  # pragma: no cover
+        expected_publish_calls = publisher.retry_policy['max_retries'] + (
             # plus two because the first publish doesn't count as a "retry",
-            # and older versions of kombu allowed one extra attemp. see
+            # and older versions of kombu allowed one extra attempt. see
             # https://github.com/celery/kombu/commit/5bed2a8f983a3bf61c12443e7704ffd89991ef9a
-            expected_publish_calls = publisher.retry_policy['max_retries'] + 2
-        else:
-            expected_publish_calls = publisher.retry_policy['max_retries'] + 1
+            2 if IS_LEGACY_KOMBU else 1   # pragma: no cover (for branches)
+        )
+
         assert mock_publish.call_count == expected_publish_calls
 
         mock_publish.reset_mock()
@@ -416,13 +416,12 @@ class TestPublisher(object):
             'max_retries': 5
         }
 
-        if IS_LEGACY_KOMBU:  # pragma: no cover
+        expected_publish_calls = publisher.retry_policy['max_retries'] + (
             # plus two because the first publish doesn't count as a "retry",
-            # and older versions of kombu allowed one extra attemp. see
+            # and older versions of kombu allowed one extra attempt. see
             # https://github.com/celery/kombu/commit/5bed2a8f983a3bf61c12443e7704ffd89991ef9a
-            expected_publish_calls = retry_policy['max_retries'] + 2
-        else:
-            expected_publish_calls = retry_policy['max_retries'] + 1
+            2 if IS_LEGACY_KOMBU else 1  # pragma: no cover (for branches)
+        )
 
         with patch.object(Producer, '_publish', new=mock_publish):
             with pytest.raises(OperationalError):
