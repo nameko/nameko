@@ -416,7 +416,7 @@ class TestPublisher(object):
             'max_retries': 5
         }
 
-        expected_publish_calls = publisher.retry_policy['max_retries'] + (
+        expected_publish_calls = retry_policy['max_retries'] + (
             # plus two because the first publish doesn't count as a "retry",
             # and older versions of kombu allowed one extra attempt. see
             # https://github.com/celery/kombu/commit/5bed2a8f983a3bf61c12443e7704ffd89991ef9a
