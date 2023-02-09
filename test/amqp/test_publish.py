@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from time import time
 
+import kombu
 import pytest
 from amqp.exceptions import (
     NotFound, PreconditionFailed, RecoverableConnectionError
@@ -13,6 +14,7 @@ from kombu.exceptions import OperationalError
 from kombu.messaging import Exchange, Producer, Queue
 from kombu.serialization import registry
 from mock import ANY, MagicMock, Mock, call, patch
+from packaging import version
 from six.moves import queue
 from six.moves.urllib.parse import urlparse
 
@@ -21,6 +23,9 @@ from nameko.amqp.publish import (
     Publisher, UndeliverableMessage, get_connection, get_producer
 )
 from nameko.constants import AMQP_URI_CONFIG_KEY
+
+
+IS_LEGACY_KOMBU = version.parse(kombu.__version__) < version.Version("5.2.4")
 
 
 def test_get_connection(amqp_uri):
@@ -379,13 +384,19 @@ class TestPublisher(object):
         mock_publish = MagicMock(__name__="", __doc__="", __module__="")
         mock_publish.side_effect = RecoverableConnectionError("error")
 
-        expected_retries = publisher.retry_policy['max_retries'] + 1
-
         # with retry
         with patch.object(Producer, '_publish', new=mock_publish):
             with pytest.raises(OperationalError):
                 publisher.publish("payload", retry=True)
-        assert mock_publish.call_count == 1 + expected_retries
+
+        expected_publish_calls = publisher.retry_policy['max_retries'] + (
+            # plus two because the first publish doesn't count as a "retry",
+            # and older versions of kombu allowed one extra attempt. see
+            # https://github.com/celery/kombu/commit/5bed2a8f983a3bf61c12443e7704ffd89991ef9a
+            2 if IS_LEGACY_KOMBU else 1   # pragma: no cover (for branches)
+        )
+
+        assert mock_publish.call_count == expected_publish_calls
 
         mock_publish.reset_mock()
 
@@ -404,12 +415,19 @@ class TestPublisher(object):
         retry_policy = {
             'max_retries': 5
         }
-        expected_retries = retry_policy['max_retries'] + 1
+
+        expected_publish_calls = retry_policy['max_retries'] + (
+            # plus two because the first publish doesn't count as a "retry",
+            # and older versions of kombu allowed one extra attempt. see
+            # https://github.com/celery/kombu/commit/5bed2a8f983a3bf61c12443e7704ffd89991ef9a
+            2 if IS_LEGACY_KOMBU else 1  # pragma: no cover (for branches)
+        )
 
         with patch.object(Producer, '_publish', new=mock_publish):
             with pytest.raises(OperationalError):
                 publisher.publish("payload", retry_policy=retry_policy)
-        assert mock_publish.call_count == 1 + expected_retries
+
+        assert mock_publish.call_count == expected_publish_calls
 
 
 class TestDefaults(object):

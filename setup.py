@@ -30,6 +30,7 @@ setup(
         "eventlet>=0.33.0 ; python_version>='3.10'",
         "kombu>=4.2.0",
         "kombu>=5.2.0 ; python_version>='3.10'",
+        "importlib-metadata<5 ; python_version<='3.7'",  # https://github.com/celery/celery/issues/7783
         "mock>=1.2",
         "path.py>=6.2",
         "pyyaml>=5.1",
@@ -43,15 +44,16 @@ setup(
         'dev': [
             "coverage==5.5",
             "flake8==3.9.2",
-            "isort==4.2.15",
+            "isort==4.3.21 ; python_version<'3'",
+            "isort==5.11.5 ; python_version>'3'",
             "pylint==1.9.5 ; python_version<'3'",
             "pylint==2.11.1 ; python_version>'3'",
             "pytest==4.6.11 ; python_version<'3'",
             "pytest==6.2.5 ; python_version>'3'",
             "pytest-cov==2.5.1",
             "pytest-timeout==1.3.3",
-            "requests==2.19.1",
-            "urllib3==1.23",
+            "requests==2.27.1",
+            "urllib3==1.26.4",
             "websocket-client==0.48.0",
         ],
         'docs': [
@@ -60,11 +62,14 @@ setup(
             "sphinxcontrib-spelling==4.2.1",
             "sphinx-nameko-theme==0.0.3",
             "docutils<0.18",  # https://github.com/sphinx-doc/sphinx/issues/9788
+            "jinja2<3.1.0",  # https://github.com/readthedocs/readthedocs.org/issues/9037
         ],
         'examples': [
             "nameko-sqlalchemy==0.0.1",
-            "PyJWT==1.5.2",
-            "moto==1.3.6",
+            "PyJWT==1.7.1 ; python_version<'3'",
+            "PyJWT==2.6.0 ; python_version>'3'",
+            "moto==1.3.6 ; python_version<'3'",
+            "moto==4.1.2 ; python_version>'3'",
             "bcrypt==3.1.3",
             "regex==2018.2.21"
         ],
