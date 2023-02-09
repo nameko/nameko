@@ -44,7 +44,7 @@ setup(
             "coverage==5.5",
             "flake8==3.9.2",
             "isort==4.3.21 ; python_version<'3'",
-            "isort==5.12.0 ; python_version>'3'",
+            "isort==5.11.5 ; python_version>'3'",
             "pylint==1.9.5 ; python_version<'3'",
             "pylint==2.11.1 ; python_version>'3'",
             "pytest==4.6.11 ; python_version<'3'",
