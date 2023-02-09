@@ -61,6 +61,7 @@ setup(
             "sphinxcontrib-spelling==4.2.1",
             "sphinx-nameko-theme==0.0.3",
             "docutils<0.18",  # https://github.com/sphinx-doc/sphinx/issues/9788
+            "jinja2<3.1.0",  # https://github.com/readthedocs/readthedocs.org/issues/9037
         ],
         'examples': [
             "nameko-sqlalchemy==0.0.1",
