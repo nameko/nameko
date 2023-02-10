@@ -60,9 +60,9 @@ def test_wait_for_call():
 
 def test_get_extension(rabbit_config):
 
+    from nameko.containers import ServiceContainer
     from nameko.messaging import QueueConsumer
     from nameko.rpc import Rpc, RpcConsumer
-    from nameko.containers import ServiceContainer
 
     class Service(object):
         name = "service"

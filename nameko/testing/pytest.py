@@ -154,11 +154,11 @@ def vhost_pipeline(request, rabbit_manager):
     import string
 
     from kombu.pools import connections
+    from requests.exceptions import HTTPError
     from six.moves.urllib.parse import urlparse  # pylint: disable=E0401
 
     from nameko.testing.utils import ResourcePipeline
     from nameko.utils.retry import retry
-    from requests.exceptions import HTTPError
 
     rabbit_amqp_uri = request.config.getoption('RABBIT_AMQP_URI')
     uri_parts = urlparse(rabbit_amqp_uri)
