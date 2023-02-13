@@ -391,7 +391,7 @@ class TestAuth:
         worker_ctx = Mock(context_data={})
         dep = Auth.Api(db, worker_ctx)
         token = dep.authenticate("matt", "secret")
-        jwt.decode(token, key=JWT_SECRET, verify=True)
+        jwt.decode(token, key=JWT_SECRET, verify=True, algorithms=["HS256"])
         assert worker_ctx.context_data['auth'] == token
 
     def test_authenticate_bad_username(self, db):
@@ -503,7 +503,7 @@ class TestSensitiveArguments:
 
         with ServiceRpcProxy("service", rabbit_config) as proxy:
             token = proxy.login("matt", "secret")
-            jwt.decode(token, key=JWT_SECRET, verify=True)
+            jwt.decode(token, key=JWT_SECRET, verify=True, algorithms=["HS256"])
             with pytest.raises(RemoteError) as exc:
                 proxy.login("matt", "incorrect")
             assert exc.value.exc_type == "Unauthenticated"

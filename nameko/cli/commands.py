@@ -158,8 +158,9 @@ class Test(Command):
         import eventlet
         eventlet.monkey_patch()  # noqa (code before imports)
 
-        import pytest
         import sys
+
+        import pytest
 
         args = list(unknown_args)
         args.extend(

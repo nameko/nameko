@@ -17,14 +17,14 @@ pylint:
 	pylint --rcfile=pylintrc nameko -E
 
 imports:
-	isort -rc $(autofix) nameko test
+	isort $(autofix) nameko test
 
 test_lib:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage run -m nameko test test -v --strict --timeout 30
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage run -m nameko test test -v --strict-markers --timeout 30
 	BRANCH=$(ENABLE_BRANCH_COVERAGE) coverage report
 
 test_examples:
-	BRANCH=$(ENABLE_BRANCH_COVERAGE) nameko test docs/examples/test --strict --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
+	BRANCH=$(ENABLE_BRANCH_COVERAGE) nameko test docs/examples/test --strict-markers --timeout 30 --cov=docs/examples --cov-config=$(CURDIR)/.coveragerc
 	nameko test docs/examples/testing
 
 test_docs: docs spelling #linkcheck
