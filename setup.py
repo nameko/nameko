@@ -40,7 +40,8 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==7.1.0",
+            "coverage==5.5 ; python_version<'3'",
+            "coverage==7.1.0 ; python_version>'3'",
             "flake8==3.9.2",
             "isort==4.3.21 ; python_version<'3'",
             "isort==5.11.5 ; python_version>'3'",
