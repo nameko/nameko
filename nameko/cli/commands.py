@@ -97,6 +97,11 @@ class Run(Command):
             help='RabbitMQ broker url')
 
         parser.add_argument(
+            '--backdoor-bind-address', type=str, default='127.0.0.1',
+            help='Support 0.0.0.0 and 127.0.0.1,'
+            ' the former can be accessed by other machines in the network')
+
+        parser.add_argument(
             '--backdoor-port', type=int,
             help='Specify a port number to host a backdoor, which can be'
             ' connected to for an interactive interpreter within the running'
@@ -172,3 +177,4 @@ class Test(Command):
 
 
 commands = Command.__subclasses__()  # pylint: disable=E1101
+
