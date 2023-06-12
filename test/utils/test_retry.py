@@ -139,3 +139,31 @@ class TestDelay(object):
 
         total_delay = mock_sleep.total()
         assert total_delay == delay * max_attempts
+
+    def test_multiple_calls(self, tracker, mock_sleep):
+        # Make sure that delay behaves the same way if called multiple times.
+        # Previously a bug caused the delay to increase with subsequent calls
+        max_attempts = 2
+        delay = 5
+        backoff = 2
+
+        @retry(max_attempts=max_attempts, delay=delay, backoff=backoff)
+        def fn():
+            tracker()
+            raise ValueError()
+
+        with pytest.raises(ValueError):
+            fn()
+
+        expected_delay = sum(
+            delay * (backoff ** attempt)
+            for attempt in range(1, max_attempts + 1)
+        )
+        total_delay = mock_sleep.total()
+        assert total_delay == expected_delay
+
+        with pytest.raises(ValueError):
+            fn()
+
+        total_delay = mock_sleep.total()
+        assert total_delay == 2 * expected_delay
