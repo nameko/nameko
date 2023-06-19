@@ -34,11 +34,9 @@ def retry(
     if max_attempts is None:
         max_attempts = float('inf')
 
-    retry_delay = RetryDelay(delay, backoff, max_delay)
-
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
-
+        retry_delay = RetryDelay(delay, backoff, max_delay)
         counter = itertools.count()
 
         while True:
