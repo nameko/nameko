@@ -425,12 +425,13 @@ def web_config_port(web_config):
 
 @pytest.fixture()
 def web_session(web_config_port):
+    from urllib.parse import urljoin
+
     from requests import Session
-    from werkzeug.urls import url_join
 
     class WebSession(Session):
         def request(self, method, url, *args, **kwargs):
-            url = url_join('http://127.0.0.1:%d/' % web_config_port, url)
+            url = urljoin('http://127.0.0.1:%d/' % web_config_port, url)
             return Session.request(self, method, url, *args, **kwargs)
 
     sess = WebSession()
