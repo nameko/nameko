@@ -67,6 +67,7 @@ This section covers most things you need to know to create and run your own Name
    what_is_nameko
    key_concepts
    installation
+   upgrading_to_nameko_3
    cli
    built_in_extensions
    community_extensions
