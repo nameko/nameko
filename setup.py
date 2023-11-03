@@ -42,11 +42,11 @@ setup(
     ],
     extras_require={
         'dev': [
-            "coverage==7.1.0 ; python_version>'3'",
+            "coverage==7.1.0",
             "flake8==3.9.2",
-            "isort==5.11.5 ; python_version>'3'",
-            "pylint==2.16.2 ; python_version>'3'",
-            "pytest==6.2.5 ; python_version>'3'",
+            "isort==5.11.5",
+            "pylint==2.16.2",
+            "pytest==6.2.5",
             "pytest-cov==2.5.1",
             "pytest-timeout==1.3.3",
             "requests==2.27.1",
@@ -63,8 +63,8 @@ setup(
         ],
         'examples': [
             "nameko-sqlalchemy==0.0.1",
-            "PyJWT==2.6.0 ; python_version>'3'",
-            "moto==4.1.2 ; python_version>'3'",
+            "PyJWT==2.6.0",
+            "moto==4.1.2",
             "bcrypt==3.1.3",
             "regex==2018.2.21"
         ],
