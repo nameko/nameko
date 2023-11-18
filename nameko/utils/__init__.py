@@ -134,3 +134,14 @@ def sanitize_url(url):
     parts = parts._replace(netloc='{}:{}@{}'.format(
         parts.username, REDACTED, host_info))
     return parts.geturl()
+
+
+def sanitize_connection_string(s):
+    """Sanitize the connection string"""
+    if not isinstance(s, str):
+        # it could be a list or set of urls per kombu.connection.Connection
+        return [sanitize_url(_) for _ in s]
+    elif ';' in s:
+        return ';'.join([sanitize_url(_) for _ in s.split(';')])
+    else:
+        return sanitize_url(s)

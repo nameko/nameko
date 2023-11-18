@@ -10,7 +10,7 @@ from nameko.extensions import DependencyProvider
 from nameko.rpc import Rpc, rpc
 from nameko.testing.services import dummy, entrypoint_hook, get_extension
 from nameko.utils import (
-    REDACTED, get_redacted_args, import_from_path, sanitize_url
+    REDACTED, get_redacted_args, import_from_path, sanitize_url, connection_url
 )
 from nameko.utils.concurrency import fail_fast_imap
 
@@ -259,4 +259,31 @@ class TestImportFromPath(object):
 ])
 def test_sanitize_url(url, expected):
     actual = sanitize_url(url)
+    assert actual == expected
+
+
+@pytest.mark.parametrize('connection_url,expected', [
+    (
+        'amqp://user:supersecret@127.0.0.1:5672//',
+        'amqp://user:{}@127.0.0.1:5672//'.format(REDACTED)
+    ),
+    (
+        'amqp://user@127.0.0.1:5672//',
+        'amqp://user@127.0.0.1:5672//'
+    ),
+    (
+        'amqp://127.0.0.1:5672//',
+        'amqp://127.0.0.1:5672//'
+    ),
+    (
+        'amqp://user:supersecret@127.0.0.1:5672//;amqp://user:supersecret@127.0.0.2:5672//',
+        'amqp://user:{}@127.0.0.1:5672//;amqp://user:{}@127.0.0.2:5672//'.format(REDACTED, REDACTED)
+    ),
+    (
+        ['amqp://user:supersecret@127.0.0.1:5672//', 'amqp://user:supersecret@127.0.0.2:5672//'],
+        ['amqp://user:{}@127.0.0.1:5672//'.format(REDACTED), 'amqp://user:{}@127.0.0.2:5672//'.format(REDACTED)]
+    ),
+])
+def test_sanitize_connection_url(connection_url, expected):
+    actual = sanitize_connection_url(connection_url)
     assert actual == expected
