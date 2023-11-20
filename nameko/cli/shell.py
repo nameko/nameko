@@ -84,7 +84,7 @@ def main(interface):
     banner = "Nameko Python %s shell on %s\nBroker: %s" % (
         sys.version,
         sys.platform,
-        config[AMQP_URI_CONFIG_KEY],
+        config.get(AMQP_URI_CONFIG_KEY, "undefined!!!"),
     )
 
     ctx = {}
