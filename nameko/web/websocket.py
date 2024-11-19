@@ -1,5 +1,7 @@
 import json
 import uuid
+import importlib
+
 from collections import namedtuple
 from functools import partial
 from logging import getLogger
@@ -26,7 +28,7 @@ from nameko.web.server import WebServer
 # all versions of werkzeug throw a 400 Bad Request error if no rules match, so we need
 # to make the explicit identification of a rule as a websocket target conditional
 # on the version of werkzeug.
-IDENTIFY_WEBSOCKET_RULES = version.parse(werkzeug.__version__) >= version.parse("2.0.0")
+IDENTIFY_WEBSOCKET_RULES = version.parse(importlib.metadata.version("werkzeug")) >= version.parse("2.0.0")
 
 
 _log = getLogger(__name__)
