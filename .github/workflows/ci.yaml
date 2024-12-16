@@ -79,8 +79,6 @@ jobs:
           - "3.11"
           - "3.10"
           - 3.9
-          - 3.8
-          - 3.7
         dependency-set:
           - pinned
           - latest
@@ -90,18 +88,6 @@ jobs:
           - test
         experimental:
           - false
-        # disable experimental builds until github actions has a good way to
-        # allow failure for a job but not fail the workflow
-        # see https://github.com/actions/toolkit/issues/399.
-        # include:
-        #   - python-version: 3.7
-        #     dependency-set: latest
-        #     command: test-mastereventlet
-        #     experimental: true
-        #   - python-version: 3.7
-        #     dependency-set: latest
-        #     command: test-branchcoverage
-        #     experimental: true
 
     steps:
     - name: checkout
@@ -143,7 +129,7 @@ jobs:
     - name: setup python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.11
 
     - name: install libenchant
       run: |
