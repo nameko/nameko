@@ -6,7 +6,7 @@ import re
 from functools import partial
 
 import yaml
-from pkg_resources import get_distribution
+import importlib
 
 from nameko.exceptions import CommandError, ConfigurationError
 
@@ -79,7 +79,7 @@ def setup_parser():
         '-v',
         '--version',
         action='version',
-        version=get_distribution('nameko').version
+        version=importlib.metadata.version('nameko')
     )
     subparsers = parser.add_subparsers()
 

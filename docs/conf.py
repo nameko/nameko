@@ -13,7 +13,7 @@
 # serve to show the default.
 
 import sphinx_nameko_theme
-import pkg_resources
+import importlib
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -58,7 +58,7 @@ copyright = u'2015'
 # built documents.
 #
 # The short X.Y version.
-version = pkg_resources.get_distribution('nameko').version
+version = importlib.metadata.version('nameko')
 # The full version, including alpha/beta/rc tags.
 release = version
 
